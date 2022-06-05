@@ -12,6 +12,8 @@
     It started as a learning process that eventually evolved to be a useful container library on top of C++.
 
     Its written in C++20.
+
+    It is still a WIP, lots of breaking changes are expected to happen.
 ## **Code style:**
 ```C++
 #include <core/defines.h>
