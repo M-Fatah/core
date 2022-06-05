@@ -10,7 +10,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 endif()
 
 option(CORE_BUILD_UNITTEST        "Enable building unittest." ${CORE_IS_MAIN_PROJECT})
-option(CORE_INSTALL               "Install core library."     ${CORE_IS_MAIN_PROJECT})
+option(CORE_INSTALL               "Enable installing core."   ${CORE_IS_MAIN_PROJECT})
 option(CORE_BUILD_UNITY           "Enable unity build."       OFF)
 
 set(CMAKE_PDB_OUTPUT_DIRECTORY     "${CMAKE_BINARY_DIR}/bin/"         )
@@ -18,8 +18,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 
-# Global compile definitions.
-add_compile_definitions(
+set(GLOBAL_COMPILE_DEFINITIONS
     $<$<CONFIG:DEBUG>:DEBUG=1>
     $<$<CONFIG:RELWITHDEBINFO>:DEBUG=1>
     $<$<CONFIG:RELEASE>:RELEASE=1>
@@ -38,11 +37,11 @@ add_subdirectory(core)
 if (CORE_BUILD_UNITTEST)
     message(STATUS "Build unittest flag is enabled.")
     add_subdirectory(unittest)
-endif(CORE_BUILD_UNITTEST)
+endif()
 
 if(CORE_BUILD_UNITY)
     message(STATUS "Unity build flag is enabled.")
-endif(CORE_BUILD_UNITY)
+endif()
 
 # Package and archive.
 # TODO: Add include directories to install.
@@ -62,4 +61,4 @@ if(CORE_INSTALL)
             OUTPUT_QUIET
         )"
     )
-endif(CORE_INSTALL)
+endif()

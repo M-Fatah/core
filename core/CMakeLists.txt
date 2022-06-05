@@ -48,16 +48,15 @@ endif()
 add_library(core ${HEADER_FILES} ${SOURCE_FILES})
 target_link_libraries(core PRIVATE ${LIBS})
 target_compile_options(core PRIVATE ${GLOBAL_COMPILE_OPTIONS})
-# TODO: Put headers into its own folder.
+target_compile_definitions(core PRIVATE ${GLOBAL_COMPILE_DEFINITIONS})
+# TODO: Put headers into its own folder?
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../)
 
-if(CORE_BUILD_UNITY)
-    set_target_properties(core
-        PROPERTIES
-            UNITY_BUILD_BATCH_SIZE 8
-            UNITY_BUILD true
-    )
-endif()
+set_target_properties(core
+    PROPERTIES
+        UNITY_BUILD_BATCH_SIZE 8
+        UNITY_BUILD ${CORE_BUILD_UNITY}
+)
 
 include(GenerateExportHeader)
 generate_export_header(core
