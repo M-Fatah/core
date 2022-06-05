@@ -2,7 +2,7 @@
 <!-- badges: start -->
 [![Build status](https://github.com/M-Fatah/core/workflows/CI/badge.svg)](https://github.com/M-Fatah/core/actions?workflow=CI)
 
-![Lines of code](https://img.shields.io/tokei/lines/github/M-Fatah/code)
+![Lines of code](https://img.shields.io/tokei/lines/github/M-Fatah/core)
 <!-- badges: end -->
 ---
 ## **Introduction:**
