@@ -45,7 +45,7 @@ if(WIN32)
     )
 endif()
 
-add_library(core SHARED ${HEADER_FILES} ${SOURCE_FILES})
+add_library(core ${HEADER_FILES} ${SOURCE_FILES})
 target_link_libraries(core PRIVATE ${LIBS})
 target_compile_options(core PRIVATE ${GLOBAL_COMPILE_OPTIONS})
 # TODO: Put headers into its own folder.
