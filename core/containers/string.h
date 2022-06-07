@@ -630,7 +630,7 @@ string_replace(String &self, const char *to_replace, const char *replacement)
 	string_replace(self, string_literal(to_replace), string_literal(replacement));
 }
 
-// TODO: Add unittests.
+// TODO:
 //       Add string_replace(String &, char, String &);
 //       Add string_replace(String &, char, const char *);
 //       Add string_replace(String &, String &, char);

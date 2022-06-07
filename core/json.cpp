@@ -464,10 +464,7 @@ json_value_from_string(const char *json_string, memory::Allocator *allocator)
 Result<JSON_Value>
 json_value_from_file(const char *filepath, memory::Allocator *allocator)
 {
-	auto file_size  = platform_file_size(filepath);
-	auto file_data  = memory::allocate(allocator, file_size);
-	auto bytes_read = platform_file_read(filepath, Platform_Memory{(u8 *)file_data, file_size});
-
+	auto file_size = platform_file_size(filepath);
 	if (file_size == 0)
 	{
 		return Error{
@@ -476,8 +473,11 @@ json_value_from_file(const char *filepath, memory::Allocator *allocator)
 		};
 	}
 
+	auto file_data  = memory::allocate(allocator, file_size);
+	auto bytes_read = platform_file_read(filepath, Platform_Memory{(u8 *)file_data, file_size});
 	if (bytes_read != file_size)
 	{
+		memory::deallocate(allocator, file_data);
 		return Error{
 			"[JSON]: Could not fully read file '{}' contents, file size '{}' but amout read is '{}'.",
 			filepath,
