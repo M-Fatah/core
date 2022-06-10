@@ -111,7 +111,7 @@ struct Result
 };
 
 template <>
-struct std::formatter<Error>
+struct fmt::formatter<Error>
 {
 	template <typename ParseContext>
 	constexpr auto parse(ParseContext &ctx)

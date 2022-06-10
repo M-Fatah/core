@@ -362,7 +362,7 @@ inline static void
 _json_value_array_to_string(const JSON_Value &self, String &json_string, i32 indent_level = 0)
 {
 	string_append(json_string, "[\n");
-	for (int i = 0; i < self.as_array.count; ++i)
+	for (u64 i = 0; i < self.as_array.count; ++i)
 	{
 		if (i > 0)
 		{

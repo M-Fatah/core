@@ -5,7 +5,7 @@
 #include "core/memory/memory.h"
 #include "core/serialization/serializer.h"
 
-#include <format>
+#include <fmt/core.h>
 #include <type_traits>
 #include <initializer_list>
 
@@ -305,7 +305,7 @@ deserialize(Serializer *serializer, Array<T> &self)
 }
 
 template <typename T>
-struct std::formatter<Array<T>>
+struct fmt::formatter<Array<T>>
 {
 	template <typename ParseContext>
 	constexpr auto parse(ParseContext &ctx)

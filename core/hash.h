@@ -10,7 +10,7 @@ hash_fnv_x32(const void *key, u64 key_length)
 	u32 hash    = 2166136261U;
 
 	const u8 *data = (const u8 *)key;
-	for (i32 i = 0; i < key_length; ++i)
+	for (u64 i = 0; i < key_length; ++i)
 		hash = (hash ^ data[i]) * p;
 
 	hash += hash << 13;

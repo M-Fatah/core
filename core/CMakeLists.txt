@@ -1,3 +1,13 @@
+# External dependencies.
+include(FetchContent)
+FetchContent_Declare(
+    fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG        8.1.1
+    GIT_PROGRESS   TRUE
+)
+FetchContent_MakeAvailable(fmt)
+
 set(HEADER_FILES
     assert.h
     defer.h
@@ -32,6 +42,7 @@ set(SOURCE_FILES
 )
 
 set(LIBS
+    fmt
 )
 
 if(WIN32)
@@ -43,10 +54,14 @@ if(WIN32)
         winmm.lib
         dbghelp
     )
+elseif(UNIX AND NOT APPLE)
+    list(APPEND SOURCE_FILES
+        platform/platform_linux.cpp
+    )
 endif()
 
 add_library(core ${HEADER_FILES} ${SOURCE_FILES})
-target_link_libraries(core PRIVATE ${LIBS})
+target_link_libraries(core PUBLIC ${LIBS})
 target_compile_options(core PRIVATE ${GLOBAL_COMPILE_OPTIONS})
 target_compile_definitions(core PRIVATE ${GLOBAL_COMPILE_DEFINITIONS})
 # TODO: Put headers into its own folder?

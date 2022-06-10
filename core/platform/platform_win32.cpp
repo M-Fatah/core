@@ -1,10 +1,10 @@
-#include "platform.h"
+#include "core/platform/platform.h"
 
-#include <core/defer.h>
-#include <core/assert.h>
-#include <core/logger.h>
-#include <core/memory/memory.h>
-#include <core/containers/array.h>
+#include "core/defer.h"
+#include "core/assert.h"
+#include "core/logger.h"
+#include "core/memory/memory.h"
+#include "core/containers/array.h"
 
 #define NOMINMAX
 #include <Windows.h>
