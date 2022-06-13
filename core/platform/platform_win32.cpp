@@ -413,17 +413,16 @@ platform_set_current_directory()
 	GetModuleFileNameA(0, module_path, sizeof(module_path));
 
 	char *last_slash = module_path;
-	char *iter = module_path;
-	while (*iter++)
+	char *iterator = module_path;
+	while (*iterator++)
 	{
-		if (*iter == '\\')
-			last_slash = ++iter;
+		if (*iterator == '\\')
+			last_slash = ++iterator;
 	}
 	*last_slash = '\0';
 
-	bool res = false;
-	res = SetCurrentDirectoryA(module_path);
-	ASSERT(res, "[PLATFORM]: Failed to set current directory.");
+	bool result = SetCurrentDirectoryA(module_path);
+	ASSERT(result, "[PLATFORM]: Failed to set current directory.");
 }
 
 

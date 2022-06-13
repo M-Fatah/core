@@ -1,5 +1,13 @@
 #include "core/platform/platform.h"
 
+#include "core/assert.h"
+#include "core/logger.h"
+
+#include <limits.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
 Platform_Api
 platform_api_init(const char *)
 {
@@ -76,7 +84,31 @@ platform_window_close(Platform_Window *)
 void
 platform_set_current_directory()
 {
+	char module_path_relative[PATH_MAX + 1];
+	::memset(module_path_relative, 0, sizeof(module_path_relative));
 
+	char module_path_absolute[PATH_MAX + 1];
+	::memset(module_path_absolute, 0, sizeof(module_path_absolute));
+
+	[[maybe_unused]] i64 module_path_relative_length = ::readlink("/proc/self/exe", module_path_relative, sizeof(module_path_relative));
+	ASSERT(module_path_relative_length != -1 && module_path_relative_length < (i64)sizeof(module_path_relative), "[PLATFORM]: Failed to get relative path of the current executable.");
+
+	[[maybe_unused]] char *path_absolute = ::realpath(module_path_relative, module_path_absolute);
+	ASSERT(path_absolute == module_path_absolute, "[PLATFORM]: Failed to get absolute path of the current executable.");
+
+	char *last_slash = module_path_absolute;
+	char *iterator = module_path_absolute;
+	while (*iterator++)
+	{
+		if (*iterator == '/')
+			last_slash = ++iterator;
+	}
+	*last_slash = '\0';
+
+	[[maybe_unused]] i32 result = ::chdir(module_path_absolute);
+	ASSERT(result == 0, "[PLATFORM]: Failed to set current directory.");
+
+	LOG_INFO("{}", module_path_absolute);
 }
 
 u64
