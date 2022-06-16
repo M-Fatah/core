@@ -22,9 +22,9 @@ jobs:
 
       - name: Install GCC
         if: matrix.os == 'ubuntu-latest'
-          uses: egor-tensin/setup-gcc@v1
-          with:
-            version: 11
+        uses: egor-tensin/setup-gcc@v1
+        with:
+          version: 11
 
       - name: Configuring
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{matrix.build-variant}} -DCORE_BUILD_UNITY=ON
