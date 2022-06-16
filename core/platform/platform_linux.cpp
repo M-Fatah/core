@@ -162,9 +162,12 @@ platform_sleep_set_period(u32)
 }
 
 void
-platform_sleep(u32)
+platform_sleep(u32 milliseconds)
 {
-
+	struct timespec ts;
+	ts.tv_sec = milliseconds / 1000;
+	ts.tv_nsec = (milliseconds % 1000) * 1000 * 1000;
+	nanosleep(&ts, 0);
 }
 
 u32
