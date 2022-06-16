@@ -421,7 +421,7 @@ platform_set_current_directory()
 	}
 	*last_slash = '\0';
 
-	bool result = SetCurrentDirectoryA(module_path);
+	[[maybe_unused]] bool result = SetCurrentDirectoryA(module_path);
 	ASSERT(result, "[PLATFORM]: Failed to set current directory.");
 }
 
