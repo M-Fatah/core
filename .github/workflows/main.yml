@@ -20,8 +20,8 @@ jobs:
         with:
           submodules: 'true'
 
-      if: matrix.os == 'ubuntu-latest'
-        - name: Install GCC
+      - name: Install GCC
+        if: matrix.os == 'ubuntu-latest'
           uses: egor-tensin/setup-gcc@v1
           with:
             version: 11
