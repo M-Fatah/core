@@ -1,5 +1,9 @@
 # **Core**
 <!-- badges: start -->
+[![](https://img.shields.io/badge/OS-windows--latest-blue)](https://github.com/M-Fatah/core)
+[![](http://github-actions.40ants.com/M-Fatah/core/matrix.svg?only=unit-tests.build-desktop.windows-latest)](https://github.com/M-Fatah/core)
+[![](https://img.shields.io/badge/OS-ubuntu--latest-blue)](https://github.com/M-Fatah/core)
+[![](http://github-actions.40ants.com/M-Fatah/core/matrix.svg?only=unit-tests.build-desktop.ubuntu-latest)](https://github.com/M-Fatah/core)
 [![Build status](https://github.com/M-Fatah/core/workflows/CI/badge.svg)](https://github.com/M-Fatah/core/actions?workflow=CI)
 ![Lines of code](https://img.shields.io/tokei/lines/github/M-Fatah/core)
 <!-- badges: end -->
