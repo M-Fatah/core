@@ -2,21 +2,31 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: windows-latest
-
+    runs-on: ${{matrix.os}}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubunto-latest]
+        build-variant: [Debug, Release]
     steps:
       - uses: actions/checkout@v2
-      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          submodules: 'true'
 
-      - name: build all debug
-        shell: cmd
-        run: build.bat
+      - name: Configuring
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{matrix.build-variant}} -DCORE_BUILD_UNITY=ON
 
-      - name: unittest debug
-        run: build/bin/Debug/unittest.exe
+      - name: Building
+        run: cmake --build build --clean-first --config ${{matrix.build-variant}} -j
+
+      - name: Running tests
+        working-directory: build/bin/${{matrix.build-variant}}
+        run: unittest
