@@ -20,6 +20,12 @@ jobs:
         with:
           submodules: 'true'
 
+      if: matrix.os == 'ubuntu-latest'
+      - name: Install Linux dependencies
+      run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt install -y g++-11
+
       - name: Configuring
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{matrix.build-variant}} -DCORE_BUILD_UNITY=ON
 
