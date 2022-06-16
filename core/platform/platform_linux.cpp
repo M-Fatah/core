@@ -6,6 +6,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 Platform_Api
@@ -107,8 +108,6 @@ platform_set_current_directory()
 
 	[[maybe_unused]] i32 result = ::chdir(module_path_absolute);
 	ASSERT(result == 0, "[PLATFORM]: Failed to set current directory.");
-
-	LOG_INFO("{}", module_path_absolute);
 }
 
 u64
@@ -150,7 +149,10 @@ platform_file_dialog_save(char *, u32, const char *)
 u64
 platform_query_microseconds()
 {
-	return 0;
+	struct timespec time;
+	[[maybe_unused]] i32 result = clock_gettime(CLOCK_MONOTONIC, &time);
+	ASSERT(result == 0, "[PLATFORM]: Failed to query clock.");
+	return time.tv_sec * 1000000.0f + time.tv_nsec * 0.001f;
 }
 
 void
