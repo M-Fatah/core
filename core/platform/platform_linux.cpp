@@ -184,7 +184,9 @@ platform_file_dialog_open(char *path, u32 path_length, const char *filters)
 	char command[2048];
 	::sprintf(command, "/usr/bin/zenity --file-selection --modal --file-filter=%s --title=\"Select a file.\"", filters);
 	FILE *file_handle = ::popen(command, "r");
-	path = ::fgets(path, path_length, file_handle);
+	char *result= ::fgets(path, path_length, file_handle);
+	if (result == nullptr)
+		return false;
 	return ::pclose(file_handle) == 0;
 }
 
@@ -196,7 +198,9 @@ platform_file_dialog_save(char *path, u32 path_length, const char *filters)
 	char command[2048];
 	::sprintf(command, "/usr/bin/zenity --file-selection --modal --save --file-filter=%s --title=\"Save file.\"", filters);
 	FILE *file_handle = ::popen(command, "r");
-	path = ::fgets(path, path_length, file_handle);
+	char *result = ::fgets(path, path_length, file_handle);
+	if (result == nullptr)
+		return false;
 	return ::pclose(file_handle) == 0;
 }
 
