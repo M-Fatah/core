@@ -3,11 +3,13 @@
 #include "core/assert.h"
 #include "core/logger.h"
 
+#include <fcntl.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 Platform_Api
 platform_api_init(const char *)
@@ -111,27 +113,50 @@ platform_set_current_directory()
 }
 
 u64
-platform_file_size(const char *)
+platform_file_size(const char *filepath)
 {
+	struct stat file_stat;
+	if(::stat(filepath, &file_stat) == 0)
+	{
+		return file_stat.st_size;
+	}
 	return 0;
 }
 
 u64
-platform_file_read(const char *, Platform_Memory)
+platform_file_read(const char *filepath, Platform_Memory mem)
 {
-	return 0;
+	i32 file_handle = ::open(filepath, O_RDONLY, S_IRWXU);
+	if(file_handle == -1)
+		return 0;
+
+	i64 bytes_read = ::read(file_handle, mem.ptr, mem.size);
+	i32 close_result = ::close(file_handle);
+	ASSERT(close_result == 0, "[PLATFORM]: Failed to close file handle.");
+	if (bytes_read == -1)
+		return 0;
+	return bytes_read;
 }
 
 u64
-platform_file_write(const char *, Platform_Memory)
+platform_file_write(const char *filepath, Platform_Memory mem)
 {
-	return 0;
+	i32 file_handle = ::open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
+	if(file_handle == -1)
+		return 0;
+
+	i64 bytes_written = ::write(file_handle, mem.ptr, mem.size);
+	i32 close_result = ::close(file_handle);
+	ASSERT(close_result == 0, "[PLATFORM]: Failed to close file handle.");
+	if (bytes_written == -1)
+		return 0;
+	return bytes_written;
 }
 
 bool
-platform_file_delete(const char *)
+platform_file_delete(const char *filepath)
 {
-	return 0;
+	return ::unlink(filepath) == 0;
 }
 
 bool
