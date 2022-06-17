@@ -169,16 +169,34 @@ platform_file_delete(const char *filepath)
 	return ::unlink(filepath) == 0;
 }
 
+/*
+	TODO:
+	[ ] Make sure zenity is installed on the user's system.
+	[ ] Filters on Linux does not match how its used on Windows atm.
+	[ ] Also file filter works only for a single filter for now.
+*/
 bool
-platform_file_dialog_open(char *, u32, const char *)
+platform_file_dialog_open(char *path, u32 path_length, const char *filters)
 {
-	return 0;
+	::memset(path, 0, path_length);
+
+	char command[2048];
+	::sprintf(command, "/usr/bin/zenity --file-selection --modal --file-filter=%s --title=\"Select a file.\"", filters);
+	FILE *file_handle = ::popen(command, "r");
+	::fgets(path, path_length, file_handle);
+	return ::pclose(file_handle) == 0;
 }
 
 bool
-platform_file_dialog_save(char *, u32, const char *)
+platform_file_dialog_save(char *path, u32 path_length, const char *filters)
 {
-	return 0;
+	::memset(path, 0, path_length);
+
+	char command[2048];
+	::sprintf(command, "/usr/bin/zenity --file-selection --modal --save --file-filter=%s --title=\"Save file.\"", filters);
+	FILE *file_handle = ::popen(command, "r");
+	::fgets(path, path_length, file_handle);
+	return ::pclose(file_handle) == 0;
 }
 
 u64
