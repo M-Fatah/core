@@ -117,9 +117,7 @@ platform_file_size(const char *filepath)
 {
 	struct stat file_stat;
 	if(::stat(filepath, &file_stat) == 0)
-	{
 		return file_stat.st_size;
-	}
 	return 0;
 }
 
@@ -131,7 +129,7 @@ platform_file_read(const char *filepath, Platform_Memory mem)
 		return 0;
 
 	i64 bytes_read = ::read(file_handle, mem.ptr, mem.size);
-	i32 close_result = ::close(file_handle);
+	[[maybe_unused]] i32 close_result = ::close(file_handle);
 	ASSERT(close_result == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_read == -1)
 		return 0;
@@ -146,7 +144,7 @@ platform_file_write(const char *filepath, Platform_Memory mem)
 		return 0;
 
 	i64 bytes_written = ::write(file_handle, mem.ptr, mem.size);
-	i32 close_result = ::close(file_handle);
+	[[maybe_unused]] i32 close_result = ::close(file_handle);
 	ASSERT(close_result == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_written == -1)
 		return 0;
