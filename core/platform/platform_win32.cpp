@@ -570,7 +570,7 @@ u32
 platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] u32 frame_count)
 {
 #if DEBUG
-	::memset(callstack, 0, sizeof(callstack) * frame_count);
+	::memset(callstack, 0, frame_count * sizeof(callstack));
 	return CaptureStackBackTrace(1, frame_count, callstack, NULL);
 #else
 	return 0;

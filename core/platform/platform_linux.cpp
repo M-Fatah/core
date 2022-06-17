@@ -9,6 +9,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <execinfo.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 
@@ -183,7 +184,7 @@ platform_file_dialog_open(char *path, u32 path_length, const char *filters)
 	char command[2048];
 	::sprintf(command, "/usr/bin/zenity --file-selection --modal --file-filter=%s --title=\"Select a file.\"", filters);
 	FILE *file_handle = ::popen(command, "r");
-	::fgets(path, path_length, file_handle);
+	path = ::fgets(path, path_length, file_handle);
 	return ::pclose(file_handle) == 0;
 }
 
@@ -195,7 +196,7 @@ platform_file_dialog_save(char *path, u32 path_length, const char *filters)
 	char command[2048];
 	::sprintf(command, "/usr/bin/zenity --file-selection --modal --save --file-filter=%s --title=\"Save file.\"", filters);
 	FILE *file_handle = ::popen(command, "r");
-	::fgets(path, path_length, file_handle);
+	path = ::fgets(path, path_length, file_handle);
 	return ::pclose(file_handle) == 0;
 }
 
@@ -224,9 +225,14 @@ platform_sleep(u32 milliseconds)
 }
 
 u32
-platform_callstack_capture(void **, u32)
+platform_callstack_capture(void **callstack, u32 frame_count)
 {
+#if DEBUG
+	::memset(callstack, 0, frame_count * sizeof(callstack));
+	return backtrace(callstack, frame_count);
+#else
 	return 0;
+#endif
 }
 
 void
