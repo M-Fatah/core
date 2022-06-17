@@ -233,16 +233,26 @@ platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] u
 {
 #if DEBUG
 	::memset(callstack, 0, frame_count * sizeof(callstack));
-	return backtrace(callstack, frame_count);
+	return ::backtrace(callstack, frame_count);
 #else
 	return 0;
 #endif
 }
 
 void
-platform_callstack_log(void **, u32)
+platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 frame_count)
 {
+#if DEBUG
+	char** symbols = ::backtrace_symbols(callstack, frame_count);
+	if (symbols)
+	{
+		LOG_WARNING("callstack:");
+		for (u32 i = 0; i < frame_count; ++i)
+			LOG_WARNING("\t[{}]: {}", frame_count - i - 1, symbols[i]);
 
+		::free(symbols);
+	}
+#endif
 }
 
 Font
