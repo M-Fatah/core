@@ -142,9 +142,8 @@ platform_allocator_init(u64 size_in_bytes)
 void
 platform_allocator_deinit(Platform_Allocator *self)
 {
-	bool res = false;
-	res = VirtualFree(self->ptr, 0, MEM_RELEASE);
-	ASSERT(res, "[PLATFORM]: Failed to free virtual memory.");
+	[[maybe_unused]] bool result = VirtualFree(self->ptr, 0, MEM_RELEASE);
+	ASSERT(result, "[PLATFORM]: Failed to free virtual memory.");
 }
 
 Platform_Memory

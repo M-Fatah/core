@@ -9,6 +9,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 
 Platform_Api
@@ -31,27 +32,38 @@ platform_api_load(Platform_Api *)
 
 
 Platform_Allocator
-platform_allocator_init(u64)
+platform_allocator_init(u64 size_in_bytes)
 {
-	return {};
+	Platform_Allocator self = {};
+	self.ptr = (u8 *)::mmap(0, size_in_bytes, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+	if(self.ptr)
+		self.size = size_in_bytes;
+	return self;
 }
 
 void
-platform_allocator_deinit(Platform_Allocator *)
+platform_allocator_deinit(Platform_Allocator *self)
 {
-
+	[[maybe_unused]] i32 result = ::munmap(self->ptr, self->size);
+	ASSERT(result == 0, "[PLATFORM]: Failed to free virtual memory.");
 }
 
 Platform_Memory
-platform_allocator_alloc(Platform_Allocator *, u64)
+platform_allocator_alloc(Platform_Allocator *self, u64 size_in_bytes)
 {
-	return {};
+	Platform_Memory res = {};
+	if (self->used + size_in_bytes >= self->size)
+		return res;
+	self->used += size_in_bytes;
+	res.ptr = self->ptr + self->used;
+	res.size = size_in_bytes;
+	return res;
 }
 
 void
-platform_allocator_clear(Platform_Allocator *)
+platform_allocator_clear(Platform_Allocator *self)
 {
-
+	self->used = 0;
 }
 
 Platform_Window

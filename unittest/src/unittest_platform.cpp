@@ -4,17 +4,17 @@
 
 TEST_CASE("[PLATFORM] memory")
 {
-	// Platform_Allocator allocator = platform_allocator_init(1024 * 1024);
-	// CHECK(allocator.ptr != nullptr);
-	// CHECK(allocator.size == 1024 * 1024);
-	// CHECK(allocator.used == 0);
+	Platform_Allocator allocator = platform_allocator_init(1024 * 1024);
+	CHECK(allocator.ptr != nullptr);
+	CHECK(allocator.size == 1024 * 1024);
+	CHECK(allocator.used == 0);
 
-	// Platform_Memory memory = platform_allocator_alloc(&allocator, 512);
-	// CHECK(allocator.used == 512);
-	// CHECK(memory.ptr == allocator.ptr + 512);
-	// CHECK(memory.size == 512);
+	Platform_Memory memory = platform_allocator_alloc(&allocator, 512);
+	CHECK(allocator.used == 512);
+	CHECK(memory.ptr == allocator.ptr + 512);
+	CHECK(memory.size == 512);
 
-	// platform_allocator_deinit(&allocator);
+	platform_allocator_deinit(&allocator);
 }
 
 TEST_CASE("[PLATFORM] file")
