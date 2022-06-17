@@ -334,39 +334,39 @@ TEST_CASE("[CORE]: Binary_Serializer")
 	}
 
 	{
-		// auto write_error = binary_serializer_to_file(serializer, "serialize_test.core");
-		// binary_serializer_clear(serializer);
+		auto write_error = binary_serializer_to_file(serializer, "serialize_test.core");
+		binary_serializer_clear(serializer);
 
-		// CHECK(write_error == false);
+		CHECK(write_error == false);
 	}
 
 	{
-	// 	auto [deserializer, read_error] = binary_serializer_from_file("serialize_test.core");
-	// 	DEFER(binary_serializer_deinit(deserializer));
+		auto [deserializer, read_error] = binary_serializer_from_file("serialize_test.core");
+		DEFER(binary_serializer_deinit(deserializer));
 
-	// 	CHECK(read_error == false);
+		CHECK(read_error == false);
 
-	// 	Game new_game = game_init();
-	// 	DEFER(game_deinit(new_game));
-	// 	binary_serializer_deserialize(deserializer, new_game);
+		Game new_game = game_init();
+		DEFER(game_deinit(new_game));
+		binary_serializer_deserialize(deserializer, new_game);
 
-	// 	CHECK(new_game.a == original_game.a);
-	// 	CHECK(new_game.b == original_game.b);
-	// 	CHECK(new_game.c == original_game.c);
-	// 	CHECK(new_game.d == original_game.d);
+		CHECK(new_game.a == original_game.a);
+		CHECK(new_game.b == original_game.b);
+		CHECK(new_game.c == original_game.c);
+		CHECK(new_game.d == original_game.d);
 
-	// 	for (u64 i = 0; i < new_game.e.count; ++i)
-	// 		CHECK(new_game.e[i] == original_game.e[i]);
+		for (u64 i = 0; i < new_game.e.count; ++i)
+			CHECK(new_game.e[i] == original_game.e[i]);
 
-	// 	CHECK(new_game.f == original_game.f);
+		CHECK(new_game.f == original_game.f);
 
-	// 	for (const auto &[new_key, new_value] : new_game.g)
-	// 	{
-	// 		const auto &[original_key, original_value] = *hash_table_find(original_game.g, new_key);
-	// 		CHECK(new_key == original_key);
-	// 		CHECK(new_value == original_value);
-	// 	}
+		for (const auto &[new_key, new_value] : new_game.g)
+		{
+			const auto &[original_key, original_value] = *hash_table_find(original_game.g, new_key);
+			CHECK(new_key == original_key);
+			CHECK(new_value == original_value);
+		}
 	}
 
-	// CHECK(platform_file_delete("serialize_test.core"));
+	CHECK(platform_file_delete("serialize_test.core"));
 }
