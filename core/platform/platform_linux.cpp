@@ -180,30 +180,61 @@ platform_window_deinit(Platform_Window *self)
 	memory::deallocate(ctx);
 }
 
+/*
+	TODO:
+	- [ ] Implement scroll wheel.
+	- [ ] Implement key presses/releases.
+*/
 bool
 platform_window_poll(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+
+	for (i32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
+	{
+		self->input.keys[i].pressed  = false;
+		self->input.keys[i].released = false;
+	}
+	self->input.mouse_wheel = 0.0f;
 
 	xcb_generic_event_t *e;
 	while ((e = xcb_poll_for_event(ctx->connection)))
 	{
 		switch (e->response_type & ~0x80)
 		{
+			case XCB_CLIENT_MESSAGE:
+			{
+				auto cm = (xcb_client_message_event_t *)e;
+				if (cm->data.data32[0] == ctx->wm_delete_window_atom)
+					return false;
+				break;
+			}
 			case XCB_BUTTON_PRESS:
 			{
 				auto bp = (xcb_button_press_event_t *)e;
 				switch (bp->detail)
 				{
 					case 1:
-						// MOUSE_BUTTON_LEFT;
+					{
+						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].pressed = true;
+						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].down    = true;
+						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].press_count++;
 						break;
+					}
 					case 2:
-						// MOUSE_BUTTON_MIDDLE;
+					{
+						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].pressed = true;
+						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].down    = true;
+						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].press_count++;
 						break;
+					}
 					case 3:
-						// MOUSE_BUTTON_RIGHT;
+					{
+						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].pressed = true;
+						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].down    = true;
+						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].press_count++;
 						break;
+					}
 					case 4:
 						// Scroll up.
 						break;
@@ -211,7 +242,6 @@ platform_window_poll(Platform_Window *self)
 						// Scroll down.
 						break;
 					default:
-						// do nothing
 						break;
 				}
 				break;
@@ -222,28 +252,41 @@ platform_window_poll(Platform_Window *self)
 				switch (br->detail)
 				{
 					case 1:
-						// MOUSE_BUTTON_LEFT;
+					{
+						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].released = true;
+						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].down     = false;
+						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].release_count++;
 						break;
+					}
 					case 2:
-						// MOUSE_BUTTON_MIDDLE;
+					{
+						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].released = true;
+						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].down     = false;
+						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].release_count++;
 						break;
+					}
 					case 3:
-						// MOUSE_BUTTON_RIGHT;
+					{
+						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].released = true;
+						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].down     = false;
+						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].release_count++;
 						break;
+					}
 					case 4:
 					case 5:
 					default:
-						// do nothing
 						break;
 				}
 				break;
 			}
 			case XCB_MOTION_NOTIFY:
 			{
-				// auto mn = (xcb_motion_notify_event_t *)e;
-				// Mouse move.
-				// mn->event_x;
-				// mn->event_y;
+				auto mn = (xcb_motion_notify_event_t *)e;
+				u32 mouse_point_y_inverted = (self->height - 1) - mn->event_y;
+				self->input.mouse_dx = mn->event_x - self->input.mouse_x;
+				self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
+				self->input.mouse_x  = mn->event_x;
+				self->input.mouse_y  = mouse_point_y_inverted; // NOTE(M-Fatah): We want mouse coords to start bottom-left.
 				break;
 			}
 			case XCB_KEY_PRESS:
@@ -262,22 +305,17 @@ platform_window_poll(Platform_Window *self)
 			}
 			case XCB_CONFIGURE_NOTIFY:
 			{
-				// auto cn = (xcb_configure_notify_event_t *)e;
-				// Window resize;
-				break;
-			}
-			case XCB_CLIENT_MESSAGE:
-			{
-				auto cm = (xcb_client_message_event_t *)e;
-				if (cm->data.data32[0] == ctx->wm_delete_window_atom)
-					return false;
+				auto cn = (xcb_configure_notify_event_t *)e;
+				if (cn->width != self->width || cn->height != self->height)
+				{
+					self->width  = cn->width;
+					self->height = cn->height;
+				}
 				break;
 			}
 			case XCB_MAP_NOTIFY:
 			case XCB_MAPPING_NOTIFY:
 			case XCB_REPARENT_NOTIFY:
-				// do nothing
-				break;
 			default:
 				break;
 		}
