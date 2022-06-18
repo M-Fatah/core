@@ -12,6 +12,8 @@
 #include <execinfo.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <xcb/xcb.h>
+#include <X11/Xlib-xcb.h>
 
 Platform_Api
 platform_api_init(const char *)
@@ -67,34 +69,246 @@ platform_allocator_clear(Platform_Allocator *self)
 	self->used = 0;
 }
 
-Platform_Window
-platform_window_init(u32, u32, const char *)
+struct Platform_Window_Context
 {
-	return {};
+	Display *display;
+	xcb_connection_t *connection;
+	xcb_window_t window;
+	xcb_atom_t wm_delete_window_atom;
+	xcb_atom_t wm_protocols_atom;
+};
+
+Platform_Window
+platform_window_init(u32 width, u32 height, const char *title)
+{
+	Display *display             = ::XOpenDisplay(nullptr);
+	xcb_connection_t *connection = ::XGetXCBConnection(display);
+	if (::xcb_connection_has_error(connection))
+	{
+		ASSERT(false, "[PLATFORM]: Failed to connect to X server via XCB.");
+		return {};
+	}
+
+	const struct xcb_setup_t *setup = ::xcb_get_setup(connection);
+	xcb_screen_iterator_t iterator  = ::xcb_setup_roots_iterator(setup);
+	xcb_screen_t *screen             = iterator.data;
+
+	xcb_window_t window = ::xcb_generate_id(connection);
+
+	u32 event_mask   = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
+	u32 event_values = XCB_EVENT_MASK_BUTTON_PRESS   |
+					   XCB_EVENT_MASK_BUTTON_RELEASE |
+					   XCB_EVENT_MASK_KEY_PRESS      |
+					   XCB_EVENT_MASK_KEY_RELEASE    |
+					   XCB_EVENT_MASK_EXPOSURE       |
+					   XCB_EVENT_MASK_POINTER_MOTION |
+					   XCB_EVENT_MASK_STRUCTURE_NOTIFY;
+
+	u32 value_list[] = {screen->black_pixel, event_values};
+
+	// Create the window.
+	::xcb_create_window(
+		connection,
+		XCB_COPY_FROM_PARENT,
+		window,
+		screen->root,
+		0,
+		0,
+		width,
+		height,
+		0,
+		XCB_WINDOW_CLASS_INPUT_OUTPUT,
+		screen->root_visual,
+		event_mask,
+		value_list
+	);
+
+	// Set the title.
+	::xcb_change_property(
+		connection,
+		XCB_PROP_MODE_REPLACE,
+		window,
+		XCB_ATOM_WM_NAME,
+		XCB_ATOM_STRING,
+		8,
+		::strlen(title),
+		title
+	);
+
+	// Tell the server to notify when the window manager attempts to destroy the window.
+	xcb_intern_atom_cookie_t wm_delete_cookie    = ::xcb_intern_atom(connection, 0, ::strlen("WM_DELETE_WINDOW"), "WM_DELETE_WINDOW");
+	xcb_intern_atom_cookie_t wm_protocols_cookie = ::xcb_intern_atom(connection, 0, ::strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
+	xcb_intern_atom_reply_t *wm_delete_reply     = ::xcb_intern_atom_reply(connection, wm_delete_cookie, nullptr);
+	xcb_intern_atom_reply_t *wm_protocols_reply  = ::xcb_intern_atom_reply(connection, wm_protocols_cookie, nullptr);
+
+	::xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, wm_protocols_reply->atom, 4, 32, 1, &wm_delete_reply->atom);
+
+	// Map the window to the screen.
+	::xcb_map_window(connection, window);
+
+	// Flush the stream.
+	i32 stream_result = ::xcb_flush(connection);
+	if (stream_result <= 0)
+	{
+		ASSERT(false, "[PLATFORM]: An error occurred when flusing the stream.");
+		return {};
+	}
+
+	Platform_Window_Context *ctx = memory::allocate_zeroed<Platform_Window_Context>();
+	ctx->display               = display;
+	ctx->connection            = connection;
+	ctx->window                = window;
+	ctx->wm_delete_window_atom = wm_delete_reply->atom;
+	ctx->wm_protocols_atom     = wm_protocols_reply->atom;
+
+	return Platform_Window {
+		.handle = ctx,
+		.width  = width,
+		.height = height,
+		.input  = {}
+	};
 }
 
 void
-platform_window_deinit(Platform_Window *)
+platform_window_deinit(Platform_Window *self)
 {
+	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 
+	::xcb_destroy_window(ctx->connection, ctx->window);
+	::xcb_disconnect(ctx->connection);
+
+	memory::deallocate(ctx);
 }
 
 bool
-platform_window_poll(Platform_Window *)
+platform_window_poll(Platform_Window *self)
 {
-	return 0;
+	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+
+	xcb_generic_event_t *e;
+	while ((e = xcb_poll_for_event(ctx->connection)))
+	{
+		switch (e->response_type & ~0x80)
+		{
+			case XCB_BUTTON_PRESS:
+			{
+				auto bp = (xcb_button_press_event_t *)e;
+				switch (bp->detail)
+				{
+					case 1:
+						// MOUSE_BUTTON_LEFT;
+						break;
+					case 2:
+						// MOUSE_BUTTON_MIDDLE;
+						break;
+					case 3:
+						// MOUSE_BUTTON_RIGHT;
+						break;
+					case 4:
+						// Scroll up.
+						break;
+					case 5:
+						// Scroll down.
+						break;
+					default:
+						// do nothing
+						break;
+				}
+				break;
+			}
+			case XCB_BUTTON_RELEASE:
+			{
+				auto br = (xcb_button_release_event_t *)e;
+				switch (br->detail)
+				{
+					case 1:
+						// MOUSE_BUTTON_LEFT;
+						break;
+					case 2:
+						// MOUSE_BUTTON_MIDDLE;
+						break;
+					case 3:
+						// MOUSE_BUTTON_RIGHT;
+						break;
+					case 4:
+					case 5:
+					default:
+						// do nothing
+						break;
+				}
+				break;
+			}
+			case XCB_MOTION_NOTIFY:
+			{
+				// auto mn = (xcb_motion_notify_event_t *)e;
+				// Mouse move.
+				// mn->event_x;
+				// mn->event_y;
+				break;
+			}
+			case XCB_KEY_PRESS:
+			{
+				// auto kp =(xcb_key_press_event_t *)e;
+				// KEY_PRESS;
+				// kp->detail;
+				break;
+			}
+			case XCB_KEY_RELEASE:
+			{
+				// auto kr =(xcb_key_release_event_t *)e;
+				// KEY_RELEASE;
+				// kr->detail;
+				break;
+			}
+			case XCB_CONFIGURE_NOTIFY:
+			{
+				// auto cn = (xcb_configure_notify_event_t *)e;
+				// Window resize;
+				break;
+			}
+			case XCB_CLIENT_MESSAGE:
+			{
+				auto cm = (xcb_client_message_event_t *)e;
+				if (cm->data.data32[0] == ctx->wm_delete_window_atom)
+					return false;
+				break;
+			}
+			case XCB_MAP_NOTIFY:
+			case XCB_MAPPING_NOTIFY:
+			case XCB_REPARENT_NOTIFY:
+				// do nothing
+				break;
+			default:
+				break;
+		}
+		::free(e);
+	}
+
+	return true;
 }
 
 void
-platform_window_set_title(Platform_Window *, const char *)
+platform_window_set_title(Platform_Window *self, const char *title)
 {
+	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 
+	::xcb_change_property(ctx->connection, XCB_PROP_MODE_REPLACE, ctx->window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, ::strlen(title), title);
 }
 
 void
-platform_window_close(Platform_Window *)
+platform_window_close(Platform_Window *self)
 {
+	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 
+	XEvent event;
+	::memset(&event, 0, sizeof (event));
+	event.xclient.type         = ClientMessage;
+	event.xclient.window       = ctx->window;
+	event.xclient.message_type = ::XInternAtom(ctx->display, "WM_PROTOCOLS", true);
+	event.xclient.format       = 32;
+	event.xclient.data.l[0]    = ::XInternAtom(ctx->display, "WM_DELETE_WINDOW", false);
+	event.xclient.data.l[1]    = CurrentTime;
+	::XSendEvent(ctx->display, ctx->window, false, NoEventMask, &event);
 }
 
 void
@@ -255,14 +469,14 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 f
 #endif
 }
 
-Font
+Platform_Font
 platform_font_init(const char *, const char *, u32, bool)
 {
 	return {};
 }
 
 void
-platform_font_deinit(Font *)
+platform_font_deinit(Platform_Font *)
 {
 
 }

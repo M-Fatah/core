@@ -58,6 +58,11 @@ elseif(UNIX AND NOT APPLE)
     list(APPEND SOURCE_FILES
         platform/platform_linux.cpp
     )
+    list(APPEND LIBS
+        xcb
+        X11
+        X11-xcb
+    )
 endif()
 
 add_library(core ${HEADER_FILES} ${SOURCE_FILES})
