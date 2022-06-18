@@ -649,7 +649,7 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 f
 */
 
 
-Font
+Platform_Font
 platform_font_init(const char *filepath, const char *face_name, u32 font_height, bool origin_top_left)
 {
 	// Supported glyph range.
@@ -879,7 +879,7 @@ platform_font_init(const char *filepath, const char *face_name, u32 font_height,
 	GetTextExtentPoint32W(device_context, &whitespace_point, 1, &whitespace_size);
 
 	// Fill font data.
-	Font font = {};
+	Platform_Font font = {};
 	font.ascent           = text_metrics.tmAscent;
 	font.descent          = text_metrics.tmDescent;
 	font.line_spacing     = text_metrics.tmHeight + text_metrics.tmExternalLeading;
@@ -896,7 +896,7 @@ platform_font_init(const char *filepath, const char *face_name, u32 font_height,
 }
 
 void
-platform_font_deinit(Font *font)
+platform_font_deinit(Platform_Font *font)
 {
 	memory::deallocate(font->kerning_table);
 	memory::deallocate(font->glyphs);
