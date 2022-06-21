@@ -469,6 +469,12 @@ platform_file_write(const char *filepath, Platform_Memory mem)
 }
 
 bool
+platform_file_copy(const char *from, const char *to)
+{
+	return CopyFileA(from, to, false);
+}
+
+bool
 platform_file_delete(const char *filepath)
 {
 	return DeleteFileA(filepath);

@@ -170,6 +170,9 @@ CORE_API u64
 platform_file_write(const char *filepath, Platform_Memory mem);
 
 CORE_API bool
+platform_file_copy(const char *from, const char *to);
+
+CORE_API bool
 platform_file_delete(const char *filepath);
 
 /**

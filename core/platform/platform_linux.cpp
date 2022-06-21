@@ -417,6 +417,43 @@ platform_file_write(const char *filepath, Platform_Memory mem)
 }
 
 bool
+platform_file_copy(const char *from, const char *to)
+{
+	i32 src_file = ::open(from, O_RDONLY);
+	if (src_file < 0)
+		return false;
+
+	i32 dst_file = ::open(to, O_WRONLY | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+	if (dst_file < 0)
+	{
+		::close(src_file);
+		return false;
+	}
+
+	DEFER({
+		::close(src_file);
+		::close(dst_file);
+	});
+
+	char buffer[8192];
+	while (true)
+	{
+		i64 bytes_read = ::read(src_file, buffer, sizeof(buffer));
+		if (bytes_read == 0)
+			break;
+
+		if (bytes_read == -1)
+			return false;
+
+		i64 bytes_written = ::write(dst_file, buffer, bytes_read);
+		if (bytes_written != bytes_read)
+			return false;
+	}
+
+	return true;
+}
+
+bool
 platform_file_delete(const char *filepath)
 {
 	return ::unlink(filepath) == 0;
