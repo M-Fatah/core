@@ -43,4 +43,4 @@ array_push(vertices, Vertex{{1.0f, 2.0f, 3.0f}, {0.0f, 0.0f, 1.0f}});
 - Run `build.bat` file, it will configure and build for you.
 - Output is in `build/bin/${CONFIG}/` directory.
 ## Inspirations:
-- [mn](https://github.com/MoustaphaSaad/mn)
+- [MN](https://github.com/MoustaphaSaad/mn).
