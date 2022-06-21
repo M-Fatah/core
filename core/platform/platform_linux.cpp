@@ -44,7 +44,7 @@ platform_api_init(const char *filepath)
 	char path_tmp[128] = {};
 	_string_concat(path, ".tmp", path_tmp);
 
-	bool copy_result = platform_file_copy(path, path_tmp);
+	[[maybe_unused]] bool copy_result = platform_file_copy(path, path_tmp);
 	ASSERT(copy_result, "[PLATFORM]: Failed to copy library.");
 
 	self.handle = ::dlopen(path_tmp, RTLD_LAZY);
@@ -56,7 +56,7 @@ platform_api_init(const char *filepath)
 	ASSERT(self.api, "[PLATFORM]: Failed to get api.");
 
 	struct stat file_stat = {};
-	i32 stat_result = ::stat(path, &file_stat);
+	[[maybe_unused]] i32 stat_result = ::stat(path, &file_stat);
 	ASSERT(stat_result == 0, "[PLATFORM]: Failed to get file attributes.");
 	self.last_write_time = file_stat.st_mtime;
 
