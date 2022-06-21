@@ -27,12 +27,12 @@ TEST_CASE("[PLATFORM] file")
 	write_mem.ptr  = (u8 *)write_data;
 	write_mem.size = sizeof(write_data);
 
-	const char *file_path = "test.platform";
+	const char *filepath = "test.platform";
 
-	u64 written_size = platform_file_write(file_path, write_mem);
+	u64 written_size = platform_file_write(filepath, write_mem);
 	CHECK(written_size == write_mem.size);
 
-	u64 file_size = platform_file_size(file_path);
+	u64 file_size = platform_file_size(filepath);
 	CHECK(file_size == write_mem.size);
 
 	u32 read_data[1024] = {};
@@ -40,7 +40,7 @@ TEST_CASE("[PLATFORM] file")
 	read_mem.ptr  = (u8 *)read_data;
 	read_mem.size = sizeof(read_data);
 
-	u64 read_size = platform_file_read(file_path, read_mem);
+	u64 read_size = platform_file_read(filepath, read_mem);
 	CHECK(read_size == written_size);
 	CHECK(read_size == read_mem.size);
 
@@ -54,7 +54,27 @@ TEST_CASE("[PLATFORM] file")
 		}
 	}
 	CHECK(same == true);
+
+	bool copy_result = platform_file_copy(filepath, "test_copy.platform");
+	CHECK(copy_result == true);
+
+	read_size = platform_file_read("test_copy.platform", read_mem);
+	CHECK(read_size == written_size);
+	CHECK(read_size == read_mem.size);
+
+	same = true;
+	for (u32 i = 0; i < 1024; ++i)
+	{
+		if (read_data[i] != write_data[i])
+		{
+			same = false;
+			break;
+		}
+	}
+	CHECK(same == true);
+
 	CHECK(platform_file_delete("test.platform"));
+	CHECK(platform_file_delete("test_copy.platform"));
 }
 
 TEST_CASE("[PLATFORM] time")

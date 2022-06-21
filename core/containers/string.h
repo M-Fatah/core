@@ -8,7 +8,7 @@
 #include "core/containers/array.h"
 #include "core/serialization/serializer.h"
 
-#include <format>
+#include <fmt/core.h>
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -50,8 +50,7 @@ template <typename ...TArgs>
 inline static String
 string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
 {
-	// TODO: Use temporary string buffer instead of allocating a new string each time we need to format.
-	auto formatted_string = std::vformat(fmt, std::make_format_args(args...));
+	auto formatted_string = fmt::vformat(fmt, fmt::make_format_args(args...));
 	return string_from(formatted_string.c_str(), allocator);
 }
 
@@ -134,8 +133,7 @@ inline static void
 string_append(String &self, const char *fmt, const TArgs &...args)
 {
 	ASSERT(self.allocator, "[STRING]: Cannot append to a string literal.");
-	// TODO: Use temporary string buffer instead of allocating a new string each time we need to format.
-	auto formatted_string = std::vformat(fmt, std::make_format_args(args...));
+	auto formatted_string = fmt::vformat(fmt, fmt::make_format_args(args...));
 	string_append(self, string_literal(formatted_string.c_str()));
 }
 
@@ -245,7 +243,7 @@ string_find_last_of(const String &self, const String &to_find)
 		return u64(-1);
 
 	u64 index = u64(-1);
-	for (u64 i = self.count - to_find.count; i >= 0 && i != u64(-1); --i)
+	for (u64 i = self.count - to_find.count; i != u64(-1); --i)
 	{
 		if (self[i] != to_find[0])
 			continue;
@@ -286,7 +284,7 @@ string_find_last_of(const char *c_string, const char *to_find)
 inline static u64
 string_find_last_of(const String &self, char c)
 {
-	for (u64 i = self.count - 1; i >= 0; --i)
+	for (u64 i = self.count - 1; i != u64(-1); --i)
 	{
 		if (self[i] == c)
 			return i;
@@ -554,7 +552,7 @@ string_split(const String &self, const String &delimeter, bool skip_empty = true
 
 	u64 current = 0;
 	u64 index   = 0;
-	while((index = string_find_first_of(self, delimeter, current)) != -1)
+	while((index = string_find_first_of(self, delimeter, current)) != u64(-1))
 	{
 		if ((index - current) != 0 || skip_empty == false)
 			array_push(splits, string_from(self.data + current, self.data + index, allocator));
@@ -753,7 +751,7 @@ deserialize(Serializer *serializer, String &self)
 }
 
 template <>
-struct std::formatter<String>
+struct fmt::formatter<String>
 {
 	template <typename ParseContext>
 	constexpr auto parse(ParseContext &ctx)

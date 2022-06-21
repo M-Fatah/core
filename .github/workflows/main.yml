@@ -2,21 +2,47 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+
   pull_request:
-    branches: [ main ]
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: windows-latest
-
+    runs-on: ${{matrix.os}}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        build-variant: [Debug, Release]
     steps:
       - uses: actions/checkout@v2
-      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          submodules: 'true'
 
-      - name: build all debug
-        shell: cmd
-        run: build.bat
+      - name: Installing GCC
+        if: matrix.os == 'ubuntu-latest'
+        uses: egor-tensin/setup-gcc@v1
+        with:
+          version: 11
 
-      - name: unittest debug
-        run: build/bin/Debug/unittest.exe
+      - name: Installing Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+            sudo apt update
+            sudo apt-get install -y libx11-dev
+            sudo apt-get install -y libxkbcommon-x11-dev libx11-xcb-dev
+
+      - name: Configuring
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{matrix.build-variant}} -DCORE_BUILD_UNITY=ON
+
+      - name: Building
+        run: cmake --build build --clean-first --config ${{matrix.build-variant}} -j
+
+      - name: Running tests
+        run: build/bin/${{matrix.build-variant}}/unittest

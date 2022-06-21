@@ -89,7 +89,7 @@ typedef struct Glyph
 	f32 uv_max_y;
 } Glyph;
 
-typedef struct Font
+typedef struct Platform_Font
 {
 	// Font data.
 	i32 ascent;
@@ -107,7 +107,7 @@ typedef struct Font
 	u8 *atlas;
 	u32 atlas_width;
 	u32 atlas_height;
-} Font;
+} Platform_Font;
 
 
 CORE_API Platform_Api
@@ -170,6 +170,9 @@ CORE_API u64
 platform_file_write(const char *filepath, Platform_Memory mem);
 
 CORE_API bool
+platform_file_copy(const char *from, const char *to);
+
+CORE_API bool
 platform_file_delete(const char *filepath);
 
 /**
@@ -219,7 +222,7 @@ platform_callstack_log(void **callstack, u32 frame_count);
  * @return a font structure that holds information about the loaded font and each glyph in the range '!' to '~'.
  * The font atlas stores only the alpha channel of the font glyphs.
  */
-CORE_API Font
+CORE_API Platform_Font
 platform_font_init(const char *filepath, const char *face_name, u32 font_height, bool origin_top_left);
 
 /**
@@ -227,7 +230,7 @@ platform_font_init(const char *filepath, const char *face_name, u32 font_height,
  * @param font is the pointer to the font structure to be freed.
  */
 CORE_API void
-platform_font_deinit(Font *font);
+platform_font_deinit(Platform_Font *font);
 
 #ifdef __cplusplus
 }

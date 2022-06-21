@@ -4,7 +4,7 @@
 #include "core/defines.h"
 #include "core/containers/string.h"
 
-#include <format>
+#include <fmt/core.h>
 
 #define LOG_FATAL(...) logger_write_to_console(LOG_TAG_FATAL, ##__VA_ARGS__)
 #define LOG_ERROR(...) logger_write_to_console(LOG_TAG_ERROR, ##__VA_ARGS__)
@@ -34,7 +34,6 @@ template <typename ...TArgs>
 inline static void
 logger_write_to_console(LOG_TAG tag, const char *fmt, const TArgs &...args)
 {
-	// TODO: Use temporary string buffer instead of allocating a new string each time we need to format.
-	auto formatted_string = std::vformat(fmt, std::make_format_args(args...));
+	auto formatted_string = fmt::vformat(fmt, fmt::make_format_args(args...));
 	logger_write_to_console(tag, string_literal(formatted_string.c_str()));
 }

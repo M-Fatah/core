@@ -175,6 +175,10 @@ hash_table_find(const Hash_Table<K, V> &self, const K &key)
 			{
 				return nullptr;
 			}
+			case HASH_TABLE_SLOT_FLAGS_DELETED:
+			{
+				break;
+			}
 		}
 
 		++slot_index;
@@ -222,6 +226,10 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 			case HASH_TABLE_SLOT_FLAGS_EMPTY:
 			{
 				return false;
+			}
+			case HASH_TABLE_SLOT_FLAGS_DELETED:
+			{
+				break;
 			}
 		}
 
@@ -335,7 +343,7 @@ deserialize(Serializer *serializer, Hash_Table<K, V> &self)
 }
 
 template <typename K, typename V>
-struct std::formatter<Hash_Table<K, V>>
+struct fmt::formatter<Hash_Table<K, V>>
 {
 	template <typename ParseContext>
 	constexpr auto parse(ParseContext &ctx)

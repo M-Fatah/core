@@ -1,10 +1,10 @@
-#include "platform.h"
+#include "core/platform/platform.h"
 
-#include <core/defer.h>
-#include <core/assert.h>
-#include <core/logger.h>
-#include <core/memory/memory.h>
-#include <core/containers/array.h>
+#include "core/defer.h"
+#include "core/assert.h"
+#include "core/logger.h"
+#include "core/memory/memory.h"
+#include "core/containers/array.h"
 
 #define NOMINMAX
 #include <Windows.h>
@@ -142,9 +142,8 @@ platform_allocator_init(u64 size_in_bytes)
 void
 platform_allocator_deinit(Platform_Allocator *self)
 {
-	bool res = false;
-	res = VirtualFree(self->ptr, 0, MEM_RELEASE);
-	ASSERT(res, "[PLATFORM]: Failed to free virtual memory.");
+	[[maybe_unused]] bool result = VirtualFree(self->ptr, 0, MEM_RELEASE);
+	ASSERT(result, "[PLATFORM]: Failed to free virtual memory.");
 }
 
 Platform_Memory
@@ -413,17 +412,16 @@ platform_set_current_directory()
 	GetModuleFileNameA(0, module_path, sizeof(module_path));
 
 	char *last_slash = module_path;
-	char *iter = module_path;
-	while (*iter++)
+	char *iterator = module_path;
+	while (*iterator++)
 	{
-		if (*iter == '\\')
-			last_slash = ++iter;
+		if (*iterator == '\\')
+			last_slash = ++iterator;
 	}
 	*last_slash = '\0';
 
-	bool res = false;
-	res = SetCurrentDirectoryA(module_path);
-	ASSERT(res, "[PLATFORM]: Failed to set current directory.");
+	[[maybe_unused]] bool result = SetCurrentDirectoryA(module_path);
+	ASSERT(result, "[PLATFORM]: Failed to set current directory.");
 }
 
 
@@ -468,6 +466,12 @@ platform_file_write(const char *filepath, Platform_Memory mem)
 	CloseHandle(file_handle);
 
 	return (u64)bytes_written;
+}
+
+bool
+platform_file_copy(const char *from, const char *to)
+{
+	return CopyFileA(from, to, false);
 }
 
 bool
@@ -572,7 +576,7 @@ u32
 platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] u32 frame_count)
 {
 #if DEBUG
-	::memset(callstack, 0, sizeof(callstack) * frame_count);
+	::memset(callstack, 0, frame_count * sizeof(callstack));
 	return CaptureStackBackTrace(1, frame_count, callstack, NULL);
 #else
 	return 0;
@@ -651,7 +655,7 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 f
 */
 
 
-Font
+Platform_Font
 platform_font_init(const char *filepath, const char *face_name, u32 font_height, bool origin_top_left)
 {
 	// Supported glyph range.
@@ -881,7 +885,7 @@ platform_font_init(const char *filepath, const char *face_name, u32 font_height,
 	GetTextExtentPoint32W(device_context, &whitespace_point, 1, &whitespace_size);
 
 	// Fill font data.
-	Font font = {};
+	Platform_Font font = {};
 	font.ascent           = text_metrics.tmAscent;
 	font.descent          = text_metrics.tmDescent;
 	font.line_spacing     = text_metrics.tmHeight + text_metrics.tmExternalLeading;
@@ -898,7 +902,7 @@ platform_font_init(const char *filepath, const char *face_name, u32 font_height,
 }
 
 void
-platform_font_deinit(Font *font)
+platform_font_deinit(Platform_Font *font)
 {
 	memory::deallocate(font->kerning_table);
 	memory::deallocate(font->glyphs);

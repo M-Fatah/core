@@ -4,6 +4,7 @@
 ![Lines of code](https://img.shields.io/tokei/lines/github/M-Fatah/core)
 <!-- badges: end -->
 ---
+
 ## **Introduction:**
 Core is a C-like C++ collection of utilities used as a foundation when writing programs in a data oriented fashion.
 
@@ -12,6 +13,7 @@ It started as a learning process that eventually evolved to be a useful containe
 Its written in C++20.
 
 It is still a WIP, lots of breaking changes are expected to happen.
+
 ## **Code style:**
 ```C++
 #include <core/defines.h>
@@ -33,14 +35,30 @@ DEFER(array_deinit(vertices));
 
 array_push(vertices, Vertex{{1.0f, 2.0f, 3.0f}, {0.0f, 0.0f, 1.0f}});
 ```
-## **Supported platforms:**
+
+## **Platforms:**
 - Windows.
-- Linux (later).
+- Linux.
 - Mac (later).
-## **Building:**
-- Requires C++20.
+
+## **Prerequisites:**
+#### **Windows:**
 - Download and install [CMake](https://cmake.org/download/) (version 3.20 atleast).
-- Run `build.bat` file, it will configure and build for you.
-- Output is in `build/bin/${CONFIG}/` directory.
-## Inspirations:
-- [mn](https://github.com/MoustaphaSaad/mn)
+#### **Linux:**
+```
+sudo apt update
+sudo apt-get install -y libx11-dev
+sudo apt-get install -y libxkbcommon-x11-dev libx11-xcb-dev
+sudo apt install -y zenity
+sudo apt install -y cmake
+```
+
+## **Building:**
+```
+cmake -B build
+cmake --build build --config Debug -j
+```
+Output is in `build/bin/${CONFIG}/` directory.
+
+## **Inspirations:**
+- [MN](https://github.com/MoustaphaSaad/mn).

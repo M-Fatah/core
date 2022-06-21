@@ -72,7 +72,7 @@ logger_write_to_console(LOG_TAG tag, const String &message)
 	// Print the formatted message to the console, with the color specified for its tag.
 	bool is_error = tag < LOG_TAG_WARNING;
 	if(is_error)
-		fprintf_s(stderr, "\033[%sm%s%s\n\033[0m", tag_color_string, tag_string, message.data);
+		fprintf(stderr, "\033[%sm%s%s\n\033[0m", tag_color_string, tag_string, message.data);
 	else
-		fprintf_s(stdout, "\033[%sm%s%s\n\033[0m", tag_color_string, tag_string, message.data);
+		fprintf(stdout, "\033[%sm%s%s\n\033[0m", tag_color_string, tag_string, message.data);
 }
