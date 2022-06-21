@@ -3,6 +3,7 @@
 #include "core/assert.h"
 #include "core/logger.h"
 
+#include <dlfcn.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -15,22 +16,103 @@
 #include <xcb/xcb.h>
 #include <X11/Xlib-xcb.h>
 
-Platform_Api
-platform_api_init(const char *)
+typedef void * (*platform_api_proc)(void *api, bool reload);
+
+// TODO: Remove from here.
+inline static void
+_string_concat(const char *a, const char *b, char *result)
 {
-	return {};
+	while (*a != '\0')
+	{
+		*result++ = *a++;
+	}
+
+	while(*b != '\0')
+	{
+		*result++ = *b++;
+	}
+}
+
+Platform_Api
+platform_api_init(const char *filepath)
+{
+	Platform_Api self = {};
+
+	char path[128] = {};
+	_string_concat(filepath, ".so", path);
+
+	char path_tmp[128] = {};
+	_string_concat(path, ".tmp", path_tmp);
+
+	bool copy_result = platform_file_copy(path, path_tmp);
+	ASSERT(copy_result, "[PLATFORM]: Failed to copy library.");
+
+	self.handle = ::dlopen(path_tmp, RTLD_LAZY);
+	ASSERT(self.handle, "[PLATFORM]: Failed to load library.");
+
+	platform_api_proc proc = (platform_api_proc)::dlsym(self.handle, "platform_api");
+	ASSERT(proc, "[PLATFORM]: Failed to get proc platform_api.");
+	self.api = proc(nullptr, false);
+	ASSERT(self.api, "[PLATFORM]: Failed to get api.");
+
+	struct stat file_stat = {};
+	i32 stat_result = ::stat(path, &file_stat);
+	ASSERT(stat_result == 0, "[PLATFORM]: Failed to get file attributes.");
+	self.last_write_time = file_stat.st_mtime;
+
+	self.filepath = filepath;
+
+	return self;
 }
 
 void
-platform_api_deinit(Platform_Api *)
+platform_api_deinit(Platform_Api *self)
 {
+	if (self->api)
+	{
+		platform_api_proc proc = (platform_api_proc)::dlsym(self->handle, "platform_api");
+		ASSERT(proc, "[PLATFORM]: Failed to get proc platform_api.");
+		self->api = proc(self->api, false);
+		ASSERT(self->api, "[PLATFORM]: Failed to get api.");
+	}
 
+	::dlclose(self->handle);
 }
 
 void *
-platform_api_load(Platform_Api *)
+platform_api_load(Platform_Api *self)
 {
-	return 0;
+	char path[128] = {};
+	_string_concat(self->filepath, ".so", path);
+
+	struct stat file_stat = {};
+	i32 stat_result = ::stat(path, &file_stat);
+	ASSERT(stat_result == 0, "[PLATFORM]: Failed to get file attributes.");
+
+	u64 last_write_time = file_stat.st_mtime;
+	if ((last_write_time == self->last_write_time) || (stat_result != 0))
+		return self->api;
+
+	::dlclose(self->handle);
+
+	char path_tmp[128] = {};
+	_string_concat(path, ".tmp", path_tmp);
+
+	bool copy_result = platform_file_copy(path, path_tmp);
+
+	self->handle = ::dlopen(path_tmp, RTLD_LAZY);
+	ASSERT(self->handle, "[PLATFORM]: Failed to load library.");
+
+	platform_api_proc proc = (platform_api_proc)::dlsym(self->handle, "platform_api");
+	ASSERT(proc, "[PLATFORM]: Failed to get proc platform_api.");
+	self->api = proc(self->api, true);
+	ASSERT(self->api, "[PLATFORM]: Failed to get api.");
+
+	// If copying failed we don't update last write time so that we can try copying it again in the next frame.
+	if (copy_result == true)
+		self->last_write_time = last_write_time;
+
+	return self->api;
 }
 
 
