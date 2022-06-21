@@ -62,6 +62,7 @@ elseif(UNIX AND NOT APPLE)
         xcb
         X11
         X11-xcb
+        dl
     )
 endif()
 
