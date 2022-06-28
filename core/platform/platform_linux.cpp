@@ -392,21 +392,21 @@ platform_window_poll(Platform_Window *self)
 	{
 		Window root_window;
 		Window child_window;
-		i32 root_window_x;
-		i32 root_window_y;
-		i32 window_x;
-		i32 window_y;
+		i32 root_window_mouse_x;
+		i32 root_window_mouse_y;
+		i32 window_mouse_x;
+		i32 window_mouse_y;
 		u32 window_mask;
-		XQueryPointer(ctx->display, ctx->window, &root_window, &child_window, &root_window_x, &root_window_y, &window_x, &window_y, &window_mask);
+		XQueryPointer(ctx->display, ctx->window, &root_window, &child_window, &root_window_mouse_x, &root_window_mouse_y, &window_mouse_x, &window_mouse_y, &window_mask);
 
-		if (window_x >= 0 && (u32)window_x < self->width && window_y >= 0 && (u32)window_y < self->height)
+		if (window_mouse_x >= 0 && (u32)window_mouse_x < self->width && window_mouse_y >= 0 && (u32)window_mouse_y < self->height)
 		{
-			if (window_x != self->input.mouse_x || window_y != self->input.mouse_y)
+			if (window_mouse_x != self->input.mouse_x || window_mouse_y != self->input.mouse_y)
 			{
-				u32 mouse_point_y_inverted = (self->height - 1) - window_y;
-				self->input.mouse_dx = window_x - self->input.mouse_x;
+				u32 mouse_point_y_inverted = (self->height - 1) - window_mouse_y;
+				self->input.mouse_dx = window_mouse_x - self->input.mouse_x;
 				self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
-				self->input.mouse_x  = window_x;
+				self->input.mouse_x  = window_mouse_x;
 				self->input.mouse_y  = mouse_point_y_inverted; // NOTE(M-Fatah): We want mouse coords to start bottom-left.
 			}
 		}
