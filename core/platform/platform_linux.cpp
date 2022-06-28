@@ -412,9 +412,9 @@ platform_window_get_native_handles(Platform_Window *self, void **native_handle, 
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 	if (native_handle)
-		*(xcb_window_t **)native_handle = &ctx->window;
+		*native_handle = &ctx->window;
 	if (native_display)
-		*(Display **)native_display = ctx->display;
+		*native_display = ctx->display;
 }
 
 void
