@@ -394,6 +394,13 @@ platform_window_poll(Platform_Window *self)
 }
 
 void
+platform_window_get_native_handles(Platform_Window *self, void **native_handle, void **)
+{
+	if (native_handle)
+		*(HWND *)native_handle = (HWND)self->handle;
+}
+
+void
 platform_window_set_title(Platform_Window *self, const char *title)
 {
 	SetWindowText((HWND)self->handle, title);
