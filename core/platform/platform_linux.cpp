@@ -73,7 +73,6 @@ platform_api_deinit(Platform_Api *self)
 		platform_api_proc proc = (platform_api_proc)::dlsym(self->handle, "platform_api");
 		ASSERT(proc, "[PLATFORM]: Failed to get proc platform_api.");
 		self->api = proc(self->api, false);
-		ASSERT(self->api, "[PLATFORM]: Failed to get api.");
 	}
 
 	::dlclose(self->handle);
