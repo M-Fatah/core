@@ -264,7 +264,6 @@ platform_window_deinit(Platform_Window *self)
 
 /*
 	TODO:
-	- [ ] Implement scroll wheel.
 	- [ ] Implement key presses/releases.
 */
 bool
@@ -279,129 +278,139 @@ platform_window_poll(Platform_Window *self)
 	}
 	self->input.mouse_wheel = 0.0f;
 
-	xcb_generic_event_t *e;
-	while ((e = xcb_poll_for_event(ctx->connection)))
+	XEvent event = {};
+	if (XPending(ctx->display))
 	{
-		switch (e->response_type & ~0x80)
+		XNextEvent(ctx->display, &event);
+		if (XFilterEvent(&event, None))
+			return true;
+
+		switch (event.type)
 		{
-			case XCB_CLIENT_MESSAGE:
+			case ClientMessage:
 			{
-				auto cm = (xcb_client_message_event_t *)e;
-				if (cm->data.data32[0] == ctx->wm_delete_window_atom)
+				if ((xcb_atom_t)event.xclient.data.l[0] == ctx->wm_delete_window_atom)
 					return false;
 				break;
 			}
-			case XCB_BUTTON_PRESS:
+			case KeyPress:
 			{
-				auto bp = (xcb_button_press_event_t *)e;
-				switch (bp->detail)
+				break;
+			}
+			case KeyRelease:
+			{
+				break;
+			}
+			case ButtonPress:
+			{
+				switch (event.xbutton.button)
 				{
-					case 1:
+					case Button1:
 					{
 						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].pressed = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].down    = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].press_count++;
 						break;
 					}
-					case 2:
+					case Button2:
 					{
 						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].pressed = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].down    = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].press_count++;
 						break;
 					}
-					case 3:
+					case Button3:
 					{
 						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].pressed = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].down    = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].press_count++;
 						break;
 					}
-					case 4:
-						// Scroll up.
+					case Button4:
+					{
+						self->input.mouse_wheel += 1.0f;
 						break;
-					case 5:
-						// Scroll down.
+					}
+					case Button5:
+					{
+						self->input.mouse_wheel += -1.0f;
 						break;
-					default:
-						break;
+					}
 				}
 				break;
 			}
-			case XCB_BUTTON_RELEASE:
+			case ButtonRelease:
 			{
-				auto br = (xcb_button_release_event_t *)e;
-				switch (br->detail)
+				switch (event.xbutton.button)
 				{
-					case 1:
+					case Button1:
 					{
 						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].released = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].down     = false;
 						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].release_count++;
 						break;
 					}
-					case 2:
+					case Button2:
 					{
 						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].released = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].down     = false;
 						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].release_count++;
 						break;
 					}
-					case 3:
+					case Button3:
 					{
 						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].released = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].down     = false;
 						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].release_count++;
 						break;
 					}
-					case 4:
-					case 5:
-					default:
-						break;
 				}
 				break;
 			}
-			case XCB_MOTION_NOTIFY:
+			case MotionNotify:
 			{
-				auto mn = (xcb_motion_notify_event_t *)e;
-				u32 mouse_point_y_inverted = (self->height - 1) - mn->event_y;
-				self->input.mouse_dx = mn->event_x - self->input.mouse_x;
+				u32 mouse_point_y_inverted = (self->height - 1) - event.xmotion.y;
+				self->input.mouse_dx = event.xmotion.x - self->input.mouse_x;
 				self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
-				self->input.mouse_x  = mn->event_x;
+				self->input.mouse_x  = event.xmotion.x;
 				self->input.mouse_y  = mouse_point_y_inverted; // NOTE(M-Fatah): We want mouse coords to start bottom-left.
 				break;
 			}
-			case XCB_KEY_PRESS:
+			case ConfigureNotify:
 			{
-				// auto kp =(xcb_key_press_event_t *)e;
-				// KEY_PRESS;
-				// kp->detail;
-				break;
-			}
-			case XCB_KEY_RELEASE:
-			{
-				// auto kr =(xcb_key_release_event_t *)e;
-				// KEY_RELEASE;
-				// kr->detail;
-				break;
-			}
-			case XCB_CONFIGURE_NOTIFY:
-			{
-				auto cn = (xcb_configure_notify_event_t *)e;
-				if (cn->width != self->width || cn->height != self->height)
+				if (self->width != (u32)event.xconfigure.width || self->height != (u32)event.xconfigure.height)
 				{
-					self->width  = cn->width;
-					self->height = cn->height;
+					self->width = event.xconfigure.width;
+					self->height = event.xconfigure.height;
 				}
 				break;
 			}
-			case XCB_MAP_NOTIFY:
-			case XCB_MAPPING_NOTIFY:
-			case XCB_REPARENT_NOTIFY:
 			default:
 				break;
 		}
-		::free(e);
+	}
+	else
+	{
+		Window root_window;
+		Window child_window;
+		i32 root_window_x;
+		i32 root_window_y;
+		i32 window_x;
+		i32 window_y;
+		u32 window_mask;
+		XQueryPointer(ctx->display, ctx->window, &root_window, &child_window, &root_window_x, &root_window_y, &window_x, &window_y, &window_mask);
+
+		if (window_x >= 0 && (u32)window_x < self->width && window_y >= 0 && (u32)window_y < self->height)
+		{
+			if (window_x != self->input.mouse_x || window_y != self->input.mouse_y)
+			{
+				u32 mouse_point_y_inverted = (self->height - 1) - window_y;
+				self->input.mouse_dx = window_x - self->input.mouse_x;
+				self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
+				self->input.mouse_x  = window_x;
+				self->input.mouse_y  = mouse_point_y_inverted; // NOTE(M-Fatah): We want mouse coords to start bottom-left.
+			}
+		}
 	}
 
 	return true;
