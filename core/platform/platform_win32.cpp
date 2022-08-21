@@ -363,12 +363,12 @@ platform_window_poll(Platform_Window *self)
 							self->input.keys[PLATFORM_KEY_ARROW_RIGHT].down = false;
 						break;
 					case VK_ESCAPE:
-						self->input.keys[PLATFORM_KEY_ESC].pressed  = is_down;
-						self->input.keys[PLATFORM_KEY_ESC].released = was_down;
+						self->input.keys[PLATFORM_KEY_ESCAPE].pressed  = is_down;
+						self->input.keys[PLATFORM_KEY_ESCAPE].released = was_down;
 						if (is_down)
-							self->input.keys[PLATFORM_KEY_ESC].down = true;
+							self->input.keys[PLATFORM_KEY_ESCAPE].down = true;
 						else if (was_down)
-							self->input.keys[PLATFORM_KEY_ESC].down = false;
+							self->input.keys[PLATFORM_KEY_ESCAPE].down = false;
 						break;
 				}
 			}
