@@ -278,7 +278,7 @@ platform_window_poll(Platform_Window *self)
 	self->input.mouse_wheel = 0.0f;
 
 	XEvent event = {};
-	if (XPending(ctx->display))
+	while (XPending(ctx->display))
 	{
 		XNextEvent(ctx->display, &event);
 		if (XFilterEvent(&event, None))
@@ -366,15 +366,6 @@ platform_window_poll(Platform_Window *self)
 				}
 				break;
 			}
-			case MotionNotify:
-			{
-				u32 mouse_point_y_inverted = (self->height - 1) - event.xmotion.y;
-				self->input.mouse_dx = event.xmotion.x - self->input.mouse_x;
-				self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
-				self->input.mouse_x  = event.xmotion.x;
-				self->input.mouse_y  = mouse_point_y_inverted; // NOTE(M-Fatah): We want mouse coords to start bottom-left.
-				break;
-			}
 			case ConfigureNotify:
 			{
 				if (self->width != (u32)event.xconfigure.width || self->height != (u32)event.xconfigure.height)
@@ -388,7 +379,8 @@ platform_window_poll(Platform_Window *self)
 				break;
 		}
 	}
-	else
+
+	// NOTE: Mouse movement.
 	{
 		Window root_window;
 		Window child_window;
@@ -523,7 +515,7 @@ platform_file_copy(const char *from, const char *to)
 	if (src_file < 0)
 		return false;
 
-	i32 dst_file = ::open(to, O_WRONLY | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+	i32 dst_file = ::open(to, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 	if (dst_file < 0)
 	{
 		::close(src_file);
