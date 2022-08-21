@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <xcb/xcb.h>
 #include <X11/Xlib-xcb.h>
+#include <X11/keysym.h>
 
 typedef void * (*platform_api_proc)(void *api, bool reload);
 
@@ -31,6 +32,112 @@ _string_concat(const char *a, const char *b, char *result)
 	{
 		*result++ = *b++;
 	}
+}
+
+inline static PLATFORM_KEY
+_platform_key_from_x_key_sym(KeySym key)
+{
+	switch (key)
+	{
+		case 'A':             return PLATFORM_KEY_A;
+		case 'B':             return PLATFORM_KEY_B;
+		case 'C':             return PLATFORM_KEY_C;
+		case 'D':             return PLATFORM_KEY_D;
+		case 'E':             return PLATFORM_KEY_E;
+		case 'F':             return PLATFORM_KEY_F;
+		case 'G':             return PLATFORM_KEY_G;
+		case 'H':             return PLATFORM_KEY_H;
+		case 'I':             return PLATFORM_KEY_I;
+		case 'J':             return PLATFORM_KEY_J;
+		case 'K':             return PLATFORM_KEY_K;
+		case 'L':             return PLATFORM_KEY_L;
+		case 'M':             return PLATFORM_KEY_M;
+		case 'N':             return PLATFORM_KEY_N;
+		case 'O':             return PLATFORM_KEY_O;
+		case 'P':             return PLATFORM_KEY_P;
+		case 'Q':             return PLATFORM_KEY_Q;
+		case 'R':             return PLATFORM_KEY_R;
+		case 'S':             return PLATFORM_KEY_S;
+		case 'T':             return PLATFORM_KEY_T;
+		case 'U':             return PLATFORM_KEY_U;
+		case 'V':             return PLATFORM_KEY_V;
+		case 'W':             return PLATFORM_KEY_W;
+		case 'X':             return PLATFORM_KEY_X;
+		case 'Y':             return PLATFORM_KEY_Y;
+		case 'Z':             return PLATFORM_KEY_Z;
+
+		case '0':             return PLATFORM_KEY_NUM_0;
+		case '1':             return PLATFORM_KEY_NUM_1;
+		case '2':             return PLATFORM_KEY_NUM_2;
+		case '3':             return PLATFORM_KEY_NUM_3;
+		case '4':             return PLATFORM_KEY_NUM_4;
+		case '5':             return PLATFORM_KEY_NUM_5;
+		case '6':             return PLATFORM_KEY_NUM_6;
+		case '7':             return PLATFORM_KEY_NUM_7;
+		case '8':             return PLATFORM_KEY_NUM_8;
+		case '9':             return PLATFORM_KEY_NUM_9;
+
+		case XK_KP_0:         return PLATFORM_KEY_NUMPAD_0;
+		case XK_KP_1:         return PLATFORM_KEY_NUMPAD_1;
+		case XK_KP_2:         return PLATFORM_KEY_NUMPAD_2;
+		case XK_KP_3:         return PLATFORM_KEY_NUMPAD_3;
+		case XK_KP_4:         return PLATFORM_KEY_NUMPAD_4;
+		case XK_KP_5:         return PLATFORM_KEY_NUMPAD_5;
+		case XK_KP_6:         return PLATFORM_KEY_NUMPAD_6;
+		case XK_KP_7:         return PLATFORM_KEY_NUMPAD_7;
+		case XK_KP_8:         return PLATFORM_KEY_NUMPAD_8;
+		case XK_KP_9:         return PLATFORM_KEY_NUMPAD_9;
+
+		case XK_F1:           return PLATFORM_KEY_F1;
+		case XK_F2:           return PLATFORM_KEY_F2;
+		case XK_F3:           return PLATFORM_KEY_F3;
+		case XK_F4:           return PLATFORM_KEY_F4;
+		case XK_F5:           return PLATFORM_KEY_F5;
+		case XK_F6:           return PLATFORM_KEY_F6;
+		case XK_F7:           return PLATFORM_KEY_F7;
+		case XK_F8:           return PLATFORM_KEY_F8;
+		case XK_F9:           return PLATFORM_KEY_F9;
+		case XK_F10:          return PLATFORM_KEY_F10;
+		case XK_F11:          return PLATFORM_KEY_F11;
+		case XK_F12:          return PLATFORM_KEY_F12;
+
+		case XK_Up:           return PLATFORM_KEY_ARROW_UP;
+		case XK_Down:         return PLATFORM_KEY_ARROW_DOWN;
+		case XK_Left:         return PLATFORM_KEY_ARROW_LEFT;
+		case XK_Right:        return PLATFORM_KEY_ARROW_RIGHT;
+
+		case XK_Shift_L:      return PLATFORM_KEY_SHIFT_LEFT;
+		case XK_Shift_R:      return PLATFORM_KEY_SHIFT_RIGHT;
+		case XK_Control_L:    return PLATFORM_KEY_CONTROL_LEFT;
+		case XK_Control_R:    return PLATFORM_KEY_CONTROL_RIGHT;
+		case XK_Alt_L:        return PLATFORM_KEY_ALT_LEFT;
+		case XK_Alt_R:        return PLATFORM_KEY_ALT_RIGHT;
+
+		case XK_BackSpace:    return PLATFORM_KEY_BACKSPACE;
+		case XK_Tab:          return PLATFORM_KEY_TAB;
+		case XK_Return:       return PLATFORM_KEY_ENTER;
+		case XK_Escape:       return PLATFORM_KEY_ESCAPE;
+		case XK_Delete:       return PLATFORM_KEY_DELETE;
+		case XK_Insert:       return PLATFORM_KEY_INSERT;
+		case XK_Home:         return PLATFORM_KEY_HOME;
+		case XK_End:          return PLATFORM_KEY_END;
+		case XK_Page_Up:      return PLATFORM_KEY_PAGE_UP;
+		case XK_Page_Down:    return PLATFORM_KEY_PAGE_DOWN;
+
+		case XK_slash:        return PLATFORM_KEY_SLASH;
+		case XK_backslash:    return PLATFORM_KEY_BACKSLASH;
+		case XK_bracketleft:  return PLATFORM_KEY_BRACKET_LEFT;
+		case XK_bracketright: return PLATFORM_KEY_BRACKET_RIGHT;
+		case XK_grave:        return PLATFORM_KEY_BACKQUOTE;
+		case XK_period:       return PLATFORM_KEY_PERIOD;
+		case XK_minus:        return PLATFORM_KEY_MINUS;
+		case XK_equal:        return PLATFORM_KEY_EQUAL;
+		case XK_comma:        return PLATFORM_KEY_COMMA;
+		case XK_semicolon:    return PLATFORM_KEY_SEMICOLON;
+		case XK_space:        return PLATFORM_KEY_SPACE;
+	}
+
+	return PLATFORM_KEY_COUNT;
 }
 
 Platform_Api
@@ -294,10 +401,18 @@ platform_window_poll(Platform_Window *self)
 			}
 			case KeyPress:
 			{
+				PLATFORM_KEY key = _platform_key_from_x_key_sym(XLookupKeysym(&event.xkey, 0));
+				self->input.keys[key].pressed = true;
+				self->input.keys[key].down    = true;
+				self->input.keys[key].press_count++;
 				break;
 			}
 			case KeyRelease:
 			{
+				PLATFORM_KEY key = _platform_key_from_x_key_sym(XLookupKeysym(&event.xkey, 0));
+				self->input.keys[key].released = true;
+				self->input.keys[key].down     = false;
+				self->input.keys[key].release_count++;
 				break;
 			}
 			case ButtonPress:
