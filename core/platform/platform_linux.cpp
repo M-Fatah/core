@@ -13,9 +13,9 @@
 #include <execinfo.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <xcb/xcb.h>
 #include <X11/Xlib-xcb.h>
 #include <X11/keysym.h>
+#include <X11/XKBlib.h>
 
 typedef void * (*platform_api_proc)(void *api, bool reload);
 
@@ -37,6 +37,7 @@ _string_concat(const char *a, const char *b, char *result)
 inline static PLATFORM_KEY
 _platform_key_from_x_key_sym(KeySym key)
 {
+	// TODO: Use XK_xxx naming.
 	switch (key)
 	{
 		case 'A':             return PLATFORM_KEY_A;
@@ -368,10 +369,7 @@ platform_window_deinit(Platform_Window *self)
 	memory::deallocate(ctx);
 }
 
-/*
-	TODO:
-	- [ ] Implement key presses/releases.
-*/
+// TODO: Cleanup and use proper naming.
 bool
 platform_window_poll(Platform_Window *self)
 {
@@ -384,68 +382,71 @@ platform_window_poll(Platform_Window *self)
 	}
 	self->input.mouse_wheel = 0.0f;
 
-	XEvent event = {};
-	while (XPending(ctx->display))
+	while (xcb_generic_event_t *xcb_event = ::xcb_poll_for_event(ctx->connection))
 	{
-		XNextEvent(ctx->display, &event);
-		if (XFilterEvent(&event, None))
-			return true;
-
-		switch (event.type)
+		switch (xcb_event->response_type & ~0x80)
 		{
-			case ClientMessage:
+			case XCB_CLIENT_MESSAGE:
 			{
-				if ((xcb_atom_t)event.xclient.data.l[0] == ctx->wm_delete_window_atom)
+				xcb_client_message_event_t *xcb_client_message = (xcb_client_message_event_t *)xcb_event;
+				if (xcb_client_message->data.data32[0] == ctx->wm_delete_window_atom)
 					return false;
 				break;
 			}
-			case KeyPress:
+			// TODO: Separate them?
+			case XCB_KEY_PRESS:
+			case XCB_KEY_RELEASE:
 			{
-				PLATFORM_KEY key = _platform_key_from_x_key_sym(XLookupKeysym(&event.xkey, 0));
-				self->input.keys[key].pressed = true;
-				self->input.keys[key].down    = true;
-				self->input.keys[key].press_count++;
-				break;
-			}
-			case KeyRelease:
-			{
-				PLATFORM_KEY key = _platform_key_from_x_key_sym(XLookupKeysym(&event.xkey, 0));
-				self->input.keys[key].released = true;
-				self->input.keys[key].down     = false;
-				self->input.keys[key].release_count++;
-				break;
-			}
-			case ButtonPress:
-			{
-				switch (event.xbutton.button)
+				xcb_key_press_event_t *xcb_kb_event = (xcb_key_press_event_t *)xcb_event;
+				KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_kb_event->detail, 0, 0);
+				PLATFORM_KEY key = _platform_key_from_x_key_sym(key_sym);
+				if (xcb_event->response_type == XCB_KEY_PRESS)
 				{
-					case Button1:
+					self->input.keys[key].pressed = true;
+					self->input.keys[key].down    = true;
+					self->input.keys[key].press_count++;
+				}
+				else
+				{
+					self->input.keys[key].released = true;
+					self->input.keys[key].down     = false;
+					self->input.keys[key].release_count++;
+				}
+				break;
+			}
+			case XCB_BUTTON_PRESS:
+			{
+				// TODO: Collapse?
+				xcb_button_press_event_t *xcb_mouse_press_event = (xcb_button_press_event_t *)xcb_event;
+				switch (xcb_mouse_press_event->detail)
+				{
+					case XCB_BUTTON_INDEX_1:
 					{
 						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].pressed = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].down    = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].press_count++;
 						break;
 					}
-					case Button2:
+					case XCB_BUTTON_INDEX_2:
 					{
 						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].pressed = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].down    = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].press_count++;
 						break;
 					}
-					case Button3:
+					case XCB_BUTTON_INDEX_3:
 					{
 						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].pressed = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].down    = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].press_count++;
 						break;
 					}
-					case Button4:
+					case XCB_BUTTON_INDEX_4:
 					{
 						self->input.mouse_wheel += 1.0f;
 						break;
 					}
-					case Button5:
+					case XCB_BUTTON_INDEX_5:
 					{
 						self->input.mouse_wheel += -1.0f;
 						break;
@@ -453,25 +454,27 @@ platform_window_poll(Platform_Window *self)
 				}
 				break;
 			}
-			case ButtonRelease:
+			case XCB_BUTTON_RELEASE:
 			{
-				switch (event.xbutton.button)
+				// TODO: Collapse?
+				xcb_button_release_event_t *xcb_mouse_release_event = (xcb_button_release_event_t *)xcb_event;
+				switch (xcb_mouse_release_event->detail)
 				{
-					case Button1:
+					case XCB_BUTTON_INDEX_1:
 					{
 						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].released = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].down     = false;
 						self->input.keys[PLATFORM_KEY_MOUSE_LEFT].release_count++;
 						break;
 					}
-					case Button2:
+					case XCB_BUTTON_INDEX_2:
 					{
 						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].released = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].down     = false;
 						self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].release_count++;
 						break;
 					}
-					case Button3:
+					case XCB_BUTTON_INDEX_3:
 					{
 						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].released = true;
 						self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].down     = false;
@@ -481,42 +484,45 @@ platform_window_poll(Platform_Window *self)
 				}
 				break;
 			}
-			case ConfigureNotify:
+			case XCB_CONFIGURE_NOTIFY:
 			{
-				if (self->width != (u32)event.xconfigure.width || self->height != (u32)event.xconfigure.height)
+				xcb_configure_notify_event_t *xcb_configure_notify_event = (xcb_configure_notify_event_t *)xcb_event;
+				if (self->width != (u32)xcb_configure_notify_event->width || self->height != (u32)xcb_configure_notify_event->height)
 				{
-					self->width = event.xconfigure.width;
-					self->height = event.xconfigure.height;
+					self->width  = xcb_configure_notify_event->width;
+					self->height = xcb_configure_notify_event->height;
 				}
 				break;
 			}
 			default:
 				break;
 		}
-	}
 
-	// NOTE: Mouse movement.
-	{
-		Window root_window;
-		Window child_window;
-		i32 root_window_mouse_x;
-		i32 root_window_mouse_y;
-		i32 window_mouse_x;
-		i32 window_mouse_y;
-		u32 window_mask;
-		XQueryPointer(ctx->display, ctx->window, &root_window, &child_window, &root_window_mouse_x, &root_window_mouse_y, &window_mouse_x, &window_mouse_y, &window_mask);
-
-		if (window_mouse_x >= 0 && (u32)window_mouse_x < self->width && window_mouse_y >= 0 && (u32)window_mouse_y < self->height)
+		// NOTE: Mouse movement.
 		{
-			if (window_mouse_x != self->input.mouse_x || window_mouse_y != self->input.mouse_y)
+			Window root_window;
+			Window child_window;
+			i32 root_window_mouse_x;
+			i32 root_window_mouse_y;
+			i32 window_mouse_x;
+			i32 window_mouse_y;
+			u32 window_mask;
+			XQueryPointer(ctx->display, ctx->window, &root_window, &child_window, &root_window_mouse_x, &root_window_mouse_y, &window_mouse_x, &window_mouse_y, &window_mask);
+
+			if (window_mouse_x >= 0 && (u32)window_mouse_x < self->width && window_mouse_y >= 0 && (u32)window_mouse_y < self->height)
 			{
-				u32 mouse_point_y_inverted = (self->height - 1) - window_mouse_y;
-				self->input.mouse_dx = window_mouse_x - self->input.mouse_x;
-				self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
-				self->input.mouse_x  = window_mouse_x;
-				self->input.mouse_y  = mouse_point_y_inverted; // NOTE(M-Fatah): We want mouse coords to start bottom-left.
+				if (window_mouse_x != self->input.mouse_x || window_mouse_y != self->input.mouse_y)
+				{
+					u32 mouse_point_y_inverted = (self->height - 1) - window_mouse_y;
+					self->input.mouse_dx = window_mouse_x - self->input.mouse_x;
+					self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
+					self->input.mouse_x  = window_mouse_x;
+					self->input.mouse_y  = mouse_point_y_inverted; // NOTE(M-Fatah): We want mouse coords to start bottom-left.
+				}
 			}
 		}
+
+		::free(xcb_event);
 	}
 
 	return true;
