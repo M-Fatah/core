@@ -37,46 +37,45 @@ _string_concat(const char *a, const char *b, char *result)
 inline static PLATFORM_KEY
 _platform_key_from_x_key_sym(KeySym key)
 {
-	// TODO: Use XK_xxx naming.
 	switch (key)
 	{
-		case 'A':             return PLATFORM_KEY_A;
-		case 'B':             return PLATFORM_KEY_B;
-		case 'C':             return PLATFORM_KEY_C;
-		case 'D':             return PLATFORM_KEY_D;
-		case 'E':             return PLATFORM_KEY_E;
-		case 'F':             return PLATFORM_KEY_F;
-		case 'G':             return PLATFORM_KEY_G;
-		case 'H':             return PLATFORM_KEY_H;
-		case 'I':             return PLATFORM_KEY_I;
-		case 'J':             return PLATFORM_KEY_J;
-		case 'K':             return PLATFORM_KEY_K;
-		case 'L':             return PLATFORM_KEY_L;
-		case 'M':             return PLATFORM_KEY_M;
-		case 'N':             return PLATFORM_KEY_N;
-		case 'O':             return PLATFORM_KEY_O;
-		case 'P':             return PLATFORM_KEY_P;
-		case 'Q':             return PLATFORM_KEY_Q;
-		case 'R':             return PLATFORM_KEY_R;
-		case 'S':             return PLATFORM_KEY_S;
-		case 'T':             return PLATFORM_KEY_T;
-		case 'U':             return PLATFORM_KEY_U;
-		case 'V':             return PLATFORM_KEY_V;
-		case 'W':             return PLATFORM_KEY_W;
-		case 'X':             return PLATFORM_KEY_X;
-		case 'Y':             return PLATFORM_KEY_Y;
-		case 'Z':             return PLATFORM_KEY_Z;
+		case XK_a:            return PLATFORM_KEY_A;
+		case XK_b:            return PLATFORM_KEY_B;
+		case XK_c:            return PLATFORM_KEY_C;
+		case XK_d:            return PLATFORM_KEY_D;
+		case XK_e:            return PLATFORM_KEY_E;
+		case XK_f:            return PLATFORM_KEY_F;
+		case XK_g:            return PLATFORM_KEY_G;
+		case XK_h:            return PLATFORM_KEY_H;
+		case XK_i:            return PLATFORM_KEY_I;
+		case XK_j:            return PLATFORM_KEY_J;
+		case XK_k:            return PLATFORM_KEY_K;
+		case XK_l:            return PLATFORM_KEY_L;
+		case XK_m:            return PLATFORM_KEY_M;
+		case XK_n:            return PLATFORM_KEY_N;
+		case XK_o:            return PLATFORM_KEY_O;
+		case XK_p:            return PLATFORM_KEY_P;
+		case XK_q:            return PLATFORM_KEY_Q;
+		case XK_r:            return PLATFORM_KEY_R;
+		case XK_s:            return PLATFORM_KEY_S;
+		case XK_t:            return PLATFORM_KEY_T;
+		case XK_u:            return PLATFORM_KEY_U;
+		case XK_v:            return PLATFORM_KEY_V;
+		case XK_w:            return PLATFORM_KEY_W;
+		case XK_x:            return PLATFORM_KEY_X;
+		case XK_y:            return PLATFORM_KEY_Y;
+		case XK_z:            return PLATFORM_KEY_Z;
 
-		case '0':             return PLATFORM_KEY_NUM_0;
-		case '1':             return PLATFORM_KEY_NUM_1;
-		case '2':             return PLATFORM_KEY_NUM_2;
-		case '3':             return PLATFORM_KEY_NUM_3;
-		case '4':             return PLATFORM_KEY_NUM_4;
-		case '5':             return PLATFORM_KEY_NUM_5;
-		case '6':             return PLATFORM_KEY_NUM_6;
-		case '7':             return PLATFORM_KEY_NUM_7;
-		case '8':             return PLATFORM_KEY_NUM_8;
-		case '9':             return PLATFORM_KEY_NUM_9;
+		case XK_0:            return PLATFORM_KEY_NUM_0;
+		case XK_1:            return PLATFORM_KEY_NUM_1;
+		case XK_2:            return PLATFORM_KEY_NUM_2;
+		case XK_3:            return PLATFORM_KEY_NUM_3;
+		case XK_4:            return PLATFORM_KEY_NUM_4;
+		case XK_5:            return PLATFORM_KEY_NUM_5;
+		case XK_6:            return PLATFORM_KEY_NUM_6;
+		case XK_7:            return PLATFORM_KEY_NUM_7;
+		case XK_8:            return PLATFORM_KEY_NUM_8;
+		case XK_9:            return PLATFORM_KEY_NUM_9;
 
 		case XK_KP_0:         return PLATFORM_KEY_NUMPAD_0;
 		case XK_KP_1:         return PLATFORM_KEY_NUMPAD_1;
@@ -332,6 +331,11 @@ platform_window_init(u32 width, u32 height, const char *title)
 
 	::xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, wm_protocols_reply->atom, 4, 32, 1, &wm_delete_reply->atom);
 
+	// TODO: Affects the whole system, also, properly name variables.
+	u32 kb_mask = XCB_KB_AUTO_REPEAT_MODE;
+	u32 kb_values[] = {XCB_AUTO_REPEAT_MODE_OFF, None};
+	xcb_change_keyboard_control(connection, kb_mask, kb_values);
+
 	// Map the window to the screen.
 	::xcb_map_window(connection, window);
 
@@ -377,8 +381,10 @@ platform_window_poll(Platform_Window *self)
 
 	for (i32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{
-		self->input.keys[i].pressed  = false;
-		self->input.keys[i].released = false;
+		self->input.keys[i].pressed       = false;
+		self->input.keys[i].released      = false;
+		self->input.keys[i].press_count   = 0;
+		self->input.keys[i].release_count = 0;
 	}
 	self->input.mouse_wheel = 0.0f;
 
@@ -393,25 +399,26 @@ platform_window_poll(Platform_Window *self)
 					return false;
 				break;
 			}
-			// TODO: Separate them?
 			case XCB_KEY_PRESS:
+			{
+				xcb_key_press_event_t *xcb_key_press_event = (xcb_key_press_event_t *)xcb_event;
+				KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_press_event->detail, 0, 0);
+
+				PLATFORM_KEY key = _platform_key_from_x_key_sym(key_sym);
+				self->input.keys[key].pressed  = true;
+				self->input.keys[key].down     = true;
+				self->input.keys[key].press_count++;
+				break;
+			}
 			case XCB_KEY_RELEASE:
 			{
-				xcb_key_press_event_t *xcb_kb_event = (xcb_key_press_event_t *)xcb_event;
-				KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_kb_event->detail, 0, 0);
+				xcb_key_release_event_t *xcb_key_release_event = (xcb_key_release_event_t *)xcb_event;
+				KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_release_event->detail, 0, 0);
+
 				PLATFORM_KEY key = _platform_key_from_x_key_sym(key_sym);
-				if (xcb_event->response_type == XCB_KEY_PRESS)
-				{
-					self->input.keys[key].pressed = true;
-					self->input.keys[key].down    = true;
-					self->input.keys[key].press_count++;
-				}
-				else
-				{
-					self->input.keys[key].released = true;
-					self->input.keys[key].down     = false;
-					self->input.keys[key].release_count++;
-				}
+				self->input.keys[key].released = true;
+				self->input.keys[key].down     = false;
+				self->input.keys[key].release_count++;
 				break;
 			}
 			case XCB_BUTTON_PRESS:
@@ -498,31 +505,28 @@ platform_window_poll(Platform_Window *self)
 				break;
 		}
 
-		// NOTE: Mouse movement.
-		{
-			Window root_window;
-			Window child_window;
-			i32 root_window_mouse_x;
-			i32 root_window_mouse_y;
-			i32 window_mouse_x;
-			i32 window_mouse_y;
-			u32 window_mask;
-			XQueryPointer(ctx->display, ctx->window, &root_window, &child_window, &root_window_mouse_x, &root_window_mouse_y, &window_mouse_x, &window_mouse_y, &window_mask);
+		::free(xcb_event);
+	}
 
-			if (window_mouse_x >= 0 && (u32)window_mouse_x < self->width && window_mouse_y >= 0 && (u32)window_mouse_y < self->height)
+	{
+		// NOTE: Mouse movement.
+		xcb_query_pointer_cookie_t xcb_query_pointer_cookie = ::xcb_query_pointer_unchecked(ctx->connection, ctx->window);
+		xcb_query_pointer_reply_t *xcb_query_pointer_reply  = ::xcb_query_pointer_reply(ctx->connection, xcb_query_pointer_cookie, nullptr);
+
+		i32 window_mouse_x = xcb_query_pointer_reply->win_x;
+		i32 window_mouse_y = xcb_query_pointer_reply->win_y;
+		if (window_mouse_x >= 0 && (u32)window_mouse_x < self->width && window_mouse_y >= 0 && (u32)window_mouse_y < self->height)
+		{
+			if (window_mouse_x != self->input.mouse_x || window_mouse_y != self->input.mouse_y)
 			{
-				if (window_mouse_x != self->input.mouse_x || window_mouse_y != self->input.mouse_y)
-				{
-					u32 mouse_point_y_inverted = (self->height - 1) - window_mouse_y;
-					self->input.mouse_dx = window_mouse_x - self->input.mouse_x;
-					self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
-					self->input.mouse_x  = window_mouse_x;
-					self->input.mouse_y  = mouse_point_y_inverted; // NOTE(M-Fatah): We want mouse coords to start bottom-left.
-				}
+				u32 mouse_point_y_inverted = (self->height - 1) - window_mouse_y;
+				self->input.mouse_dx = window_mouse_x - self->input.mouse_x;
+				self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
+				self->input.mouse_x  = window_mouse_x;
+				self->input.mouse_y  = mouse_point_y_inverted; // NOTE(M-Fatah): We want mouse coords to start bottom-left.
 			}
 		}
-
-		::free(xcb_event);
+		::free(xcb_query_pointer_reply);
 	}
 
 	return true;
