@@ -279,7 +279,7 @@ platform_window_init(u32 width, u32 height, const char *title)
 
 	const struct xcb_setup_t *setup = ::xcb_get_setup(connection);
 	xcb_screen_iterator_t iterator  = ::xcb_setup_roots_iterator(setup);
-	xcb_screen_t *screen             = iterator.data;
+	xcb_screen_t *screen            = iterator.data;
 
 	xcb_window_t window = ::xcb_generate_id(connection);
 
@@ -331,10 +331,8 @@ platform_window_init(u32 width, u32 height, const char *title)
 
 	::xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, wm_protocols_reply->atom, 4, 32, 1, &wm_delete_reply->atom);
 
-	// TODO: Affects the whole system, also, properly name variables.
-	u32 kb_mask = XCB_KB_AUTO_REPEAT_MODE;
-	u32 kb_values[] = {XCB_AUTO_REPEAT_MODE_OFF, None};
-	xcb_change_keyboard_control(connection, kb_mask, kb_values);
+	// Set auto repeat keys to off.
+	::XAutoRepeatOff(display);
 
 	// Map the window to the screen.
 	::xcb_map_window(connection, window);
@@ -367,8 +365,9 @@ platform_window_deinit(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 
+	// Set auto repeat keys back to on.
+	::XAutoRepeatOn(ctx->display);
 	::xcb_destroy_window(ctx->connection, ctx->window);
-	::xcb_disconnect(ctx->connection);
 
 	memory::deallocate(ctx);
 }
