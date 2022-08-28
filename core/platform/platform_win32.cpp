@@ -356,11 +356,14 @@ platform_window_poll(Platform_Window *self)
 				SetCapture((HWND)self->handle);
 
 				PLATFORM_KEY key = _platform_key_from_msg(msg);
-				self->input.keys[key].pressed = true;
-				self->input.keys[key].down    = true;
-				self->input.keys[key].press_count++;
-				if (key == PLATFORM_KEY_MOUSE_WHEEL_UP || key == PLATFORM_KEY_MOUSE_WHEEL_DOWN)
-					self->input.mouse_wheel += (f32)GET_WHEEL_DELTA_WPARAM(msg.wParam) / (f32)WHEEL_DELTA;
+				if (key != PLATFORM_KEY_COUNT)
+				{
+					self->input.keys[key].pressed = true;
+					self->input.keys[key].down    = true;
+					self->input.keys[key].press_count++;
+					if (key == PLATFORM_KEY_MOUSE_WHEEL_UP || key == PLATFORM_KEY_MOUSE_WHEEL_DOWN)
+						self->input.mouse_wheel += (f32)GET_WHEEL_DELTA_WPARAM(msg.wParam) / (f32)WHEEL_DELTA;
+				}
 				break;
 			}
 			case WM_LBUTTONUP:
@@ -370,9 +373,12 @@ platform_window_poll(Platform_Window *self)
 				ReleaseCapture();
 
 				PLATFORM_KEY key = _platform_key_from_msg(msg);
-				self->input.keys[key].released = true;
-				self->input.keys[key].down     = false;
-				self->input.keys[key].release_count++;
+				if (key != PLATFORM_KEY_COUNT)
+				{
+					self->input.keys[key].released = true;
+					self->input.keys[key].down     = false;
+					self->input.keys[key].release_count++;
+				}
 				break;
 			}
 			case WM_KEYDOWN:
