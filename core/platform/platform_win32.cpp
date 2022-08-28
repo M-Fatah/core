@@ -30,6 +30,123 @@ _string_concat(const char *a, const char *b, char *result)
 	}
 }
 
+inline static PLATFORM_KEY
+_platform_key_from_msg(MSG msg)
+{
+	switch (msg.message)
+	{
+		case WM_LBUTTONDOWN: return PLATFORM_KEY_MOUSE_LEFT;
+		case WM_LBUTTONUP:   return PLATFORM_KEY_MOUSE_LEFT;
+		case WM_MBUTTONDOWN: return PLATFORM_KEY_MOUSE_MIDDLE;
+		case WM_MBUTTONUP:   return PLATFORM_KEY_MOUSE_MIDDLE;
+		case WM_RBUTTONDOWN: return PLATFORM_KEY_MOUSE_RIGHT;
+		case WM_RBUTTONUP:   return PLATFORM_KEY_MOUSE_RIGHT;
+		case WM_MOUSEWHEEL:  return (GET_WHEEL_DELTA_WPARAM(msg.wParam) > 0)? PLATFORM_KEY_MOUSE_WHEEL_UP : PLATFORM_KEY_MOUSE_WHEEL_DOWN;
+	}
+	return PLATFORM_KEY_COUNT;
+}
+
+inline static PLATFORM_KEY
+_platform_key_from_wparam(WPARAM wparam)
+{
+	switch (wparam)
+	{
+		case 'A':           return PLATFORM_KEY_A;
+		case 'B':           return PLATFORM_KEY_B;
+		case 'C':           return PLATFORM_KEY_C;
+		case 'D':           return PLATFORM_KEY_D;
+		case 'E':           return PLATFORM_KEY_E;
+		case 'F':           return PLATFORM_KEY_F;
+		case 'G':           return PLATFORM_KEY_G;
+		case 'H':           return PLATFORM_KEY_H;
+		case 'I':           return PLATFORM_KEY_I;
+		case 'J':           return PLATFORM_KEY_J;
+		case 'K':           return PLATFORM_KEY_K;
+		case 'L':           return PLATFORM_KEY_L;
+		case 'M':           return PLATFORM_KEY_M;
+		case 'N':           return PLATFORM_KEY_N;
+		case 'O':           return PLATFORM_KEY_O;
+		case 'P':           return PLATFORM_KEY_P;
+		case 'Q':           return PLATFORM_KEY_Q;
+		case 'R':           return PLATFORM_KEY_R;
+		case 'S':           return PLATFORM_KEY_S;
+		case 'T':           return PLATFORM_KEY_T;
+		case 'U':           return PLATFORM_KEY_U;
+		case 'V':           return PLATFORM_KEY_V;
+		case 'W':           return PLATFORM_KEY_W;
+		case 'X':           return PLATFORM_KEY_X;
+		case 'Y':           return PLATFORM_KEY_Y;
+		case 'Z':           return PLATFORM_KEY_Z;
+		case '0':           return PLATFORM_KEY_NUM_0;
+		case '1':           return PLATFORM_KEY_NUM_1;
+		case '2':           return PLATFORM_KEY_NUM_2;
+		case '3':           return PLATFORM_KEY_NUM_3;
+		case '4':           return PLATFORM_KEY_NUM_4;
+		case '5':           return PLATFORM_KEY_NUM_5;
+		case '6':           return PLATFORM_KEY_NUM_6;
+		case '7':           return PLATFORM_KEY_NUM_7;
+		case '8':           return PLATFORM_KEY_NUM_8;
+		case '9':           return PLATFORM_KEY_NUM_9;
+		case VK_NUMPAD0:    return PLATFORM_KEY_NUMPAD_0;
+		case VK_NUMPAD1:    return PLATFORM_KEY_NUMPAD_1;
+		case VK_NUMPAD2:    return PLATFORM_KEY_NUMPAD_2;
+		case VK_NUMPAD3:    return PLATFORM_KEY_NUMPAD_3;
+		case VK_NUMPAD4:    return PLATFORM_KEY_NUMPAD_4;
+		case VK_NUMPAD5:    return PLATFORM_KEY_NUMPAD_5;
+		case VK_NUMPAD6:    return PLATFORM_KEY_NUMPAD_6;
+		case VK_NUMPAD7:    return PLATFORM_KEY_NUMPAD_7;
+		case VK_NUMPAD8:    return PLATFORM_KEY_NUMPAD_8;
+		case VK_NUMPAD9:    return PLATFORM_KEY_NUMPAD_9;
+		case VK_F1:         return PLATFORM_KEY_F1;
+		case VK_F2:         return PLATFORM_KEY_F2;
+		case VK_F3:         return PLATFORM_KEY_F3;
+		case VK_F4:         return PLATFORM_KEY_F4;
+		case VK_F5:         return PLATFORM_KEY_F5;
+		case VK_F6:         return PLATFORM_KEY_F6;
+		case VK_F7:         return PLATFORM_KEY_F7;
+		case VK_F8:         return PLATFORM_KEY_F8;
+		case VK_F9:         return PLATFORM_KEY_F9;
+		case VK_F10:        return PLATFORM_KEY_F10;
+		case VK_F11:        return PLATFORM_KEY_F11;
+		case VK_F12:        return PLATFORM_KEY_F12;
+		case VK_UP:         return PLATFORM_KEY_ARROW_UP;
+		case VK_DOWN:       return PLATFORM_KEY_ARROW_DOWN;
+		case VK_LEFT:       return PLATFORM_KEY_ARROW_LEFT;
+		case VK_RIGHT:      return PLATFORM_KEY_ARROW_RIGHT;
+		case VK_SHIFT:      return PLATFORM_KEY_SHIFT_LEFT;
+		case VK_LSHIFT:     return PLATFORM_KEY_SHIFT_LEFT;
+		case VK_RSHIFT:     return PLATFORM_KEY_SHIFT_RIGHT;
+		case VK_CONTROL:    return PLATFORM_KEY_CONTROL_LEFT;
+		case VK_LCONTROL:   return PLATFORM_KEY_CONTROL_LEFT;
+		case VK_RCONTROL:   return PLATFORM_KEY_CONTROL_RIGHT;
+		case VK_MENU:       return PLATFORM_KEY_ALT_LEFT;
+		case VK_LMENU:      return PLATFORM_KEY_ALT_LEFT;
+		case VK_RMENU:      return PLATFORM_KEY_ALT_RIGHT;
+		case VK_BACK:       return PLATFORM_KEY_BACKSPACE;
+		case VK_TAB:        return PLATFORM_KEY_TAB;
+		case VK_RETURN:     return PLATFORM_KEY_ENTER;
+		case VK_ESCAPE:     return PLATFORM_KEY_ESCAPE;
+		case VK_DELETE:     return PLATFORM_KEY_DELETE;
+		case VK_INSERT:     return PLATFORM_KEY_INSERT;
+		case VK_HOME:       return PLATFORM_KEY_HOME;
+		case VK_END:        return PLATFORM_KEY_END;
+		case VK_PRIOR:      return PLATFORM_KEY_PAGE_UP;
+		case VK_NEXT:       return PLATFORM_KEY_PAGE_DOWN;
+		case VK_OEM_2:      return PLATFORM_KEY_SLASH;
+		case VK_OEM_5:      return PLATFORM_KEY_BACKSLASH;
+		case VK_OEM_4:      return PLATFORM_KEY_BRACKET_LEFT;
+		case VK_OEM_6:      return PLATFORM_KEY_BRACKET_RIGHT;
+		case VK_OEM_3:      return PLATFORM_KEY_BACKQUOTE;
+		case VK_OEM_PERIOD: return PLATFORM_KEY_PERIOD;
+		case VK_OEM_MINUS:  return PLATFORM_KEY_MINUS;
+		case VK_OEM_PLUS:   return PLATFORM_KEY_EQUAL;
+		case VK_OEM_COMMA:  return PLATFORM_KEY_COMMA;
+		case VK_OEM_1:      return PLATFORM_KEY_SEMICOLON;
+		case VK_SPACE:      return PLATFORM_KEY_SPACE;
+	}
+	return PLATFORM_KEY_COUNT;
+}
+
 LRESULT CALLBACK
 _window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
@@ -208,14 +325,15 @@ platform_window_deinit(Platform_Window *self)
 	ASSERT(res, "[PLATFORM]: Failed to destroy window.");
 }
 
-// TODO: Add rest of the keyboard and mouse events.
 bool
 platform_window_poll(Platform_Window *self)
 {
 	for (i32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{
-		self->input.keys[i].pressed = false;
-		self->input.keys[i].released = false;
+		self->input.keys[i].pressed       = false;
+		self->input.keys[i].released      = false;
+		self->input.keys[i].press_count   = 0;
+		self->input.keys[i].release_count = 0;
 	}
 	self->input.mouse_wheel = 0.0f;
 
@@ -224,171 +342,93 @@ platform_window_poll(Platform_Window *self)
 	{
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
-
 		switch (msg.message)
 		{
 			case WM_QUIT:
-				return false;
-
-			case WM_LBUTTONDOWN:
-				SetCapture((HWND)self->handle);
-				self->input.keys[PLATFORM_KEY_MOUSE_LEFT].pressed = true;
-				self->input.keys[PLATFORM_KEY_MOUSE_LEFT].down    = true;
-				self->input.keys[PLATFORM_KEY_MOUSE_LEFT].press_count++;
-				break;
-			case WM_LBUTTONUP:
-				SetCapture(nullptr);
-				self->input.keys[PLATFORM_KEY_MOUSE_LEFT].released = true;
-				self->input.keys[PLATFORM_KEY_MOUSE_LEFT].down     = false;
-				self->input.keys[PLATFORM_KEY_MOUSE_LEFT].release_count++;
-				break;
-
-			case WM_RBUTTONDOWN:
-				SetCapture((HWND)self->handle);
-				self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].pressed = true;
-				self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].down    = true;
-				self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].press_count++;
-				break;
-			case WM_RBUTTONUP:
-				SetCapture(nullptr);
-				self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].released = true;
-				self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].down     = false;
-				self->input.keys[PLATFORM_KEY_MOUSE_RIGHT].release_count++;
-				break;
-
-			case WM_MBUTTONDOWN:
-				SetCapture((HWND)self->handle);
-				self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].pressed = true;
-				self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].down    = true;
-				self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].press_count++;
-				break;
-			case WM_MBUTTONUP:
-				SetCapture(nullptr);
-				self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].released = true;
-				self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].down     = false;
-				self->input.keys[PLATFORM_KEY_MOUSE_MIDDLE].release_count++;
-				break;
-
-			case WM_MOUSEWHEEL:
-				self->input.mouse_wheel += (f32)GET_WHEEL_DELTA_WPARAM(msg.wParam) / (f32)WHEEL_DELTA;
-				break;
-			case WM_SYSKEYDOWN:
-			case WM_SYSKEYUP:
-			case WM_KEYDOWN:
-			case WM_KEYUP:
 			{
-				i32 was_down =  (msg.lParam & (1 << 30));
-				i32 is_down  = !(msg.lParam & (1 << 31));
+				return false;
+			}
+			case WM_LBUTTONDOWN:
+			case WM_MBUTTONDOWN:
+			case WM_RBUTTONDOWN:
+			case WM_MOUSEWHEEL:
+			{
+				SetCapture((HWND)self->handle);
 
-				switch (msg.wParam)
+				PLATFORM_KEY key = _platform_key_from_msg(msg);
+				if (key != PLATFORM_KEY_COUNT)
 				{
-					case 'W':
-						self->input.keys[PLATFORM_KEY_W].pressed  = is_down;
-						self->input.keys[PLATFORM_KEY_W].released = was_down;
-						if (is_down)
-							self->input.keys[PLATFORM_KEY_W].down = true;
-						else if (was_down)
-							self->input.keys[PLATFORM_KEY_W].down = false;
-						break;
-					case 'S':
-						self->input.keys[PLATFORM_KEY_S].pressed  = is_down;
-						self->input.keys[PLATFORM_KEY_S].released = was_down;
-						if (is_down)
-							self->input.keys[PLATFORM_KEY_S].down = true;
-						else if (was_down)
-							self->input.keys[PLATFORM_KEY_S].down = false;
-						break;
-					case 'A':
-						self->input.keys[PLATFORM_KEY_A].pressed  = is_down;
-						self->input.keys[PLATFORM_KEY_A].released = was_down;
-						if (is_down)
-							self->input.keys[PLATFORM_KEY_A].down = true;
-						else if (was_down)
-							self->input.keys[PLATFORM_KEY_A].down = false;
-						break;
-					case 'D':
-						self->input.keys[PLATFORM_KEY_D].pressed  = is_down;
-						self->input.keys[PLATFORM_KEY_D].released = was_down;
-						if (is_down)
-							self->input.keys[PLATFORM_KEY_D].down = true;
-						else if (was_down)
-							self->input.keys[PLATFORM_KEY_D].down = false;
-						break;
-					case 'E':
-						self->input.keys[PLATFORM_KEY_E].pressed  = is_down;
-						self->input.keys[PLATFORM_KEY_E].released = was_down;
-						if (is_down)
-							self->input.keys[PLATFORM_KEY_E].down = true;
-						else if (was_down)
-							self->input.keys[PLATFORM_KEY_E].down = false;
-						break;
-					case 'Q':
-						self->input.keys[PLATFORM_KEY_Q].pressed  = is_down;
-						self->input.keys[PLATFORM_KEY_Q].released = was_down;
-						if (is_down)
-							self->input.keys[PLATFORM_KEY_Q].down = true;
-						else if (was_down)
-							self->input.keys[PLATFORM_KEY_Q].down = false;
-						break;
-					case VK_UP:
-						self->input.keys[PLATFORM_KEY_ARROW_UP].pressed  = is_down;
-						self->input.keys[PLATFORM_KEY_ARROW_UP].released = was_down;
-						if (is_down)
-							self->input.keys[PLATFORM_KEY_ARROW_UP].down = true;
-						else if (was_down)
-							self->input.keys[PLATFORM_KEY_ARROW_UP].down = false;
-						break;
-					case VK_DOWN:
-						self->input.keys[PLATFORM_KEY_ARROW_DOWN].pressed  = is_down;
-						self->input.keys[PLATFORM_KEY_ARROW_DOWN].released = was_down;
-						if (is_down)
-							self->input.keys[PLATFORM_KEY_ARROW_DOWN].down = true;
-						else if (was_down)
-							self->input.keys[PLATFORM_KEY_ARROW_DOWN].down = false;
-						break;
-					case VK_LEFT:
-						self->input.keys[PLATFORM_KEY_ARROW_LEFT].pressed  = is_down;
-						self->input.keys[PLATFORM_KEY_ARROW_LEFT].released = was_down;
-						if (is_down)
-							self->input.keys[PLATFORM_KEY_ARROW_LEFT].down = true;
-						else if (was_down)
-							self->input.keys[PLATFORM_KEY_ARROW_LEFT].down = false;
-						break;
-					case VK_RIGHT:
-						self->input.keys[PLATFORM_KEY_ARROW_RIGHT].pressed  = is_down;
-						self->input.keys[PLATFORM_KEY_ARROW_RIGHT].released = was_down;
-						if (is_down)
-							self->input.keys[PLATFORM_KEY_ARROW_RIGHT].down = true;
-						else if (was_down)
-							self->input.keys[PLATFORM_KEY_ARROW_RIGHT].down = false;
-						break;
-					case VK_ESCAPE:
-						self->input.keys[PLATFORM_KEY_ESCAPE].pressed  = is_down;
-						self->input.keys[PLATFORM_KEY_ESCAPE].released = was_down;
-						if (is_down)
-							self->input.keys[PLATFORM_KEY_ESCAPE].down = true;
-						else if (was_down)
-							self->input.keys[PLATFORM_KEY_ESCAPE].down = false;
-						break;
+					self->input.keys[key].pressed = true;
+					self->input.keys[key].down    = true;
+					self->input.keys[key].press_count++;
+					if (key == PLATFORM_KEY_MOUSE_WHEEL_UP || key == PLATFORM_KEY_MOUSE_WHEEL_DOWN)
+						self->input.mouse_wheel += (f32)GET_WHEEL_DELTA_WPARAM(msg.wParam) / (f32)WHEEL_DELTA;
 				}
+				break;
+			}
+			case WM_LBUTTONUP:
+			case WM_MBUTTONUP:
+			case WM_RBUTTONUP:
+			{
+				ReleaseCapture();
+
+				PLATFORM_KEY key = _platform_key_from_msg(msg);
+				if (key != PLATFORM_KEY_COUNT)
+				{
+					self->input.keys[key].released = true;
+					self->input.keys[key].down     = false;
+					self->input.keys[key].release_count++;
+				}
+				break;
+			}
+			case WM_KEYDOWN:
+			case WM_SYSKEYDOWN:
+			{
+				PLATFORM_KEY key = _platform_key_from_wparam(msg.wParam);
+				if (key != PLATFORM_KEY_COUNT)
+				{
+					self->input.keys[key].pressed  = true;
+					self->input.keys[key].down     = true;
+					self->input.keys[key].press_count++;
+				}
+				break;
+			}
+			case WM_KEYUP:
+			case WM_SYSKEYUP:
+			{
+				PLATFORM_KEY key = _platform_key_from_wparam(msg.wParam);
+				if (key != PLATFORM_KEY_COUNT)
+				{
+					self->input.keys[key].released = true;
+					self->input.keys[key].down     = false;
+					self->input.keys[key].release_count++;
+				}
+				break;
 			}
 		}
 	}
 
-	RECT rect;
-	GetClientRect((HWND)self->handle, &rect);
-	self->width = rect.right - rect.left;
-	self->height = rect.bottom - rect.top;
+	{
+		// NOTE: Resizing.
+		RECT rect;
+		GetClientRect((HWND)self->handle, &rect);
+		self->width = rect.right - rect.left;
+		self->height = rect.bottom - rect.top;
+	}
 
-	POINT mouse_point;
-	GetCursorPos(&mouse_point);
-	ScreenToClient((HWND)self->handle, &mouse_point);
+	{
+		// NOTE: Mouse movement.
+		POINT mouse_point;
+		GetCursorPos(&mouse_point);
+		ScreenToClient((HWND)self->handle, &mouse_point);
 
-	u32 mouse_point_y_inverted = (self->height - 1) - mouse_point.y;
-	self->input.mouse_dx = mouse_point.x - self->input.mouse_x;
-	self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
-	self->input.mouse_x  = mouse_point.x;
-	self->input.mouse_y  = mouse_point_y_inverted; // NOTE(M-Fatah): We want mouse coords to start bottom-left.
+		// NOTE: We want mouse coords to start bottom-left.
+		u32 mouse_point_y_inverted = (self->height - 1) - mouse_point.y;
+		self->input.mouse_dx = mouse_point.x - self->input.mouse_x;
+		self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
+		self->input.mouse_x  = mouse_point.x;
+		self->input.mouse_y  = mouse_point_y_inverted;
+	}
 
 	return true;
 }
