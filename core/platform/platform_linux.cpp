@@ -403,34 +403,6 @@ platform_window_poll(Platform_Window *self)
 					return false;
 				break;
 			}
-			case XCB_KEY_PRESS:
-			{
-				xcb_key_press_event_t *xcb_key_press_event = (xcb_key_press_event_t *)xcb_event;
-				KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_press_event->detail, 0, 0);
-
-				PLATFORM_KEY key = _platform_key_from_key_sym(key_sym);
-				if (key != PLATFORM_KEY_COUNT)
-				{
-					self->input.keys[key].pressed  = true;
-					self->input.keys[key].down     = true;
-					self->input.keys[key].press_count++;
-				}
-				break;
-			}
-			case XCB_KEY_RELEASE:
-			{
-				xcb_key_release_event_t *xcb_key_release_event = (xcb_key_release_event_t *)xcb_event;
-				KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_release_event->detail, 0, 0);
-
-				PLATFORM_KEY key = _platform_key_from_key_sym(key_sym);
-				if (key != PLATFORM_KEY_COUNT)
-				{
-					self->input.keys[key].released = true;
-					self->input.keys[key].down     = false;
-					self->input.keys[key].release_count++;
-				}
-				break;
-			}
 			case XCB_BUTTON_PRESS:
 			{
 				xcb_button_press_event_t *xcb_mouse_press_event = (xcb_button_press_event_t *)xcb_event;
@@ -453,6 +425,34 @@ platform_window_poll(Platform_Window *self)
 				xcb_button_release_event_t *xcb_mouse_release_event = (xcb_button_release_event_t *)xcb_event;
 
 				PLATFORM_KEY key = _platform_key_from_xcb_button(xcb_mouse_release_event->detail);
+				if (key != PLATFORM_KEY_COUNT)
+				{
+					self->input.keys[key].released = true;
+					self->input.keys[key].down     = false;
+					self->input.keys[key].release_count++;
+				}
+				break;
+			}
+			case XCB_KEY_PRESS:
+			{
+				xcb_key_press_event_t *xcb_key_press_event = (xcb_key_press_event_t *)xcb_event;
+				KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_press_event->detail, 0, 0);
+
+				PLATFORM_KEY key = _platform_key_from_key_sym(key_sym);
+				if (key != PLATFORM_KEY_COUNT)
+				{
+					self->input.keys[key].pressed  = true;
+					self->input.keys[key].down     = true;
+					self->input.keys[key].press_count++;
+				}
+				break;
+			}
+			case XCB_KEY_RELEASE:
+			{
+				xcb_key_release_event_t *xcb_key_release_event = (xcb_key_release_event_t *)xcb_event;
+				KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_release_event->detail, 0, 0);
+
+				PLATFORM_KEY key = _platform_key_from_key_sym(key_sym);
 				if (key != PLATFORM_KEY_COUNT)
 				{
 					self->input.keys[key].released = true;
