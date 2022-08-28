@@ -409,9 +409,12 @@ platform_window_poll(Platform_Window *self)
 				KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_press_event->detail, 0, 0);
 
 				PLATFORM_KEY key = _platform_key_from_key_sym(key_sym);
-				self->input.keys[key].pressed  = true;
-				self->input.keys[key].down     = true;
-				self->input.keys[key].press_count++;
+				if (key != PLATFORM_KEY_COUNT)
+				{
+					self->input.keys[key].pressed  = true;
+					self->input.keys[key].down     = true;
+					self->input.keys[key].press_count++;
+				}
 				break;
 			}
 			case XCB_KEY_RELEASE:
@@ -420,9 +423,12 @@ platform_window_poll(Platform_Window *self)
 				KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_release_event->detail, 0, 0);
 
 				PLATFORM_KEY key = _platform_key_from_key_sym(key_sym);
-				self->input.keys[key].released = true;
-				self->input.keys[key].down     = false;
-				self->input.keys[key].release_count++;
+				if (key != PLATFORM_KEY_COUNT)
+				{
+					self->input.keys[key].released = true;
+					self->input.keys[key].down     = false;
+					self->input.keys[key].release_count++;
+				}
 				break;
 			}
 			case XCB_BUTTON_PRESS:
@@ -430,13 +436,16 @@ platform_window_poll(Platform_Window *self)
 				xcb_button_press_event_t *xcb_mouse_press_event = (xcb_button_press_event_t *)xcb_event;
 
 				PLATFORM_KEY key = _platform_key_from_xcb_button(xcb_mouse_press_event->detail);
-				self->input.keys[key].pressed = true;
-				self->input.keys[key].down    = true;
-				self->input.keys[key].press_count++;
-				if (key == PLATFORM_KEY_MOUSE_WHEEL_UP)
-					self->input.mouse_wheel += 1.0f;
-				else if (key == PLATFORM_KEY_MOUSE_WHEEL_DOWN)
-					self->input.mouse_wheel -= 1.0f;
+				if (key != PLATFORM_KEY_COUNT)
+				{
+					self->input.keys[key].pressed = true;
+					self->input.keys[key].down    = true;
+					self->input.keys[key].press_count++;
+					if (key == PLATFORM_KEY_MOUSE_WHEEL_UP)
+						self->input.mouse_wheel += 1.0f;
+					else if (key == PLATFORM_KEY_MOUSE_WHEEL_DOWN)
+						self->input.mouse_wheel -= 1.0f;
+				}
 				break;
 			}
 			case XCB_BUTTON_RELEASE:
@@ -444,9 +453,12 @@ platform_window_poll(Platform_Window *self)
 				xcb_button_release_event_t *xcb_mouse_release_event = (xcb_button_release_event_t *)xcb_event;
 
 				PLATFORM_KEY key = _platform_key_from_xcb_button(xcb_mouse_release_event->detail);
-				self->input.keys[key].released = true;
-				self->input.keys[key].down     = false;
-				self->input.keys[key].release_count++;
+				if (key != PLATFORM_KEY_COUNT)
+				{
+					self->input.keys[key].released = true;
+					self->input.keys[key].down     = false;
+					self->input.keys[key].release_count++;
+				}
 				break;
 			}
 			case XCB_CONFIGURE_NOTIFY:
