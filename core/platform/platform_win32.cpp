@@ -13,21 +13,15 @@
 #include <stdio.h>
 #include <math.h>
 
-typedef void * (*platform_api_proc)(void *api, bool reload);
-
 // TODO: Remove from here.
 inline static void
 _string_concat(const char *a, const char *b, char *result)
 {
 	while (*a != '\0')
-	{
 		*result++ = *a++;
-	}
 
-	while(*b != '\0')
-	{
+	while (*b != '\0')
 		*result++ = *b++;
-	}
 }
 
 inline static PLATFORM_KEY
@@ -175,23 +169,24 @@ platform_api_init(const char *filepath)
 	char path_tmp[128] = {};
 	_string_concat(path, ".tmp", path_tmp);
 
-	bool res = CopyFileA(path, path_tmp, false);
-	ASSERT(res, "failed to copy library");
+	bool result = ::CopyFileA(path, path_tmp, false);
+	ASSERT(result, "[PLATFORM]: Failed to copy library.");
 
-	self.handle = LoadLibraryA(path_tmp);
-	ASSERT(self.handle, "failed to load library");
+	self.handle = ::LoadLibraryA(path_tmp);
+	ASSERT(self.handle, "[PLATFORM]: Failed to load library.");
 
-	platform_api_proc proc = (platform_api_proc)GetProcAddress((HMODULE)self.handle, "platform_api");
-	ASSERT(proc, "failed to get proc platform_api");
-	self.api = proc(nullptr, false);
-	ASSERT(self.api, "failed to get api");
+	platform_api_proc proc = (platform_api_proc)::GetProcAddress((HMODULE)self.handle, "platform_api");
+	ASSERT(proc, "[PLATFORM]: Failed to get proc platform_api.");
+
+	self.api = proc(nullptr, PLATFORM_API_STATE_INIT);
+	ASSERT(self.api, "[PLATFORM]: Failed to get api.");
 
 	WIN32_FILE_ATTRIBUTE_DATA data = {};
-	res = GetFileAttributesExA(path, GetFileExInfoStandard, &data);
-	ASSERT(res, "failed to get file attributes");
-	self.last_write_time = *(u64 *)&data.ftLastWriteTime;
+	result = ::GetFileAttributesExA(path, GetFileExInfoStandard, &data);
+	ASSERT(result, "[PLATFORM]: Failed to get file attributes.");
 
-	self.filepath = filepath;
+	self.last_write_time = *(i64 *)&data.ftLastWriteTime;
+	::strcpy_s(self.filepath, filepath);
 
 	return self;
 }
@@ -203,7 +198,7 @@ platform_api_deinit(Platform_Api *self)
 	{
 		platform_api_proc proc = (platform_api_proc)GetProcAddress((HMODULE)self->handle, "platform_api");
 		ASSERT(proc, "failed to get proc platform_api");
-		self->api = proc(self->api, false);
+		self->api = proc(self->api, PLATFORM_API_STATE_DEINIT);
 	}
 
 	FreeLibrary((HMODULE)self->handle);
@@ -216,30 +211,31 @@ platform_api_load(Platform_Api *self)
 	_string_concat(self->filepath, ".dll", path);
 
 	WIN32_FILE_ATTRIBUTE_DATA data = {};
-	bool res = GetFileAttributesExA(path, GetFileExInfoStandard, &data);
+	bool result = ::GetFileAttributesExA(path, GetFileExInfoStandard, &data);
 
-	u64 last_write_time = *(u64 *)&data.ftLastWriteTime;
-	if ((last_write_time == self->last_write_time) || (res == false))
+	i64 last_write_time = *(i64 *)&data.ftLastWriteTime;
+	if ((last_write_time == self->last_write_time) || (result == false))
 		return self->api;
 
-	res = FreeLibrary((HMODULE)self->handle);
-	ASSERT(res, "failed to free library");
+	result = ::FreeLibrary((HMODULE)self->handle);
+	ASSERT(result, "[PLATFORM]: Failed to free library.");
 
 	char path_tmp[128] = {};
 	_string_concat(path, ".tmp", path_tmp);
 
-	bool copy_res = CopyFileA(path, path_tmp, false);
+	bool copy_result = ::CopyFileA(path, path_tmp, false);
 
-	self->handle = LoadLibraryA(path_tmp);
-	ASSERT(self->handle, "failed to load library");
+	self->handle = ::LoadLibraryA(path_tmp);
+	ASSERT(self->handle, "[PLATFORM]: Failed to load library.");
 
-	platform_api_proc proc = (platform_api_proc)GetProcAddress((HMODULE)self->handle, "platform_api");
-	ASSERT(proc, "failed to get proc platform_api");
-	self->api = proc(self->api, true);
-	ASSERT(self->api, "failed to get api");
+	platform_api_proc proc = (platform_api_proc)::GetProcAddress((HMODULE)self->handle, "platform_api");
+	ASSERT(proc, "[PLATFORM]: Failed to get proc platform_api.");
+
+	self->api = proc(self->api, PLATFORM_API_STATE_LOAD);
+	ASSERT(self->api, "[PLATFORM]: Failed to get api.");
 
 	// If copying failed we don't update last write time so that we can try copying it again in the next frame.
-	if (copy_res)
+	if (copy_result)
 		self->last_write_time = last_write_time;
 
 	return self->api;

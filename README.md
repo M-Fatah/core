@@ -47,10 +47,7 @@ array_push(vertices, Vertex{{1.0f, 2.0f, 3.0f}, {0.0f, 0.0f, 1.0f}});
 #### **Linux:**
 ```
 sudo apt update
-sudo apt-get install -y libx11-dev
-sudo apt-get install -y libxkbcommon-x11-dev libx11-xcb-dev
-sudo apt install -y zenity
-sudo apt install -y cmake
+sudo apt-get install -y cmake libx11-dev libxkbcommon-x11-dev libx11-xcb-dev zenity
 ```
 
 ## **Building:**
