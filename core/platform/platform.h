@@ -11,12 +11,21 @@ extern "C" {
 #define MILLISOCEND_TO_SECOND      0.001f
 #define MICROSECOND_TO_MILLISECOND 0.001f
 
+typedef enum PLATFORM_API_STATE
+{
+	PLATFORM_API_STATE_INIT,
+	PLATFORM_API_STATE_DEINIT,
+	PLATFORM_API_STATE_LOAD
+} PLATFORM_API_STATE;
+
+typedef void * (*platform_api_proc)(void *api, PLATFORM_API_STATE state);
+
 typedef struct Platform_Api
 {
-	const char *filepath;
+	char filepath[4096];
 	void *handle;
 	void *api;
-	u64 last_write_time;
+	i64 last_write_time;
 } Platform_Api;
 
 typedef struct Platform_Memory

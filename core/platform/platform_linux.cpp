@@ -17,21 +17,17 @@
 #include <X11/keysym.h>
 #include <X11/XKBlib.h>
 
-typedef void * (*platform_api_proc)(void *api, bool reload);
+static char current_executable_directory[PATH_MAX] = {};
 
 // TODO: Remove from here.
 inline static void
 _string_concat(const char *a, const char *b, char *result)
 {
 	while (*a != '\0')
-	{
 		*result++ = *a++;
-	}
 
-	while(*b != '\0')
-	{
+	while (*b != '\0')
 		*result++ = *b++;
-	}
 }
 
 inline static PLATFORM_KEY
@@ -151,29 +147,36 @@ platform_api_init(const char *filepath)
 {
 	Platform_Api self = {};
 
-	char path[128] = {};
-	_string_concat(filepath, ".so", path);
+	char src_relative_path[128] = {};
+	_string_concat(filepath, ".so", src_relative_path);
 
-	char path_tmp[128] = {};
-	_string_concat(path, ".tmp", path_tmp);
+	char dst_relative_path[128] = {};
+	_string_concat(src_relative_path, ".tmp", dst_relative_path);
 
-	[[maybe_unused]] bool copy_result = platform_file_copy(path, path_tmp);
-	ASSERT(copy_result, "[PLATFORM]: Failed to copy library.");
+	char src_absolute_path[PATH_MAX] = {};
+	_string_concat(current_executable_directory, src_relative_path, src_absolute_path);
 
-	self.handle = ::dlopen(path_tmp, RTLD_LAZY);
+	char dst_absolute_path[PATH_MAX] = {};
+	_string_concat(current_executable_directory, src_relative_path, dst_absolute_path);
+
+	[[maybe_unused]] bool copy_successful = platform_file_copy(src_relative_path, dst_relative_path);
+	ASSERT(copy_successful, "[PLATFORM]: Failed to copy library.");
+
+	self.handle = ::dlopen(dst_absolute_path, RTLD_LAZY);
 	ASSERT(self.handle, "[PLATFORM]: Failed to load library.");
 
 	platform_api_proc proc = (platform_api_proc)::dlsym(self.handle, "platform_api");
 	ASSERT(proc, "[PLATFORM]: Failed to get proc platform_api.");
-	self.api = proc(nullptr, false);
+
+	self.api = proc(nullptr, PLATFORM_API_STATE_INIT);
 	ASSERT(self.api, "[PLATFORM]: Failed to get api.");
 
 	struct stat file_stat = {};
-	[[maybe_unused]] i32 stat_result = ::stat(path, &file_stat);
+	[[maybe_unused]] i32 stat_result = ::stat(src_relative_path, &file_stat);
 	ASSERT(stat_result == 0, "[PLATFORM]: Failed to get file attributes.");
-	self.last_write_time = file_stat.st_mtime;
 
-	self.filepath = filepath;
+	self.last_write_time = file_stat.st_mtime;
+	::strcpy(self.filepath, src_absolute_path);
 
 	return self;
 }
@@ -185,7 +188,7 @@ platform_api_deinit(Platform_Api *self)
 	{
 		platform_api_proc proc = (platform_api_proc)::dlsym(self->handle, "platform_api");
 		ASSERT(proc, "[PLATFORM]: Failed to get proc platform_api.");
-		self->api = proc(self->api, false);
+		self->api = proc(self->api, PLATFORM_API_STATE_DEINIT);
 	}
 
 	::dlclose(self->handle);
@@ -194,30 +197,32 @@ platform_api_deinit(Platform_Api *self)
 void *
 platform_api_load(Platform_Api *self)
 {
-	char path[128] = {};
-	_string_concat(self->filepath, ".so", path);
+	char dst_absolute_path[PATH_MAX] = {};
+	_string_concat(self->filepath, ".tmp", dst_absolute_path);
 
 	struct stat file_stat = {};
-	i32 stat_result = ::stat(path, &file_stat);
+	i32 stat_result = ::stat(self->filepath, &file_stat);
 	ASSERT(stat_result == 0, "[PLATFORM]: Failed to get file attributes.");
 
-	u64 last_write_time = file_stat.st_mtime;
+	i64 last_write_time = file_stat.st_mtime;
 	if ((last_write_time == self->last_write_time) || (stat_result != 0))
 		return self->api;
 
 	::dlclose(self->handle);
 
-	char path_tmp[128] = {};
-	_string_concat(path, ".tmp", path_tmp);
+	platform_file_delete(dst_absolute_path);
 
-	bool copy_result = platform_file_copy(path, path_tmp);
+	platform_sleep(100);
 
-	self->handle = ::dlopen(path_tmp, RTLD_LAZY);
+	bool copy_result = platform_file_copy(self->filepath, dst_absolute_path);
+
+	self->handle = ::dlopen(dst_absolute_path, RTLD_LAZY);
 	ASSERT(self->handle, "[PLATFORM]: Failed to load library.");
 
 	platform_api_proc proc = (platform_api_proc)::dlsym(self->handle, "platform_api");
 	ASSERT(proc, "[PLATFORM]: Failed to get proc platform_api.");
-	self->api = proc(self->api, true);
+
+	self->api = proc(self->api, PLATFORM_API_STATE_LOAD);
 	ASSERT(self->api, "[PLATFORM]: Failed to get api.");
 
 	// If copying failed we don't update last write time so that we can try copying it again in the next frame.
@@ -565,6 +570,7 @@ platform_set_current_directory()
 
 	[[maybe_unused]] i32 result = ::chdir(module_path_absolute);
 	ASSERT(result == 0, "[PLATFORM]: Failed to set current directory.");
+	::strcpy(current_executable_directory, module_path_absolute);
 }
 
 u64

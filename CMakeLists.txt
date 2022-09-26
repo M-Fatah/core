@@ -9,15 +9,16 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(CORE_IS_MAIN_PROJECT ON)
 endif()
 
-option(CORE_BUILD_UNITTEST        "Enable building unittest." ${CORE_IS_MAIN_PROJECT})
-option(CORE_INSTALL               "Enable installing core."   ${CORE_IS_MAIN_PROJECT})
-option(CORE_BUILD_UNITY           "Enable unity build."       OFF)
+option(CORE_BUILD_UNITTEST "Enable building unittest." ${CORE_IS_MAIN_PROJECT})
+option(CORE_INSTALL        "Enable installing core."   ${CORE_IS_MAIN_PROJECT})
+option(CORE_BUILD_UNITY    "Enable unity build."       OFF)
 
-set(CMAKE_PDB_OUTPUT_DIRECTORY     "${CMAKE_BINARY_DIR}/bin/"         )
+set(CMAKE_PDB_OUTPUT_DIRECTORY     "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 
+# Global compile definitions.
 set(GLOBAL_COMPILE_DEFINITIONS
     $<$<CONFIG:DEBUG>:DEBUG=1>
     $<$<CONFIG:RELWITHDEBINFO>:DEBUG=1>
@@ -25,7 +26,7 @@ set(GLOBAL_COMPILE_DEFINITIONS
     $<$<CONFIG:MINSIZEREL>:RELEASE=1>
 )
 
-# Treat all compiler warnings as errors and increase warning level.
+# Global compile options.
 if(MSVC)
     set(GLOBAL_COMPILE_OPTIONS -W4 -WX -std:c++20)
 else()
