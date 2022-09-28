@@ -479,7 +479,7 @@ json_value_from_file(const char *filepath, memory::Allocator *allocator)
 	{
 		memory::deallocate(allocator, file_data);
 		return Error{
-			"[JSON]: Could not fully read file '{}' contents, file size '{}' but amout read is '{}'.",
+			"[JSON]: Could not fully read file '{}' contents, file size '{}' but amount read is '{}'.",
 			filepath,
 			file_size,
 			bytes_read
