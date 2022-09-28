@@ -16,6 +16,7 @@
 #include <X11/Xlib-xcb.h>
 #include <X11/keysym.h>
 #include <X11/XKBlib.h>
+#include <pthread.h>
 #include <atomic>
 
 static char current_executable_directory[PATH_MAX] = {};
