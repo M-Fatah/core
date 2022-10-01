@@ -63,6 +63,7 @@ elseif(UNIX AND NOT APPLE)
         X11
         X11-xcb
         dl
+        pthread
     )
 endif()
 

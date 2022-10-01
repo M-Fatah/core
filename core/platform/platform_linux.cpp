@@ -16,6 +16,8 @@
 #include <X11/Xlib-xcb.h>
 #include <X11/keysym.h>
 #include <X11/XKBlib.h>
+#include <pthread.h>
+#include <atomic>
 
 static char current_executable_directory[PATH_MAX] = {};
 
@@ -266,6 +268,61 @@ void
 platform_allocator_clear(Platform_Allocator *self)
 {
 	self->used = 0;
+}
+
+struct Platform_Task
+{
+	void (*function)(void *);
+	void *user_data;
+};
+
+struct Platform_Thread
+{
+	pthread_t handle;
+	std::atomic<bool> is_running;
+	Platform_Task task;
+};
+
+static void *
+_platform_thread_main_routine(void *user_data)
+{
+	Platform_Thread *self = (Platform_Thread *)user_data;
+	while (self->is_running)
+	{
+		if (self->task.function)
+		{
+			self->task.function(self->task.user_data);
+			self->task = {};
+		}
+	}
+	return nullptr;
+}
+
+Platform_Thread *
+platform_thread_init()
+{
+	Platform_Thread *self = memory::allocate_zeroed<Platform_Thread>();
+	self->is_running = true;
+	::pthread_create(&self->handle, nullptr, _platform_thread_main_routine, self);
+	return self;
+}
+
+void
+platform_thread_deinit(Platform_Thread *self)
+{
+	self->is_running = false;
+	::pthread_join(self->handle, nullptr);
+	memory::deallocate(self);
+}
+
+void
+platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_data)
+{
+	Platform_Task task {
+		.function  = function,
+		.user_data = user_data
+	};
+	self->task = task;
 }
 
 struct Platform_Window_Context

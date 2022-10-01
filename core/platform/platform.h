@@ -41,6 +41,8 @@ typedef struct Platform_Allocator
 	u64 used;
 } Platform_Allocator;
 
+typedef struct Platform_Thread Platform_Thread;
+
 typedef enum PLATFORM_KEY
 {
 	// Mouse.
@@ -221,6 +223,16 @@ platform_allocator_alloc(Platform_Allocator *self, u64 size_in_bytes);
 
 CORE_API void
 platform_allocator_clear(Platform_Allocator *self);
+
+
+CORE_API Platform_Thread *
+platform_thread_init();
+
+CORE_API void
+platform_thread_deinit(Platform_Thread *self);
+
+CORE_API void
+platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_data);
 
 
 CORE_API Platform_Window
