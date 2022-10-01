@@ -163,7 +163,7 @@ namespace memory
 	Allocator *
 	temp_allocator()
 	{
-		static Arena_Allocator self;
+		static thread_local Arena_Allocator self;
 		return &self;
 	}
 }
