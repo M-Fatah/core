@@ -12,6 +12,7 @@
 #include <DbgHelp.h>
 #include <stdio.h>
 #include <math.h>
+#include <functional>
 
 // TODO: Remove from here.
 inline static void
@@ -276,6 +277,61 @@ void
 platform_allocator_clear(Platform_Allocator *self)
 {
 	self->used = 0;
+}
+
+struct Platform_Task
+{
+	std::function<void(void *)> function;
+	void *user_data;
+};
+
+struct Platform_Thread
+{
+	HANDLE handle;
+	std::atomic<bool> is_running;
+	Platform_Task task;
+};
+
+static DWORD
+_platform_thread_main_routine(void *user_data)
+{
+	Platform_Thread *self = (Platform_Thread *)user_data;
+	while (self->is_running)
+	{
+		if (self->task.function)
+		{
+			self->task.function(self->task.user_data);
+			self->task = {};
+		}
+	}
+	return 0;
+}
+
+Platform_Thread *
+platform_thread_init()
+{
+	Platform_Thread *self = memory::allocate_zeroed<Platform_Thread>();
+	self->is_running = true;
+	self->handle = ::CreateThread(nullptr, 0, _platform_thread_main_routine, self, 0, nullptr);
+	return self;
+}
+
+void
+platform_thread_deinit(Platform_Thread *self)
+{
+	self->is_running = false;
+	::CloseHandle(self->handle);
+	memory::deallocate(self);
+}
+
+void
+platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_data)
+{
+	Platform_Task task {
+		.function  = function,
+		.user_data = user_data
+	};
+	self->task = task;
 }
 
 Platform_Window

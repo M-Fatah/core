@@ -18,6 +18,7 @@
 #include <X11/XKBlib.h>
 #include <pthread.h>
 #include <atomic>
+#include <functional>
 
 static char current_executable_directory[PATH_MAX] = {};
 
@@ -269,8 +270,6 @@ platform_allocator_clear(Platform_Allocator *self)
 {
 	self->used = 0;
 }
-
-#include <functional>
 
 struct Platform_Task
 {
