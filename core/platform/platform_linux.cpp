@@ -18,7 +18,6 @@
 #include <X11/XKBlib.h>
 #include <pthread.h>
 #include <atomic>
-#include <functional>
 
 static char current_executable_directory[PATH_MAX] = {};
 
@@ -273,7 +272,7 @@ platform_allocator_clear(Platform_Allocator *self)
 
 struct Platform_Task
 {
-	std::function<void(void *)> function;
+	void (*function)(void *);
 	void *user_data;
 };
 

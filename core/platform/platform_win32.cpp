@@ -12,7 +12,7 @@
 #include <DbgHelp.h>
 #include <stdio.h>
 #include <math.h>
-#include <functional>
+#include <atomic>
 
 // TODO: Remove from here.
 inline static void
@@ -281,7 +281,7 @@ platform_allocator_clear(Platform_Allocator *self)
 
 struct Platform_Task
 {
-	std::function<void(void *)> function;
+	void (*function)(void *);
 	void *user_data;
 };
 
