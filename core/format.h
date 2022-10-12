@@ -12,13 +12,13 @@
 	- [x] Overload 'format' function like serializer instead?
 	- [x] Remove libfmt dependency.
 	- [x] Collapse the two 'formatter_format' functions.
+	- [x] Add unittests.
 	- [ ] Collapse the two 'formatter_parse' functions.
 	- [ ] Remove the 32KB buffer size restriction.
 	- [ ] Move implementation to .cpp file.
 	- [ ] Check for matching count of replacement_characters and argument count.
 	- [ ] Simplify and optimize.
 	- [ ] Do not rely on ::snprintf and implement our own formatting.
-	- [ ] Add unittests.
 */
 
 struct Formatter
@@ -219,4 +219,10 @@ formatter_parse(Formatter &self, const char *fmt, const TArgs &...args)
 	}
 
 	self.buffer[self.index] = '\0';
+}
+
+inline static void
+formatter_clear(Formatter &self)
+{
+	self.index = 0;
 }

@@ -1,6 +1,7 @@
 #include <core/json.h>
 #include <core/logger.h>
 #include <core/result.h>
+#include <core/format.h>
 #include <core/memory/memory.h>
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
@@ -113,6 +114,77 @@ TEST_CASE("[CORE]: Result")
 		auto [result, error] = _result_test_with_custom_error_pseudo_disk_read(false);
 		CHECK(error == PSEUDO_DISK_READ_RESULT_CODE::NOT_OK);
 	}
+}
+
+struct vec3
+{
+	f32 x, y, z;
+};
+
+inline static void
+format(Formatter &self, const vec3 &value)
+{
+	// TODO: @consistency: use "{{" instead of "{" and "}}" instea of "}".
+	format(self, "{");
+	format(self, value.x);
+	format(self, ", ");
+	format(self, value.y);
+	format(self, ", ");
+	format(self, value.z);
+	format(self, "}");
+}
+
+TEST_CASE("[CORE]: Formatter")
+{
+	Formatter formatter = {};
+	formatter_parse(formatter, "{}/{}/{}/{}/{}/{}", "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6});
+	CHECK(string_literal(formatter.buffer) == "Hello/A/true/1.5/3/{4, 5, 6}");
+	formatter_clear(formatter);
+
+	[[maybe_unused]] i32 x = 5;
+	formatter_parse(formatter, "{}", &x);
+	CHECK(formatter.index == 16);
+	formatter_clear(formatter);
+
+	formatter_parse(formatter, "{}", "Hello");
+	CHECK(string_literal(formatter.buffer) == "Hello");
+	formatter_clear(formatter);
+
+	formatter_parse(formatter, "{}", 'A');
+	CHECK(string_literal(formatter.buffer) == "A");
+	formatter_clear(formatter);
+
+	formatter_parse(formatter, "{}", true);
+	CHECK(string_literal(formatter.buffer) == "true");
+	formatter_clear(formatter);
+
+	formatter_parse(formatter, "{}", 1.5f);
+	CHECK(string_literal(formatter.buffer) == "1.5");
+	formatter_clear(formatter);
+
+	formatter_parse(formatter, "{}", -1.5f);
+	CHECK(string_literal(formatter.buffer) == "-1.5");
+	formatter_clear(formatter);
+
+	formatter_parse(formatter, "{}", 3);
+	CHECK(string_literal(formatter.buffer) == "3");
+	formatter_clear(formatter);
+
+	formatter_parse(formatter, "{}", -3);
+	CHECK(string_literal(formatter.buffer) == "-3");
+	formatter_clear(formatter);
+
+	formatter_parse(formatter, "{}", vec3{1, 2, 3});
+	CHECK(string_literal(formatter.buffer) == "{1, 2, 3}");
+	formatter_clear(formatter);
+
+	formatter_parse(formatter, "{}", array_from<vec3>({{1, 2, 3}, {4, 5, 6}}, memory::temp_allocator()));
+	CHECK(string_literal(formatter.buffer) == "struct vec3 [2] { {1, 2, 3}, {4, 5, 6} }");
+	formatter_clear(formatter);
+
+	formatter_parse(formatter, "{}", hash_table_from<i32, vec3>({{1, {1, 2, 3}}, {2, {4, 5, 6}}}, memory::temp_allocator()));
+	CHECK(string_literal(formatter.buffer) == "{int, struct vec3} [2] { 1: {1, 2, 3}, 2: {4, 5, 6} }");
+	formatter_clear(formatter);
 }
 
 TEST_CASE("[CORE]: JSON")
