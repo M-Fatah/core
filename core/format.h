@@ -14,6 +14,7 @@
 	- [ ] Collapse the two 'formatter_format' functions.
 	- [ ] Check for matching count of replacement_characters and argument count.
 	- [ ] Simplify and optimize.
+	- [ ] Do not rely on ::snprintf and implement our own formatting.
 */
 
 struct Formatter
