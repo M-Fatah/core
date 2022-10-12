@@ -6,73 +6,77 @@
 #include <typeinfo>
 #include <type_traits>
 
+/*
+	TODO:
+	- [ ] Remove the 32KB buffer size restriction.
+	- [ ] Move implementation to .cpp file.
+	- [ ] Overload 'format' function like serializer instead?
+	- [ ] Collapse the two 'formatter_format' functions.
+	- [ ] Check for matching count of replacement_characters and argument count.
+	- [ ] Simplify and optimize.
+*/
+
 struct Formatter
 {
 	char buffer[32 * 1024];
 	u64 index;
 };
 
-// TODO: Collapse.
 template <typename T>
 inline static void
-formatter_format(char (&buffer)[4096], u64 &index, const T *value)
+formatter_format(Formatter &self, const T *value)
 {
 	if constexpr (std::is_same_v<T *, char *>)
-		index += ::snprintf(buffer + index, sizeof(buffer), "%s", value);
+		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
 	else if constexpr (std::is_same_v<const T *, const char *>)
-		index += ::snprintf(buffer + index, sizeof(buffer), "%s", value);
+		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
 	else
-		index += ::snprintf(buffer + index, sizeof(buffer), "%p", value);
+		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%p", value);
 }
 
 template <typename T>
 inline static void
-formatter_format(char (&buffer)[4096], u64 &index, const T &value)
+formatter_format(Formatter &self, const T &value)
 {
 	if constexpr (std::is_pointer_v<T>)
-		index += ::snprintf(buffer + index, sizeof(buffer), "%p", value);
+		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%p", value);
 	else if constexpr (std::is_same_v<T, char>)
-		index += ::snprintf(buffer + index, sizeof(buffer), "%c", value);
+		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%c", value);
 	else if constexpr (std::is_same_v<T, bool>)
-		index += ::snprintf(buffer + index, sizeof(buffer), "%s", value ? "true" : "false");
+		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value ? "true" : "false");
 	else if constexpr (std::is_floating_point_v<T>)
-		index += ::snprintf(buffer + index, sizeof(buffer), "%g", value);
+		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%g", value);
 	else if constexpr (std::is_integral_v<T>)
 	{
 		if constexpr (sizeof(T) == 8)
-			index += ::snprintf(buffer + index, sizeof(buffer), "%lld", value);
+			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%lld", value);
 		else
-			index += ::snprintf(buffer + index, sizeof(buffer), "%ld", value);
+			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%ld", value);
 	}
 }
 
 template <typename T>
 void
-format_print(const char *fmt, const T &t)
+formatter_parse(Formatter &self, const char *fmt, u64 &start, const T &t)
 {
-	// Formatter formatter = {};
-
 	u64 fmt_count = ::strlen(fmt);
 	if (fmt_count == 0)
 		return;
 
-	char buffer[4096];
-	u64 index = 0;
-
 	u64 replacement_character_count = 0;
-	for (u64 i = 0; i < fmt_count - 1; ++i)
+	for (u64 i = start; i < fmt_count - 1; ++i)
 	{
 		if (fmt[i] == '{' && fmt[i + 1] == '{')
 		{
 			i++;
-			buffer[index++] = '{';
+			self.buffer[self.index++] = '{';
 			continue;
 		}
 
 		if (fmt[i] == '}' && fmt[i + 1] == '}')
 		{
 			i++;
-			buffer[index++] = '}';
+			self.buffer[self.index++] = '}';
 			continue;
 		}
 
@@ -80,8 +84,9 @@ format_print(const char *fmt, const T &t)
 		{
 			i++;
 			replacement_character_count++;
-			formatter_format(buffer, index, t);
-			continue;
+			start = i + 1;
+			formatter_format(self, t);
+			return;
 		}
 
 		if (fmt[i] == '{' || fmt[i] == '}')
@@ -89,14 +94,29 @@ format_print(const char *fmt, const T &t)
 			continue;
 		}
 
-		buffer[index++] = fmt[i];
+		self.buffer[self.index++] = fmt[i];
 	}
+}
+
+template <typename ...TArgs>
+void
+formatter_print(const char *fmt, const TArgs &...args)
+{
+	u64 fmt_count = ::strlen(fmt);
+	if (fmt_count == 0)
+		return;
+
+	Formatter self = {};
+
+	u64 start = 0;
+	(formatter_parse(self, fmt, start, args), ...);
 
 	if (fmt[fmt_count - 1] != '{' && fmt[fmt_count - 1] != '}')
-		buffer[index++] = fmt[fmt_count - 1];
+		self.buffer[self.index++] = fmt[fmt_count - 1];
 
-	buffer[index] = '\0';
+	self.buffer[self.index] = '\0';
 
+	// TODO: Remove.
 	// ::printf("Replacement character count: %lld\n", replacement_character_count);
-	::printf("Buffer content: [%lld] %s\n", index, buffer);
+	::printf("Buffer content: [%lld] %s\n", self.index, self.buffer);
 }
