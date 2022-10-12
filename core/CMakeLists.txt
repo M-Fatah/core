@@ -13,6 +13,7 @@ set(HEADER_FILES
     defer.h
     defines.h
     ecs.h
+    format.h
     hash.h
     json.h
     logger.h
