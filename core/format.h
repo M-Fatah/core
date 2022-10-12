@@ -11,9 +11,9 @@
 	TODO:
 	- [x] Overload 'format' function like serializer instead?
 	- [x] Remove libfmt dependency.
+	- [x] Collapse the two 'formatter_format' functions.
 	- [ ] Remove the 32KB buffer size restriction.
 	- [ ] Move implementation to .cpp file.
-	- [ ] Collapse the two 'formatter_format' functions.
 	- [ ] Collapse the two 'formatter_parse' functions.
 	- [ ] Check for matching count of replacement_characters and argument count.
 	- [ ] Simplify and optimize.
@@ -35,35 +35,31 @@ format(Formatter &, const T &)
 
 template <typename T>
 inline static void
-formatter_format(Formatter &self, const T *value)
-{
-	if constexpr (std::is_same_v<T *, char *>)
-		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
-	else if constexpr (std::is_same_v<const T *, const char *>)
-		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
-	else if constexpr (std::is_same_v<const T * const, const char * const>)
-		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
-	else
-		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%p", (void *)value);
-}
-
-template <typename T>
-inline static void
 formatter_format(Formatter &self, const T &value)
 {
 	if constexpr (std::is_pointer_v<T>)
 	{
 		if constexpr (std::is_same_v<T, char *>)
 			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
+		else if constexpr (std::is_same_v<T, const char *>)
+			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
+		else if constexpr (std::is_same_v<T, const char * const>)
+			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
 		else
 			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%p", (void *)value);
 	}
 	else if constexpr (std::is_same_v<T, char>)
+	{
 		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%c", value);
+	}
 	else if constexpr (std::is_same_v<T, bool>)
+	{
 		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value ? "true" : "false");
+	}
 	else if constexpr (std::is_floating_point_v<T>)
+	{
 		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%g", value);
+	}
 	else if constexpr (std::is_integral_v<T>)
 	{
 		if constexpr (std::is_same_v<T, long long int>)
