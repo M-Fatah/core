@@ -66,7 +66,13 @@ formatter_format(Formatter &self, const T &value)
 		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%g", value);
 	else if constexpr (std::is_integral_v<T>)
 	{
-		if constexpr (sizeof(T) == 8)
+		if constexpr (std::is_same_v<T, long long int>)
+			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%lld", value);
+		else if constexpr (std::is_same_v<T, long int>)
+			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%ld", value);
+		else if constexpr (std::is_same_v<T, unsigned long long int>)
+			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%lld", value);
+		else if constexpr (std::is_same_v<T, unsigned long int>)
 			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%ld", value);
 		else
 			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%d", value);
