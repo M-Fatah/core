@@ -12,12 +12,13 @@
 	- [x] Overload 'format' function like serializer instead?
 	- [x] Remove libfmt dependency.
 	- [x] Collapse the two 'formatter_format' functions.
+	- [ ] Collapse the two 'formatter_parse' functions.
 	- [ ] Remove the 32KB buffer size restriction.
 	- [ ] Move implementation to .cpp file.
-	- [ ] Collapse the two 'formatter_parse' functions.
 	- [ ] Check for matching count of replacement_characters and argument count.
 	- [ ] Simplify and optimize.
 	- [ ] Do not rely on ::snprintf and implement our own formatting.
+	- [ ] Add unittests.
 */
 
 struct Formatter
@@ -199,11 +200,6 @@ formatter_parse(Formatter &self, const char *fmt, const TArgs &...args)
 		if (fmt[i] == '{' && fmt[i + 1] == '}')
 		{
 			// TODO:
-			// i++;
-			// replacement_character_count++;
-			// start = i + 1;
-			// formatter_format(self, t);
-			// return;
 		}
 
 		if (fmt[i] == '{' || fmt[i] == '}')
@@ -223,7 +219,4 @@ formatter_parse(Formatter &self, const char *fmt, const TArgs &...args)
 	}
 
 	self.buffer[self.index] = '\0';
-	// TODO: Remove.
-	// ::printf("Replacement character count: %lld\n", replacement_character_count);
-	// ::printf("Buffer content: [%lld] %s\n", self.index, self.buffer);
 }
