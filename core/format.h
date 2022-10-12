@@ -2,6 +2,7 @@
 
 #include <core/defines.h>
 
+#include <stdio.h>
 #include <string.h>
 #include <typeinfo>
 #include <type_traits>
