@@ -4,11 +4,11 @@
 #include "core/assert.h"
 #include "core/defer.h"
 #include "core/hash.h"
+#include "core/format.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
 #include "core/serialization/serializer.h"
 
-#include <fmt/core.h>
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -50,8 +50,9 @@ template <typename ...TArgs>
 inline static String
 string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
 {
-	auto formatted_string = fmt::vformat(fmt, fmt::make_format_args(args...));
-	return string_from(formatted_string.c_str(), allocator);
+	Formatter formatter = {};
+	formatter_parse(formatter, fmt, args...);
+	return string_from(formatter.buffer, allocator);
 }
 
 inline static String
@@ -133,8 +134,9 @@ inline static void
 string_append(String &self, const char *fmt, const TArgs &...args)
 {
 	ASSERT(self.allocator, "[STRING]: Cannot append to a string literal.");
-	auto formatted_string = fmt::vformat(fmt, fmt::make_format_args(args...));
-	string_append(self, string_literal(formatted_string.c_str()));
+	Formatter formatter = {};
+	formatter_parse(formatter, fmt, args...);
+	string_append(self, string_literal(formatter.buffer));
 }
 
 inline static char
@@ -750,21 +752,8 @@ deserialize(Serializer *serializer, String &self)
 		deserialize(serializer, self[i]);
 }
 
-template <>
-struct fmt::formatter<String>
+inline static void
+format(Formatter &formatter, const String &self)
 {
-	template <typename ParseContext>
-	constexpr auto parse(ParseContext &ctx)
-	{
-		return ctx.begin();
-	}
-
-	template <typename FormatContext>
-	auto format(const String &self, FormatContext &ctx)
-	{
-		if (self.count == 0)
-			return ctx.out();
-		format_to(ctx.out(), "{}", string_view{self.data, self.count});
-		return ctx.out();
-	}
-};
+	format(formatter, self.data);
+}

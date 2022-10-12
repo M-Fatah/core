@@ -3,6 +3,7 @@
 #include "core/defines.h"
 #include "core/hash.h"
 #include "core/utils.h"
+#include "core/format.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
 #include "core/serialization/serializer.h"
@@ -343,27 +344,17 @@ deserialize(Serializer *serializer, Hash_Table<K, V> &self)
 }
 
 template <typename K, typename V>
-struct fmt::formatter<Hash_Table<K, V>>
+inline static void
+format(Formatter &formatter, const Hash_Table<K, V> &self)
 {
-	template <typename ParseContext>
-	constexpr auto parse(ParseContext &ctx)
+	formatter_parse(formatter, "{{{}, {}}} [{}] {{ ", typeid(K).name(), typeid(V).name(), self.count);
+	u64 i = 0;
+	for(const auto &[key, value]: self)
 	{
-		return ctx.begin();
+		if(i != 0)
+			format(formatter, ", ");
+		formatter_parse(formatter, "{}: {}", key, value);
+		++i;
 	}
-
-	template <typename FormatContext>
-	auto format(const Hash_Table<K, V> &self, FormatContext &ctx)
-	{
-		format_to(ctx.out(), "{{{}, {}}} [{}] {{ ", typeid(K).name(), typeid(V).name(), self.count);
-		u64 i = 0;
-		for(const auto &[key, value]: self)
-		{
-			if(i != 0)
-				format_to(ctx.out(), ", ");
-			format_to(ctx.out(), "{}: {}", key, value);
-			++i;
-		}
-		format_to(ctx.out(), " }}");
-		return ctx.out();
-	}
-};
+	format(formatter, " }");
+}

@@ -221,7 +221,7 @@ R"""({
 
 		auto [value, error] = json_value_from_string(json, memory::temp_allocator());
 		if (error)
-			LOG_ERROR("%s", error.message.data);
+			LOG_ERROR("{}", error.message.data);
 
 		auto value_copy        = clone(value, memory::temp_allocator());
 		auto [value_string, _] = json_value_to_string(value_copy, memory::temp_allocator());
