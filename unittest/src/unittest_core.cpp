@@ -177,14 +177,6 @@ TEST_CASE("[CORE]: Formatter")
 	formatter_parse(formatter, "{}", vec3{1, 2, 3});
 	CHECK(string_literal(formatter.buffer) == "{1, 2, 3}");
 	formatter_clear(formatter);
-
-	formatter_parse(formatter, "{}", array_from<vec3>({{1, 2, 3}, {4, 5, 6}}, memory::temp_allocator()));
-	CHECK(string_literal(formatter.buffer) == "struct vec3 [2] { {1, 2, 3}, {4, 5, 6} }");
-	formatter_clear(formatter);
-
-	formatter_parse(formatter, "{}", hash_table_from<i32, vec3>({{1, {1, 2, 3}}, {2, {4, 5, 6}}}, memory::temp_allocator()));
-	CHECK(string_literal(formatter.buffer) == "{int, struct vec3} [2] { 1: {1, 2, 3}, 2: {4, 5, 6} }");
-	formatter_clear(formatter);
 }
 
 TEST_CASE("[CORE]: JSON")
