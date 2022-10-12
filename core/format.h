@@ -44,7 +44,7 @@ formatter_format(Formatter &self, const T *value)
 	else if constexpr (std::is_same_v<const T * const, const char * const>)
 		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
 	else
-		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%p", value);
+		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%p", (void *)value);
 }
 
 template <typename T>
@@ -56,7 +56,7 @@ formatter_format(Formatter &self, const T &value)
 		if constexpr (std::is_same_v<T, char *>)
 			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
 		else
-			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%p", value);
+			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%p", (void *)value);
 	}
 	else if constexpr (std::is_same_v<T, char>)
 		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%c", value);
@@ -67,9 +67,9 @@ formatter_format(Formatter &self, const T &value)
 	else if constexpr (std::is_integral_v<T>)
 	{
 		if constexpr (sizeof(T) == 8)
-			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%lld", value);
-		else
 			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%ld", value);
+		else
+			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%d", value);
 	}
 }
 
