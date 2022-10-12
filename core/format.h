@@ -99,9 +99,6 @@ FORMAT(f64)
 FORMAT(bool)
 FORMAT(char)
 FORMAT(void)
-#if PLATFORM_WIN32
-FORMAT(unsigned long)
-#endif
 
 #undef FORMAT
 
@@ -124,9 +121,6 @@ FORMAT(f32)
 FORMAT(f64)
 FORMAT(bool)
 FORMAT(char)
-#if PLATFORM_WIN32
-FORMAT(unsigned long)
-#endif
 
 #undef FORMAT
 
