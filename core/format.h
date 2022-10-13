@@ -97,21 +97,6 @@ formatter_format(Formatter &self, const T &value)
 	}
 }
 
-template <typename T, u64 N>
-inline static void
-format(Formatter &self, const T(&data)[N])
-{
-	u64 count = N;
-	formatter_parse(self, "[{}] {{ ", N);
-	for (u64 i = 0; i < count; ++i)
-	{
-		if (i != 0)
-			formatter_format(self, ", ");
-		format(self, data[i]);
-	}
-	formatter_format(self, " }");
-}
-
 #define FORMAT(T)                      \
 inline static void                     \
 format(Formatter &self, const T *data) \
@@ -261,4 +246,19 @@ inline static void
 formatter_clear(Formatter &self)
 {
 	self.index = 0;
+}
+
+template <typename T, u64 N>
+inline static void
+format(Formatter &self, const T(&data)[N])
+{
+	u64 count = N;
+	formatter_parse(self, "[{}] {{ ", N);
+	for (u64 i = 0; i < count; ++i)
+	{
+		if (i != 0)
+			formatter_format(self, ", ");
+		format(self, data[i]);
+	}
+	formatter_format(self, " }");
 }
