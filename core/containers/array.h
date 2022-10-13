@@ -308,8 +308,7 @@ template <typename T>
 inline static void
 format(Formatter &formatter, const Array<T> &self)
 {
-	format(formatter, typeid(T).name());
-	format(formatter, " [");
+	format(formatter, "[");
 	format(formatter, self.count);
 	format(formatter, "] ");
 	format(formatter, "{ ");

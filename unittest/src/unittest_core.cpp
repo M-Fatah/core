@@ -187,6 +187,14 @@ TEST_CASE("[CORE]: Formatter")
 	formatter_parse(formatter, "{}", array_of_strings);
 	CHECK(string_literal(formatter.buffer) == "[2] { Hello, World }");
 	formatter_clear(formatter);
+
+	formatter_parse(formatter, "{}", array_from<i32>({1, 2, 3}, memory::temp_allocator()));
+	CHECK(string_literal(formatter.buffer) == "[3] { 1, 2, 3 }");
+	formatter_clear(formatter);
+
+	formatter_parse(formatter, "{}", hash_table_from<i32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()));
+	CHECK(string_literal(formatter.buffer) == "[3] { 1: 1, 2: 2, 3: 3 }");
+	formatter_clear(formatter);
 }
 
 TEST_CASE("[CORE]: JSON")
