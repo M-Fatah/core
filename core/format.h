@@ -14,8 +14,8 @@
 	- [x] Collapse the two 'formatter_format' functions.
 	- [x] Add unittests.
 	- [x] Add support for arrays.
+	- [x] Template types names differ between Windows/Linux.
 	- [ ] Pointer formatting differ between Windows/Linux.
-	- [ ] Template types names differ between Windows/Linux.
 	- [ ] Collapse the two 'formatter_parse' functions.
 	- [ ] Remove the 32KB buffer size restriction.
 	- [ ] Move implementation to .cpp file.
@@ -220,7 +220,9 @@ formatter_parse(Formatter &self, const char *fmt, const TArgs &...args)
 
 		if (fmt[i] == '{' && fmt[i + 1] == '}')
 		{
-			// TODO:
+			// TODO: For now we will eat the replacement characters and do nothing.
+			i++;
+			continue;
 		}
 
 		if (fmt[i] == '{' || fmt[i] == '}')

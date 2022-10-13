@@ -5,8 +5,6 @@
 #include "core/format.h"
 #include "core/containers/string.h"
 
-// #include <fmt/core.h>
-
 #define LOG_FATAL(...) logger_write_to_console(LOG_TAG_FATAL, ##__VA_ARGS__)
 #define LOG_ERROR(...) logger_write_to_console(LOG_TAG_ERROR, ##__VA_ARGS__)
 #define LOG_WARNING(...) logger_write_to_console(LOG_TAG_WARNING, ##__VA_ARGS__)
