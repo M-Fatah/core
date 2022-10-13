@@ -43,7 +43,7 @@ template <typename T>
 inline static T
 clone(const T &, memory::Allocator *)
 {
-	static_assert(sizeof(T) == 0, "There is no 'T clone(const T &, memory::Allocator *)' function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `T clone(const T &, memory::Allocator *)` function overload defined for this type.");
 	return {};
 }
 
@@ -51,5 +51,5 @@ template <typename T>
 inline static void
 destroy(T &)
 {
-	static_assert(sizeof(T) == 0, "There is no 'void destroy(T &)' function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `void destroy(T &)` function overload defined for this type.");
 }

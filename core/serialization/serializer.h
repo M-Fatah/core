@@ -59,14 +59,14 @@ template <typename T>
 inline static void
 serialize(Serializer *, const T &)
 {
-	static_assert(sizeof(T) == 0, "There is no 'void serialize(Serializer *, const T &)' function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `void serialize(Serializer *, const T &)` function overload defined for this type.");
 }
 
 template <typename T>
 inline static void
 deserialize(Serializer *, T &)
 {
-	static_assert(sizeof(T) == 0, "There is no 'void deserialize(Serializer *, T &)' function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `void deserialize(Serializer *, T &)` function overload defined for this type.");
 }
 
 #define SERIALIZE(T)                       \

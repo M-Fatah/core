@@ -12,14 +12,14 @@
 	- [x] Overload 'format' function like serializer instead?
 	- [x] Remove libfmt dependency.
 	- [x] Collapse the two 'formatter_format' functions.
+	- [x] Collapse the two 'formatter_parse' functions.
 	- [x] Add unittests.
 	- [x] Add support for arrays.
 	- [x] Template types names differ between Windows/Linux.
+	- [x] Check for matching count of replacement_characters and argument count.
 	- [ ] Pointer formatting differ between Windows/Linux.
-	- [ ] Collapse the two 'formatter_parse' functions.
 	- [ ] Remove the 32KB buffer size restriction.
 	- [ ] Move implementation to .cpp file.
-	- [ ] Check for matching count of replacement_characters and argument count.
 	- [ ] Simplify and optimize.
 	- [ ] Do not rely on ::snprintf and implement our own formatting.
 */
@@ -29,19 +29,6 @@ struct Formatter
 	char buffer[32 * 1024];
 	u64 index;
 };
-
-template <typename T>
-inline static void
-format(Formatter &, const T &)
-{
-	static_assert(sizeof(T) == 0, "There is no `void format(Formatter &, const T &)` function overload defined for this type.");
-}
-
-template<typename T, size_t N>
-constexpr size_t countof(const T(&)[N]) noexcept
-{
-	return N;
-}
 
 template <typename T>
 using array_element_type = std::decay_t<decltype(std::declval<T&>()[0])>;
@@ -97,13 +84,20 @@ formatter_format(Formatter &self, const T &value)
 	}
 }
 
+template <typename T>
+inline static void
+format(Formatter &, const T &)
+{
+	static_assert(sizeof(T) == 0, "There is no `void format(Formatter &, const T &)` function overload defined for this type.");
+}
+
 #define FORMAT(T)                      \
 inline static void                     \
 format(Formatter &self, const T *data) \
 {                                      \
 	formatter_format(self, data);      \
 }                                      \
-                                       \
+									   \
 inline static void                     \
 format(Formatter &self, T *data)       \
 {                                      \
@@ -148,49 +142,6 @@ FORMAT(char)
 
 #undef FORMAT
 
-template <typename T>
-inline static void
-formatter_parse(Formatter &self, const char *fmt, u64 &start, const T &t)
-{
-	u64 fmt_count = ::strlen(fmt);
-	if (fmt_count == 0)
-		return;
-
-	u64 replacement_character_count = 0;
-	for (u64 i = start; i < fmt_count - 1; ++i)
-	{
-		if (fmt[i] == '{' && fmt[i + 1] == '{')
-		{
-			i++;
-			self.buffer[self.index++] = '{';
-			continue;
-		}
-
-		if (fmt[i] == '}' && fmt[i + 1] == '}')
-		{
-			i++;
-			self.buffer[self.index++] = '}';
-			continue;
-		}
-
-		if (fmt[i] == '{' && fmt[i + 1] == '}')
-		{
-			i++;
-			replacement_character_count++;
-			start = i + 1;
-			format(self, t);
-			return;
-		}
-
-		if (fmt[i] == '{' || fmt[i] == '}')
-		{
-			continue;
-		}
-
-		self.buffer[self.index++] = fmt[i];
-	}
-}
-
 template <typename ...TArgs>
 inline static void
 formatter_parse(Formatter &self, const char *fmt, const TArgs &...args)
@@ -200,7 +151,45 @@ formatter_parse(Formatter &self, const char *fmt, const TArgs &...args)
 		return;
 
 	u64 start = 0;
-	(formatter_parse(self, fmt, start, args), ...);
+	([&] (const auto &arg)
+	{
+		if (start < fmt_count)
+		{
+			u64 replacement_character_count = 0;
+			for (u64 i = start; i < fmt_count - 1; ++i)
+			{
+				if (fmt[i] == '{' && fmt[i + 1] == '{')
+				{
+					i++;
+					self.buffer[self.index++] = '{';
+					continue;
+				}
+
+				if (fmt[i] == '}' && fmt[i + 1] == '}')
+				{
+					i++;
+					self.buffer[self.index++] = '}';
+					continue;
+				}
+
+				if (fmt[i] == '{' && fmt[i + 1] == '}')
+				{
+					i++;
+					replacement_character_count++;
+					start = i + 1;
+					format(self, arg);
+					return;
+				}
+
+				if (fmt[i] == '{' || fmt[i] == '}')
+				{
+					continue;
+				}
+
+				self.buffer[self.index++] = fmt[i];
+			}
+		}
+	} (args), ...);
 
 	for (u64 i = start; i < fmt_count; ++i)
 	{
