@@ -141,11 +141,6 @@ TEST_CASE("[CORE]: Formatter")
 	CHECK(string_literal(formatter.buffer) == "Hello/A/true/1.5/3/{4, 5, 6}");
 	formatter_clear(formatter);
 
-	[[maybe_unused]] i32 x = 5;
-	formatter_parse(formatter, "{}", &x);
-	CHECK(formatter.index == 16);
-	formatter_clear(formatter);
-
 	formatter_parse(formatter, "{}", "Hello");
 	CHECK(string_literal(formatter.buffer) == "Hello");
 	formatter_clear(formatter);
@@ -176,6 +171,21 @@ TEST_CASE("[CORE]: Formatter")
 
 	formatter_parse(formatter, "{}", vec3{1, 2, 3});
 	CHECK(string_literal(formatter.buffer) == "{1, 2, 3}");
+	formatter_clear(formatter);
+
+	char test[] = "test";
+	formatter_parse(formatter, "{}", test);
+	CHECK(string_literal(formatter.buffer) == "test");
+	formatter_clear(formatter);
+
+	vec3 array[2] = {{1, 2, 3}, {4, 5, 6}};
+	formatter_parse(formatter, "{}", array);
+	CHECK(string_literal(formatter.buffer) == "[2] { {1, 2, 3}, {4, 5, 6} }");
+	formatter_clear(formatter);
+
+	const char *array_of_strings[2] = {"Hello", "World"};
+	formatter_parse(formatter, "{}", array_of_strings);
+	CHECK(string_literal(formatter.buffer) == "[2] { Hello, World }");
 	formatter_clear(formatter);
 }
 

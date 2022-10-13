@@ -13,6 +13,9 @@
 	- [x] Remove libfmt dependency.
 	- [x] Collapse the two 'formatter_format' functions.
 	- [x] Add unittests.
+	- [x] Add support for arrays.
+	- [ ] Pointer formatting differ between Windows/Linux.
+	- [ ] Template types names differ between Windows/Linux.
 	- [ ] Collapse the two 'formatter_parse' functions.
 	- [ ] Remove the 32KB buffer size restriction.
 	- [ ] Move implementation to .cpp file.
@@ -33,6 +36,15 @@ format(Formatter &, const T &)
 {
 	static_assert(sizeof(T) == 0, "There is no `void format(Formatter &, const T &)` function overload defined for this type.");
 }
+
+template<typename T, size_t N>
+constexpr size_t countof(const T(&)[N]) noexcept
+{
+	return N;
+}
+
+template <typename T>
+using array_element_type = std::decay_t<decltype(std::declval<T&>()[0])>;
 
 template <typename T>
 inline static void
@@ -74,6 +86,30 @@ formatter_format(Formatter &self, const T &value)
 		else
 			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%d", value);
 	}
+	else if constexpr (std::is_array_v<T>)
+	{
+		if constexpr (std::is_same_v<array_element_type<T>, char>)
+			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
+	}
+	else
+	{
+		static_assert(sizeof(T) == 0, "There is no `void formatter_format(Formatter &, const T &)` function overload defined for this type.");
+	}
+}
+
+template <typename T, u64 N>
+inline static void
+format(Formatter &self, const T(&data)[N])
+{
+	u64 count = N;
+	formatter_parse(self, "[{}] {{ ", N);
+	for (u64 i = 0; i < count; ++i)
+	{
+		if (i != 0)
+			formatter_format(self, ", ");
+		format(self, data[i]);
+	}
+	formatter_format(self, " }");
 }
 
 #define FORMAT(T)                      \
