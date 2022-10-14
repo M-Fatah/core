@@ -17,17 +17,19 @@
 	- [x] Add support for arrays.
 	- [x] Template types names differ between Windows/Linux.
 	- [x] Check for matching count of replacement_characters and argument count.
-	- [ ] Pointer formatting differ between Windows/Linux.
 	- [ ] Remove the 32KB buffer size restriction.
 	- [ ] Move implementation to .cpp file.
 	- [ ] Simplify and optimize.
 	- [ ] Do not rely on ::snprintf and implement our own formatting.
+	- [ ] Pointer formatting differ between Windows/Linux.
 */
 
 struct Formatter
 {
 	char buffer[32 * 1024];
 	u64 index;
+	u64 replacement_character_count;
+	u64 depth;
 };
 
 template <typename T>
@@ -153,41 +155,40 @@ formatter_parse(Formatter &self, const char *fmt, const TArgs &...args)
 	u64 start = 0;
 	([&] (const auto &arg)
 	{
-		if (start < fmt_count)
+		for (u64 i = start; i < fmt_count - 1; ++i)
 		{
-			u64 replacement_character_count = 0;
-			for (u64 i = start; i < fmt_count - 1; ++i)
+			if (fmt[i] == '{' && fmt[i + 1] == '{')
 			{
-				if (fmt[i] == '{' && fmt[i + 1] == '{')
-				{
-					i++;
-					self.buffer[self.index++] = '{';
-					continue;
-				}
-
-				if (fmt[i] == '}' && fmt[i + 1] == '}')
-				{
-					i++;
-					self.buffer[self.index++] = '}';
-					continue;
-				}
-
-				if (fmt[i] == '{' && fmt[i + 1] == '}')
-				{
-					i++;
-					replacement_character_count++;
-					start = i + 1;
-					format(self, arg);
-					return;
-				}
-
-				if (fmt[i] == '{' || fmt[i] == '}')
-				{
-					continue;
-				}
-
-				self.buffer[self.index++] = fmt[i];
+				i++;
+				self.buffer[self.index++] = '{';
+				continue;
 			}
+
+			if (fmt[i] == '}' && fmt[i + 1] == '}')
+			{
+				i++;
+				self.buffer[self.index++] = '}';
+				continue;
+			}
+
+			if (fmt[i] == '{' && fmt[i + 1] == '}')
+			{
+				i++;
+				if (self.depth == 0)
+					self.replacement_character_count++;
+				start = i + 1;
+				self.depth++;
+				format(self, arg);
+				self.depth--;
+				return;
+			}
+
+			if (fmt[i] == '{' || fmt[i] == '}')
+			{
+				continue;
+			}
+
+			self.buffer[self.index++] = fmt[i];
 		}
 	} (args), ...);
 
@@ -211,6 +212,7 @@ formatter_parse(Formatter &self, const char *fmt, const TArgs &...args)
 		{
 			// TODO: For now we will eat the replacement characters and do nothing.
 			i++;
+			self.replacement_character_count++;
 			continue;
 		}
 
@@ -236,7 +238,7 @@ formatter_parse(Formatter &self, const char *fmt, const TArgs &...args)
 inline static void
 formatter_clear(Formatter &self)
 {
-	self.index = 0;
+	self = {};
 }
 
 template <typename T, u64 N>
