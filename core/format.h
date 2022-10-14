@@ -46,8 +46,8 @@ struct Formatter
 	FORMAT(f64)
 	FORMAT(bool)
 	FORMAT(char)
-	FORMAT(char *)
-	FORMAT(void *)
+	FORMAT(const char *)
+	FORMAT(const void *)
 
 	void
 	clear();
@@ -190,6 +190,17 @@ inline static void
 formatter_clear(Formatter &self)
 {
 	self.clear();
+}
+
+// TODO: Can we move this to cpp file?
+template <typename T>
+concept Pointer_Type = std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>;
+
+template <Pointer_Type T>
+inline static void
+format(Formatter &self, const T data)
+{
+	self.format((const void *)data);
 }
 
 // TODO: Can we move this to cpp file?

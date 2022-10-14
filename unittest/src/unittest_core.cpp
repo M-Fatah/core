@@ -135,6 +135,11 @@ TEST_CASE("[CORE]: Formatter")
 	CHECK(formatter.replacement_character_count == 6);
 	formatter_clear(formatter);
 
+	i32 x = 1;
+	format(formatter, "{}", &x);
+	CHECK(formatter.replacement_character_count == 1);
+	formatter_clear(formatter);
+
 	format(formatter, "{}", "Hello");
 	CHECK(string_literal(formatter.buffer) == "Hello");
 	CHECK(formatter.replacement_character_count == 1);

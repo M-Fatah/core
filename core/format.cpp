@@ -139,14 +139,14 @@ Formatter::format(char data)
 }
 
 void
-Formatter::format(char *data)
+Formatter::format(const char *data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
 }
 
 void
-Formatter::format(void *data)
+Formatter::format(const void *data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
