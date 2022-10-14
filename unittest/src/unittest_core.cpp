@@ -124,113 +124,106 @@ struct vec3
 inline static void
 format(Formatter &self, const vec3 &value)
 {
-	// TODO: @consistency: use "{{" instead of "{" and "}}" instea of "}".
-	format(self, "{");
-	format(self, value.x);
-	format(self, ", ");
-	format(self, value.y);
-	format(self, ", ");
-	format(self, value.z);
-	format(self, "}");
+	format(self, "{{{}, {}, {}}}", value.x, value.y, value.z);
 }
 
 TEST_CASE("[CORE]: Formatter")
 {
 	Formatter formatter = {};
-	formatter_parse(formatter, "{}/{}/{}/{}/{}/{}", "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6});
+	format(formatter, "{}/{}/{}/{}/{}/{}", "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6});
 	CHECK(string_literal(formatter.buffer) == "Hello/A/true/1.5/3/{4, 5, 6}");
 	CHECK(formatter.replacement_character_count == 6);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}", "Hello");
+	format(formatter, "{}", "Hello");
 	CHECK(string_literal(formatter.buffer) == "Hello");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}", 'A');
+	format(formatter, "{}", 'A');
 	CHECK(string_literal(formatter.buffer) == "A");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}", true);
+	format(formatter, "{}", true);
 	CHECK(string_literal(formatter.buffer) == "true");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}", 1.5f);
+	format(formatter, "{}", 1.5f);
 	CHECK(string_literal(formatter.buffer) == "1.5");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}", -1.5f);
+	format(formatter, "{}", -1.5f);
 	CHECK(string_literal(formatter.buffer) == "-1.5");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}", 3);
+	format(formatter, "{}", 3);
 	CHECK(string_literal(formatter.buffer) == "3");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}", -3);
+	format(formatter, "{}", -3);
 	CHECK(string_literal(formatter.buffer) == "-3");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}", vec3{1, 2, 3});
+	format(formatter, "{}", vec3{1, 2, 3});
 	CHECK(string_literal(formatter.buffer) == "{1, 2, 3}");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
 	char test[] = "test";
-	formatter_parse(formatter, "{}", test);
+	format(formatter, "{}", test);
 	CHECK(string_literal(formatter.buffer) == "test");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
 	vec3 array[2] = {{1, 2, 3}, {4, 5, 6}};
-	formatter_parse(formatter, "{}", array);
+	format(formatter, "{}", array);
 	CHECK(string_literal(formatter.buffer) == "[2] { {1, 2, 3}, {4, 5, 6} }");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
 	const char *array_of_strings[2] = {"Hello", "World"};
-	formatter_parse(formatter, "{}", array_of_strings);
+	format(formatter, "{}", array_of_strings);
 	CHECK(string_literal(formatter.buffer) == "[2] { Hello, World }");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}", array_from<i32>({1, 2, 3}, memory::temp_allocator()));
+	format(formatter, "{}", array_from<i32>({1, 2, 3}, memory::temp_allocator()));
 	CHECK(string_literal(formatter.buffer) == "[3] { 1, 2, 3 }");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}", hash_table_from<i32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()));
+	format(formatter, "{}", hash_table_from<i32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()));
 	CHECK(string_literal(formatter.buffer) == "[3] { 1: 1, 2: 2, 3: 3 }");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}{}{}{}{}", 1, 2, 3);
+	format(formatter, "{}{}{}{}{}", 1, 2, 3);
 	CHECK(string_literal(formatter.buffer) == "123");
 	CHECK(formatter.replacement_character_count == 5);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}{}{}{}{}", 1, 2, 3, "{}", 4);
+	format(formatter, "{}{}{}{}{}", 1, 2, 3, "{}", 4);
 	CHECK(string_literal(formatter.buffer) == "123{}4");
 	CHECK(formatter.replacement_character_count == 5);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "A", "B");
+	format(formatter, "A", "B");
 	CHECK(string_literal(formatter.buffer) == "A");
 	CHECK(formatter.replacement_character_count == 0);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}A", "B");
+	format(formatter, "{}A", "B");
 	CHECK(string_literal(formatter.buffer) == "BA");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);
 
-	formatter_parse(formatter, "{}", "A", "B", "C");
+	format(formatter, "{}", "A", "B", "C");
 	CHECK(string_literal(formatter.buffer) == "A");
 	CHECK(formatter.replacement_character_count == 1);
 	formatter_clear(formatter);

@@ -73,14 +73,14 @@ deserialize(Serializer *, T &)
 inline static void                         \
 serialize(Serializer *self, const T &data) \
 {                                          \
-	self->serialize(data);                 \
+    self->serialize(data);                 \
 }
 
 #define DESERIALIZE(T)                     \
 inline static void                         \
 deserialize(Serializer *self, T &data)     \
 {                                          \
-	self->deserialize(data);               \
+    self->deserialize(data);               \
 }
 
 SERIALIZE(i8)

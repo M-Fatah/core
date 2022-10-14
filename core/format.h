@@ -4,7 +4,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <typeinfo>
 #include <type_traits>
 
 /*
@@ -17,12 +16,16 @@
 	- [x] Add support for arrays.
 	- [x] Template types names differ between Windows/Linux.
 	- [x] Check for matching count of replacement_characters and argument count.
+	- [x] Move implementation to .cpp file.
 	- [ ] Remove the 32KB buffer size restriction.
-	- [ ] Move implementation to .cpp file.
 	- [ ] Simplify and optimize.
 	- [ ] Do not rely on ::snprintf and implement our own formatting.
 	- [ ] Pointer formatting differ between Windows/Linux.
 */
+
+#define FORMAT(T)          \
+void                       \
+format(const T &data);
 
 struct Formatter
 {
@@ -30,61 +33,27 @@ struct Formatter
 	u64 index;
 	u64 replacement_character_count;
 	u64 depth;
+
+	FORMAT(i8)
+	FORMAT(i16)
+	FORMAT(i32)
+	FORMAT(i64)
+	FORMAT(u8)
+	FORMAT(u16)
+	FORMAT(u32)
+	FORMAT(u64)
+	FORMAT(f32)
+	FORMAT(f64)
+	FORMAT(char)
+	FORMAT(bool)
+
+	void
+	format(char *data);
+	void
+	format(const char *data);
 };
 
-template <typename T>
-using array_element_type = std::decay_t<decltype(std::declval<T&>()[0])>;
-
-template <typename T>
-inline static void
-formatter_format(Formatter &self, const T &value)
-{
-	if constexpr (std::is_pointer_v<T>)
-	{
-		if constexpr (std::is_same_v<T, char *>)
-			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
-		else if constexpr (std::is_same_v<T, const char *>)
-			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
-		else if constexpr (std::is_same_v<T, const char * const>)
-			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
-		else
-			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%p", (void *)value);
-	}
-	else if constexpr (std::is_same_v<T, char>)
-	{
-		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%c", value);
-	}
-	else if constexpr (std::is_same_v<T, bool>)
-	{
-		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value ? "true" : "false");
-	}
-	else if constexpr (std::is_floating_point_v<T>)
-	{
-		self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%g", value);
-	}
-	else if constexpr (std::is_integral_v<T>)
-	{
-		if constexpr (std::is_same_v<T, long long int>)
-			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%lld", value);
-		else if constexpr (std::is_same_v<T, long int>)
-			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%ld", value);
-		else if constexpr (std::is_same_v<T, unsigned long long int>)
-			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%lld", value);
-		else if constexpr (std::is_same_v<T, unsigned long int>)
-			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%ld", value);
-		else
-			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%d", value);
-	}
-	else if constexpr (std::is_array_v<T>)
-	{
-		if constexpr (std::is_same_v<array_element_type<T>, char>)
-			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
-	}
-	else
-	{
-		static_assert(sizeof(T) == 0, "There is no `void formatter_format(Formatter &, const T &)` function overload defined for this type.");
-	}
-}
+#undef FORMAT
 
 template <typename T>
 inline static void
@@ -97,27 +66,27 @@ format(Formatter &, const T &)
 inline static void                     \
 format(Formatter &self, const T *data) \
 {                                      \
-	formatter_format(self, data);      \
+    self.format(data);                 \
 }                                      \
-									   \
+                                       \
 inline static void                     \
 format(Formatter &self, T *data)       \
 {                                      \
-	formatter_format(self, data);      \
+    self.format(data);                 \
 }                                      \
 
-FORMAT(i8)
-FORMAT(i16)
-FORMAT(i32)
-FORMAT(i64)
-FORMAT(u8)
-FORMAT(u16)
-FORMAT(u32)
-FORMAT(u64)
-FORMAT(f32)
-FORMAT(f64)
-FORMAT(bool)
-FORMAT(char)
+// FORMAT(i8)
+// FORMAT(i16)
+// FORMAT(i32)
+// FORMAT(i64)
+// FORMAT(u8)
+// FORMAT(u16)
+// FORMAT(u32)
+// FORMAT(u64)
+// FORMAT(f32)
+// FORMAT(f64)
+// FORMAT(bool)
+// FORMAT(char)
 FORMAT(void)
 
 #undef FORMAT
@@ -126,7 +95,7 @@ FORMAT(void)
 inline static void                     \
 format(Formatter &self, const T &data) \
 {                                      \
-	formatter_format(self, data);      \
+	self.format(data);                 \
 }
 
 FORMAT(i8)
@@ -144,9 +113,15 @@ FORMAT(char)
 
 #undef FORMAT
 
+inline static void
+format(Formatter &self, char * const data)
+{
+	self.format(data);
+}
+
 template <typename ...TArgs>
 inline static void
-formatter_parse(Formatter &self, const char *fmt, const TArgs &...args)
+format(Formatter &self, const char *fmt, const TArgs &...args)
 {
 	u64 fmt_count = ::strlen(fmt);
 	if (fmt_count == 0)
@@ -211,8 +186,17 @@ formatter_parse(Formatter &self, const char *fmt, const TArgs &...args)
 		if (fmt[i] == '{' && fmt[i + 1] == '}')
 		{
 			// TODO: For now we will eat the replacement characters and do nothing.
-			i++;
-			self.replacement_character_count++;
+			if (self.depth == 0)
+			{
+				i++;
+				self.replacement_character_count++;
+			}
+			else
+			{
+				self.buffer[self.index++] = '{';
+				self.buffer[self.index++] = '}';
+
+			}
 			continue;
 		}
 
@@ -241,17 +225,20 @@ formatter_clear(Formatter &self)
 	self = {};
 }
 
-template <typename T, u64 N>
+template <typename T>
+concept Array_Type = !std::is_same_v<T, char>;
+
+template <Array_Type T, u64 N>
 inline static void
 format(Formatter &self, const T(&data)[N])
 {
 	u64 count = N;
-	formatter_parse(self, "[{}] {{ ", N);
+	format(self, "[{}] {{ ", count);
 	for (u64 i = 0; i < count; ++i)
 	{
 		if (i != 0)
-			formatter_format(self, ", ");
+			format(self, ", ");
 		format(self, data[i]);
 	}
-	formatter_format(self, " }");
+	format(self, " }}");
 }

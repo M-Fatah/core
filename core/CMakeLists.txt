@@ -24,6 +24,7 @@ set(HEADER_FILES
 set(SOURCE_FILES
     assert.cpp
     ecs.cpp
+    format.cpp
     json.cpp
     logger.cpp
     memory/heap_allocator.cpp
