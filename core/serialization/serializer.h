@@ -9,6 +9,7 @@
 	- [ ] Add unittests for json serialization.
 	- [ ] Define fixed size for char and bool, since they are compiler implementation specific and differ between compilers.
 */
+
 #define SERIALIZE(T)          \
 virtual void                  \
 serialize(const T &data) = 0;

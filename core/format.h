@@ -23,9 +23,9 @@
 	- [ ] Pointer formatting differ between Windows/Linux.
 */
 
-#define FORMAT(T)          \
-void                       \
-format(const T &data);
+#define FORMAT(T) \
+void              \
+format(T data);
 
 struct Formatter
 {
@@ -44,59 +44,30 @@ struct Formatter
 	FORMAT(u64)
 	FORMAT(f32)
 	FORMAT(f64)
-	FORMAT(char)
 	FORMAT(bool)
+	FORMAT(char)
+	FORMAT(char *)
+	FORMAT(void *)
 
 	void
-	format(char *data);
-	void
-	format(const char *data);
+	clear();
 };
 
 #undef FORMAT
 
 template <typename T>
 inline static void
-format(Formatter &, const T &)
+format(Formatter &, T)
 {
-	static_assert(sizeof(T) == 0, "There is no `void format(Formatter &, const T &)` function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `void format(Formatter &, T)` function overload defined for this type.");
 }
 
-#define FORMAT(T)                      \
-inline static void                     \
-format(Formatter &self, const T *data) \
-{                                      \
-    self.format(data);                 \
-}                                      \
-                                       \
-inline static void                     \
-format(Formatter &self, T *data)       \
-{                                      \
-    self.format(data);                 \
-}                                      \
-
-// FORMAT(i8)
-// FORMAT(i16)
-// FORMAT(i32)
-// FORMAT(i64)
-// FORMAT(u8)
-// FORMAT(u16)
-// FORMAT(u32)
-// FORMAT(u64)
-// FORMAT(f32)
-// FORMAT(f64)
-// FORMAT(bool)
-// FORMAT(char)
-FORMAT(void)
-
-#undef FORMAT
-
-#define FORMAT(T)                      \
-inline static void                     \
-format(Formatter &self, const T &data) \
-{                                      \
-	self.format(data);                 \
-}
+#define FORMAT(T)               \
+inline static void              \
+format(Formatter &self, T data) \
+{                               \
+	self.format(data);          \
+}                               \
 
 FORMAT(i8)
 FORMAT(i16)
@@ -110,14 +81,10 @@ FORMAT(f32)
 FORMAT(f64)
 FORMAT(bool)
 FORMAT(char)
+FORMAT(char *)
+FORMAT(void *)
 
 #undef FORMAT
-
-inline static void
-format(Formatter &self, char * const data)
-{
-	self.format(data);
-}
 
 template <typename ...TArgs>
 inline static void
@@ -222,9 +189,10 @@ format(Formatter &self, const char *fmt, const TArgs &...args)
 inline static void
 formatter_clear(Formatter &self)
 {
-	self = {};
+	self.clear();
 }
 
+// TODO: Can we move this to cpp file?
 template <typename T>
 concept Array_Type = !std::is_same_v<T, char>;
 

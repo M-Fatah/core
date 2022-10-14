@@ -55,77 +55,84 @@ _formatter_format(Formatter &self, const T &value)
 }
 
 void
-Formatter::format(const i8 &data)
+Formatter::format(i8 data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
 }
 
 void
-Formatter::format(const i16 &data)
+Formatter::format(i16 data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
 }
 
 void
-Formatter::format(const i32 &data)
+Formatter::format(i32 data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
 }
 
 void
-Formatter::format(const i64 &data)
+Formatter::format(i64 data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
 }
 
 void
-Formatter::format(const u8 &data)
+Formatter::format(u8 data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
 }
 
 void
-Formatter::format(const u16 &data)
+Formatter::format(u16 data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
 }
 
 void
-Formatter::format(const u32 &data)
+Formatter::format(u32 data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
 }
 
 void
-Formatter::format(const u64 &data)
+Formatter::format(u64 data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
 }
 
 void
-Formatter::format(const f32 &data)
+Formatter::format(f32 data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
 }
 
 void
-Formatter::format(const f64 &data)
+Formatter::format(f64 data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
 }
 
 void
-Formatter::format(const char &data)
+Formatter::format(bool data)
+{
+	Formatter *self = this;
+	_formatter_format(*self, data);
+}
+
+void
+Formatter::format(char data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
@@ -139,15 +146,15 @@ Formatter::format(char *data)
 }
 
 void
-Formatter::format(const char *data)
+Formatter::format(void *data)
 {
 	Formatter *self = this;
 	_formatter_format(*self, data);
 }
 
 void
-Formatter::format(const bool &data)
+Formatter::clear()
 {
 	Formatter *self = this;
-	_formatter_format(*self, data);
+	*self = {};
 }
