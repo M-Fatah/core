@@ -53,6 +53,12 @@ struct Formatter
 	clear();
 };
 
+inline static void
+formatter_clear(Formatter &self)
+{
+	self.clear();
+}
+
 #undef FORMAT
 
 template <typename T>
@@ -66,7 +72,7 @@ format(Formatter &, T)
 inline static void              \
 format(Formatter &self, T data) \
 {                               \
-	self.format(data);          \
+    self.format(data);          \
 }                               \
 
 FORMAT(i8)
@@ -81,8 +87,6 @@ FORMAT(f32)
 FORMAT(f64)
 FORMAT(bool)
 FORMAT(char)
-FORMAT(char *)
-FORMAT(void *)
 
 #undef FORMAT
 
@@ -186,21 +190,18 @@ format(Formatter &self, const char *fmt, const TArgs &...args)
 	self.buffer[self.index] = '\0';
 }
 
-inline static void
-formatter_clear(Formatter &self)
-{
-	self.clear();
-}
-
 // TODO: Can we move this to cpp file?
 template <typename T>
-concept Pointer_Type = std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>;
+concept Pointer_Type = std::is_pointer_v<T>;
 
 template <Pointer_Type T>
 inline static void
 format(Formatter &self, const T data)
 {
-	self.format((const void *)data);
+	if constexpr (std::is_same_v<T, char *> || std::is_same_v<T, const char *>)
+		self.format((const char *)data);
+	else
+		self.format((const void *)data);
 }
 
 // TODO: Can we move this to cpp file?
