@@ -347,14 +347,14 @@ template <typename K, typename V>
 inline static void
 format(Formatter &formatter, const Hash_Table<K, V> &self)
 {
-	formatter_parse(formatter, "[{}] {{ ", self.count);
+	format(formatter, "[{}] {{ ", self.count);
 	u64 i = 0;
 	for(const auto &[key, value]: self)
 	{
 		if(i != 0)
 			format(formatter, ", ");
-		formatter_parse(formatter, "{}: {}", key, value);
+		format(formatter, "{}: {}", key, value);
 		++i;
 	}
-	format(formatter, " }");
+	format(formatter, " }}");
 }

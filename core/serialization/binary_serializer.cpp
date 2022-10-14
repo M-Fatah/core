@@ -141,6 +141,7 @@ Binary_Serializer::serialize(const char &data)
 	Binary_Serializer *self = this;
 	_binary_serializer_serialize(self, data);
 }
+
 void
 Binary_Serializer::serialize(const bool &data)
 {

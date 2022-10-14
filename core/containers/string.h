@@ -51,7 +51,7 @@ inline static String
 string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
 {
 	Formatter formatter = {};
-	formatter_parse(formatter, fmt, args...);
+	format(formatter, fmt, args...);
 	return string_from(formatter.buffer, allocator);
 }
 
@@ -135,7 +135,7 @@ string_append(String &self, const char *fmt, const TArgs &...args)
 {
 	ASSERT(self.allocator, "[STRING]: Cannot append to a string literal.");
 	Formatter formatter = {};
-	formatter_parse(formatter, fmt, args...);
+	format(formatter, fmt, args...);
 	string_append(self, string_literal(formatter.buffer));
 }
 

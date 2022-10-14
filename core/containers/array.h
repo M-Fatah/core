@@ -308,16 +308,12 @@ template <typename T>
 inline static void
 format(Formatter &formatter, const Array<T> &self)
 {
-	format(formatter, "[");
-	format(formatter, self.count);
-	format(formatter, "] ");
-	format(formatter, "{ ");
+	format(formatter, "[{}] {{ ", self.count);
 	for (u64 i = 0; i < self.count; ++i)
 	{
 		if (i != 0)
 			format(formatter, ", ");
-		format(formatter, self[i]);
+		format(formatter, "{}", self[i]);
 	}
-
-	format(formatter, " }");
+	format(formatter, " }}");
 }

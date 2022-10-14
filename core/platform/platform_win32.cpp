@@ -19,7 +19,7 @@
 inline static void
 format(Formatter &formatter, DWORD value)
 {
-	formatter_format(formatter, value);
+	format(formatter, (u64)value);
 }
 
 // TODO: Remove from here.
