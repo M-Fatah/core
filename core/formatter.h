@@ -8,10 +8,12 @@
 
 /*
 	TODO:
+	- [x] Cleanup the cpp file.
 	- [ ] Remove the 32KB buffer size restriction.
 	- [ ] Do not rely on ::snprintf and implement our own formatting.
 	- [ ] Pointer formatting differ between Windows/Linux.
 	- [ ] Try and workaround moving implementation to cpp file.
+	- [ ] Use template Formatter<> struct?
 */
 
 #define FORMAT(T) \
