@@ -5,7 +5,6 @@
 #include "core/containers/array.h"
 #include "core/platform/platform.h"
 
-
 struct Binary_Serializer_Context
 {
 	memory::Allocator *allocator;
