@@ -18,14 +18,14 @@ void
 Formatter::format(i32 data)
 {
 	Formatter *self = this;
-	self->index += ::snprintf(self->buffer + self->index, sizeof(self->buffer), "%ld", data);
+	self->index += ::snprintf(self->buffer + self->index, sizeof(self->buffer), "%d", data);
 }
 
 void
 Formatter::format(i64 data)
 {
 	Formatter *self = this;
-	self->index += ::snprintf(self->buffer + self->index, sizeof(self->buffer), "%lld", data);
+	self->index += ::snprintf(self->buffer + self->index, sizeof(self->buffer), "%ld", data);
 }
 
 void
@@ -46,14 +46,14 @@ void
 Formatter::format(u32 data)
 {
 	Formatter *self = this;
-	self->index += ::snprintf(self->buffer + self->index, sizeof(self->buffer), "%ld", data);
+	self->index += ::snprintf(self->buffer + self->index, sizeof(self->buffer), "%d", data);
 }
 
 void
 Formatter::format(u64 data)
 {
 	Formatter *self = this;
-	self->index += ::snprintf(self->buffer + self->index, sizeof(self->buffer), "%lld", data);
+	self->index += ::snprintf(self->buffer + self->index, sizeof(self->buffer), "%ld", data);
 }
 
 void
