@@ -2,7 +2,7 @@
 
 #include "core/export.h"
 #include "core/defines.h"
-#include "core/format.h"
+#include "core/formatter.h"
 #include "core/containers/string.h"
 
 #define LOG_FATAL(...) logger_write_to_console(LOG_TAG_FATAL, ##__VA_ARGS__)

@@ -3,7 +3,7 @@ set(HEADER_FILES
     defer.h
     defines.h
     ecs.h
-    format.h
+    formatter.h
     hash.h
     json.h
     logger.h
@@ -24,7 +24,7 @@ set(HEADER_FILES
 set(SOURCE_FILES
     assert.cpp
     ecs.cpp
-    format.cpp
+    formatter.cpp
     json.cpp
     logger.cpp
     memory/heap_allocator.cpp

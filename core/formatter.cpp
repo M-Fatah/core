@@ -1,4 +1,4 @@
-#include "core/format.h"
+#include "core/formatter.h"
 
 template <typename T>
 using array_element_type = std::decay_t<decltype(std::declval<T &>()[0])>;
@@ -16,7 +16,7 @@ _formatter_format(Formatter &self, const T &value)
 		else if constexpr (std::is_same_v<T, const char * const>)
 			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%s", value);
 		else
-			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%p", (void *)value);
+			self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%p", (const void *)value);
 	}
 	else if constexpr (std::is_same_v<T, char>)
 	{

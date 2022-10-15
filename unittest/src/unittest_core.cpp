@@ -1,7 +1,7 @@
 #include <core/json.h>
 #include <core/logger.h>
 #include <core/result.h>
-#include <core/format.h>
+#include <core/formatter.h>
 #include <core/memory/memory.h>
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
