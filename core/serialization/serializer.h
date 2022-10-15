@@ -10,12 +10,12 @@
 	- [ ] Define fixed size for char and bool, since they are compiler implementation specific and differ between compilers.
 */
 
-#define SERIALIZE(T)          \
-virtual void                  \
-serialize(const T &data) = 0;
+#define SERIALIZE(T)      \
+virtual void              \
+serialize(T data) = 0;
 
-#define DESERIALIZE(T)        \
-virtual void                  \
+#define DESERIALIZE(T)    \
+virtual void              \
 deserialize(T &data) = 0;
 
 struct Serializer
@@ -33,8 +33,8 @@ struct Serializer
 	SERIALIZE(u64)
 	SERIALIZE(f32)
 	SERIALIZE(f64)
-	SERIALIZE(char)
 	SERIALIZE(bool)
+	SERIALIZE(char)
 
 	DESERIALIZE(i8)
 	DESERIALIZE(i16)
@@ -46,8 +46,8 @@ struct Serializer
 	DESERIALIZE(u64)
 	DESERIALIZE(f32)
 	DESERIALIZE(f64)
-	DESERIALIZE(char)
 	DESERIALIZE(bool)
+	DESERIALIZE(char)
 
 	virtual void
 	clear() = 0;
@@ -70,18 +70,18 @@ deserialize(Serializer *, T &)
 	static_assert(sizeof(T) == 0, "There is no `void deserialize(Serializer *, T &)` function overload defined for this type.");
 }
 
-#define SERIALIZE(T)                       \
-inline static void                         \
-serialize(Serializer *self, const T &data) \
-{                                          \
-    self->serialize(data);                 \
+#define SERIALIZE(T)                   \
+inline static void                     \
+serialize(Serializer *self, T data)    \
+{                                      \
+    self->serialize(data);             \
 }
 
-#define DESERIALIZE(T)                     \
-inline static void                         \
-deserialize(Serializer *self, T &data)     \
-{                                          \
-    self->deserialize(data);               \
+#define DESERIALIZE(T)                 \
+inline static void                     \
+deserialize(Serializer *self, T &data) \
+{                                      \
+    self->deserialize(data);           \
 }
 
 SERIALIZE(i8)
@@ -94,8 +94,8 @@ SERIALIZE(u32)
 SERIALIZE(u64)
 SERIALIZE(f32)
 SERIALIZE(f64)
-SERIALIZE(char)
 SERIALIZE(bool)
+SERIALIZE(char)
 
 DESERIALIZE(i8)
 DESERIALIZE(i16)
@@ -107,8 +107,8 @@ DESERIALIZE(u32)
 DESERIALIZE(u64)
 DESERIALIZE(f32)
 DESERIALIZE(f64)
-DESERIALIZE(char)
 DESERIALIZE(bool)
+DESERIALIZE(char)
 
 #undef SERIALIZE
 #undef DESERIALIZE
