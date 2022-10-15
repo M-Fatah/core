@@ -162,9 +162,9 @@ formatter_clear(Formatter &self)
 
 template <typename T>
 inline static void
-format(Formatter &, const T &)
+format(Formatter &, T)
 {
-	static_assert(sizeof(T) == 0, "There is no `void format(Formatter &, const T &)` function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `void format(Formatter &, T)` function overload defined for this type.");
 }
 
 #define FORMAT(T)               \
