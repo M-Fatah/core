@@ -2,18 +2,22 @@
 
 #include <core/defines.h>
 
-#include <stdio.h>
 #include <string.h>
 #include <type_traits>
 
 /*
 	TODO:
-	- [x] Cleanup the cpp file.
 	- [ ] Remove the 32KB buffer size restriction.
-	- [ ] Do not rely on ::snprintf and implement our own formatting.
-	- [ ] Pointer formatting differ between Windows/Linux.
+	- [ ] Implement floating point formatting.
 	- [ ] Try and workaround moving implementation to cpp file.
 	- [ ] Use template Formatter<> struct?
+	- [ ] Handle cases where we will format more than the 32KB size limit.
+	- [ ] Make formatter_format and format function return const char *?
+	- [ ] Add format specifiers.
+	- [ ] Fix corner case:
+			char a = 'A';
+			formatter_format(formatter, "{}", &a); will consider it a c string but without null termination character.
+
 */
 
 #define FORMAT(T) \
