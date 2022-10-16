@@ -7,16 +7,18 @@
 
 /*
 	TODO:
+	- [x] Implement floating point formatting.
 	- [ ] Remove the 32KB buffer size restriction.
-	- [ ] Implement floating point formatting.
 	- [ ] Try and workaround moving implementation to cpp file.
 	- [ ] Use template Formatter<> struct?
 	- [ ] Handle cases where we will format more than the 32KB size limit.
 	- [ ] Make formatter_format and format function return const char *?
 	- [ ] Add format specifiers.
 	- [ ] Fix corner case:
-			char a = 'A';
-			formatter_format(formatter, "{}", &a); will consider it a c string but without null termination character.
+		- [ ] char a = 'A';
+			  formatter_format(formatter, "{}", &a); will consider it a c string but without null termination character.
+		- [ ] INF/NAN.
+	- [ ] Move concepts to the top of the header files?
 
 */
 

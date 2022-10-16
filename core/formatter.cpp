@@ -1,6 +1,6 @@
 #include "core/formatter.h"
 
-#include <stdio.h>
+#include <math.h>
 
 static constexpr const char *FORMATTER_DIGITS_LOWERCASE = "0123456789abcdef";
 static constexpr const char *FORMATTER_DIGITS_UPPERCASE = "0123456789ABCDEF";
@@ -22,6 +22,7 @@ _formatter_format_integer(Formatter &self, T data, u8 base = 10, bool uppercase 
 			data = -data;
 	}
 
+	// TODO: Figure out a way to calculate it in the correct order instead of being reversed.
 	char temp[64] = {};
 	u64 count = 0;
 	do
@@ -44,6 +45,36 @@ _formatter_format_integer(Formatter &self, T data, u8 base = 10, bool uppercase 
 
 	for (i64 i = count - 1; i >= 0; --i)
 		self.buffer[self.index++] = temp[i];
+}
+
+inline static void
+_formatter_format_float(Formatter &self, f64 data)
+{
+	if (data < 0)
+	{
+		self.buffer[self.index++] = '-';
+		data = -data;
+	}
+
+	f64 integer = 0;
+	f64 fraction = ::modf(data, &integer);
+	_formatter_format_integer(self, (u64)integer);
+	self.buffer[self.index++] = '.';
+
+	// NOTE: Default precision is 6.
+	// TODO: This doesn't do value rounding yet.
+	// TODO: Figure out a way to determine the max precision, for now its 6.
+	for (u64 i = 0; i < 6; ++i)
+	{
+		fraction *= 10;
+		_formatter_format_integer(self, (u64)fraction);
+		fraction = ::modf(fraction, &integer);
+	}
+
+	// TODO:
+	while (self.buffer[self.index - 1] == '0') --self.index;
+	if (self.buffer[self.index - 1] == '.')
+		--self.index;
 }
 
 inline static void
@@ -112,14 +143,14 @@ void
 Formatter::format(f32 data)
 {
 	Formatter &self = *this;
-	self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%g", data);
+	_formatter_format_float(self, data);
 }
 
 void
 Formatter::format(f64 data)
 {
 	Formatter &self = *this;
-	self.index += ::snprintf(self.buffer + self.index, sizeof(self.buffer), "%g", data);
+	_formatter_format_float(self, data);
 }
 
 void

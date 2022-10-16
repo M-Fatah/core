@@ -159,6 +159,7 @@ _json_parser_parse_number(JSON_Parser &self)
 	if (*at == '+' || *at == '-')
 		++at;
 
+	// TODO: Collapse.
 	bool invalid_number_format = false;
 	if (at[0] == 'i' && (at[1] != 'n' || at[2] != 'f'))
 		invalid_number_format = true;
@@ -380,7 +381,7 @@ _json_value_array_to_string(const JSON_Value &self, String &json_string, i32 ind
 				string_append(json_string, "null");
 				break;
 			case JSON_VALUE_KIND_BOOL:
-				string_append(json_string, "{}", value.as_bool ? "true" : "false");
+				string_append(json_string, "{}", value.as_bool);
 				break;
 			case JSON_VALUE_KIND_NUMBER:
 				string_append(json_string, "{}", value.as_number);
@@ -419,7 +420,7 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, i32 in
 				string_append(json_string, "null");
 				break;
 			case JSON_VALUE_KIND_BOOL:
-				string_append(json_string, "{}", value.as_bool ? "true" : "false");
+				string_append(json_string, "{}", value.as_bool);
 				break;
 			case JSON_VALUE_KIND_NUMBER:
 				string_append(json_string, "{}", value.as_number);
