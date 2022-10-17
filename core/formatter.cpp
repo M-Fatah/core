@@ -178,7 +178,7 @@ void
 Formatter::format(const void *data)
 {
 	Formatter &self = *this;
-	_formatter_format_integer(self, *(u64 *)&data, 16, true);
+	_formatter_format_integer(self, (uptr)data, 16, true);
 }
 
 void
