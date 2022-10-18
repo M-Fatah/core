@@ -1,7 +1,5 @@
 #include "core/formatter.h"
 
-#include <math.h>
-
 static constexpr const char *FORMATTER_DIGITS_LOWERCASE = "0123456789abcdef";
 static constexpr const char *FORMATTER_DIGITS_UPPERCASE = "0123456789ABCDEF";
 
@@ -56,8 +54,8 @@ _formatter_format_float(Formatter &self, f64 data)
 		data = -data;
 	}
 
-	f64 integer = 0;
-	f64 fraction = ::modf(data, &integer);
+	u64 integer = (u64)data;
+	f64 fraction = data - integer;
 	_formatter_format_integer(self, (u64)integer);
 	self.buffer[self.index++] = '.';
 
@@ -68,7 +66,8 @@ _formatter_format_float(Formatter &self, f64 data)
 	{
 		fraction *= 10;
 		_formatter_format_integer(self, (u64)fraction);
-		fraction = ::modf(fraction, &integer);
+		integer = (u64)fraction;
+		fraction = fraction - integer;
 	}
 
 	// TODO:

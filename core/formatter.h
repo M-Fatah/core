@@ -26,9 +26,11 @@
 void              \
 format(T data);
 
+static constexpr u64 FORMATTER_BUFFER_MAX_SIZE = 32 * 1024;
+
 struct Formatter
 {
-	char buffer[32 * 1024];
+	char buffer[FORMATTER_BUFFER_MAX_SIZE];
 	u64 index;
 	u64 replacement_character_count;
 	u64 depth;
