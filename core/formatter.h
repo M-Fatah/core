@@ -2,24 +2,17 @@
 
 #include <core/defines.h>
 
-#include <string.h>
 #include <type_traits>
 
 /*
 	TODO:
-	- [x] Implement floating point formatting.
+	- [ ] Implement 100% correct floating point formatting.
+	- [ ] Add format specifiers.
 	- [ ] Remove the 32KB buffer size restriction.
 	- [ ] Try and workaround moving implementation to cpp file.
 	- [ ] Use template Formatter<> struct?
-	- [ ] Handle cases where we will format more than the 32KB size limit.
 	- [ ] Make formatter_format and format function return const char *?
-	- [ ] Add format specifiers.
-	- [ ] Fix corner case:
-		- [ ] char a = 'A';
-			  formatter_format(formatter, "{}", &a); will consider it a c string but without null termination character.
-		- [ ] INF/NAN.
 	- [ ] Move concepts to the top of the header files?
-
 */
 
 #define FORMAT(T) \
@@ -58,7 +51,14 @@ template <typename ...TArgs>
 inline static void
 formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 {
-	u64 fmt_count = ::strlen(fmt);
+	u64 fmt_count = 0;
+	const char *fmt_ptr = fmt;
+	while(*fmt_ptr)
+	{
+		++fmt_count;
+		++fmt_ptr;
+	}
+
 	if (fmt_count == 0)
 		return;
 
@@ -70,14 +70,16 @@ formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 			if (fmt[i] == '{' && fmt[i + 1] == '{')
 			{
 				i++;
-				self.buffer[self.index++] = '{';
+				if (self.index < FORMATTER_BUFFER_MAX_SIZE)
+					self.buffer[self.index++] = '{';
 				continue;
 			}
 
 			if (fmt[i] == '}' && fmt[i + 1] == '}')
 			{
 				i++;
-				self.buffer[self.index++] = '}';
+				if (self.index < FORMATTER_BUFFER_MAX_SIZE)
+					self.buffer[self.index++] = '}';
 				continue;
 			}
 
@@ -87,9 +89,9 @@ formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 				if (self.depth == 0)
 					self.replacement_character_count++;
 				start = i + 1;
-				self.depth++;
+				++self.depth;
 				format(self, arg);
-				self.depth--;
+				--self.depth;
 				return;
 			}
 
@@ -98,7 +100,8 @@ formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 				continue;
 			}
 
-			self.buffer[self.index++] = fmt[i];
+			if (self.index < FORMATTER_BUFFER_MAX_SIZE)
+				self.buffer[self.index++] = fmt[i];
 		}
 	} (args), ...);
 
@@ -107,14 +110,16 @@ formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 		if (fmt[i] == '{' && fmt[i + 1] == '{')
 		{
 			i++;
-			self.buffer[self.index++] = '{';
+			if (self.index < FORMATTER_BUFFER_MAX_SIZE)
+				self.buffer[self.index++] = '{';
 			continue;
 		}
 
 		if (fmt[i] == '}' && fmt[i + 1] == '}')
 		{
 			i++;
-			self.buffer[self.index++] = '}';
+			if (self.index < FORMATTER_BUFFER_MAX_SIZE)
+				self.buffer[self.index++] = '}';
 			continue;
 		}
 
@@ -137,8 +142,11 @@ formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 				// The user passed "{}" replacement character as an argument, we just append it,
 				//    for e.x. formatter_format(formatter, "{}", "{}"); => "{}".
 				//
-				self.buffer[self.index++] = '{';
-				self.buffer[self.index++] = '}';
+				if (self.index < FORMATTER_BUFFER_MAX_SIZE - 1)
+				{
+					self.buffer[self.index++] = '{';
+					self.buffer[self.index++] = '}';
+				}
 			}
 			continue;
 		}
@@ -151,15 +159,22 @@ formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 		if (i == (fmt_count - 1))
 		{
 			if (fmt[i] != '{' && fmt[i] != '}')
-				self.buffer[self.index++] = fmt[i];
+			{
+				if (self.index < FORMATTER_BUFFER_MAX_SIZE)
+					self.buffer[self.index++] = fmt[i];
+			}
 		}
 		else
 		{
-			self.buffer[self.index++] = fmt[i];
+			if (self.index < FORMATTER_BUFFER_MAX_SIZE)
+				self.buffer[self.index++] = fmt[i];
 		}
 	}
 
-	self.buffer[self.index] = '\0';
+	if (self.index < FORMATTER_BUFFER_MAX_SIZE)
+		self.buffer[self.index] = '\0';
+	else
+		self.buffer[FORMATTER_BUFFER_MAX_SIZE - 1] = '\0';
 }
 
 inline static void

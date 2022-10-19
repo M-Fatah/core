@@ -6,6 +6,22 @@ static constexpr const char *FORMATTER_DIGITS_UPPERCASE = "0123456789ABCDEF";
 template <typename T>
 concept Integer_Type = std::is_integral_v<T> && !std::is_floating_point_v<T>;
 
+inline static void
+_formatter_format_char(Formatter &self, char c)
+{
+	if (self.index < FORMATTER_BUFFER_MAX_SIZE)
+		self.buffer[self.index++] = c;
+	else
+		self.buffer[FORMATTER_BUFFER_MAX_SIZE - 1] = '\0';
+}
+
+inline static void
+_formatter_format_string(Formatter &self, const char *data)
+{
+	while (*data)
+		_formatter_format_char(self, *data++);
+}
+
 template <Integer_Type T>
 inline static void
 _formatter_format_integer(Formatter &self, T data, u8 base = 10, bool uppercase = false)
@@ -31,18 +47,18 @@ _formatter_format_integer(Formatter &self, T data, u8 base = 10, bool uppercase 
 
 	if (base == 16)
 	{
-		self.buffer[self.index++] = '0';
-		self.buffer[self.index++] = uppercase ? 'X' : 'x';
+		_formatter_format_char(self, '0');
+		_formatter_format_char(self, uppercase ? 'X' : 'x');
 		for (u64 i = 0; i < (base - count); ++i)
-			self.buffer[self.index++] = '0';
+			_formatter_format_char(self, '0');
 	}
 	else if (is_negative)
 	{
-		self.buffer[self.index++] = '-';
+		_formatter_format_char(self, '-');
 	}
 
 	for (i64 i = count - 1; i >= 0; --i)
-		self.buffer[self.index++] = temp[i];
+		_formatter_format_char(self, temp[i]);
 }
 
 inline static void
@@ -50,14 +66,14 @@ _formatter_format_float(Formatter &self, f64 data)
 {
 	if (data < 0)
 	{
-		self.buffer[self.index++] = '-';
+		_formatter_format_char(self, '-');
 		data = -data;
 	}
 
 	u64 integer = (u64)data;
 	f64 fraction = data - integer;
 	_formatter_format_integer(self, (u64)integer);
-	self.buffer[self.index++] = '.';
+	_formatter_format_char(self, '.');
 
 	// NOTE: Default precision is 6.
 	// TODO: This doesn't do value rounding yet.
@@ -71,15 +87,11 @@ _formatter_format_float(Formatter &self, f64 data)
 	}
 
 	// TODO:
-	while (self.buffer[self.index - 1] == '0') --self.index;
+	while (self.buffer[self.index - 1] == '0')
+		--self.index;
+
 	if (self.buffer[self.index - 1] == '.')
 		--self.index;
-}
-
-inline static void
-_formatter_format_string(Formatter &self, const char *data)
-{
-	while (*data) self.buffer[self.index++] = *data++;
 }
 
 void
