@@ -159,14 +159,8 @@ _json_parser_parse_number(JSON_Parser &self)
 	if (*at == '+' || *at == '-')
 		++at;
 
-	// TODO: Collapse.
-	bool invalid_number_format = false;
-	if (at[0] == 'i' && (at[1] != 'n' || at[2] != 'f'))
-		invalid_number_format = true;
-	else if (at[0] == 'n' && (at[1] != 'a' || at[2] != 'n'))
-		invalid_number_format = true;
-
-	if (invalid_number_format)
+	if ((at[0] == 'i' && (at[1] != 'n' || at[2] != 'f')) ||
+		(at[0] == 'n' && (at[1] != 'a' || at[2] != 'n')))
 	{
 		const char *end = self.iterator;
 		while (*end != '\0' && *end != '\n' && *end != ',')
