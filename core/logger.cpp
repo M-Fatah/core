@@ -17,10 +17,13 @@ enum LOG_TAG_COLOR
 inline static const char *
 _logger_tag_color_to_string(LOG_TAG_COLOR color)
 {
-	// NOTE: The first element in the string determines whether the color should be rendered dimmed or bright.
-	//          '0' for dimmed colors e.x. "0;31" for dimmed red.
-	//          '1' for bright colors e.x. "1;31" for bright red.
-	//       If passed color value is not supported we return dimmed white color (0;37) as default.
+	//
+	// NOTE:
+	// The first element in the string determines whether the color should be rendered dimmed or bright.
+	//     '0' for dimmed colors e.x. "0;31" for dimmed red.
+	//     '1' for bright colors e.x. "1;31" for bright red.
+	// If passed color value is not supported we return dimmed white color (0;37) as default.
+	//
 	switch(color)
 	{
 		case LOG_TAG_COLOR_FG_GRAY:         return "1;30";

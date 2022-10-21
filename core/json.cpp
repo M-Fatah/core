@@ -16,7 +16,40 @@ struct JSON_Parser
 };
 
 inline static void
-_json_parser_skip_char(JSON_Parser &self, char c);
+_json_parser_skip_char(JSON_Parser &self, char c)
+{
+	// This makes sure we don't override or skip past the last error.
+	if(self.error)
+		return;
+
+	if(*self.iterator == c)
+	{
+		++self.iterator;
+		++self.column_number;
+		return;
+	}
+
+	if (*self.iterator >= ' ')
+	{
+		self.error = Error{
+			"[JSON]: Expected char '{}', but found '{}' at line '{}', column '{}'.",
+			c,
+			*self.iterator,
+			self.line_number,
+			self.column_number
+		};
+	}
+	else
+	{
+		self.error = Error{
+			"[JSON]: Expected char '{}', but found `{:#04x}` at line '{}', column '{}'.",
+			c,
+			*self.iterator,
+			self.line_number,
+			self.column_number
+		};
+	}
+}
 
 inline static void
 _json_parser_skip_whitespace(JSON_Parser &self)
@@ -71,42 +104,6 @@ _json_parser_skip_whitespace(JSON_Parser &self)
 			_json_parser_skip_char(self, '/');
 			break;
 		}
-	}
-}
-
-inline static void
-_json_parser_skip_char(JSON_Parser &self, char c)
-{
-	// This makes sure we don't override or skip past the last error.
-	if(self.error)
-		return;
-
-	if(*self.iterator == c)
-	{
-		++self.iterator;
-		++self.column_number;
-		return;
-	}
-
-	if (*self.iterator >= ' ')
-	{
-		self.error = Error{
-			"[JSON]: Expected char '{}', but found '{}' at line '{}', column '{}'.",
-			c,
-			*self.iterator,
-			self.line_number,
-			self.column_number
-		};
-	}
-	else
-	{
-		self.error = Error{
-			"[JSON]: Expected char '{}', but found `{:#04x}` at line '{}', column '{}'.",
-			c,
-			*self.iterator,
-			self.line_number,
-			self.column_number
-		};
 	}
 }
 

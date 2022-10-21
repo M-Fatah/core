@@ -7,26 +7,23 @@
 
 /*
 	TODO:
-	- [x] Try and workaround moving implementation to cpp file.
 	- [ ] Implement 100% correct floating point formatting.
-	- [ ] Add format specifiers.
+	- [ ] Support format specifiers.
 	- [ ] Remove the 32KB buffer size restriction.
-	- [ ] Use template Formatter<> struct?
-	- [ ] Make formatter_format and format function return const char *?
-	- [ ] Move concepts to the top of the header files?
+	- [ ] Cleanup, simplify and collapse parse and flush functions into one.
 */
+
+static constexpr u64 FORMATTER_BUFFER_MAX_SIZE = 32 * 1024;
 
 #define FORMAT(T) \
 void              \
 format(T data);
 
-static constexpr u64 FORMATTER_BUFFER_MAX_SIZE = 32 * 1024;
-
 struct Formatter
 {
 	char buffer[FORMATTER_BUFFER_MAX_SIZE];
 	u64 index;
-	u64 replacement_character_count;
+	u64 replacement_field_count;
 	u64 depth;
 
 	FORMAT(i8)
@@ -44,11 +41,9 @@ struct Formatter
 	FORMAT(const char *)
 	FORMAT(const void *)
 
-	// TODO:
 	void
-	parse(const char *fmt, u64 &start, std::function<void()> &&function);
+	parse(const char *fmt, u64 &start, std::function<void()> &&callback);
 
-	// TODO:
 	void
 	flush(const char *fmt, u64 start);
 
@@ -110,9 +105,7 @@ format(Formatter &self, const char *fmt, const TArgs &...args)
 }
 
 template <typename T>
-concept Pointer_Type = std::is_pointer_v<T>;
-
-template <Pointer_Type T>
+requires std::is_pointer_v<T>
 inline static void
 format(Formatter &self, const T data)
 {
@@ -122,10 +115,8 @@ format(Formatter &self, const T data)
 		self.format((const void *)data);
 }
 
-template <typename T>
-concept Array_Type = !std::is_same_v<T, char>;
-
-template <Array_Type T, u64 N>
+template <typename T, u64 N>
+requires !std::is_same_v<T, char>
 inline static void
 format(Formatter &self, const T (&data)[N])
 {
