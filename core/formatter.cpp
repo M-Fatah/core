@@ -13,7 +13,7 @@ _formatter_format_char(Formatter &self, char c)
 }
 
 template <typename T>
-requires std::is_integral_v<T> && !std::is_floating_point_v<T>
+requires (std::is_integral_v<T> && !std::is_floating_point_v<T>)
 inline static void
 _formatter_format_integer(Formatter &self, T data, u8 base = 10, bool uppercase = false)
 {

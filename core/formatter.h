@@ -105,7 +105,7 @@ format(Formatter &self, const char *fmt, const TArgs &...args)
 }
 
 template <typename T>
-requires std::is_pointer_v<T>
+requires (std::is_pointer_v<T>)
 inline static void
 format(Formatter &self, const T data)
 {
@@ -116,7 +116,7 @@ format(Formatter &self, const T data)
 }
 
 template <typename T, u64 N>
-requires !std::is_same_v<T, char>
+requires (!std::is_same_v<T, char>)
 inline static void
 format(Formatter &self, const T (&data)[N])
 {
