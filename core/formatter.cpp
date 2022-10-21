@@ -3,9 +3,6 @@
 static constexpr const char *FORMATTER_DIGITS_LOWERCASE = "0123456789abcdef";
 static constexpr const char *FORMATTER_DIGITS_UPPERCASE = "0123456789ABCDEF";
 
-template <typename T>
-concept Integer_Type = std::is_integral_v<T> && !std::is_floating_point_v<T>;
-
 inline static void
 _formatter_format_char(Formatter &self, char c)
 {
@@ -15,14 +12,8 @@ _formatter_format_char(Formatter &self, char c)
 		self.buffer[FORMATTER_BUFFER_MAX_SIZE - 1] = '\0';
 }
 
-inline static void
-_formatter_format_string(Formatter &self, const char *data)
-{
-	while (*data)
-		_formatter_format_char(self, *data++);
-}
-
-template <Integer_Type T>
+template <typename T>
+requires std::is_integral_v<T> && !std::is_floating_point_v<T>
 inline static void
 _formatter_format_integer(Formatter &self, T data, u8 base = 10, bool uppercase = false)
 {
@@ -75,9 +66,9 @@ _formatter_format_float(Formatter &self, f64 data)
 	_formatter_format_integer(self, (u64)integer);
 	_formatter_format_char(self, '.');
 
+	//
 	// NOTE: Default precision is 6.
-	// TODO: This doesn't do value rounding yet.
-	// TODO: Figure out a way to determine the max precision, for now its 6.
+	//
 	for (u64 i = 0; i < 6; ++i)
 	{
 		fraction *= 10;
@@ -86,13 +77,158 @@ _formatter_format_float(Formatter &self, f64 data)
 		fraction = fraction - integer;
 	}
 
-	// TODO:
 	while (self.buffer[self.index - 1] == '0')
 		--self.index;
 
 	if (self.buffer[self.index - 1] == '.')
 		--self.index;
 }
+
+inline static void
+_formatter_format_string(Formatter &self, const char *data)
+{
+	while (*data)
+		_formatter_format_char(self, *data++);
+}
+
+// API.
+void
+Formatter::parse(const char *fmt, u64 &start, std::function<void()> &&callback)
+{
+	Formatter &self = *this;
+
+	u64 fmt_count = 0;
+	const char *fmt_ptr = fmt;
+	while(*fmt_ptr)
+	{
+		++fmt_count;
+		++fmt_ptr;
+	}
+
+	if (fmt_count == 0)
+		return;
+
+	for (u64 i = start; i < fmt_count - 1; ++i)
+	{
+		if (fmt[i] == '{' && fmt[i + 1] == '{')
+		{
+			i++;
+			_formatter_format_char(self, '{');
+			continue;
+		}
+
+		if (fmt[i] == '}' && fmt[i + 1] == '}')
+		{
+			i++;
+			_formatter_format_char(self, '}');
+			continue;
+		}
+
+		if (fmt[i] == '{' && fmt[i + 1] == '}')
+		{
+			i++;
+			if (self.depth == 0)
+				self.replacement_field_count++;
+			start = i + 1;
+			++self.depth;
+			callback();
+			--self.depth;
+			return;
+		}
+
+		if (fmt[i] == '{' || fmt[i] == '}')
+		{
+			continue;
+		}
+
+		_formatter_format_char(self, fmt[i]);
+	}
+}
+
+void
+Formatter::flush(const char *fmt, u64 start)
+{
+	Formatter &self = *this;
+
+	u64 fmt_count = 0;
+	const char *fmt_ptr = fmt;
+	while(*fmt_ptr)
+	{
+		++fmt_count;
+		++fmt_ptr;
+	}
+
+	if (fmt_count == 0)
+		return;
+
+	for (u64 i = start; i < fmt_count; ++i)
+	{
+		if (fmt[i] == '{' && fmt[i + 1] == '{')
+		{
+			i++;
+			_formatter_format_char(self, '{');
+			continue;
+		}
+
+		if (fmt[i] == '}' && fmt[i + 1] == '}')
+		{
+			i++;
+			_formatter_format_char(self, '}');
+			continue;
+		}
+
+		if (fmt[i] == '{' && fmt[i + 1] == '}')
+		{
+			if (self.depth == 0)
+			{
+				//
+				// NOTE:
+				// The replacement character count is larger than the number of passed arguments,
+				//    at this point we just skip them.
+				//
+				i++;
+				self.replacement_field_count++;
+			}
+			else
+			{
+				//
+				// NOTE:
+				// The user passed "{}" replacement character as an argument, we just append it,
+				//    for e.x. formatter_format(formatter, "{}", "{}"); => "{}".
+				//
+				_formatter_format_char(self, '{');
+				_formatter_format_char(self, '}');
+			}
+			continue;
+		}
+
+		if (fmt[i] == '{' || fmt[i] == '}')
+		{
+			continue;
+		}
+
+		if (i == (fmt_count - 1))
+		{
+			if (fmt[i] != '{' && fmt[i] != '}')
+			{
+				_formatter_format_char(self, fmt[i]);
+			}
+		}
+		else
+		{
+			_formatter_format_char(self, fmt[i]);
+		}
+	}
+
+	//
+	// NOTE: Null terminate the format buffer.
+	//
+	if (self.index < FORMATTER_BUFFER_MAX_SIZE)
+		self.buffer[self.index] = '\0';
+	else
+		self.buffer[FORMATTER_BUFFER_MAX_SIZE - 1] = '\0';
+}
+
 
 void
 Formatter::format(i8 data)
@@ -175,7 +311,7 @@ void
 Formatter::format(char data)
 {
 	Formatter &self = *this;
-	self.buffer[self.index++] = data;
+	_formatter_format_char(self, data);
 }
 
 void
