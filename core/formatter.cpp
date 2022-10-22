@@ -9,7 +9,6 @@ static constexpr const char *FORMATTER_DIGITS_UPPERCASE = "0123456789ABCDEF";
 struct Formatter_Context
 {
 	String buffer;
-	u64 replacement_field_count;
 	u64 depth;
 };
 
@@ -162,6 +161,7 @@ Formatter::flush(const char *fmt, u64 start)
 {
 	Formatter &self = *this;
 
+	// TODO:
 	u64 fmt_count = 0;
 	const char *fmt_ptr = fmt;
 	while(*fmt_ptr)
@@ -234,7 +234,8 @@ Formatter::flush(const char *fmt, u64 start)
 
 	//
 	// NOTE:
-	// Re-assign the buffer pointer, since the internal buffer might get resized; gets a new memory allocation with a different pointer.
+	// Re-assign the buffer pointer, since the internal buffer might get resized;
+	//     and allocates new memory.
 	//
 	self.buffer = self.ctx->buffer.data;
 }
@@ -342,7 +343,6 @@ Formatter::clear()
 {
 	Formatter &self = *this;
 	string_clear(self.ctx->buffer);
-	self.ctx->replacement_field_count = 0;
 	self.ctx->depth = 0;
 	self.replacement_field_count = 0;
 	self.buffer = self.ctx->buffer.data;

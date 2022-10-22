@@ -9,10 +9,6 @@
 #include "core/containers/array.h"
 #include "core/serialization/serializer.h"
 
-#include <string.h>
-#include <stdarg.h>
-#include <stdio.h>
-
 using String = Array<char>;
 
 inline static String
@@ -26,7 +22,14 @@ string_init(memory::Allocator *allocator = memory::heap_allocator())
 inline static String
 string_from(const char *c_string, memory::Allocator *allocator = memory::heap_allocator())
 {
-	auto length = ::strlen(c_string);
+	auto length_of = [](const char *string) -> u64 {
+		u64 count = 0;
+		const char *ptr = string;
+		while (*ptr++) ++count;
+		return count;
+	};
+
+	auto length = length_of(c_string);
 	auto self = array_with_capacity<char>(length + 1, allocator);
 	self.count = length;
 	for (u64 i = 0; i < length; ++i)
@@ -68,9 +71,16 @@ string_copy(const String &self, memory::Allocator *allocator = memory::heap_allo
 inline static String
 string_literal(const char *c_string)
 {
+	auto length_of = [](const char *string) -> u64 {
+		u64 count = 0;
+		const char *ptr = string;
+		while (*ptr++) ++count;
+		return count;
+	};
+
 	auto self = String{};
 	self.data = (char *)c_string;
-	self.count = ::strlen(c_string);
+	self.count = length_of(c_string);
 	self.capacity = self.count + 1;
 	return self;
 }
