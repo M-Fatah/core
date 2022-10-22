@@ -1,16 +1,17 @@
 #include "core/formatter.h"
 
+#include "core/memory/memory.h"
+#include "core/containers/string.h"
+
 static constexpr const char *FORMATTER_DIGITS_LOWERCASE = "0123456789abcdef";
 static constexpr const char *FORMATTER_DIGITS_UPPERCASE = "0123456789ABCDEF";
 
-inline static void
-_formatter_format_char(Formatter &self, char c)
+struct Formatter_Context
 {
-	if (self.index < FORMATTER_BUFFER_MAX_SIZE)
-		self.buffer[self.index++] = c;
-	else
-		self.buffer[FORMATTER_BUFFER_MAX_SIZE - 1] = '\0';
-}
+	String buffer;
+	u64 replacement_field_count;
+	u64 depth;
+};
 
 template <typename T>
 requires (std::is_integral_v<T> && !std::is_floating_point_v<T>)
@@ -38,18 +39,18 @@ _formatter_format_integer(Formatter &self, T data, u8 base = 10, bool uppercase 
 
 	if (base == 16)
 	{
-		_formatter_format_char(self, '0');
-		_formatter_format_char(self, uppercase ? 'X' : 'x');
+		string_append(self.ctx->buffer, '0');
+		string_append(self.ctx->buffer, 'x');
 		for (u64 i = 0; i < (base - count); ++i)
-			_formatter_format_char(self, '0');
+			string_append(self.ctx->buffer, '0');
 	}
 	else if (is_negative)
 	{
-		_formatter_format_char(self, '-');
+		string_append(self.ctx->buffer, '-');
 	}
 
 	for (i64 i = count - 1; i >= 0; --i)
-		_formatter_format_char(self, temp[i]);
+		string_append(self.ctx->buffer, temp[i]);
 }
 
 inline static void
@@ -57,14 +58,14 @@ _formatter_format_float(Formatter &self, f64 data)
 {
 	if (data < 0)
 	{
-		_formatter_format_char(self, '-');
+		string_append(self.ctx->buffer, '-');
 		data = -data;
 	}
 
 	u64 integer = (u64)data;
 	f64 fraction = data - integer;
 	_formatter_format_integer(self, (u64)integer);
-	_formatter_format_char(self, '.');
+	string_append(self.ctx->buffer, '.');
 
 	//
 	// NOTE: Default precision is 6.
@@ -77,21 +78,32 @@ _formatter_format_float(Formatter &self, f64 data)
 		fraction = fraction - integer;
 	}
 
-	while (self.buffer[self.index - 1] == '0')
-		--self.index;
+	while (string_ends_with(self.ctx->buffer, '0'))
+		string_remove_last(self.ctx->buffer);
 
-	if (self.buffer[self.index - 1] == '.')
-		--self.index;
-}
-
-inline static void
-_formatter_format_string(Formatter &self, const char *data)
-{
-	while (*data)
-		_formatter_format_char(self, *data++);
+	if (string_ends_with(self.ctx->buffer, '.'))
+		string_remove_last(self.ctx->buffer);
 }
 
 // API.
+Formatter::Formatter()
+{
+	Formatter &self = *this;
+	self.ctx = memory::allocate_zeroed<Formatter_Context>();
+	self.ctx->buffer = string_init();
+	string_reserve(self.ctx->buffer, 32 * 1024);
+
+	self.buffer = self.ctx->buffer.data;
+	self.replacement_field_count = 0;
+}
+
+Formatter::~Formatter()
+{
+	Formatter &self = *this;
+	string_deinit(self.ctx->buffer);
+	memory::deallocate(self.ctx);
+}
+
 void
 Formatter::parse(const char *fmt, u64 &start, std::function<void()> &&callback)
 {
@@ -113,26 +125,26 @@ Formatter::parse(const char *fmt, u64 &start, std::function<void()> &&callback)
 		if (fmt[i] == '{' && fmt[i + 1] == '{')
 		{
 			i++;
-			_formatter_format_char(self, '{');
+			string_append(self.ctx->buffer, '{');
 			continue;
 		}
 
 		if (fmt[i] == '}' && fmt[i + 1] == '}')
 		{
 			i++;
-			_formatter_format_char(self, '}');
+			string_append(self.ctx->buffer, '}');
 			continue;
 		}
 
 		if (fmt[i] == '{' && fmt[i + 1] == '}')
 		{
 			i++;
-			if (self.depth == 0)
+			if (self.ctx->depth == 0)
 				self.replacement_field_count++;
 			start = i + 1;
-			++self.depth;
+			++self.ctx->depth;
 			callback();
-			--self.depth;
+			--self.ctx->depth;
 			return;
 		}
 
@@ -141,7 +153,7 @@ Formatter::parse(const char *fmt, u64 &start, std::function<void()> &&callback)
 			continue;
 		}
 
-		_formatter_format_char(self, fmt[i]);
+		string_append(self.ctx->buffer, fmt[i]);
 	}
 }
 
@@ -166,20 +178,20 @@ Formatter::flush(const char *fmt, u64 start)
 		if (fmt[i] == '{' && fmt[i + 1] == '{')
 		{
 			i++;
-			_formatter_format_char(self, '{');
+			string_append(self.ctx->buffer, '{');
 			continue;
 		}
 
 		if (fmt[i] == '}' && fmt[i + 1] == '}')
 		{
 			i++;
-			_formatter_format_char(self, '}');
+			string_append(self.ctx->buffer, '}');
 			continue;
 		}
 
 		if (fmt[i] == '{' && fmt[i + 1] == '}')
 		{
-			if (self.depth == 0)
+			if (self.ctx->depth == 0)
 			{
 				//
 				// NOTE:
@@ -196,8 +208,8 @@ Formatter::flush(const char *fmt, u64 start)
 				// The user passed "{}" replacement character as an argument, we just append it,
 				//    for e.x. formatter_format(formatter, "{}", "{}"); => "{}".
 				//
-				_formatter_format_char(self, '{');
-				_formatter_format_char(self, '}');
+				string_append(self.ctx->buffer, '{');
+				string_append(self.ctx->buffer, '}');
 			}
 			continue;
 		}
@@ -211,24 +223,21 @@ Formatter::flush(const char *fmt, u64 start)
 		{
 			if (fmt[i] != '{' && fmt[i] != '}')
 			{
-				_formatter_format_char(self, fmt[i]);
+				string_append(self.ctx->buffer, fmt[i]);
 			}
 		}
 		else
 		{
-			_formatter_format_char(self, fmt[i]);
+			string_append(self.ctx->buffer, fmt[i]);
 		}
 	}
 
 	//
-	// NOTE: Null terminate the format buffer.
+	// NOTE:
+	// Re-assign the buffer pointer, since the internal buffer might get resized; gets a new memory allocation with a different pointer.
 	//
-	if (self.index < FORMATTER_BUFFER_MAX_SIZE)
-		self.buffer[self.index] = '\0';
-	else
-		self.buffer[FORMATTER_BUFFER_MAX_SIZE - 1] = '\0';
+	self.buffer = self.ctx->buffer.data;
 }
-
 
 void
 Formatter::format(i8 data)
@@ -304,21 +313,21 @@ void
 Formatter::format(bool data)
 {
 	Formatter &self = *this;
-	_formatter_format_string(self, data ? "true" : "false");
+	string_append(self.ctx->buffer, data ? "true" : "false");
 }
 
 void
 Formatter::format(char data)
 {
 	Formatter &self = *this;
-	_formatter_format_char(self, data);
+	string_append(self.ctx->buffer, data);
 }
 
 void
 Formatter::format(const char *data)
 {
 	Formatter &self = *this;
-	_formatter_format_string(self, data);
+	string_append(self.ctx->buffer, data);
 }
 
 void
@@ -332,5 +341,9 @@ void
 Formatter::clear()
 {
 	Formatter &self = *this;
-	self = {};
+	string_clear(self.ctx->buffer);
+	self.ctx->replacement_field_count = 0;
+	self.ctx->depth = 0;
+	self.replacement_field_count = 0;
+	self.buffer = self.ctx->buffer.data;
 }

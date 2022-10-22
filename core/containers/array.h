@@ -128,7 +128,7 @@ template <typename T, typename R>
 inline static void
 array_push(Array<T> &self, const R &value)
 {
-	if(self.count == self.capacity)
+	if((self.count + 1) >= self.capacity)
 		array_reserve(self, self.capacity > 1 ? self.capacity / 2 : 8);
 	self.data[self.count++] = (T)value;
 }

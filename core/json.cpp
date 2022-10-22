@@ -2,10 +2,6 @@
 
 #include "core/platform/platform.h"
 
-#include <ctype.h>
-#include <cerrno>
-#include <stdlib.h>
-
 struct JSON_Parser
 {
 	memory::Allocator *allocator;
@@ -19,10 +15,10 @@ inline static void
 _json_parser_skip_char(JSON_Parser &self, char c)
 {
 	// This makes sure we don't override or skip past the last error.
-	if(self.error)
+	if (self.error)
 		return;
 
-	if(*self.iterator == c)
+	if (*self.iterator == c)
 	{
 		++self.iterator;
 		++self.column_number;
@@ -52,10 +48,19 @@ _json_parser_skip_char(JSON_Parser &self, char c)
 }
 
 inline static void
-_json_parser_skip_whitespace(JSON_Parser &self)
+_json_parser_skip_space_and_comments(JSON_Parser &self)
 {
+	auto is_space = [](char c) -> bool {
+		return ((c == ' ' ) ||
+				(c == '\t') ||
+				(c == '\v') ||
+				(c == '\f') ||
+				(c == '\n') ||
+				(c == '\r'));
+	};
+
 	// Skip whitespace.
-	while(::isspace(*self.iterator))
+	while (is_space(*self.iterator))
 	{
 		if (*self.iterator == '\n')
 		{
@@ -234,7 +239,7 @@ _json_parser_parse_array_elements(JSON_Parser &self, JSON_Value &value)
 {
 	while (true)
 	{
-		_json_parser_skip_whitespace(self);
+		_json_parser_skip_space_and_comments(self);
 		auto element = _json_parser_parse_value(self);
 		if (self.error)
 		{
@@ -244,7 +249,7 @@ _json_parser_parse_array_elements(JSON_Parser &self, JSON_Value &value)
 
 		array_push(value.as_array, element);
 
-		_json_parser_skip_whitespace(self);
+		_json_parser_skip_space_and_comments(self);
 		if (*self.iterator == ']')
 			return;
 		_json_parser_skip_char(self, ',');
@@ -255,7 +260,7 @@ inline static JSON_Value
 _json_parser_parse_array(JSON_Parser &self)
 {
 	_json_parser_skip_char(self, '[');
-	_json_parser_skip_whitespace(self);
+	_json_parser_skip_space_and_comments(self);
 
 	JSON_Value value = {};
 	value.kind = JSON_VALUE_KIND_ARRAY;
@@ -276,7 +281,7 @@ _json_parser_parse_object_members(JSON_Parser &self, JSON_Value &value)
 {
 	while (true)
 	{
-		_json_parser_skip_whitespace(self);
+		_json_parser_skip_space_and_comments(self);
 
 		JSON_Value key = _json_parser_parse_string(self);
 		if (self.error)
@@ -285,9 +290,9 @@ _json_parser_parse_object_members(JSON_Parser &self, JSON_Value &value)
 			return;
 		}
 
-		_json_parser_skip_whitespace(self);
+		_json_parser_skip_space_and_comments(self);
 		_json_parser_skip_char(self, ':');
-		_json_parser_skip_whitespace(self);
+		_json_parser_skip_space_and_comments(self);
 
 		auto member = _json_parser_parse_value(self);
 		if (self.error)
@@ -298,11 +303,11 @@ _json_parser_parse_object_members(JSON_Parser &self, JSON_Value &value)
 
 		hash_table_insert(value.as_object, key.as_string, member);
 
-		_json_parser_skip_whitespace(self);
+		_json_parser_skip_space_and_comments(self);
 		if (*self.iterator == '}' || *self.iterator == 0)
 			return;
 		_json_parser_skip_char(self, ',');
-		_json_parser_skip_whitespace(self);
+		_json_parser_skip_space_and_comments(self);
 	}
 }
 
@@ -310,7 +315,7 @@ inline static JSON_Value
 _json_parser_parse_object(JSON_Parser &self)
 {
 	_json_parser_skip_char(self, '{');
-	_json_parser_skip_whitespace(self);
+	_json_parser_skip_space_and_comments(self);
 
 	JSON_Value value = {};
 	value.kind = JSON_VALUE_KIND_OBJECT;
@@ -447,7 +452,7 @@ json_value_from_string(const char *json_string, memory::Allocator *allocator)
 	parser.line_number   = 1;
 	parser.column_number = 1;
 
-	_json_parser_skip_whitespace(parser);
+	_json_parser_skip_space_and_comments(parser);
 	JSON_Value self = _json_parser_parse_value(parser);
 	if (parser.error)
 		return parser.error;

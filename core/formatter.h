@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/defines.h>
+#include "core/defines.h"
 
 #include <functional>
 #include <type_traits>
@@ -9,11 +9,8 @@
 	TODO:
 	- [ ] Implement 100% correct floating point formatting.
 	- [ ] Support format specifiers.
-	- [ ] Remove the 32KB buffer size restriction.
 	- [ ] Cleanup, simplify and collapse parse and flush functions into one.
 */
-
-static constexpr u64 FORMATTER_BUFFER_MAX_SIZE = 32 * 1024;
 
 #define FORMAT(T) \
 void              \
@@ -21,10 +18,13 @@ format(T data);
 
 struct Formatter
 {
-	char buffer[FORMATTER_BUFFER_MAX_SIZE];
-	u64 index;
+	struct Formatter_Context *ctx;
+
+	const char *buffer;
 	u64 replacement_field_count;
-	u64 depth;
+
+	Formatter();
+	~Formatter();
 
 	FORMAT(i8)
 	FORMAT(i16)

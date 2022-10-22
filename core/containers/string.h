@@ -366,6 +366,15 @@ string_contains(const String &self, char c, bool case_insensitive = false)
 }
 
 inline static bool
+string_starts_with(const String &self, char c)
+{
+	if (self.count == 0 || self[0] != c)
+		return false;
+
+	return true;
+}
+
+inline static bool
 string_starts_with(const String &self, const String &prefix)
 {
 	if(self.count < prefix.count)
@@ -397,6 +406,15 @@ string_starts_with(const char *c_string, const char *prefix)
 }
 
 inline static bool
+string_ends_with(const String &self, char c)
+{
+	if (self.count == 0 || self[self.count - 1] != c)
+		return false;
+
+	return true;
+}
+
+inline static bool
 string_ends_with(const String &self, const String &suffix)
 {
 	if(self.count < suffix.count)
@@ -425,6 +443,14 @@ inline static bool
 string_ends_with(const char *c_string, const char *suffix)
 {
 	return string_ends_with(string_literal(c_string), string_literal(suffix));
+}
+
+inline static void
+string_remove_last(String &self)
+{
+	ASSERT(self.count > 0, "[STRING]: Count is 0.");
+	--self.count;
+	self.data[self.count] = '\0';
 }
 
 inline static void
