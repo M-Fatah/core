@@ -135,6 +135,16 @@ TEST_CASE("[CORE]: Formatter")
 	CHECK(formatter.replacement_field_count == 6);
 	formatter_clear(formatter);
 
+	formatter_format(formatter, "{}", "{ \"name\": \"n\" }");
+	CHECK(string_literal(formatter.buffer) == "{ \"name\": \"n\" }");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{{ \"name\": \"n\" }}");
+	CHECK(string_literal(formatter.buffer) == "{ \"name\": \"n\" }");
+	CHECK(formatter.replacement_field_count == 0);
+	formatter_clear(formatter);
+
 	i32 x = 1;
 	formatter_format(formatter, "{}", &x);
 	CHECK(formatter.replacement_field_count == 1);
@@ -350,8 +360,6 @@ R"""({
 
 		auto value_copy        = clone(value, memory::temp_allocator());
 		auto [value_string, _] = json_value_to_string(value_copy, memory::temp_allocator());
-		// TODO:
-		LOG_ERROR("{}", value_string);
 		CHECK(value_string == json);
 	}
 }

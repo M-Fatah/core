@@ -208,28 +208,40 @@ Formatter::flush(const char *fmt, u64 start)
 				// The user passed "{}" replacement character as an argument, we just append it,
 				//    for e.x. formatter_format(formatter, "{}", "{}"); => "{}".
 				//
+				i++;
 				string_append(self.ctx->buffer, '{');
 				string_append(self.ctx->buffer, '}');
 			}
 			continue;
 		}
 
-		if (fmt[i] == '{' || fmt[i] == '}')
+		if (fmt[i] == '{')
 		{
-			continue;
-		}
+			if (self.ctx->depth == 0)
+				continue;
 
-		if (i == (fmt_count - 1))
-		{
-			if (fmt[i] != '{' && fmt[i] != '}')
+			if (self.ctx->depth > 0 && fmt[i + 1] == '{')
 			{
-				string_append(self.ctx->buffer, fmt[i]);
+				i++;
+				string_append(self.ctx->buffer, '{');
+				continue;
 			}
 		}
-		else
+
+		if (fmt[i] == '}')
 		{
-			string_append(self.ctx->buffer, fmt[i]);
+			if (self.ctx->depth == 0)
+				continue;
+
+			if (self.ctx->depth > 0 && fmt[i + 1] == '}')
+			{
+				i++;
+				string_append(self.ctx->buffer, '}');
+				continue;
+			}
 		}
+
+		string_append(self.ctx->buffer, fmt[i]);
 	}
 
 	//
