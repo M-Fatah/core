@@ -31,9 +31,6 @@ namespace ecs
 	CORE_API Entity
 	entity_new();
 
-	template <typename T>
-	concept Component_Type = std::is_compound_v<T>;
-
 	typedef u64 Component_Hash;
 
 	struct IComponent_Table
@@ -46,6 +43,9 @@ namespace ecs
 		[[nodiscard]] virtual Array<Entity> entities() const = 0;
 		[[nodiscard]] virtual IComponent_Table *reload() = 0;
 	};
+
+	template <typename T>
+	concept Component_Type = std::is_compound_v<T>;
 
 	template <Component_Type T>
 	struct Component_Table : IComponent_Table

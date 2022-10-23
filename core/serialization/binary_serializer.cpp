@@ -5,7 +5,6 @@
 #include "core/containers/array.h"
 #include "core/platform/platform.h"
 
-
 struct Binary_Serializer_Context
 {
 	memory::Allocator *allocator;
@@ -66,83 +65,84 @@ Binary_Serializer::~Binary_Serializer()
 }
 
 void
-Binary_Serializer::serialize(const i8 &data)
+Binary_Serializer::serialize(i8 data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_serialize(self, data);
 }
 
 void
-Binary_Serializer::serialize(const i16 &data)
+Binary_Serializer::serialize(i16 data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_serialize(self, data);
 }
 
 void
-Binary_Serializer::serialize(const i32 &data)
+Binary_Serializer::serialize(i32 data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_serialize(self, data);
 }
 
 void
-Binary_Serializer::serialize(const i64 &data)
+Binary_Serializer::serialize(i64 data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_serialize(self, data);
 }
 
 void
-Binary_Serializer::serialize(const u8 &data)
+Binary_Serializer::serialize(u8 data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_serialize(self, data);
 }
 
 void
-Binary_Serializer::serialize(const u16 &data)
+Binary_Serializer::serialize(u16 data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_serialize(self, data);
 }
 
 void
-Binary_Serializer::serialize(const u32 &data)
+Binary_Serializer::serialize(u32 data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_serialize(self, data);
 }
 
 void
-Binary_Serializer::serialize(const u64 &data)
+Binary_Serializer::serialize(u64 data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_serialize(self, data);
 }
 
 void
-Binary_Serializer::serialize(const f32 &data)
+Binary_Serializer::serialize(f32 data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_serialize(self, data);
 }
 
 void
-Binary_Serializer::serialize(const f64 &data)
+Binary_Serializer::serialize(f64 data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_serialize(self, data);
 }
 
 void
-Binary_Serializer::serialize(const char &data)
+Binary_Serializer::serialize(bool data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_serialize(self, data);
 }
+
 void
-Binary_Serializer::serialize(const bool &data)
+Binary_Serializer::serialize(char data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_serialize(self, data);
@@ -219,14 +219,14 @@ Binary_Serializer::deserialize(f64 &data)
 }
 
 void
-Binary_Serializer::deserialize(char &data)
+Binary_Serializer::deserialize(bool &data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_deserialize(self, data);
 }
 
 void
-Binary_Serializer::deserialize(bool &data)
+Binary_Serializer::deserialize(char &data)
 {
 	Binary_Serializer *self = this;
 	_binary_serializer_deserialize(self, data);

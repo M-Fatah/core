@@ -4,14 +4,10 @@
 #include "core/assert.h"
 #include "core/defer.h"
 #include "core/hash.h"
+#include "core/formatter.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
 #include "core/serialization/serializer.h"
-
-#include <fmt/core.h>
-#include <string.h>
-#include <stdarg.h>
-#include <stdio.h>
 
 using String = Array<char>;
 
@@ -26,7 +22,14 @@ string_init(memory::Allocator *allocator = memory::heap_allocator())
 inline static String
 string_from(const char *c_string, memory::Allocator *allocator = memory::heap_allocator())
 {
-	auto length = ::strlen(c_string);
+	auto length_of = [](const char *string) -> u64 {
+		u64 count = 0;
+		const char *ptr = string;
+		while (*ptr++) ++count;
+		return count;
+	};
+
+	auto length = length_of(c_string);
 	auto self = array_with_capacity<char>(length + 1, allocator);
 	self.count = length;
 	for (u64 i = 0; i < length; ++i)
@@ -50,8 +53,9 @@ template <typename ...TArgs>
 inline static String
 string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
 {
-	auto formatted_string = fmt::vformat(fmt, fmt::make_format_args(args...));
-	return string_from(formatted_string.c_str(), allocator);
+	Formatter formatter = {};
+	formatter_format(formatter, fmt, args...);
+	return string_from(formatter.buffer, allocator);
 }
 
 inline static String
@@ -67,9 +71,16 @@ string_copy(const String &self, memory::Allocator *allocator = memory::heap_allo
 inline static String
 string_literal(const char *c_string)
 {
+	auto length_of = [](const char *string) -> u64 {
+		u64 count = 0;
+		const char *ptr = string;
+		while (*ptr++) ++count;
+		return count;
+	};
+
 	auto self = String{};
 	self.data = (char *)c_string;
-	self.count = ::strlen(c_string);
+	self.count = length_of(c_string);
 	self.capacity = self.count + 1;
 	return self;
 }
@@ -133,8 +144,9 @@ inline static void
 string_append(String &self, const char *fmt, const TArgs &...args)
 {
 	ASSERT(self.allocator, "[STRING]: Cannot append to a string literal.");
-	auto formatted_string = fmt::vformat(fmt, fmt::make_format_args(args...));
-	string_append(self, string_literal(formatted_string.c_str()));
+	Formatter formatter = {};
+	formatter_format(formatter, fmt, args...);
+	string_append(self, string_literal(formatter.buffer));
 }
 
 inline static char
@@ -364,6 +376,15 @@ string_contains(const String &self, char c, bool case_insensitive = false)
 }
 
 inline static bool
+string_starts_with(const String &self, char c)
+{
+	if (self.count == 0 || self[0] != c)
+		return false;
+
+	return true;
+}
+
+inline static bool
 string_starts_with(const String &self, const String &prefix)
 {
 	if(self.count < prefix.count)
@@ -395,6 +416,15 @@ string_starts_with(const char *c_string, const char *prefix)
 }
 
 inline static bool
+string_ends_with(const String &self, char c)
+{
+	if (self.count == 0 || self[self.count - 1] != c)
+		return false;
+
+	return true;
+}
+
+inline static bool
 string_ends_with(const String &self, const String &suffix)
 {
 	if(self.count < suffix.count)
@@ -423,6 +453,14 @@ inline static bool
 string_ends_with(const char *c_string, const char *suffix)
 {
 	return string_ends_with(string_literal(c_string), string_literal(suffix));
+}
+
+inline static void
+string_remove_last(String &self)
+{
+	ASSERT(self.count > 0, "[STRING]: Count is 0.");
+	--self.count;
+	self.data[self.count] = '\0';
 }
 
 inline static void
@@ -750,21 +788,8 @@ deserialize(Serializer *serializer, String &self)
 		deserialize(serializer, self[i]);
 }
 
-template <>
-struct fmt::formatter<String>
+inline static void
+format(Formatter &formatter, const String &self)
 {
-	template <typename ParseContext>
-	constexpr auto parse(ParseContext &ctx)
-	{
-		return ctx.begin();
-	}
-
-	template <typename FormatContext>
-	auto format(const String &self, FormatContext &ctx)
-	{
-		if (self.count == 0)
-			return ctx.out();
-		format_to(ctx.out(), "{}", string_view{self.data, self.count});
-		return ctx.out();
-	}
-};
+	format(formatter, self.data);
+}

@@ -1,6 +1,7 @@
 #include <core/json.h>
 #include <core/logger.h>
 #include <core/result.h>
+#include <core/formatter.h>
 #include <core/memory/memory.h>
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
@@ -115,6 +116,140 @@ TEST_CASE("[CORE]: Result")
 	}
 }
 
+struct vec3
+{
+	f32 x, y, z;
+};
+
+inline static void
+format(Formatter &self, const vec3 &value)
+{
+	format(self, "{{{}, {}, {}}}", value.x, value.y, value.z);
+}
+
+TEST_CASE("[CORE]: Formatter")
+{
+	Formatter formatter = {};
+	formatter_format(formatter, "{}/{}/{}/{}/{}/{}", "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6});
+	CHECK(string_literal(formatter.buffer) == "Hello/A/true/1.5/3/{4, 5, 6}");
+	CHECK(formatter.replacement_field_count == 6);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}", "{ \"name\": \"n\" }");
+	CHECK(string_literal(formatter.buffer) == "{ \"name\": \"n\" }");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{{ \"name\": \"n\" }}");
+	CHECK(string_literal(formatter.buffer) == "{ \"name\": \"n\" }");
+	CHECK(formatter.replacement_field_count == 0);
+	formatter_clear(formatter);
+
+	i32 x = 1;
+	formatter_format(formatter, "{}", &x);
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}", "Hello");
+	CHECK(string_literal(formatter.buffer) == "Hello");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}", 'A');
+	CHECK(string_literal(formatter.buffer) == "A");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}", true);
+	CHECK(string_literal(formatter.buffer) == "true");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}", 1.5f);
+	CHECK(string_literal(formatter.buffer) == "1.5");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}", -1.5f);
+	CHECK(string_literal(formatter.buffer) == "-1.5");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}", 3);
+	CHECK(string_literal(formatter.buffer) == "3");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}", -3);
+	CHECK(string_literal(formatter.buffer) == "-3");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}", vec3{1, 2, 3});
+	CHECK(string_literal(formatter.buffer) == "{1, 2, 3}");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	char test[] = "test";
+	formatter_format(formatter, "{}", test);
+	CHECK(string_literal(formatter.buffer) == "test");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	vec3 array[2] = {{1, 2, 3}, {4, 5, 6}};
+	formatter_format(formatter, "{}", array);
+	CHECK(string_literal(formatter.buffer) == "[2] { {1, 2, 3}, {4, 5, 6} }");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	const char *array_of_strings[2] = {"Hello", "World"};
+	formatter_format(formatter, "{}", array_of_strings);
+	CHECK(string_literal(formatter.buffer) == "[2] { Hello, World }");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}", array_from<i32>({1, 2, 3}, memory::temp_allocator()));
+	CHECK(string_literal(formatter.buffer) == "[3] { 1, 2, 3 }");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}", hash_table_from<i32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()));
+	CHECK(string_literal(formatter.buffer) == "[3] { 1: 1, 2: 2, 3: 3 }");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}{}{}{}{}", 1, 2, 3);
+	CHECK(string_literal(formatter.buffer) == "123");
+	CHECK(formatter.replacement_field_count == 5);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}{}{}{}{}", 1, 2, 3, "{}", 4);
+	CHECK(string_literal(formatter.buffer) == "123{}4");
+	CHECK(formatter.replacement_field_count == 5);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "A", "B");
+	CHECK(string_literal(formatter.buffer) == "A");
+	CHECK(formatter.replacement_field_count == 0);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}A", "B");
+	CHECK(string_literal(formatter.buffer) == "BA");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{}", "A", "B", "C");
+	CHECK(string_literal(formatter.buffer) == "A");
+	CHECK(formatter.replacement_field_count == 1);
+	formatter_clear(formatter);
+
+	const char *fmt_string = "{}/{}";
+	formatter_format(formatter, fmt_string, "A", "B");
+	CHECK(string_literal(formatter.buffer) == "A/B");
+	CHECK(formatter.replacement_field_count == 2);
+	formatter_clear(formatter);
+}
+
 TEST_CASE("[CORE]: JSON")
 {
 	SUBCASE("parse string")
@@ -137,7 +272,7 @@ TEST_CASE("[CORE]: JSON")
 
 		auto [value, error] = json_value_from_string(json, memory::temp_allocator());
 		if (error)
-			LOG_ERROR("%s", error.message.data);
+			LOG_ERROR("{}", error.message.data);
 
 		CHECK(error == false);
 		CHECK(value.kind == JSON_VALUE_KIND_OBJECT);
@@ -221,7 +356,7 @@ R"""({
 
 		auto [value, error] = json_value_from_string(json, memory::temp_allocator());
 		if (error)
-			LOG_ERROR("%s", error.message.data);
+			LOG_ERROR("{}", error.message.data);
 
 		auto value_copy        = clone(value, memory::temp_allocator());
 		auto [value_string, _] = json_value_to_string(value_copy, memory::temp_allocator());

@@ -2,10 +2,10 @@
 
 #include "core/defines.h"
 #include "core/assert.h"
+#include "core/formatter.h"
 #include "core/memory/memory.h"
 #include "core/serialization/serializer.h"
 
-#include <fmt/core.h>
 #include <type_traits>
 #include <initializer_list>
 
@@ -128,7 +128,7 @@ template <typename T, typename R>
 inline static void
 array_push(Array<T> &self, const R &value)
 {
-	if(self.count == self.capacity)
+	if((self.count + 1) >= self.capacity)
 		array_reserve(self, self.capacity > 1 ? self.capacity / 2 : 8);
 	self.data[self.count++] = (T)value;
 }
@@ -305,25 +305,15 @@ deserialize(Serializer *serializer, Array<T> &self)
 }
 
 template <typename T>
-struct fmt::formatter<Array<T>>
+inline static void
+format(Formatter &formatter, const Array<T> &self)
 {
-	template <typename ParseContext>
-	constexpr auto parse(ParseContext &ctx)
+	format(formatter, "[{}] {{ ", self.count);
+	for (u64 i = 0; i < self.count; ++i)
 	{
-		return ctx.begin();
+		if (i != 0)
+			format(formatter, ", ");
+		format(formatter, "{}", self[i]);
 	}
-
-	template <typename FormatContext>
-	auto format(const Array<T> &self, FormatContext &ctx)
-	{
-		format_to(ctx.out(), "{} [{}] {{ ", typeid(T).name(), self.count);
-		for (u64 i = 0; i < self.count; ++i)
-		{
-			if (i != 0)
-				format_to(ctx.out(), ", ");
-			format_to(ctx.out(), "{}", self[i]);
-		}
-		format_to(ctx.out(), " }}");
-		return ctx.out();
-	}
-};
+	format(formatter, " }}");
+}

@@ -24,18 +24,21 @@
 #define F64_MIN DBL_MIN
 #define F64_MAX DBL_MAX
 
-typedef int8_t   i8;
-typedef int16_t  i16;
-typedef int32_t  i32;
-typedef int64_t  i64;
+typedef int8_t    i8;
+typedef int16_t   i16;
+typedef int32_t   i32;
+typedef int64_t   i64;
 
-typedef uint8_t  u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
+typedef uint8_t   u8;
+typedef uint16_t  u16;
+typedef uint32_t  u32;
+typedef uint64_t  u64;
 
-typedef float    f32;
-typedef double   f64;
+typedef float     f32;
+typedef double    f64;
+
+typedef intptr_t  iptr;
+typedef uintptr_t uptr;
 
 namespace memory { struct Allocator; }
 
@@ -43,7 +46,7 @@ template <typename T>
 inline static T
 clone(const T &, memory::Allocator *)
 {
-	static_assert(sizeof(T) == 0, "There is no 'T clone(const T &, memory::Allocator *)' function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `T clone(const T &, memory::Allocator *)` function overload defined for this type.");
 	return {};
 }
 
@@ -51,5 +54,5 @@ template <typename T>
 inline static void
 destroy(T &)
 {
-	static_assert(sizeof(T) == 0, "There is no 'void destroy(T &)' function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `void destroy(T &)` function overload defined for this type.");
 }

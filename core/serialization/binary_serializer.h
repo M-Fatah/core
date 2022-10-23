@@ -4,12 +4,12 @@
 #include "core/result.h"
 #include "core/containers/string.h"
 
-#define SERIALIZE(T)               \
-void                               \
-serialize(const T &data) override;
+#define SERIALIZE(T)           \
+void                           \
+serialize(T data) override;
 
-#define DESERIALIZE(T)             \
-void                               \
+#define DESERIALIZE(T)         \
+void                           \
 deserialize(T &data) override;
 
 struct Binary_Serializer : Serializer
@@ -30,8 +30,8 @@ struct Binary_Serializer : Serializer
 	SERIALIZE(u64)
 	SERIALIZE(f32)
 	SERIALIZE(f64)
-	SERIALIZE(char)
 	SERIALIZE(bool)
+	SERIALIZE(char)
 
 	DESERIALIZE(i8)
 	DESERIALIZE(i16)
@@ -43,8 +43,8 @@ struct Binary_Serializer : Serializer
 	DESERIALIZE(u64)
 	DESERIALIZE(f32)
 	DESERIALIZE(f64)
-	DESERIALIZE(char)
 	DESERIALIZE(bool)
+	DESERIALIZE(char)
 
 	void
 	clear() override;

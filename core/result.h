@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/defines.h"
+#include "core/formatter.h"
 #include "core/containers/string.h"
 
 struct Error
@@ -110,19 +111,8 @@ struct Result
 	Result & operator=(Result &&)      = default;
 };
 
-template <>
-struct fmt::formatter<Error>
+inline static void
+format(Formatter &formatter, const Error &self)
 {
-	template <typename ParseContext>
-	constexpr auto parse(ParseContext &ctx)
-	{
-		return ctx.begin();
-	}
-
-	template <typename FormatContext>
-	auto format(const Error &self, FormatContext &ctx)
-	{
-		format_to(ctx.out(), "{}", self.message);
-		return ctx.out();
-	}
-};
+	format(formatter, self.message);
+}
