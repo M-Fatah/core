@@ -2,6 +2,8 @@
 
 #include "core/platform/platform.h"
 
+#include <cerrno>
+
 struct JSON_Parser
 {
 	memory::Allocator *allocator;
