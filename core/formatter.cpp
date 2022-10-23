@@ -72,8 +72,8 @@ _formatter_format_float(Formatter &self, f64 data)
 	for (u64 i = 0; i < 6; ++i)
 	{
 		fraction *= 10;
-		_formatter_format_integer(self, (u64)fraction);
 		integer = (u64)fraction;
+		_formatter_format_integer(self, integer);
 		fraction = fraction - integer;
 	}
 
@@ -163,7 +163,7 @@ Formatter::flush(const char *fmt, u64 start)
 	Formatter &self = *this;
 
 	u64 fmt_count = 0;
-	const char *fmt_ptr = fmt;
+	const char *fmt_ptr = fmt + start;
 	while(*fmt_ptr)
 	{
 		++fmt_count;
@@ -173,7 +173,8 @@ Formatter::flush(const char *fmt, u64 start)
 	if (fmt_count == 0)
 		return;
 
-	for (u64 i = start; i < fmt_count; ++i)
+	fmt = fmt + start;
+	for (u64 i = 0; i < fmt_count; ++i)
 	{
 		if (fmt[i] == '{' && fmt[i + 1] == '{')
 		{
