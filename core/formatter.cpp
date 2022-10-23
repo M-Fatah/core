@@ -27,14 +27,13 @@ _formatter_format_integer(Formatter &self, T data, u8 base = 10, bool uppercase 
 			data = -data;
 	}
 
-	// TODO: Figure out a way to calculate it in the correct order instead of being reversed.
 	char temp[64] = {};
 	u64 count = 0;
 	do
 	{
 		temp[count++] = digits[(data % base)];
 		data /= base;
-	} while(data != 0);
+	} while (data != 0);
 
 	if (base == 16)
 	{
@@ -67,7 +66,8 @@ _formatter_format_float(Formatter &self, f64 data)
 	string_append(self.ctx->buffer, '.');
 
 	//
-	// NOTE: Default precision is 6.
+	// NOTE:
+	// Default precision is 6.
 	//
 	for (u64 i = 0; i < 6; ++i)
 	{
@@ -161,7 +161,6 @@ Formatter::flush(const char *fmt, u64 start)
 {
 	Formatter &self = *this;
 
-	// TODO:
 	u64 fmt_count = 0;
 	const char *fmt_ptr = fmt;
 	while(*fmt_ptr)
