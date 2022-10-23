@@ -123,23 +123,24 @@ Formatter::parse(const char *fmt, u64 &start, std::function<void()> &&callback)
 	{
 		if (fmt[i] == '{' && fmt[i + 1] == '{')
 		{
-			i++;
+			++i;
 			string_append(self.ctx->buffer, '{');
 			continue;
 		}
 
 		if (fmt[i] == '}' && fmt[i + 1] == '}')
 		{
-			i++;
+			++i;
 			string_append(self.ctx->buffer, '}');
 			continue;
 		}
 
 		if (fmt[i] == '{' && fmt[i + 1] == '}')
 		{
-			i++;
+			++i;
 			if (self.ctx->depth == 0)
-				self.replacement_field_count++;
+				++self.replacement_field_count;
+
 			start = i + 1;
 			++self.ctx->depth;
 			callback();
@@ -176,14 +177,14 @@ Formatter::flush(const char *fmt, u64 start)
 	{
 		if (fmt[i] == '{' && fmt[i + 1] == '{')
 		{
-			i++;
+			++i;
 			string_append(self.ctx->buffer, '{');
 			continue;
 		}
 
 		if (fmt[i] == '}' && fmt[i + 1] == '}')
 		{
-			i++;
+			++i;
 			string_append(self.ctx->buffer, '}');
 			continue;
 		}
@@ -197,7 +198,7 @@ Formatter::flush(const char *fmt, u64 start)
 				// The replacement character count is larger than the number of passed arguments,
 				//    at this point we just skip them.
 				//
-				i++;
+				++i;
 				self.replacement_field_count++;
 			}
 			else
@@ -207,7 +208,7 @@ Formatter::flush(const char *fmt, u64 start)
 				// The user passed "{}" replacement character as an argument, we just append it,
 				//    for e.x. formatter_format(formatter, "{}", "{}"); => "{}".
 				//
-				i++;
+				++i;
 				string_append(self.ctx->buffer, '{');
 				string_append(self.ctx->buffer, '}');
 			}
@@ -221,7 +222,7 @@ Formatter::flush(const char *fmt, u64 start)
 
 			if (self.ctx->depth > 0 && fmt[i + 1] == '{')
 			{
-				i++;
+				++i;
 				string_append(self.ctx->buffer, '{');
 				continue;
 			}
@@ -234,7 +235,7 @@ Formatter::flush(const char *fmt, u64 start)
 
 			if (self.ctx->depth > 0 && fmt[i + 1] == '}')
 			{
-				i++;
+				++i;
 				string_append(self.ctx->buffer, '}');
 				continue;
 			}
