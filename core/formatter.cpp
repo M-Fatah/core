@@ -9,7 +9,8 @@ static constexpr const char *FORMATTER_DIGITS_UPPERCASE = "0123456789ABCDEF";
 struct Formatter_Replacement_Field
 {
 	u64 index;
-	String value;
+	u64 from;
+	u64 to;
 };
 
 struct Formatter_Replacement_Fields_Per_Depth
@@ -235,7 +236,8 @@ Formatter::parse(const char *fmt, u64 &start, u64 arg_count, std::function<void(
 			--self.ctx->depth;
 
 			Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
-			per_depth.fields[per_depth.current_index].value = string_from(self.ctx->internal.data + ff, memory::temp_allocator());
+			per_depth.fields[per_depth.current_index].from = ff;
+			per_depth.fields[per_depth.current_index].to = self.ctx->internal.count;
 			++per_depth.current_index;
 			if (per_depth.current_index == per_depth.field_count)
 				continue;
@@ -256,7 +258,8 @@ Formatter::parse(const char *fmt, u64 &start, u64 arg_count, std::function<void(
 			--self.ctx->depth;
 
 			Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
-			per_depth.fields[per_depth.current_index].value = string_from(self.ctx->internal.data + ff, memory::temp_allocator());
+			per_depth.fields[per_depth.current_index].from = ff;
+			per_depth.fields[per_depth.current_index].to = self.ctx->internal.count;
 			++per_depth.current_index;
 			if (per_depth.current_index == per_depth.field_count)
 				continue;
@@ -355,8 +358,8 @@ Formatter::flush(const char *fmt, u64 start)
 					const auto &field = per_depth.fields[j];
 					if (field.index == arg_index)
 					{
-						for (auto c : field.value)
-							string_append(self.ctx->buffer, c);
+						for (u64 k = field.from; k < field.to; ++k)
+							string_append(self.ctx->buffer, self.ctx->internal[k]);
 						found = true;
 					}
 				}
@@ -375,8 +378,8 @@ Formatter::flush(const char *fmt, u64 start)
 				const auto &field = per_depth.fields[j];
 				if (field.index == arg_index)
 				{
-					for (auto c : field.value)
-						string_append(self.ctx->buffer, c);
+					for (u64 k = field.from; k < field.to; ++k)
+						string_append(self.ctx->buffer, self.ctx->internal[k]);
 					found = true;
 				}
 			}
@@ -388,6 +391,9 @@ Formatter::flush(const char *fmt, u64 start)
 
 		string_append(self.ctx->buffer, fmt[i]);
 	}
+
+	// TODO:
+	// Return a new string, and remove clear function?
 
 	//
 	// NOTE:
