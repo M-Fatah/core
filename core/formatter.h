@@ -21,7 +21,6 @@ struct Formatter
 	struct Formatter_Context *ctx;
 
 	const char *buffer;
-	u64 replacement_field_count;
 
 	Formatter();
 	~Formatter();
@@ -42,7 +41,10 @@ struct Formatter
 	FORMAT(const void *)
 
 	void
-	parse(const char *fmt, u64 &start, std::function<void()> &&callback);
+	parse_begin(const char *fmt);
+
+	void
+	parse(const char *fmt, u64 &start, u64 arg_count, std::function<void()> &&callback);
 
 	void
 	flush(const char *fmt, u64 start);
@@ -56,7 +58,11 @@ inline static void
 formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 {
 	u64 start = 0;
-	(self.parse(fmt, start, [&]() { format(self, args); }), ...);
+	self.parse_begin(fmt);
+	if constexpr (sizeof...(args) > 0)
+		(self.parse(fmt, start, sizeof...(args), [&]() { format(self, args); }), ...);
+	else
+		self.parse(fmt, start, 0, []() { });
 	self.flush(fmt, start);
 }
 

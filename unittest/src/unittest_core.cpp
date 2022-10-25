@@ -2,6 +2,7 @@
 #include <core/logger.h>
 #include <core/result.h>
 #include <core/formatter.h>
+#include <core/formatter.cpp>
 #include <core/memory/memory.h>
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
@@ -130,123 +131,149 @@ format(Formatter &self, const vec3 &value)
 TEST_CASE("[CORE]: Formatter")
 {
 	Formatter formatter = {};
+	formatter_format(formatter, "{}", vec3{1, 2, 3});
+	CHECK(string_literal(formatter.buffer) == "{1, 2, 3}");
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
+	formatter_clear(formatter);
+
 	formatter_format(formatter, "{}/{}/{}/{}/{}/{}", "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6});
 	CHECK(string_literal(formatter.buffer) == "Hello/A/true/1.5/3/{4, 5, 6}");
-	CHECK(formatter.replacement_field_count == 6);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 6);
+	CHECK(formatter.ctx->replacements_per_depth[0].fields[0].index == 0);
+	CHECK(formatter.ctx->replacements_per_depth[0].fields[1].index == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].fields[2].index == 2);
+	CHECK(formatter.ctx->replacements_per_depth[0].fields[3].index == 3);
+	CHECK(formatter.ctx->replacements_per_depth[0].fields[4].index == 4);
+	CHECK(formatter.ctx->replacements_per_depth[0].fields[5].index == 5);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{0}{2}{1}", "Hello, ", "!", "World");
+	CHECK(string_literal(formatter.buffer) == "Hello, World!");
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 3);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{0}{2}{1}", 0, 2, 1);
+	CHECK(string_literal(formatter.buffer) == "012");
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 3);
+	formatter_clear(formatter);
+
+	formatter_format(formatter, "{0}{1}{3}{2}", "Hello, ", 0, 2, 1);
+	CHECK(string_literal(formatter.buffer) == "Hello, 012");
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 4);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}", "{ \"name\": \"n\" }");
 	CHECK(string_literal(formatter.buffer) == "{ \"name\": \"n\" }");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{{ \"name\": \"n\" }}");
 	CHECK(string_literal(formatter.buffer) == "{ \"name\": \"n\" }");
-	CHECK(formatter.replacement_field_count == 0);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 0);
 	formatter_clear(formatter);
 
 	i32 x = 1;
 	formatter_format(formatter, "{}", &x);
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}", "Hello");
 	CHECK(string_literal(formatter.buffer) == "Hello");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}", 'A');
 	CHECK(string_literal(formatter.buffer) == "A");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}", true);
 	CHECK(string_literal(formatter.buffer) == "true");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}", 1.5f);
 	CHECK(string_literal(formatter.buffer) == "1.5");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}", -1.5f);
 	CHECK(string_literal(formatter.buffer) == "-1.5");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}", 3);
 	CHECK(string_literal(formatter.buffer) == "3");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}", -3);
 	CHECK(string_literal(formatter.buffer) == "-3");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}", vec3{1, 2, 3});
 	CHECK(string_literal(formatter.buffer) == "{1, 2, 3}");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	char test[] = "test";
 	formatter_format(formatter, "{}", test);
 	CHECK(string_literal(formatter.buffer) == "test");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	vec3 array[2] = {{1, 2, 3}, {4, 5, 6}};
 	formatter_format(formatter, "{}", array);
 	CHECK(string_literal(formatter.buffer) == "[2] { {1, 2, 3}, {4, 5, 6} }");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	const char *array_of_strings[2] = {"Hello", "World"};
 	formatter_format(formatter, "{}", array_of_strings);
 	CHECK(string_literal(formatter.buffer) == "[2] { Hello, World }");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}", array_from<i32>({1, 2, 3}, memory::temp_allocator()));
 	CHECK(string_literal(formatter.buffer) == "[3] { 1, 2, 3 }");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}", hash_table_from<i32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()));
 	CHECK(string_literal(formatter.buffer) == "[3] { 1: 1, 2: 2, 3: 3 }");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}{}{}{}{}", 1, 2, 3);
 	CHECK(string_literal(formatter.buffer) == "123");
-	CHECK(formatter.replacement_field_count == 5);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 5);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}{}{}{}{}", 1, 2, 3, "{}", 4);
 	CHECK(string_literal(formatter.buffer) == "123{}4");
-	CHECK(formatter.replacement_field_count == 5);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 5);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "A", "B");
 	CHECK(string_literal(formatter.buffer) == "A");
-	CHECK(formatter.replacement_field_count == 0);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 0);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}A", "B");
 	CHECK(string_literal(formatter.buffer) == "BA");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	formatter_format(formatter, "{}", "A", "B", "C");
 	CHECK(string_literal(formatter.buffer) == "A");
-	CHECK(formatter.replacement_field_count == 1);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 1);
 	formatter_clear(formatter);
 
 	const char *fmt_string = "{}/{}";
 	formatter_format(formatter, fmt_string, "A", "B");
 	CHECK(string_literal(formatter.buffer) == "A/B");
-	CHECK(formatter.replacement_field_count == 2);
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 2);
 	formatter_clear(formatter);
 }
 
