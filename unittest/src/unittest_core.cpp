@@ -152,6 +152,23 @@ TEST_CASE("[CORE]: Formatter")
 	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 3);
 	formatter_clear(formatter);
 
+	formatter_format(formatter, "{0}{1}{2}", "Hello, ", "World", "!");
+	CHECK(string_literal(formatter.buffer) == "Hello, World!");
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 3);
+	formatter_clear(formatter);
+
+	// TODO: Should this assert?
+	formatter_format(formatter, "{0}{1}{2}", "Hello, ", "World");
+	CHECK(string_literal(formatter.buffer) == "Hello, World");
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 3);
+	formatter_clear(formatter);
+
+	const char *positional_arg_fmt = "{0}{2}{1}";
+	formatter_format(formatter, positional_arg_fmt, "Hello, ", "!", "World");
+	CHECK(string_literal(formatter.buffer) == "Hello, World!");
+	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 3);
+	formatter_clear(formatter);
+
 	formatter_format(formatter, "{0}{2}{1}", 0, 2, 1);
 	CHECK(string_literal(formatter.buffer) == "012");
 	CHECK(formatter.ctx->replacements_per_depth[0].field_count == 3);

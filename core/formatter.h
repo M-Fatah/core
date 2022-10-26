@@ -41,13 +41,13 @@ struct Formatter
 	FORMAT(const void *)
 
 	void
-	parse_begin(const char *fmt);
+	parse_begin(const char *fmt, u64 arg_count);
 
 	void
-	parse(const char *fmt, u64 &start, u64 arg_count, std::function<void()> &&callback);
+	parse(std::function<void()> &&callback);
 
 	void
-	flush(const char *fmt, u64 start);
+	flush();
 
 	void
 	clear();
@@ -57,13 +57,12 @@ template <typename ...TArgs>
 inline static void
 formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 {
-	u64 start = 0;
-	self.parse_begin(fmt);
-	if constexpr (sizeof...(args) > 0)
-		(self.parse(fmt, start, sizeof...(args), [&]() { format(self, args); }), ...);
+	self.parse_begin(fmt, sizeof...(args));
+	if constexpr (sizeof...(args))
+		(self.parse([&]() { format(self, args); }), ...);
 	else
-		self.parse(fmt, start, 0, []() { });
-	self.flush(fmt, start);
+		self.parse([&]() { });
+	self.flush();
 }
 
 inline static void

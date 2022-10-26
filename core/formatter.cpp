@@ -6,6 +6,7 @@
 static constexpr const char *FORMATTER_DIGITS_LOWERCASE = "0123456789abcdef";
 static constexpr const char *FORMATTER_DIGITS_UPPERCASE = "0123456789ABCDEF";
 
+// TODO: Rename.
 struct Formatter_Replacement_Field
 {
 	u64 index;
@@ -13,16 +14,21 @@ struct Formatter_Replacement_Field
 	u64 to;
 };
 
+// TODO: Rename.
 struct Formatter_Replacement_Fields_Per_Depth
 {
 	Formatter_Replacement_Field fields[256];
 	u64 field_count;
+	u64 arg_count;
 	u64 current_index;
-	u64 current_offset;
+	u64 offset;
+	u64 fmt_count;
+	const char *fmt;
 };
 
 struct Formatter_Context
 {
+	// TODO: Collapse.
 	String buffer;
 	String internal;
 	u64 depth;
@@ -141,7 +147,7 @@ Formatter::~Formatter()
 
 // NOTE: This is just a pre-pass to fetch the information about replacement fields.
 void
-Formatter::parse_begin(const char *fmt)
+Formatter::parse_begin(const char *fmt, u64 arg_count)
 {
 	Formatter &self = *this;
 
@@ -156,13 +162,17 @@ Formatter::parse_begin(const char *fmt)
 	if (fmt_count == 0)
 		return;
 
+	Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
+	per_depth = {};
+	per_depth.fmt = fmt;
+	per_depth.fmt_count = fmt_count;
+	per_depth.arg_count = arg_count;
+
 	// TODO: Formatting error checking.
-	for (u64 i = 0; i < fmt_count; ++i)
+	for (u64 i = 0; i < per_depth.fmt_count; ++i)
 	{
 		if (fmt[i] == '{' && fmt[i + 1] == '}')
 		{
-			Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
-			per_depth.fields[per_depth.field_count] = {};
 			per_depth.fields[per_depth.field_count].index = per_depth.field_count;
 			per_depth.field_count++;
 			++i;
@@ -170,8 +180,6 @@ Formatter::parse_begin(const char *fmt)
 		}
 		else if (fmt[i] == '{' && fmt[i + 1] >= '0' && fmt[i + 1] <= '9' && fmt[i + 2] == '}')
 		{
-			Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
-			per_depth.fields[per_depth.field_count] = {};
 			per_depth.fields[per_depth.field_count].index = fmt[i + 1] - '0';
 			per_depth.field_count++;
 			++i;
@@ -182,24 +190,14 @@ Formatter::parse_begin(const char *fmt)
 }
 
 void
-Formatter::parse(const char *fmt, u64 &start, u64 arg_count, std::function<void()> &&callback)
+Formatter::parse(std::function<void()> &&callback)
 {
 	Formatter &self = *this;
 
-	u64 fmt_count = 0;
-	const char *fmt_ptr = fmt;
-	while (*fmt_ptr)
+	Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
+	for (u64 i = per_depth.offset; i < per_depth.fmt_count; ++i)
 	{
-		++fmt_count;
-		++fmt_ptr;
-	}
-
-	if (fmt_count == 0)
-		return;
-
-	for (u64 i = start; i < fmt_count; ++i)
-	{
-		if (fmt[i] == '{' && fmt[i + 1] == '{')
+		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '{')
 		{
 			++i;
 			string_append(self.ctx->buffer, '{');
@@ -207,7 +205,7 @@ Formatter::parse(const char *fmt, u64 &start, u64 arg_count, std::function<void(
 			continue;
 		}
 
-		if (fmt[i] == '}' && fmt[i + 1] == '}')
+		if (per_depth.fmt[i] == '}' && per_depth.fmt[i + 1] == '}')
 		{
 			++i;
 			string_append(self.ctx->buffer, '}');
@@ -215,121 +213,98 @@ Formatter::parse(const char *fmt, u64 &start, u64 arg_count, std::function<void(
 			continue;
 		}
 
-		if (fmt[i] == '{' && fmt[i + 1] == '}')
+		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '}')
 		{
-			// TODO: Shitty hacky way.
-			if (self.ctx->depth > 0 && arg_count == 0)
+			++i;
+			per_depth.offset = i + 1;
+			++self.ctx->depth;
+			u64 ff = self.ctx->internal.count;
+			callback();
+			--self.ctx->depth;
+
+			per_depth.fields[per_depth.current_index].from = ff;
+			per_depth.fields[per_depth.current_index].to = self.ctx->internal.count;
+			++per_depth.current_index;
+			if (per_depth.current_index == per_depth.field_count)
+				continue;
+			return;
+		}
+
+		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] >= '0' && per_depth.fmt[i + 1] <= '9' && per_depth.fmt[i + 2] == '}')
+		{
+			++i;
+			++i;
+			per_depth.offset = i + 1;
+			u64 ff = self.ctx->internal.count;
+			++self.ctx->depth;
+			callback();
+			--self.ctx->depth;
+
+			per_depth.fields[per_depth.current_index].from = ff;
+			per_depth.fields[per_depth.current_index].to = self.ctx->internal.count;
+			++per_depth.current_index;
+			if (per_depth.current_index == per_depth.field_count)
+				continue;
+			return;
+		}
+
+		// TODO: Flagged for removal.
+		if (per_depth.fmt[i] == '{')
+		{
+			if (self.ctx->depth == 0)
+				continue;
+
+			if (self.ctx->depth > 0 && per_depth.fmt[i + 1] == '{')
 			{
+				++i;
 				string_append(self.ctx->buffer, '{');
 				string_append(self.ctx->internal, '{');
+				continue;
+			}
+		}
+
+		// TODO: Flagged for removal.
+		if (per_depth.fmt[i] == '}')
+		{
+			if (self.ctx->depth == 0)
+				continue;
+
+			if (self.ctx->depth > 0 && per_depth.fmt[i + 1] == '}')
+			{
+				++i;
 				string_append(self.ctx->buffer, '}');
 				string_append(self.ctx->internal, '}');
-			}
-
-			++i;
-			start = i + 1;
-			++self.ctx->depth;
-			u64 ff = self.ctx->internal.count;
-			callback();
-			// TODO:
-			// string_append(self.ctx->internal, self.ctx->buffer.data);
-			--self.ctx->depth;
-
-			Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
-			per_depth.fields[per_depth.current_index].from = ff;
-			per_depth.fields[per_depth.current_index].to = self.ctx->internal.count;
-			++per_depth.current_index;
-			if (per_depth.current_index == per_depth.field_count)
-				continue;
-			return;
-		}
-
-		if (fmt[i] == '{' && fmt[i + 1] >= '0' && fmt[i + 1] <= '9' && fmt[i + 2] == '}')
-		{
-			++i;
-			++i;
-			start = i + 1;
-			// u64 ff = self.ctx->internal.count;
-			u64 ff = self.ctx->internal.count;
-			++self.ctx->depth;
-			callback();
-			// TODO:
-			// string_append(self.ctx->internal, self.ctx->buffer.data);
-			--self.ctx->depth;
-
-			Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
-			per_depth.fields[per_depth.current_index].from = ff;
-			per_depth.fields[per_depth.current_index].to = self.ctx->internal.count;
-			++per_depth.current_index;
-			if (per_depth.current_index == per_depth.field_count)
-				continue;
-			return;
-		}
-
-		// TODO: Flagged for removal.
-		if (fmt[i] == '{')
-		{
-			if (self.ctx->depth == 0)
-				continue;
-
-			if (self.ctx->depth > 0 && fmt[i + 1] == '{')
-			{
-				++i;
-				string_append(self.ctx->buffer, '{');
 				continue;
 			}
 		}
 
-		// TODO: Flagged for removal.
-		if (fmt[i] == '}')
-		{
-			if (self.ctx->depth == 0)
-				continue;
-
-			if (self.ctx->depth > 0 && fmt[i + 1] == '}')
-			{
-				++i;
-				string_append(self.ctx->buffer, '}');
-				continue;
-			}
-		}
-
-		string_append(self.ctx->buffer, fmt[i]);
-		string_append(self.ctx->internal, fmt[i]);
+		string_append(self.ctx->buffer, per_depth.fmt[i]);
+		string_append(self.ctx->internal, per_depth.fmt[i]);
 	}
 }
 
 void
-Formatter::flush(const char *fmt, u64 start)
+Formatter::flush()
 {
 	Formatter &self = *this;
 
+	Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
+
 	string_clear(self.ctx->buffer);
-	start = 0;
-
-	u64 fmt_count = 0;
-	const char *fmt_ptr = fmt + start;
-	while (*fmt_ptr)
-	{
-		++fmt_count;
-		++fmt_ptr;
-	}
-
-	if (fmt_count == 0)
-		return;
+	per_depth.offset = 0;
 
 	u64 arg_index = 0;
-	fmt = fmt + start;
-	for (u64 i = 0; i < fmt_count; ++i)
+	per_depth.fmt = per_depth.fmt + per_depth.offset;
+	for (u64 i = 0; i < per_depth.fmt_count; ++i)
 	{
-		if (fmt[i] == '{' && fmt[i + 1] == '{')
+		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '{')
 		{
 			++i;
 			string_append(self.ctx->buffer, '{');
 			continue;
 		}
 
-		if (fmt[i] == '}' && fmt[i + 1] == '}')
+		if (per_depth.fmt[i] == '}' && per_depth.fmt[i + 1] == '}')
 		{
 			++i;
 			string_append(self.ctx->buffer, '}');
@@ -337,21 +312,17 @@ Formatter::flush(const char *fmt, u64 start)
 		}
 
 		// TODO: This should be handled if there are {0...9};
-		if (fmt[i] == '{' && fmt[i + 1] == '}')
+		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '}')
 		{
-			// if (self.ctx->depth > 0)
-			// {
-			// 	//
-			// 	// NOTE:
-			// 	// The user passed "{}" replacement character as an argument, we just append it,
-			// 	//    for e.x. formatter_format(formatter, "{}", "{}"); => "{}".
-			// 	//
-			// 	string_append(self.ctx->buffer, '{');
-			// 	string_append(self.ctx->buffer, '}');
-			// }
-			// else
+			if (self.ctx->depth > 0 && per_depth.arg_count == 0)
 			{
-				Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
+				string_append(self.ctx->buffer, '{');
+				string_append(self.ctx->internal, '{');
+				string_append(self.ctx->buffer, '}');
+				string_append(self.ctx->internal, '}');
+			}
+			else
+			{
 				bool found = false;
 				for (u64 j = 0; found == false && j < per_depth.field_count; ++j)
 				{
@@ -369,9 +340,8 @@ Formatter::flush(const char *fmt, u64 start)
 			continue;
 		}
 
-		if (fmt[i] == '{' && fmt[i + 1] >= '0' && fmt[i + 1] <= '9' && fmt[i + 2] == '}')
+		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] >= '0' && per_depth.fmt[i + 1] <= '9' && per_depth.fmt[i + 2] == '}')
 		{
-			Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
 			bool found = false;
 			for (u64 j = 0; found == false && j < per_depth.field_count; ++j)
 			{
@@ -389,7 +359,7 @@ Formatter::flush(const char *fmt, u64 start)
 			continue;
 		}
 
-		string_append(self.ctx->buffer, fmt[i]);
+		string_append(self.ctx->buffer, per_depth.fmt[i]);
 	}
 
 	// TODO:
