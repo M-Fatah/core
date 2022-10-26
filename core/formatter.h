@@ -40,26 +40,25 @@ struct Formatter
 	FORMAT(const char *)
 	FORMAT(const void *)
 
-	void
+	bool
 	parse_begin(const char *fmt, u64 arg_count);
 
 	void
-	parse(std::function<void()> &&callback);
+	parse_next(std::function<void()> &&callback);
 
 	void
-	flush();
+	parse_end();
 };
 
 template <typename ...TArgs>
 inline static void
 formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 {
-	self.parse_begin(fmt, sizeof...(args));
-	if constexpr (sizeof...(args))
-		(self.parse([&]() { format(self, args); }), ...);
-	else
-		self.parse([&]() { });
-	self.flush();
+	if (self.parse_begin(fmt, sizeof...(args)))
+	{
+		(self.parse_next([&]() { format(self, args); }), ...);
+		self.parse_end();
+	}
 }
 
 #undef FORMAT

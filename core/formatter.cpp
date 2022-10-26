@@ -1,5 +1,6 @@
 #include "core/formatter.h"
 
+#include <core/logger.h>
 #include "core/memory/memory.h"
 #include "core/containers/string.h"
 
@@ -138,13 +139,16 @@ Formatter::~Formatter()
 	memory::deallocate(self.ctx);
 }
 
-// NOTE: This is just a pre-pass to fetch the information about replacement fields.
-void
+//
+// NOTE:
+// Pre-pass to parse replacement fields and report formatting errors.
+//
+bool
 Formatter::parse_begin(const char *fmt, u64 arg_count)
 {
 	Formatter &self = *this;
 
-	// NOTE: New formatting, clear.
+	// Start of a new formatting.
 	if (self.ctx->depth == 0)
 		_formatter_clear(self);
 
@@ -157,7 +161,7 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 	}
 
 	if (fmt_count == 0)
-		return;
+		return false;
 
 	Formatter_Context_Per_Depth &per_depth = self.ctx->depths[self.ctx->depth];
 	per_depth           = {};
@@ -165,7 +169,6 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 	per_depth.fmt_count = fmt_count;
 	per_depth.arg_count = arg_count;
 
-	// TODO: Formatting error checking.
 	for (u64 i = 0; i < per_depth.fmt_count; ++i)
 	{
 		if (fmt[i] == '{' && fmt[i + 1] == '}')
@@ -175,7 +178,8 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 			++i;
 			continue;
 		}
-		else if (fmt[i] == '{' && fmt[i + 1] >= '0' && fmt[i + 1] <= '9' && fmt[i + 2] == '}')
+
+		if (fmt[i] == '{' && fmt[i + 1] >= '0' && fmt[i + 1] <= '9' && fmt[i + 2] == '}')
 		{
 			per_depth.fields[per_depth.field_count].index = fmt[i + 1] - '0';
 			per_depth.field_count++;
@@ -183,11 +187,60 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 			++i;
 			continue;
 		}
+
+		// TODO: Handle error messages formatting.
+		if (self.ctx->depth == 0)
+		{
+			if (i != (fmt_count - 1))
+			{
+				if (fmt[i] == '{')
+				{
+					if (fmt[i + 1] == '{')
+					{
+						++i;
+					}
+					else
+					{
+						LOG_ERROR("[FORMATTER]: Formatting error at index '{}', expected '{}' but found '{}{}'.", i, "{{", fmt[i], fmt[i + 1]);
+						return false;
+					}
+				}
+
+				if (fmt[i] == '}')
+				{
+					if (fmt[i + 1] == '}')
+					{
+						++i;
+					}
+					else
+					{
+						LOG_ERROR("[FORMATTER]: Formatting error at index '{}', expected '{}' but found '{}{}'.", i, "}}", fmt[i], fmt[i + 1]);
+						return false;
+					}
+				}
+			}
+			else if (i == (fmt_count - 1))
+			{
+				if (fmt[i] == '{')
+				{
+					LOG_ERROR("[FORMATTER]: Formatting error at index '{}', expected '{}' but found '{}'.", i, "{{", fmt[i]);
+					return false;
+				}
+
+				if (fmt[i] == '}')
+				{
+					LOG_ERROR("[FORMATTER]: Formatting error at index '{}', expected '{}' but found '{}'.", i, "}}", fmt[i]);
+					return false;
+				}
+			}
+		}
 	}
+
+	return true;
 }
 
 void
-Formatter::parse(std::function<void()> &&callback)
+Formatter::parse_next(std::function<void()> &&callback)
 {
 	Formatter &self = *this;
 
@@ -196,15 +249,15 @@ Formatter::parse(std::function<void()> &&callback)
 	{
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '{')
 		{
-			++i;
 			string_append(self.ctx->internal, '{');
+			++i;
 			continue;
 		}
 
 		if (per_depth.fmt[i] == '}' && per_depth.fmt[i + 1] == '}')
 		{
-			++i;
 			string_append(self.ctx->internal, '}');
+			++i;
 			continue;
 		}
 
@@ -258,23 +311,23 @@ Formatter::parse(std::function<void()> &&callback)
 }
 
 void
-Formatter::flush()
+Formatter::parse_end()
 {
 	Formatter &self = *this;
 
 	Formatter_Context_Per_Depth &per_depth = self.ctx->depths[self.ctx->depth];
 
 	string_clear(self.ctx->buffer);
-	per_depth.offset = 0;
 
 	u64 arg_index = 0;
-	per_depth.fmt = per_depth.fmt + per_depth.offset;
 	for (u64 i = 0; i < per_depth.fmt_count; ++i)
 	{
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '{')
 		{
 			++i;
 			string_append(self.ctx->buffer, '{');
+			if (per_depth.arg_count == 0)
+				string_append(self.ctx->internal, '{');
 			continue;
 		}
 
@@ -282,48 +335,56 @@ Formatter::flush()
 		{
 			++i;
 			string_append(self.ctx->buffer, '}');
+			if (per_depth.arg_count == 0)
+					string_append(self.ctx->internal, '}');
 			continue;
 		}
 
-		// TODO: This should be handled if there are {0...9};
-		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '}')
+		if (per_depth.arg_count > 0)
 		{
-			bool found = false;
-			for (u64 j = 0; found == false && j < per_depth.field_count; ++j)
+			// TODO: This should be handled if there are {0...9};
+			if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '}')
 			{
-				const auto &field = per_depth.fields[j];
-				if (field.index == arg_index)
+				bool found = false;
+				for (u64 j = 0; found == false && j < per_depth.field_count; ++j)
 				{
-					for (u64 k = field.from; k < field.to; ++k)
-						string_append(self.ctx->buffer, self.ctx->internal[k]);
-					found = true;
+					const auto &field = per_depth.fields[j];
+					if (field.index == arg_index)
+					{
+						for (u64 k = field.from; k < field.to; ++k)
+							string_append(self.ctx->buffer, self.ctx->internal[k]);
+						found = true;
+					}
 				}
+				++arg_index;
+				++i;
+				continue;
 			}
-			++arg_index;
-			++i;
-			continue;
-		}
 
-		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] >= '0' && per_depth.fmt[i + 1] <= '9' && per_depth.fmt[i + 2] == '}')
-		{
-			bool found = false;
-			for (u64 j = 0; found == false && j < per_depth.field_count; ++j)
+			if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] >= '0' && per_depth.fmt[i + 1] <= '9' && per_depth.fmt[i + 2] == '}')
 			{
-				const auto &field = per_depth.fields[j];
-				if (field.index == arg_index)
+				bool found = false;
+				for (u64 j = 0; found == false && j < per_depth.field_count; ++j)
 				{
-					for (u64 k = field.from; k < field.to; ++k)
-						string_append(self.ctx->buffer, self.ctx->internal[k]);
-					found = true;
+					const auto &field = per_depth.fields[j];
+					if (field.index == arg_index)
+					{
+						for (u64 k = field.from; k < field.to; ++k)
+							string_append(self.ctx->buffer, self.ctx->internal[k]);
+						found = true;
+					}
 				}
+				++arg_index;
+				++i;
+				++i;
+				continue;
 			}
-			++arg_index;
-			++i;
-			++i;
-			continue;
 		}
 
 		string_append(self.ctx->buffer, per_depth.fmt[i]);
+
+		if (per_depth.arg_count == 0)
+			string_append(self.ctx->internal, per_depth.fmt[i]);
 	}
 
 	// TODO:

@@ -262,6 +262,14 @@ TEST_CASE("[CORE]: Formatter")
 	formatter_format(formatter, fmt_string, "A", "B");
 	CHECK(string_literal(formatter.buffer) == "A/B");
 	CHECK(formatter.ctx->depths[0].field_count == 2);
+
+	formatter_format(formatter, "{}}", vec3{1, 2, 3});
+	CHECK(string_literal(formatter.buffer) == "");
+	formatter_format(formatter, "{{}", vec3{1, 2, 3});
+	CHECK(string_literal(formatter.buffer) == "");
+	formatter_format(formatter, "{ }}", vec3{1, 2, 3});
+	CHECK(string_literal(formatter.buffer) == "");
+
 }
 
 TEST_CASE("[CORE]: JSON")
