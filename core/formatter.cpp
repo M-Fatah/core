@@ -3,8 +3,10 @@
 #include "core/memory/memory.h"
 #include "core/containers/string.h"
 
-static constexpr const char *FORMATTER_DIGITS_LOWERCASE = "0123456789abcdef";
-static constexpr const char *FORMATTER_DIGITS_UPPERCASE = "0123456789ABCDEF";
+static constexpr const char *FORMATTER_DIGITS_LOWERCASE            = "0123456789abcdef";
+static constexpr const char *FORMATTER_DIGITS_UPPERCASE            = "0123456789ABCDEF";
+static constexpr const u64   FORMATTER_MAX_REPLACEMENT_FIELD_COUNT = 256;
+static constexpr const u64   FORMATTER_MAX_DEPTH_COUNT             = 256;
 
 // TODO: Rename.
 struct Formatter_Replacement_Field
@@ -15,9 +17,9 @@ struct Formatter_Replacement_Field
 };
 
 // TODO: Rename.
-struct Formatter_Replacement_Fields_Per_Depth
+struct Formatter_Context_Per_Depth
 {
-	Formatter_Replacement_Field fields[256];
+	Formatter_Replacement_Field fields[FORMATTER_MAX_REPLACEMENT_FIELD_COUNT];
 	u64 field_count;
 	u64 arg_count;
 	u64 current_index;
@@ -32,7 +34,7 @@ struct Formatter_Context
 	String buffer;
 	String internal;
 	u64 depth;
-	Formatter_Replacement_Fields_Per_Depth replacements_per_depth[256];
+	Formatter_Context_Per_Depth depths[FORMATTER_MAX_DEPTH_COUNT];
 };
 
 template <typename T>
@@ -124,6 +126,16 @@ _formatter_format_float(Formatter &self, f64 data)
 	}
 }
 
+inline static void
+_formatter_clear(Formatter &self)
+{
+	string_clear(self.ctx->buffer);
+	string_clear(self.ctx->internal);
+	self.ctx->depth = 0;
+	::memset(self.ctx->depths, 0, sizeof(self.ctx->depths));
+	self.buffer = self.ctx->buffer.data;
+}
+
 // API.
 Formatter::Formatter()
 {
@@ -151,6 +163,10 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 {
 	Formatter &self = *this;
 
+	// NOTE: New formatting, clear.
+	if (self.ctx->depth == 0)
+		_formatter_clear(self);
+
 	u64 fmt_count = 0;
 	const char *fmt_ptr = fmt;
 	while (*fmt_ptr)
@@ -162,9 +178,9 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 	if (fmt_count == 0)
 		return;
 
-	Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
-	per_depth = {};
-	per_depth.fmt = fmt;
+	Formatter_Context_Per_Depth &per_depth = self.ctx->depths[self.ctx->depth];
+	per_depth           = {};
+	per_depth.fmt       = fmt;
 	per_depth.fmt_count = fmt_count;
 	per_depth.arg_count = arg_count;
 
@@ -194,13 +210,12 @@ Formatter::parse(std::function<void()> &&callback)
 {
 	Formatter &self = *this;
 
-	Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
+	Formatter_Context_Per_Depth &per_depth = self.ctx->depths[self.ctx->depth];
 	for (u64 i = per_depth.offset; i < per_depth.fmt_count; ++i)
 	{
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '{')
 		{
 			++i;
-			string_append(self.ctx->buffer, '{');
 			string_append(self.ctx->internal, '{');
 			continue;
 		}
@@ -208,7 +223,6 @@ Formatter::parse(std::function<void()> &&callback)
 		if (per_depth.fmt[i] == '}' && per_depth.fmt[i + 1] == '}')
 		{
 			++i;
-			string_append(self.ctx->buffer, '}');
 			string_append(self.ctx->internal, '}');
 			continue;
 		}
@@ -257,7 +271,6 @@ Formatter::parse(std::function<void()> &&callback)
 			if (self.ctx->depth > 0 && per_depth.fmt[i + 1] == '{')
 			{
 				++i;
-				string_append(self.ctx->buffer, '{');
 				string_append(self.ctx->internal, '{');
 				continue;
 			}
@@ -272,13 +285,11 @@ Formatter::parse(std::function<void()> &&callback)
 			if (self.ctx->depth > 0 && per_depth.fmt[i + 1] == '}')
 			{
 				++i;
-				string_append(self.ctx->buffer, '}');
 				string_append(self.ctx->internal, '}');
 				continue;
 			}
 		}
 
-		string_append(self.ctx->buffer, per_depth.fmt[i]);
 		string_append(self.ctx->internal, per_depth.fmt[i]);
 	}
 }
@@ -288,7 +299,7 @@ Formatter::flush()
 {
 	Formatter &self = *this;
 
-	Formatter_Replacement_Fields_Per_Depth &per_depth = self.ctx->replacements_per_depth[self.ctx->depth];
+	Formatter_Context_Per_Depth &per_depth = self.ctx->depths[self.ctx->depth];
 
 	string_clear(self.ctx->buffer);
 	per_depth.offset = 0;
@@ -472,15 +483,4 @@ Formatter::format(const void *data)
 {
 	Formatter &self = *this;
 	_formatter_format_integer(self, (uptr)data, 16, true);
-}
-
-void
-Formatter::clear()
-{
-	Formatter &self = *this;
-	string_clear(self.ctx->buffer);
-	string_clear(self.ctx->internal);
-	self.ctx->depth = 0;
-	::memset(self.ctx->replacements_per_depth, 0, sizeof(self.ctx->replacements_per_depth));
-	self.buffer = self.ctx->buffer.data;
 }

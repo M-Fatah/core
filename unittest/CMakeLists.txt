@@ -28,10 +28,8 @@ set(LIBS
 add_executable(unittest ${HEADER_FILES} ${SOURCE_FILES})
 target_link_libraries(unittest ${LIBS})
 target_compile_options(unittest PRIVATE ${GLOBAL_COMPILE_OPTIONS})
-if(CORE_BUILD_UNITY)
-    set_target_properties(unittest
-        PROPERTIES
-            UNITY_BUILD_BATCH_SIZE 8
-            UNITY_BUILD true
-    )
-endif()
+set_target_properties(unittest
+    PROPERTIES
+        UNITY_BUILD_BATCH_SIZE 8
+        UNITY_BUILD ${CORE_BUILD_UNITY}
+)

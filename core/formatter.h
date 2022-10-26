@@ -48,9 +48,6 @@ struct Formatter
 
 	void
 	flush();
-
-	void
-	clear();
 };
 
 template <typename ...TArgs>
@@ -63,12 +60,6 @@ formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 	else
 		self.parse([&]() { });
 	self.flush();
-}
-
-inline static void
-formatter_clear(Formatter &self)
-{
-	self.clear();
 }
 
 #undef FORMAT
