@@ -35,6 +35,7 @@ struct Formatter_Context
 	String buffer;
 	String internal;
 	u64 depth;
+	u64 current_depth;
 	Formatter_Context_Per_Depth depths[FORMATTER_MAX_DEPTH_COUNT];
 };
 
@@ -188,7 +189,6 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 			continue;
 		}
 
-		// TODO: Handle error messages formatting.
 		if (self.ctx->depth == 0)
 		{
 			if (i != (fmt_count - 1))
@@ -324,19 +324,43 @@ Formatter::parse_end()
 	{
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '{')
 		{
-			++i;
 			string_append(self.ctx->buffer, '{');
+
+			// TODO: Cleanup, this is a very hacky way.
 			if (per_depth.arg_count == 0)
-				string_append(self.ctx->internal, '{');
+			{
+				if (self.ctx->depth > self.ctx->current_depth)
+				{
+					string_append(self.ctx->internal, '{');
+					string_append(self.ctx->internal, '{');
+				}
+				else
+				{
+					string_append(self.ctx->internal, '{');
+				}
+			}
+
+			++i;
 			continue;
 		}
 
 		if (per_depth.fmt[i] == '}' && per_depth.fmt[i + 1] == '}')
 		{
-			++i;
 			string_append(self.ctx->buffer, '}');
+			// TODO: Cleanup, this is a very hacky way.
 			if (per_depth.arg_count == 0)
+			{
+				if (self.ctx->depth > self.ctx->current_depth)
+				{
 					string_append(self.ctx->internal, '}');
+					string_append(self.ctx->internal, '}');
+				}
+				else
+				{
+					string_append(self.ctx->internal, '}');
+				}
+			}
+			++i;
 			continue;
 		}
 
@@ -386,6 +410,10 @@ Formatter::parse_end()
 		if (per_depth.arg_count == 0)
 			string_append(self.ctx->internal, per_depth.fmt[i]);
 	}
+
+	// TODO: Cleanup, this is a very hacky way.
+	self.ctx->current_depth = self.ctx->depth;
+
 
 	// TODO:
 	// Return a new string?
