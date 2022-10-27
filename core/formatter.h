@@ -65,7 +65,6 @@ FORMAT(f32)
 FORMAT(f64)
 FORMAT(bool)
 FORMAT(char)
-// FORMAT(const char *)
 FORMAT(const void *)
 
 #undef FORMAT
@@ -82,7 +81,7 @@ requires (std::is_pointer_v<T>)
 inline static void
 format(Formatter &self, const T data)
 {
-	if constexpr (std::is_same_v<T, char *> || std::is_same_v<T, const char *>)
+	if constexpr (std::is_same_v<T, char *>)
 		format(self, (const char *)data);
 	else
 		format(self, (const void *)data);

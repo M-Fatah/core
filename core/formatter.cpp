@@ -270,6 +270,8 @@ Formatter::parse_next(std::function<void()> &&callback)
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '{')
 		{
 			string_append(self.ctx->internal, '{');
+			if (per_depth.arg_count == 0 && self.ctx->current_processing_depth_index > self.ctx->last_processed_depth_index)
+				string_append(self.ctx->internal, '{');
 			++i;
 			continue;
 		}
@@ -277,6 +279,8 @@ Formatter::parse_next(std::function<void()> &&callback)
 		if (per_depth.fmt[i] == '}' && per_depth.fmt[i + 1] == '}')
 		{
 			string_append(self.ctx->internal, '}');
+			if (per_depth.arg_count == 0 && self.ctx->current_processing_depth_index > self.ctx->last_processed_depth_index)
+				string_append(self.ctx->internal, '}');
 			++i;
 			continue;
 		}
@@ -309,19 +313,31 @@ Formatter::parse_next(std::function<void()> &&callback)
 
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] >= '0' && per_depth.fmt[i + 1] <= '9' && per_depth.fmt[i + 2] == '}')
 		{
-			per_depth.fmt_offset = i + 3;
-			per_depth.fields[per_depth.current_processing_field_index].from = self.ctx->internal.count;
-			++self.ctx->current_processing_depth_index;
-			ASSERT(self.ctx->current_processing_depth_index < FORMATTER_MAX_DEPTH_COUNT, "[FORMATTER]: Max supported depth count is 256.");
-			callback();
-			--self.ctx->current_processing_depth_index;
-			per_depth.fields[per_depth.current_processing_field_index].to = self.ctx->internal.count;
-			++per_depth.current_processing_field_index;
-			++i;
-			++i;
-			if (per_depth.current_processing_field_index == per_depth.field_count)
+			if (self.ctx->current_processing_depth_index > 0 && per_depth.arg_count == 0)
+			{
+				string_append(self.ctx->internal, '{');
+				string_append(self.ctx->internal, per_depth.fmt[i + 1]);
+				string_append(self.ctx->internal, '}');
+				++i;
+				++i;
 				continue;
-			return;
+			}
+			else
+			{
+				per_depth.fmt_offset = i + 3;
+				per_depth.fields[per_depth.current_processing_field_index].from = self.ctx->internal.count;
+				++self.ctx->current_processing_depth_index;
+				ASSERT(self.ctx->current_processing_depth_index < FORMATTER_MAX_DEPTH_COUNT, "[FORMATTER]: Max supported depth count is 256.");
+				callback();
+				--self.ctx->current_processing_depth_index;
+				per_depth.fields[per_depth.current_processing_field_index].to = self.ctx->internal.count;
+				++per_depth.current_processing_field_index;
+				++i;
+				++i;
+				if (per_depth.current_processing_field_index == per_depth.field_count)
+					continue;
+				return;
+			}
 		}
 
 		string_append(self.ctx->internal, per_depth.fmt[i]);
@@ -337,6 +353,9 @@ Formatter::parse_end()
 
 	Formatter_Context_Per_Depth &per_depth = self.ctx->depths[self.ctx->current_processing_depth_index];
 
+	if (per_depth.arg_count == 0)
+		self.parse_next([]() { });
+
 	string_clear(self.ctx->buffer);
 
 	u64 arg_index = 0;
@@ -345,18 +364,6 @@ Formatter::parse_end()
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '{')
 		{
 			string_append(self.ctx->buffer, '{');
-			if (per_depth.arg_count == 0)
-			{
-				if (self.ctx->current_processing_depth_index > self.ctx->last_processed_depth_index)
-				{
-					string_append(self.ctx->internal, '{');
-					string_append(self.ctx->internal, '{');
-				}
-				else
-				{
-					string_append(self.ctx->internal, '{');
-				}
-			}
 			++i;
 			continue;
 		}
@@ -364,18 +371,6 @@ Formatter::parse_end()
 		if (per_depth.fmt[i] == '}' && per_depth.fmt[i + 1] == '}')
 		{
 			string_append(self.ctx->buffer, '}');
-			if (per_depth.arg_count == 0)
-			{
-				if (self.ctx->current_processing_depth_index > self.ctx->last_processed_depth_index)
-				{
-					string_append(self.ctx->internal, '}');
-					string_append(self.ctx->internal, '}');
-				}
-				else
-				{
-					string_append(self.ctx->internal, '}');
-				}
-			}
 			++i;
 			continue;
 		}
@@ -421,9 +416,6 @@ Formatter::parse_end()
 		}
 
 		string_append(self.ctx->buffer, per_depth.fmt[i]);
-
-		if (per_depth.arg_count == 0)
-			string_append(self.ctx->internal, per_depth.fmt[i]);
 	}
 
 	//
@@ -512,20 +504,6 @@ void
 format(Formatter &self, char data)
 {
 	string_append(self.ctx->internal, data);
-}
-
-void
-format(Formatter &self, const char *data)
-{
-	auto length_of = [](const char *string) -> u64 {
-		u64 count = 0;
-		const char *ptr = string;
-		while (*ptr++) ++count;
-		return count;
-	};
-
-	for (u64 i = 0; i < length_of(data); ++i)
-		string_append(self.ctx->internal, data[i]);
 }
 
 void
