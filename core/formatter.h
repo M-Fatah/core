@@ -9,14 +9,13 @@
 	TODO:
 	- [ ] Implement 100% correct floating point formatting.
 	- [ ] Support format specifiers.
+	- [ ] Add global formatter?
 	- [ ] Cleanup, simplify and collapse parse functions into one.
 */
 
 struct Formatter
 {
 	struct Formatter_Context *ctx;
-
-	const char *buffer;
 
 	Formatter();
 	~Formatter();
@@ -27,19 +26,20 @@ struct Formatter
 	void
 	parse_next(std::function<void()> &&callback);
 
-	void
+	const char *
 	parse_end();
 };
 
 template <typename ...TArgs>
-inline static void
+inline static const char *
 formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 {
 	if (self.parse_begin(fmt, sizeof...(args)))
 	{
 		(self.parse_next([&]() { format(self, args); }), ...);
-		self.parse_end();
+		return self.parse_end();
 	}
+	return "";
 }
 
 template <typename T>
@@ -70,10 +70,18 @@ FORMAT(const void *)
 #undef FORMAT
 
 template <typename ...TArgs>
-inline static void
+inline static const char *
 format(Formatter &self, const char *fmt, const TArgs &...args)
 {
-	formatter_format(self, fmt, args...);
+	return formatter_format(self, fmt, args...);
+}
+
+template <typename ...TArgs>
+inline static const char *
+format(const char *fmt, const TArgs &...args)
+{
+	Formatter self = {};
+	return format(self, fmt, args...);
 }
 
 template <typename T>

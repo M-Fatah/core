@@ -53,9 +53,8 @@ template <typename ...TArgs>
 inline static String
 string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
 {
-	Formatter formatter = {};
-	formatter_format(formatter, fmt, args...);
-	return string_from(formatter.buffer, allocator);
+	auto buffer = format(fmt, args...);
+	return string_from(buffer, allocator);
 }
 
 inline static String
@@ -144,9 +143,8 @@ inline static void
 string_append(String &self, const char *fmt, const TArgs &...args)
 {
 	ASSERT(self.allocator, "[STRING]: Cannot append to a string literal.");
-	Formatter formatter = {};
-	formatter_format(formatter, fmt, args...);
-	string_append(self, string_literal(formatter.buffer));
+	auto buffer = format(fmt, args...);
+	string_append(self, string_literal(buffer));
 }
 
 inline static char

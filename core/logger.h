@@ -34,7 +34,6 @@ template <typename ...TArgs>
 inline static void
 logger_write_to_console(LOG_TAG tag, const char *fmt, const TArgs &...args)
 {
-	Formatter formatter = {};
-	formatter_format(formatter, fmt, args...);
-	logger_write_to_console(tag, string_literal(formatter.buffer));
+	auto buffer = format(fmt, args...);
+	logger_write_to_console(tag, string_literal(buffer));
 }

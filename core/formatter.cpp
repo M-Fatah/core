@@ -29,8 +29,6 @@ struct Formatter_Context_Per_Depth
 
 struct Formatter_Context
 {
-	// TODO: Collapse.
-	String buffer;
 	String internal;
 	u64 current_processing_depth_index;
 	u64 last_processed_depth_index;
@@ -112,12 +110,10 @@ _formatter_format_float(Formatter &self, f64 data)
 inline static void
 _formatter_clear(Formatter &self)
 {
-	string_clear(self.ctx->buffer);
 	string_clear(self.ctx->internal);
 	self.ctx->current_processing_depth_index = 0;
 	self.ctx->last_processed_depth_index = 0;
 	::memset(self.ctx->depths, 0, sizeof(self.ctx->depths));
-	self.buffer = self.ctx->buffer.data;
 }
 
 // API.
@@ -125,18 +121,13 @@ Formatter::Formatter()
 {
 	Formatter &self = *this;
 	self.ctx = memory::allocate_zeroed<Formatter_Context>();
-	self.ctx->buffer = string_init();
-	string_reserve(self.ctx->buffer, 32 * 1024);
 	self.ctx->internal = string_init();
 	string_reserve(self.ctx->internal, 32 * 1024);
-
-	self.buffer = self.ctx->buffer.data;
 }
 
 Formatter::~Formatter()
 {
 	Formatter &self = *this;
-	string_deinit(self.ctx->buffer);
 	string_deinit(self.ctx->internal);
 	memory::deallocate(self.ctx);
 }
@@ -344,9 +335,7 @@ Formatter::parse_next(std::function<void()> &&callback)
 	}
 }
 
-// TODO:
-// Return a new string?
-void
+const char *
 Formatter::parse_end()
 {
 	Formatter &self = *this;
@@ -356,21 +345,21 @@ Formatter::parse_end()
 	if (per_depth.arg_count == 0)
 		self.parse_next([]() { });
 
-	string_clear(self.ctx->buffer);
+	String output = string_init(memory::temp_allocator());
 
 	u64 arg_index = 0;
 	for (u64 i = 0; i < per_depth.fmt_count; ++i)
 	{
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '{')
 		{
-			string_append(self.ctx->buffer, '{');
+			string_append(output, '{');
 			++i;
 			continue;
 		}
 
 		if (per_depth.fmt[i] == '}' && per_depth.fmt[i + 1] == '}')
 		{
-			string_append(self.ctx->buffer, '}');
+			string_append(output, '}');
 			++i;
 			continue;
 		}
@@ -386,7 +375,7 @@ Formatter::parse_end()
 					if (field.index == arg_index)
 					{
 						for (u64 k = field.from; k < field.to; ++k)
-							string_append(self.ctx->buffer, self.ctx->internal[k]);
+							string_append(output, self.ctx->internal[k]);
 						found = true;
 					}
 				}
@@ -404,7 +393,7 @@ Formatter::parse_end()
 					if (field.index == arg_index)
 					{
 						for (u64 k = field.from; k < field.to; ++k)
-							string_append(self.ctx->buffer, self.ctx->internal[k]);
+							string_append(output, self.ctx->internal[k]);
 						found = true;
 					}
 				}
@@ -415,7 +404,7 @@ Formatter::parse_end()
 			}
 		}
 
-		string_append(self.ctx->buffer, per_depth.fmt[i]);
+		string_append(output, per_depth.fmt[i]);
 	}
 
 	//
@@ -426,12 +415,7 @@ Formatter::parse_end()
 	//
 	self.ctx->last_processed_depth_index = self.ctx->current_processing_depth_index;
 
-	//
-	// NOTE:
-	// Re-assign the buffer pointer, since the internal buffer might get resized;
-	// and allocates new memory.
-	//
-	self.buffer = self.ctx->buffer.data;
+	return output.data;
 }
 
 void
