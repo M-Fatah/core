@@ -157,7 +157,6 @@ TEST_CASE("[CORE]: Formatter")
 	CHECK(string_literal(formatter.buffer) == "Hello, World!");
 	CHECK(formatter.ctx->depths[0].field_count == 3);
 
-	// TODO: Should this assert?
 	formatter_format(formatter, "{0}{1}{2}", "Hello, ", "World");
 	CHECK(string_literal(formatter.buffer) == "Hello, World");
 	CHECK(formatter.ctx->depths[0].field_count == 3);
@@ -182,6 +181,10 @@ TEST_CASE("[CORE]: Formatter")
 	formatter_format(formatter, "{{ \"name\": \"n\" }}");
 	CHECK(string_literal(formatter.buffer) == "{ \"name\": \"n\" }");
 	CHECK(formatter.ctx->depths[0].field_count == 0);
+
+	formatter_format(formatter, "{}", "{{ \"name\": \"n\" }}");
+	CHECK(string_literal(formatter.buffer) == "{{ \"name\": \"n\" }}");
+	CHECK(formatter.ctx->depths[0].field_count == 1);
 
 	i32 x = 1;
 	formatter_format(formatter, "{}", &x);

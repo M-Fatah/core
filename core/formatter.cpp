@@ -382,7 +382,6 @@ Formatter::parse_end()
 
 		if (per_depth.arg_count > 0)
 		{
-			// TODO: This should be handled if there are {0...9};
 			if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '}')
 			{
 				bool found = false;
