@@ -35,7 +35,7 @@ struct Formatter_Context
 	String buffer;
 	String internal;
 	u64 depth;
-	u64 current_depth;
+	u64 last_processed_depth_index;
 	Formatter_Context_Per_Depth depths[FORMATTER_MAX_DEPTH_COUNT];
 };
 
@@ -70,7 +70,9 @@ _formatter_format_integer(Formatter &self, T data, u8 base = 10, bool uppercase 
 			string_append(self.ctx->internal, '0');
 	}
 	else if (is_negative)
+	{
 		string_append(self.ctx->internal, '-');
+	}
 
 	for (i64 i = count - 1; i >= 0; --i)
 		string_append(self.ctx->internal, temp[i]);
@@ -115,6 +117,7 @@ _formatter_clear(Formatter &self)
 	string_clear(self.ctx->buffer);
 	string_clear(self.ctx->internal);
 	self.ctx->depth = 0;
+	self.ctx->last_processed_depth_index = 0;
 	::memset(self.ctx->depths, 0, sizeof(self.ctx->depths));
 	self.buffer = self.ctx->buffer.data;
 }
@@ -236,6 +239,9 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 		}
 	}
 
+	if (self.ctx->depth == 0 && per_depth.field_count != per_depth.arg_count)
+		LOG_WARNING("[FORMATTER]: Mismatch between Replacement field count '{}' and argument count '{}'!", per_depth.field_count, per_depth.arg_count);
+
 	return true;
 }
 
@@ -325,11 +331,9 @@ Formatter::parse_end()
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '{')
 		{
 			string_append(self.ctx->buffer, '{');
-
-			// TODO: Cleanup, this is a very hacky way.
 			if (per_depth.arg_count == 0)
 			{
-				if (self.ctx->depth > self.ctx->current_depth)
+				if (self.ctx->depth > self.ctx->last_processed_depth_index)
 				{
 					string_append(self.ctx->internal, '{');
 					string_append(self.ctx->internal, '{');
@@ -339,7 +343,6 @@ Formatter::parse_end()
 					string_append(self.ctx->internal, '{');
 				}
 			}
-
 			++i;
 			continue;
 		}
@@ -347,10 +350,9 @@ Formatter::parse_end()
 		if (per_depth.fmt[i] == '}' && per_depth.fmt[i + 1] == '}')
 		{
 			string_append(self.ctx->buffer, '}');
-			// TODO: Cleanup, this is a very hacky way.
 			if (per_depth.arg_count == 0)
 			{
-				if (self.ctx->depth > self.ctx->current_depth)
+				if (self.ctx->depth > self.ctx->last_processed_depth_index)
 				{
 					string_append(self.ctx->internal, '}');
 					string_append(self.ctx->internal, '}');
@@ -411,9 +413,7 @@ Formatter::parse_end()
 			string_append(self.ctx->internal, per_depth.fmt[i]);
 	}
 
-	// TODO: Cleanup, this is a very hacky way.
-	self.ctx->current_depth = self.ctx->depth;
-
+	self.ctx->last_processed_depth_index = self.ctx->depth;
 
 	// TODO:
 	// Return a new string?
