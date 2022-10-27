@@ -145,6 +145,10 @@ TEST_CASE("[CORE]: Formatter")
 	CHECK(formatter.ctx->depths[0].fields[4].index == 4);
 	CHECK(formatter.ctx->depths[0].fields[5].index == 5);
 
+	formatter_format(formatter, "{0}{2}{1}", "0", "{1}", "2");
+	CHECK(string_literal(formatter.buffer) == "02{1}");
+	CHECK(formatter.ctx->depths[0].field_count == 3);
+
 	formatter_format(formatter, "{0}{2}{1}", "Hello, ", "!", "World");
 	CHECK(string_literal(formatter.buffer) == "Hello, World!");
 	CHECK(formatter.ctx->depths[0].field_count == 3);

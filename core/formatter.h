@@ -9,7 +9,7 @@
 	TODO:
 	- [ ] Implement 100% correct floating point formatting.
 	- [ ] Support format specifiers.
-	- [ ] Cleanup, simplify and collapse parse and flush functions into one.
+	- [ ] Cleanup, simplify and collapse parse functions into one.
 */
 
 #define FORMAT(T) \
