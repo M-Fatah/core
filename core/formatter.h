@@ -9,7 +9,7 @@
 	TODO:
 	- [ ] Implement 100% correct floating point formatting.
 	- [ ] Support format specifiers.
-	- [ ] Cleanup, simplify and collapse parse and flush functions into one.
+	- [ ] Cleanup, simplify and collapse parse functions into one.
 */
 
 #define FORMAT(T) \
@@ -21,7 +21,6 @@ struct Formatter
 	struct Formatter_Context *ctx;
 
 	const char *buffer;
-	u64 replacement_field_count;
 
 	Formatter();
 	~Formatter();
@@ -41,29 +40,25 @@ struct Formatter
 	FORMAT(const char *)
 	FORMAT(const void *)
 
-	void
-	parse(const char *fmt, u64 &start, std::function<void()> &&callback);
+	bool
+	parse_begin(const char *fmt, u64 arg_count);
 
 	void
-	flush(const char *fmt, u64 start);
+	parse_next(std::function<void()> &&callback);
 
 	void
-	clear();
+	parse_end();
 };
 
 template <typename ...TArgs>
 inline static void
 formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 {
-	u64 start = 0;
-	(self.parse(fmt, start, [&]() { format(self, args); }), ...);
-	self.flush(fmt, start);
-}
-
-inline static void
-formatter_clear(Formatter &self)
-{
-	self.clear();
+	if (self.parse_begin(fmt, sizeof...(args)))
+	{
+		(self.parse_next([&]() { format(self, args); }), ...);
+		self.parse_end();
+	}
 }
 
 #undef FORMAT

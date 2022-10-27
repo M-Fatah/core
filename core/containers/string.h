@@ -62,7 +62,7 @@ inline static String
 string_copy(const String &self, memory::Allocator *allocator = memory::heap_allocator())
 {
 	auto copy = array_with_capacity<char>(self.count + 1, allocator);
-	for (auto c: self)
+	for (auto c : self)
 		array_push(copy, c);
 	copy.data[copy.count] = '\0';
 	return copy;
@@ -78,7 +78,7 @@ string_literal(const char *c_string)
 		return count;
 	};
 
-	auto self = String{};
+	String self = {};
 	self.data = (char *)c_string;
 	self.count = length_of(c_string);
 	self.capacity = self.count + 1;
@@ -134,7 +134,7 @@ inline static void
 string_append(String &self, const String &other)
 {
 	string_reserve(self, other.count);
-	for (auto c: other)
+	for (auto c : other)
 		array_push(self, c);
 	self.data[self.count] = '\0';
 }

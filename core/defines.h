@@ -3,8 +3,6 @@
 #include <stdint.h>
 #include <float.h>
 
-#define UNUSED(expr) ((void)(expr))
-
 #define I8_MIN  INT8_MIN
 #define I8_MAX  INT8_MAX
 #define I16_MIN INT16_MIN
@@ -55,4 +53,11 @@ inline static void
 destroy(T &)
 {
 	static_assert(sizeof(T) == 0, "There is no `void destroy(T &)` function overload defined for this type.");
+}
+
+template <typename T>
+void
+unused(const T &)
+{
+
 }
