@@ -269,7 +269,8 @@ TEST_CASE("[CORE]: Formatter")
 	CHECK(string_literal(formatter.buffer) == "");
 	formatter_format(formatter, "{ }}", vec3{1, 2, 3});
 	CHECK(string_literal(formatter.buffer) == "");
-
+	formatter_format(formatter, "{}{1}", vec3{1, 2, 3}, 1);
+	CHECK(string_literal(formatter.buffer) == "");
 }
 
 TEST_CASE("[CORE]: JSON")

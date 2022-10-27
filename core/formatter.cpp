@@ -173,10 +173,13 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 	per_depth.fmt_count = fmt_count;
 	per_depth.arg_count = arg_count;
 
+	bool found_replacement_field_with_no_index = false;
+	bool found_replacement_field_with_index    = false;
 	for (u64 i = 0; i < per_depth.fmt_count; ++i)
 	{
 		if (fmt[i] == '{' && fmt[i + 1] == '}')
 		{
+			found_replacement_field_with_no_index = true;
 			per_depth.fields[per_depth.field_count].index = per_depth.field_count;
 			per_depth.field_count++;
 			++i;
@@ -185,6 +188,7 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 
 		if (fmt[i] == '{' && fmt[i + 1] >= '0' && fmt[i + 1] <= '9' && fmt[i + 2] == '}')
 		{
+			found_replacement_field_with_index = true;
 			per_depth.fields[per_depth.field_count].index = fmt[i + 1] - '0';
 			per_depth.field_count++;
 			++i;
@@ -241,6 +245,12 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 
 	if (self.ctx->depth == 0 && per_depth.field_count != per_depth.arg_count)
 		LOG_WARNING("[FORMATTER]: Mismatch between Replacement field count '{}' and argument count '{}'!", per_depth.field_count, per_depth.arg_count);
+
+	if (found_replacement_field_with_index && found_replacement_field_with_no_index)
+	{
+		LOG_ERROR("[FORMATTER]: Cannot mix between automatic and manual replacement field indexing.");
+		return false;
+	}
 
 	return true;
 }
