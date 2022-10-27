@@ -443,99 +443,93 @@ Formatter::parse_end()
 }
 
 void
-Formatter::format(i8 data)
+format(Formatter &self, i8 data)
 {
-	Formatter &self = *this;
 	_formatter_format_integer(self, data);
 }
 
 void
-Formatter::format(i16 data)
+format(Formatter &self, i16 data)
 {
-	Formatter &self = *this;
 	_formatter_format_integer(self, data);
 }
 
 void
-Formatter::format(i32 data)
+format(Formatter &self, i32 data)
 {
-	Formatter &self = *this;
 	_formatter_format_integer(self, data);
 }
 
 void
-Formatter::format(i64 data)
+format(Formatter &self, i64 data)
 {
-	Formatter &self = *this;
 	_formatter_format_integer(self, data);
 }
 
 void
-Formatter::format(u8 data)
+format(Formatter &self, u8 data)
 {
-	Formatter &self = *this;
 	_formatter_format_integer(self, data);
 }
 
 void
-Formatter::format(u16 data)
+format(Formatter &self, u16 data)
 {
-	Formatter &self = *this;
 	_formatter_format_integer(self, data);
 }
 
 void
-Formatter::format(u32 data)
+format(Formatter &self, u32 data)
 {
-	Formatter &self = *this;
 	_formatter_format_integer(self, data);
 }
 
 void
-Formatter::format(u64 data)
+format(Formatter &self, u64 data)
 {
-	Formatter &self = *this;
 	_formatter_format_integer(self, data);
 }
 
 void
-Formatter::format(f32 data)
+format(Formatter &self, f32 data)
 {
-	Formatter &self = *this;
 	_formatter_format_float(self, data);
 }
 
 void
-Formatter::format(f64 data)
+format(Formatter &self, f64 data)
 {
-	Formatter &self = *this;
 	_formatter_format_float(self, data);
 }
 
 void
-Formatter::format(bool data)
+format(Formatter &self, bool data)
 {
-	Formatter &self = *this;
 	string_append(self.ctx->internal, data ? "true" : "false");
 }
 
 void
-Formatter::format(char data)
+format(Formatter &self, char data)
 {
-	Formatter &self = *this;
 	string_append(self.ctx->internal, data);
 }
 
 void
-Formatter::format(const char *data)
+format(Formatter &self, const char *data)
 {
-	Formatter &self = *this;
-	string_append(self.ctx->internal, data);
+	auto length_of = [](const char *string) -> u64 {
+		u64 count = 0;
+		const char *ptr = string;
+		while (*ptr++) ++count;
+		return count;
+	};
+
+	for (u64 i = 0; i < length_of(data); ++i)
+		string_append(self.ctx->internal, data[i]);
 }
 
 void
-Formatter::format(const void *data)
+format(Formatter &self, const void *data)
 {
-	Formatter &self = *this;
 	_formatter_format_integer(self, (uptr)data, 16, true);
 }

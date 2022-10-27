@@ -12,10 +12,6 @@
 	- [ ] Cleanup, simplify and collapse parse functions into one.
 */
 
-#define FORMAT(T) \
-void              \
-format(T data);
-
 struct Formatter
 {
 	struct Formatter_Context *ctx;
@@ -24,21 +20,6 @@ struct Formatter
 
 	Formatter();
 	~Formatter();
-
-	FORMAT(i8)
-	FORMAT(i16)
-	FORMAT(i32)
-	FORMAT(i64)
-	FORMAT(u8)
-	FORMAT(u16)
-	FORMAT(u32)
-	FORMAT(u64)
-	FORMAT(f32)
-	FORMAT(f64)
-	FORMAT(bool)
-	FORMAT(char)
-	FORMAT(const char *)
-	FORMAT(const void *)
 
 	bool
 	parse_begin(const char *fmt, u64 arg_count);
@@ -61,8 +42,6 @@ formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
 	}
 }
 
-#undef FORMAT
-
 template <typename T>
 inline static void
 format(Formatter &, T)
@@ -70,12 +49,9 @@ format(Formatter &, T)
 	static_assert(sizeof(T) == 0, "There is no `void format(Formatter &, T)` function overload defined for this type.");
 }
 
-#define FORMAT(T)               \
-inline static void              \
-format(Formatter &self, T data) \
-{                               \
-    self.format(data);          \
-}                               \
+#define FORMAT(T)                \
+void                             \
+format(Formatter &self, T data);
 
 FORMAT(i8)
 FORMAT(i16)
@@ -89,6 +65,8 @@ FORMAT(f32)
 FORMAT(f64)
 FORMAT(bool)
 FORMAT(char)
+// FORMAT(const char *)
+FORMAT(const void *)
 
 #undef FORMAT
 
@@ -105,9 +83,9 @@ inline static void
 format(Formatter &self, const T data)
 {
 	if constexpr (std::is_same_v<T, char *> || std::is_same_v<T, const char *>)
-		self.format((const char *)data);
+		format(self, (const char *)data);
 	else
-		self.format((const void *)data);
+		format(self, (const void *)data);
 }
 
 template <typename T, u64 N>
