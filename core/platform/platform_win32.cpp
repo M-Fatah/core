@@ -17,7 +17,7 @@
 
 // TODO: Remove.
 inline static void
-format(Formatter &formatter, DWORD value)
+format(Formatter *formatter, DWORD value)
 {
 	format(formatter, (u64)value);
 }

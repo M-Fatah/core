@@ -9,49 +9,33 @@
 	TODO:
 	- [ ] Implement 100% correct floating point formatting.
 	- [ ] Support format specifiers.
-	- [ ] Add global formatter?
 	- [ ] Cleanup, simplify and collapse parse functions into one.
 */
 
-struct Formatter
-{
-	struct Formatter_Context *ctx;
+struct Formatter;
 
-	Formatter();
-	~Formatter();
+Formatter *
+formatter();
 
-	bool
-	parse_begin(const char *fmt, u64 arg_count);
+bool
+formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count);
 
-	void
-	parse_next(std::function<void()> &&callback);
+void
+formatter_parse_next(Formatter *self, std::function<void()> &&callback);
 
-	const char *
-	parse_end();
-};
-
-template <typename ...TArgs>
-inline static const char *
-formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
-{
-	if (self.parse_begin(fmt, sizeof...(args)))
-	{
-		(self.parse_next([&]() { format(self, args); }), ...);
-		return self.parse_end();
-	}
-	return "";
-}
+const char *
+formatter_parse_end(Formatter *self);
 
 template <typename T>
-inline static void
-format(Formatter &, T)
+inline static const char *
+format(Formatter *, T)
 {
-	static_assert(sizeof(T) == 0, "There is no `void format(Formatter &, T)` function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `const char * format(Formatter *, T)` function overload defined for this type.");
 }
 
 #define FORMAT(T)                \
-void                             \
-format(Formatter &self, T data);
+const char *                     \
+format(Formatter *self, T data);
 
 FORMAT(i8)
 FORMAT(i16)
@@ -71,34 +55,38 @@ FORMAT(const void *)
 
 template <typename ...TArgs>
 inline static const char *
-format(Formatter &self, const char *fmt, const TArgs &...args)
+format(Formatter *self, const char *fmt, const TArgs &...args)
 {
-	return formatter_format(self, fmt, args...);
+	if (formatter_parse_begin(self, fmt, sizeof...(args)))
+	{
+		(formatter_parse_next(self, [&]() { format(self, args); }), ...);
+		return formatter_parse_end(self);
+	}
+	return "";
 }
 
 template <typename ...TArgs>
 inline static const char *
 format(const char *fmt, const TArgs &...args)
 {
-	Formatter self = {};
-	return format(self, fmt, args...);
+	return format(formatter(), fmt, args...);
 }
 
 template <typename T>
 requires (std::is_pointer_v<T>)
-inline static void
-format(Formatter &self, const T data)
+inline static const char *
+format(Formatter *self, const T data)
 {
 	if constexpr (std::is_same_v<T, char *>)
-		format(self, (const char *)data);
+		return format(self, (const char *)data);
 	else
-		format(self, (const void *)data);
+		return format(self, (const void *)data);
 }
 
 template <typename T, u64 N>
 requires (!std::is_same_v<T, char>)
-inline static void
-format(Formatter &self, const T (&data)[N])
+inline static const char *
+format(Formatter *self, const T (&data)[N])
 {
 	u64 count = N;
 	format(self, "[{}] {{ ", count);
@@ -108,5 +96,5 @@ format(Formatter &self, const T (&data)[N])
 			format(self, ", ");
 		format(self, data[i]);
 	}
-	format(self, " }}");
+	return format(self, " }}");
 }

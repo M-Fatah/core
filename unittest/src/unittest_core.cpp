@@ -121,99 +121,98 @@ struct vec3
 	f32 x, y, z;
 };
 
-inline static void
-format(Formatter &self, const vec3 &value)
+inline static const char *
+format(Formatter *self, const vec3 &value)
 {
-	format(self, "{{{}, {}, {}}}", value.x, value.y, value.z);
+	return format(self, "{{{}, {}, {}}}", value.x, value.y, value.z);
 }
 
 TEST_CASE("[CORE]: Formatter")
 {
-	Formatter formatter = {};
-	auto buffer = formatter_format(formatter, "{}/{}/{}/{}/{}/{}", "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6});
+	auto buffer = format("{}/{}/{}/{}/{}/{}", "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6});
 	CHECK(string_literal(buffer) == "Hello/A/true/1.5/3/{4, 5, 6}");
 
-	buffer = formatter_format(formatter, "{}/{}", true, false);
+	buffer = format("{}/{}", true, false);
 	CHECK(string_literal(buffer) == "true/false");
 
-	buffer = formatter_format(formatter, "{}/{}", -1.5f, 1.5f);
+	buffer = format("{}/{}", -1.5f, 1.5f);
 	CHECK(string_literal(buffer) == "-1.5/1.5");
 
-	buffer = formatter_format(formatter, "{}/{}", -3, 3);
+	buffer = format("{}/{}", -3, 3);
 	CHECK(string_literal(buffer) == "-3/3");
 
-	buffer = formatter_format(formatter, "{}", vec3{1, 2, 3});
+	buffer = format("{}", vec3{1, 2, 3});
 	CHECK(string_literal(buffer) == "{1, 2, 3}");
 
-	buffer = formatter_format(formatter, "{0}{2}{1}", "0", "{1}", "2");
+	buffer = format("{0}{2}{1}", "0", "{1}", "2");
 	CHECK(string_literal(buffer) == "02{1}");
 
-	buffer = formatter_format(formatter, "{0}{2}{1}", "Hello, ", "!", "World");
+	buffer = format("{0}{2}{1}", "Hello, ", "!", "World");
 	CHECK(string_literal(buffer) == "Hello, World!");
 
-	buffer = formatter_format(formatter, "{0}{1}{2}", "Hello, ", "World", "!");
+	buffer = format("{0}{1}{2}", "Hello, ", "World", "!");
 	CHECK(string_literal(buffer) == "Hello, World!");
 
-	buffer = formatter_format(formatter, "{0}{1}{2}", "Hello, ", "World");
-	CHECK(string_literal(buffer) == "Hello, World");
+	buffer = format("{0}{1}{2}", "Hello, ", "World");
+	CHECK(string_literal(buffer) == "");
 
 	const char *positional_arg_fmt = "{0}{2}{1}";
-	buffer = formatter_format(formatter, positional_arg_fmt, "Hello, ", "!", "World");
+	buffer = format(positional_arg_fmt, "Hello, ", "!", "World");
 	CHECK(string_literal(buffer) == "Hello, World!");
 
-	buffer = formatter_format(formatter, "{0}{2}{1}", 0, 2, 1);
+	buffer = format("{0}{2}{1}", 0, 2, 1);
 	CHECK(string_literal(buffer) == "012");
 
-	buffer = formatter_format(formatter, "{0}{1}{3}{2}", "Hello, ", 0, 2, 1);
+	buffer = format("{0}{1}{3}{2}", "Hello, ", 0, 2, 1);
 	CHECK(string_literal(buffer) == "Hello, 012");
 
-	buffer = formatter_format(formatter, "{}", "{ \"name\": \"n\" }");
+	buffer = format("{}", "{ \"name\": \"n\" }");
 	CHECK(string_literal(buffer) == "{ \"name\": \"n\" }");
 
-	buffer = formatter_format(formatter, "{{ \"name\": \"n\" }}");
+	buffer = format("{{ \"name\": \"n\" }}");
 	CHECK(string_literal(buffer) == "{ \"name\": \"n\" }");
 
-	buffer = formatter_format(formatter, "{}", "{{ \"name\": \"n\" }}");
+	buffer = format("{}", "{{ \"name\": \"n\" }}");
 	CHECK(string_literal(buffer) == "{{ \"name\": \"n\" }}");
 
 	i32 x = 1;
-	buffer = formatter_format(formatter, "{}", &x);
+	buffer = format("{}", &x);
 
 	char test[] = "test";
-	buffer = formatter_format(formatter, "{}", test);
+	buffer = format("{}", test);
 	CHECK(string_literal(buffer) == "test");
 
 	vec3 array[2] = {{1, 2, 3}, {4, 5, 6}};
-	buffer = formatter_format(formatter, "{}", array);
+	buffer = format("{}", array);
 	CHECK(string_literal(buffer) == "[2] { {1, 2, 3}, {4, 5, 6} }");
 
 	const char *array_of_strings[2] = {"Hello", "World"};
-	buffer = formatter_format(formatter, "{}", array_of_strings);
+	buffer = format("{}", array_of_strings);
 	CHECK(string_literal(buffer) == "[2] { Hello, World }");
 
-	buffer = formatter_format(formatter, "{}", array_from<i32>({1, 2, 3}, memory::temp_allocator()));
+	buffer = format("{}", array_from<i32>({1, 2, 3}, memory::temp_allocator()));
 	CHECK(string_literal(buffer) == "[3] { 1, 2, 3 }");
 
-	buffer = formatter_format(formatter, "{}", hash_table_from<i32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()));
+	buffer = format("{}", hash_table_from<i32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()));
 	CHECK(string_literal(buffer) == "[3] { 1: 1, 2: 2, 3: 3 }");
 
-	buffer = formatter_format(formatter, "{}{}{}{}{}", 1, 2, 3);
-	CHECK(string_literal(buffer) == "123");
+	buffer = format("{}{}{}{}{}", 1, 2, 3);
+	CHECK(string_literal(buffer) == "");
 
-	buffer = formatter_format(formatter, "{}{}{}{}{}", 1, 2, 3, "{}", 4);
+	buffer = format("{}{}{}{}{}", 1, 2, 3, "{}", 4);
 	CHECK(string_literal(buffer) == "123{}4");
 
-	buffer = formatter_format(formatter, "A", "B");
+	buffer = format("A", "B");
 	CHECK(string_literal(buffer) == "A");
 
-	buffer = formatter_format(formatter, "{}A", "B");
+	buffer = format("{}A", "B");
 	CHECK(string_literal(buffer) == "BA");
 
-	buffer = formatter_format(formatter, "{}", "A", "B", "C");
-	CHECK(string_literal(buffer) == "A");
+	buffer = format("{}", "A", "B", "C");
+	CHECK(string_literal(buffer) == "");
 
 	const char *fmt_string = "{}/{}";
-	buffer = formatter_format(formatter, fmt_string, "A", "B");
+	buffer = format(fmt_string, "A", "B");
 	CHECK(string_literal(buffer) == "A/B");
 }
 

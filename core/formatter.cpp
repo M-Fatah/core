@@ -6,6 +6,7 @@
 
 static constexpr const char *FORMATTER_DIGITS_LOWERCASE            = "0123456789abcdef";
 static constexpr const char *FORMATTER_DIGITS_UPPERCASE            = "0123456789ABCDEF";
+static constexpr const u64   FORMATTER_BUFFER_INITIAL_CAPACITY     = 32 * 1024;
 static constexpr const u64   FORMATTER_MAX_REPLACEMENT_FIELD_COUNT = 256;
 static constexpr const u64   FORMATTER_MAX_DEPTH_COUNT             = 256;
 
@@ -27,18 +28,21 @@ struct Formatter_Context_Per_Depth
 	const char *fmt;
 };
 
-struct Formatter_Context
+struct Formatter
 {
 	String internal;
 	u64 current_processing_depth_index;
 	u64 last_processed_depth_index;
 	Formatter_Context_Per_Depth depths[FORMATTER_MAX_DEPTH_COUNT];
+
+	Formatter();
+	~Formatter();
 };
 
 template <typename T>
 requires (std::is_integral_v<T> && !std::is_floating_point_v<T>)
 inline static void
-_formatter_format_integer(Formatter &self, T data, u8 base = 10, bool uppercase = false)
+_formatter_format_integer(Formatter *self, T data, u8 base = 10, bool uppercase = false)
 {
 	const char *digits = uppercase ? FORMATTER_DIGITS_UPPERCASE : FORMATTER_DIGITS_LOWERCASE;
 
@@ -60,33 +64,33 @@ _formatter_format_integer(Formatter &self, T data, u8 base = 10, bool uppercase 
 
 	if (base == 16)
 	{
-		string_append(self.ctx->internal, '0');
-		string_append(self.ctx->internal, 'x');
+		string_append(self->internal, '0');
+		string_append(self->internal, 'x');
 		for (u64 i = 0; i < (base - count); ++i)
-			string_append(self.ctx->internal, '0');
+			string_append(self->internal, '0');
 	}
 	else if (is_negative)
 	{
-		string_append(self.ctx->internal, '-');
+		string_append(self->internal, '-');
 	}
 
 	for (i64 i = count - 1; i >= 0; --i)
-		string_append(self.ctx->internal, temp[i]);
+		string_append(self->internal, temp[i]);
 }
 
 inline static void
-_formatter_format_float(Formatter &self, f64 data)
+_formatter_format_float(Formatter *self, f64 data)
 {
 	if (data < 0)
 	{
-		string_append(self.ctx->internal, '-');
+		string_append(self->internal, '-');
 		data = -data;
 	}
 
 	u64 integer = (u64)data;
 	f64 fraction = data - integer;
 	_formatter_format_integer(self, (u64)integer);
-	string_append(self.ctx->internal, '.');
+	string_append(self->internal, '.');
 
 	//
 	// NOTE:
@@ -100,36 +104,41 @@ _formatter_format_float(Formatter &self, f64 data)
 		fraction = fraction - integer;
 	}
 
-	while (string_ends_with(self.ctx->internal, '0'))
-		string_remove_last(self.ctx->internal);
+	while (string_ends_with(self->internal, '0'))
+		string_remove_last(self->internal);
 
-	if (string_ends_with(self.ctx->internal, '.'))
-		string_remove_last(self.ctx->internal);
+	if (string_ends_with(self->internal, '.'))
+		string_remove_last(self->internal);
 }
 
 inline static void
-_formatter_clear(Formatter &self)
+_formatter_clear(Formatter *self)
 {
-	string_clear(self.ctx->internal);
-	self.ctx->current_processing_depth_index = 0;
-	self.ctx->last_processed_depth_index = 0;
-	::memset(self.ctx->depths, 0, sizeof(self.ctx->depths));
+	string_clear(self->internal);
+	self->current_processing_depth_index = 0;
+	self->last_processed_depth_index = 0;
+	::memset(self->depths, 0, sizeof(self->depths));
 }
 
 // API.
 Formatter::Formatter()
 {
-	Formatter &self = *this;
-	self.ctx = memory::allocate_zeroed<Formatter_Context>();
-	self.ctx->internal = string_init();
-	string_reserve(self.ctx->internal, 32 * 1024);
+	Formatter *self = this;
+	self->internal = string_init();
+	string_reserve(self->internal, FORMATTER_BUFFER_INITIAL_CAPACITY);
 }
 
 Formatter::~Formatter()
 {
-	Formatter &self = *this;
-	string_deinit(self.ctx->internal);
-	memory::deallocate(self.ctx);
+	Formatter *self = this;
+	string_deinit(self->internal);
+}
+
+Formatter *
+formatter()
+{
+	static thread_local Formatter self;
+	return &self;
 }
 
 //
@@ -137,12 +146,10 @@ Formatter::~Formatter()
 // Pre-pass to parse replacement fields and report formatting errors.
 //
 bool
-Formatter::parse_begin(const char *fmt, u64 arg_count)
+formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 {
-	Formatter &self = *this;
-
 	// Start of a new formatting.
-	if (self.ctx->current_processing_depth_index == 0)
+	if (self->current_processing_depth_index == 0)
 		_formatter_clear(self);
 
 	u64 fmt_count = 0;
@@ -156,7 +163,7 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 	if (fmt_count == 0)
 		return false;
 
-	Formatter_Context_Per_Depth &per_depth = self.ctx->depths[self.ctx->current_processing_depth_index];
+	Formatter_Context_Per_Depth &per_depth = self->depths[self->current_processing_depth_index];
 	per_depth           = {};
 	per_depth.fmt       = fmt;
 	per_depth.fmt_count = fmt_count;
@@ -185,7 +192,7 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 			continue;
 		}
 
-		if (self.ctx->current_processing_depth_index == 0)
+		if (self->current_processing_depth_index == 0)
 		{
 			if (i != (fmt_count - 1))
 			{
@@ -234,7 +241,9 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 
 	if (per_depth.field_count > FORMATTER_MAX_REPLACEMENT_FIELD_COUNT)
 	{
+		++self->current_processing_depth_index;
 		LOG_ERROR("[FORMATTER]: Max supported replacement field count is '{}'.", FORMATTER_MAX_REPLACEMENT_FIELD_COUNT);
+		--self->current_processing_depth_index;
 		return false;
 	}
 
@@ -244,56 +253,59 @@ Formatter::parse_begin(const char *fmt, u64 arg_count)
 		return false;
 	}
 
-	if (self.ctx->current_processing_depth_index == 0 && per_depth.field_count != per_depth.arg_count)
+	if (self->current_processing_depth_index == 0 && per_depth.field_count != per_depth.arg_count && per_depth.field_count != 0)
+	{
+		++self->current_processing_depth_index;
 		LOG_WARNING("[FORMATTER]: Mismatch between Replacement field count '{}' and argument count '{}'!", per_depth.field_count, per_depth.arg_count);
+		--self->current_processing_depth_index;
+		return false;
+	}
 
 	return true;
 }
 
 void
-Formatter::parse_next(std::function<void()> &&callback)
+formatter_parse_next(Formatter *self, std::function<void()> &&callback)
 {
-	Formatter &self = *this;
-
-	Formatter_Context_Per_Depth &per_depth = self.ctx->depths[self.ctx->current_processing_depth_index];
+	Formatter_Context_Per_Depth &per_depth = self->depths[self->current_processing_depth_index];
 	for (u64 i = per_depth.fmt_offset; i < per_depth.fmt_count; ++i)
 	{
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '{')
 		{
-			string_append(self.ctx->internal, '{');
-			if (per_depth.arg_count == 0 && self.ctx->current_processing_depth_index > self.ctx->last_processed_depth_index)
-				string_append(self.ctx->internal, '{');
+			string_append(self->internal, '{');
+			if (per_depth.arg_count == 0 && self->current_processing_depth_index > self->last_processed_depth_index)
+				string_append(self->internal, '{');
 			++i;
 			continue;
 		}
 
 		if (per_depth.fmt[i] == '}' && per_depth.fmt[i + 1] == '}')
 		{
-			string_append(self.ctx->internal, '}');
-			if (per_depth.arg_count == 0 && self.ctx->current_processing_depth_index > self.ctx->last_processed_depth_index)
-				string_append(self.ctx->internal, '}');
+			string_append(self->internal, '}');
+			if (per_depth.arg_count == 0 && self->current_processing_depth_index > self->last_processed_depth_index)
+				string_append(self->internal, '}');
 			++i;
 			continue;
 		}
 
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '}')
 		{
-			if (self.ctx->current_processing_depth_index > 0 && per_depth.arg_count == 0)
+			if (self->current_processing_depth_index > 0 && per_depth.arg_count == 0)
 			{
-				string_append(self.ctx->internal, '{');
-				string_append(self.ctx->internal, '}');
+				string_append(self->internal, '{');
+				string_append(self->internal, '}');
 				++i;
 				continue;
 			}
 			else
 			{
 				per_depth.fmt_offset = i + 2;
-				per_depth.fields[per_depth.current_processing_field_index].from = self.ctx->internal.count;
-				++self.ctx->current_processing_depth_index;
-				ASSERT(self.ctx->current_processing_depth_index < FORMATTER_MAX_DEPTH_COUNT, "[FORMATTER]: Max supported depth count is 256.");
+				per_depth.fields[per_depth.current_processing_field_index].from = self->internal.count;
+				++self->current_processing_depth_index;
+				ASSERT(self->current_processing_depth_index < FORMATTER_MAX_DEPTH_COUNT, "[FORMATTER]: Max supported depth count is 256.");
 				callback();
-				--self.ctx->current_processing_depth_index;
-				per_depth.fields[per_depth.current_processing_field_index].to = self.ctx->internal.count;
+				--self->current_processing_depth_index;
+				per_depth.fields[per_depth.current_processing_field_index].to = self->internal.count;
 				++per_depth.current_processing_field_index;
 				++i;
 				if (per_depth.current_processing_field_index == per_depth.field_count)
@@ -304,11 +316,11 @@ Formatter::parse_next(std::function<void()> &&callback)
 
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] >= '0' && per_depth.fmt[i + 1] <= '9' && per_depth.fmt[i + 2] == '}')
 		{
-			if (self.ctx->current_processing_depth_index > 0 && per_depth.arg_count == 0)
+			if (self->current_processing_depth_index > 0 && per_depth.arg_count == 0)
 			{
-				string_append(self.ctx->internal, '{');
-				string_append(self.ctx->internal, per_depth.fmt[i + 1]);
-				string_append(self.ctx->internal, '}');
+				string_append(self->internal, '{');
+				string_append(self->internal, per_depth.fmt[i + 1]);
+				string_append(self->internal, '}');
 				++i;
 				++i;
 				continue;
@@ -316,12 +328,12 @@ Formatter::parse_next(std::function<void()> &&callback)
 			else
 			{
 				per_depth.fmt_offset = i + 3;
-				per_depth.fields[per_depth.current_processing_field_index].from = self.ctx->internal.count;
-				++self.ctx->current_processing_depth_index;
-				ASSERT(self.ctx->current_processing_depth_index < FORMATTER_MAX_DEPTH_COUNT, "[FORMATTER]: Max supported depth count is 256.");
+				per_depth.fields[per_depth.current_processing_field_index].from = self->internal.count;
+				++self->current_processing_depth_index;
+				ASSERT(self->current_processing_depth_index < FORMATTER_MAX_DEPTH_COUNT, "[FORMATTER]: Max supported depth count is 256.");
 				callback();
-				--self.ctx->current_processing_depth_index;
-				per_depth.fields[per_depth.current_processing_field_index].to = self.ctx->internal.count;
+				--self->current_processing_depth_index;
+				per_depth.fields[per_depth.current_processing_field_index].to = self->internal.count;
 				++per_depth.current_processing_field_index;
 				++i;
 				++i;
@@ -331,19 +343,17 @@ Formatter::parse_next(std::function<void()> &&callback)
 			}
 		}
 
-		string_append(self.ctx->internal, per_depth.fmt[i]);
+		string_append(self->internal, per_depth.fmt[i]);
 	}
 }
 
 const char *
-Formatter::parse_end()
+formatter_parse_end(Formatter *self)
 {
-	Formatter &self = *this;
-
-	Formatter_Context_Per_Depth &per_depth = self.ctx->depths[self.ctx->current_processing_depth_index];
+	Formatter_Context_Per_Depth &per_depth = self->depths[self->current_processing_depth_index];
 
 	if (per_depth.arg_count == 0)
-		self.parse_next([]() { });
+		formatter_parse_next(self, []() { });
 
 	String output = string_init(memory::temp_allocator());
 
@@ -375,7 +385,7 @@ Formatter::parse_end()
 					if (field.index == arg_index)
 					{
 						for (u64 k = field.from; k < field.to; ++k)
-							string_append(output, self.ctx->internal[k]);
+							string_append(output, self->internal[k]);
 						found = true;
 					}
 				}
@@ -393,7 +403,7 @@ Formatter::parse_end()
 					if (field.index == arg_index)
 					{
 						for (u64 k = field.from; k < field.to; ++k)
-							string_append(output, self.ctx->internal[k]);
+							string_append(output, self->internal[k]);
 						found = true;
 					}
 				}
@@ -411,87 +421,108 @@ Formatter::parse_end()
 	// NOTE:
 	// Store the current processing depth index as the last processed depth index;
 	// this is useful as a means to know if we are processing current depth's arguments;
-	// if self.ctx->current_processing_depth_index is greater than self.ctx->last_processed_depth_index.
+	// if self->current_processing_depth_index is greater than self->last_processed_depth_index.
 	//
-	self.ctx->last_processed_depth_index = self.ctx->current_processing_depth_index;
+	self->last_processed_depth_index = self->current_processing_depth_index;
 
 	return output.data;
 }
 
-void
-format(Formatter &self, i8 data)
+const char *
+format(Formatter *self, i8 data)
 {
 	_formatter_format_integer(self, data);
+	return self->internal.data;
 }
 
-void
-format(Formatter &self, i16 data)
+const char *
+format(Formatter *self, i16 data)
 {
 	_formatter_format_integer(self, data);
+	return self->internal.data;
 }
 
-void
-format(Formatter &self, i32 data)
+const char *
+format(Formatter *self, i32 data)
 {
 	_formatter_format_integer(self, data);
+	return self->internal.data;
 }
 
-void
-format(Formatter &self, i64 data)
+const char *
+format(Formatter *self, i64 data)
 {
 	_formatter_format_integer(self, data);
+	return self->internal.data;
 }
 
-void
-format(Formatter &self, u8 data)
+const char *
+format(Formatter *self, u8 data)
 {
 	_formatter_format_integer(self, data);
+	return self->internal.data;
 }
 
-void
-format(Formatter &self, u16 data)
+const char *
+format(Formatter *self, u16 data)
 {
 	_formatter_format_integer(self, data);
+	return self->internal.data;
 }
 
-void
-format(Formatter &self, u32 data)
+const char *
+format(Formatter *self, u32 data)
 {
 	_formatter_format_integer(self, data);
+	return self->internal.data;
 }
 
-void
-format(Formatter &self, u64 data)
+const char *
+format(Formatter *self, u64 data)
 {
 	_formatter_format_integer(self, data);
+	return self->internal.data;
 }
 
-void
-format(Formatter &self, f32 data)
+const char *
+format(Formatter *self, f32 data)
 {
 	_formatter_format_float(self, data);
+	return self->internal.data;
 }
 
-void
-format(Formatter &self, f64 data)
+const char *
+format(Formatter *self, f64 data)
 {
 	_formatter_format_float(self, data);
+	return self->internal.data;
 }
 
-void
-format(Formatter &self, bool data)
+const char *
+format(Formatter *self, bool data)
 {
-	string_append(self.ctx->internal, data ? "true" : "false");
+	auto _formatter_format_bool = [&](bool data) {
+		const char *c_string = data ? "true" : "false";
+		while (*c_string)
+		{
+			string_append(self->internal, *c_string);
+			++c_string;
+		}
+	};
+	_formatter_format_bool(data);
+	return self->internal.data;
 }
 
-void
-format(Formatter &self, char data)
+const char *
+format(Formatter *self, char data)
 {
-	string_append(self.ctx->internal, data);
+	string_append(self->internal, data);
+	return self->internal.data;
 }
 
-void
-format(Formatter &self, const void *data)
+const char *
+format(Formatter *self, const void *data)
 {
 	_formatter_format_integer(self, (uptr)data, 16, true);
+	return self->internal.data;
 }

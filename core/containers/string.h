@@ -787,7 +787,7 @@ deserialize(Serializer *serializer, String &self)
 }
 
 inline static void
-format(Formatter &formatter, const String &self)
+format(Formatter *formatter, const String &self)
 {
 	format(formatter, self.data);
 }

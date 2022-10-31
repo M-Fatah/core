@@ -306,7 +306,7 @@ deserialize(Serializer *serializer, Array<T> &self)
 
 template <typename T>
 inline static void
-format(Formatter &formatter, const Array<T> &self)
+format(Formatter *formatter, const Array<T> &self)
 {
 	format(formatter, "[{}] {{ ", self.count);
 	for (u64 i = 0; i < self.count; ++i)
