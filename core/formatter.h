@@ -31,6 +31,7 @@ inline static const char *
 format(Formatter *, T)
 {
 	static_assert(sizeof(T) == 0, "There is no `const char * format(Formatter *, T)` function overload defined for this type.");
+	return "";
 }
 
 #define FORMAT(T)                \
