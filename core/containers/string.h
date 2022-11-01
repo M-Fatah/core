@@ -14,7 +14,15 @@ using String = Array<char>;
 inline static String
 string_init(memory::Allocator *allocator = memory::heap_allocator())
 {
-	auto self = array_with_capacity<char>(1, allocator);
+	String self = array_with_capacity<char>(1, allocator);
+	self.data[0] = '\0';
+	return self;
+}
+
+inline static String
+string_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
+{
+	String self = array_with_capacity<char>(capacity, allocator);
 	self.data[0] = '\0';
 	return self;
 }
@@ -29,8 +37,8 @@ string_from(const char *c_string, memory::Allocator *allocator = memory::heap_al
 		return count;
 	};
 
-	auto length = length_of(c_string);
-	auto self = array_with_capacity<char>(length + 1, allocator);
+	u64 length = length_of(c_string);
+	String self = array_with_capacity<char>(length + 1, allocator);
 	self.count = length;
 	for (u64 i = 0; i < length; ++i)
 		self[i] = c_string[i];
@@ -53,9 +61,8 @@ template <typename ...TArgs>
 inline static String
 string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
 {
-	Formatter formatter = {};
-	formatter_format(formatter, fmt, args...);
-	return string_from(formatter.buffer, allocator);
+	auto buffer = format(fmt, args...);
+	return string_from(buffer, allocator);
 }
 
 inline static String
@@ -144,9 +151,8 @@ inline static void
 string_append(String &self, const char *fmt, const TArgs &...args)
 {
 	ASSERT(self.allocator, "[STRING]: Cannot append to a string literal.");
-	Formatter formatter = {};
-	formatter_format(formatter, fmt, args...);
-	string_append(self, string_literal(formatter.buffer));
+	auto buffer = format(fmt, args...);
+	string_append(self, string_literal(buffer));
 }
 
 inline static char
@@ -789,7 +795,7 @@ deserialize(Serializer *serializer, String &self)
 }
 
 inline static void
-format(Formatter &formatter, const String &self)
+format(Formatter *formatter, const String &self)
 {
 	format(formatter, self.data);
 }

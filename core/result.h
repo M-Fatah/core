@@ -112,7 +112,7 @@ struct Result
 };
 
 inline static void
-format(Formatter &formatter, const Error &self)
+format(Formatter *formatter, const Error &self)
 {
 	format(formatter, self.message);
 }

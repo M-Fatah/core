@@ -12,70 +12,31 @@
 	- [ ] Cleanup, simplify and collapse parse functions into one.
 */
 
-#define FORMAT(T) \
-void              \
-format(T data);
+struct Formatter;
 
-struct Formatter
-{
-	struct Formatter_Context *ctx;
+Formatter *
+formatter();
 
-	const char *buffer;
+bool
+formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count);
 
-	Formatter();
-	~Formatter();
+void
+formatter_parse_next(Formatter *self, std::function<void()> &&callback);
 
-	FORMAT(i8)
-	FORMAT(i16)
-	FORMAT(i32)
-	FORMAT(i64)
-	FORMAT(u8)
-	FORMAT(u16)
-	FORMAT(u32)
-	FORMAT(u64)
-	FORMAT(f32)
-	FORMAT(f64)
-	FORMAT(bool)
-	FORMAT(char)
-	FORMAT(const char *)
-	FORMAT(const void *)
-
-	bool
-	parse_begin(const char *fmt, u64 arg_count);
-
-	void
-	parse_next(std::function<void()> &&callback);
-
-	void
-	parse_end();
-};
-
-template <typename ...TArgs>
-inline static void
-formatter_format(Formatter &self, const char *fmt, const TArgs &...args)
-{
-	if (self.parse_begin(fmt, sizeof...(args)))
-	{
-		(self.parse_next([&]() { format(self, args); }), ...);
-		self.parse_end();
-	}
-}
-
-#undef FORMAT
+const char *
+formatter_parse_end(Formatter *self);
 
 template <typename T>
-inline static void
-format(Formatter &, T)
+inline static const char *
+format(Formatter *, T)
 {
-	static_assert(sizeof(T) == 0, "There is no `void format(Formatter &, T)` function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `const char * format(Formatter *, T)` function overload defined for this type.");
+	return "";
 }
 
-#define FORMAT(T)               \
-inline static void              \
-format(Formatter &self, T data) \
-{                               \
-    self.format(data);          \
-}                               \
+#define FORMAT(T)                \
+const char *                     \
+format(Formatter *self, T data);
 
 FORMAT(i8)
 FORMAT(i16)
@@ -89,31 +50,37 @@ FORMAT(f32)
 FORMAT(f64)
 FORMAT(bool)
 FORMAT(char)
+FORMAT(const void *)
 
 #undef FORMAT
 
 template <typename ...TArgs>
-inline static void
-format(Formatter &self, const char *fmt, const TArgs &...args)
+inline static const char *
+format(Formatter *self, const char *fmt, const TArgs &...args)
 {
-	formatter_format(self, fmt, args...);
+	if (formatter_parse_begin(self, fmt, sizeof...(args)))
+	{
+		(formatter_parse_next(self, [&]() { format(self, args); }), ...);
+		return formatter_parse_end(self);
+	}
+	return "";
 }
 
 template <typename T>
 requires (std::is_pointer_v<T>)
-inline static void
-format(Formatter &self, const T data)
+inline static const char *
+format(Formatter *self, const T data)
 {
-	if constexpr (std::is_same_v<T, char *> || std::is_same_v<T, const char *>)
-		self.format((const char *)data);
+	if constexpr (std::is_same_v<T, char *>)
+		return format(self, (const char *)data);
 	else
-		self.format((const void *)data);
+		return format(self, (const void *)data);
 }
 
 template <typename T, u64 N>
 requires (!std::is_same_v<T, char>)
-inline static void
-format(Formatter &self, const T (&data)[N])
+inline static const char *
+format(Formatter *self, const T (&data)[N])
 {
 	u64 count = N;
 	format(self, "[{}] {{ ", count);
@@ -123,5 +90,12 @@ format(Formatter &self, const T (&data)[N])
 			format(self, ", ");
 		format(self, data[i]);
 	}
-	format(self, " }}");
+	return format(self, " }}");
+}
+
+template <typename ...TArgs>
+inline static const char *
+format(const char *fmt, const TArgs &...args)
+{
+	return format(formatter(), fmt, args...);
 }

@@ -345,7 +345,7 @@ deserialize(Serializer *serializer, Hash_Table<K, V> &self)
 
 template <typename K, typename V>
 inline static void
-format(Formatter &formatter, const Hash_Table<K, V> &self)
+format(Formatter *formatter, const Hash_Table<K, V> &self)
 {
 	format(formatter, "[{}] {{ ", self.count);
 	u64 i = 0;
