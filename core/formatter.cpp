@@ -256,7 +256,7 @@ formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 	if (self->current_processing_depth_index == 0 && per_depth.field_count != per_depth.arg_count && per_depth.field_count != 0)
 	{
 		++self->current_processing_depth_index;
-		LOG_WARNING("[FORMATTER]: Mismatch between Replacement field count '{}' and argument count '{}'!", per_depth.field_count, per_depth.arg_count);
+		LOG_ERROR("[FORMATTER]: Mismatch between Replacement field count '{}' and argument count '{}'!", per_depth.field_count, per_depth.arg_count);
 		--self->current_processing_depth_index;
 		return false;
 	}

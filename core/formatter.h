@@ -66,13 +66,6 @@ format(Formatter *self, const char *fmt, const TArgs &...args)
 	return "";
 }
 
-template <typename ...TArgs>
-inline static const char *
-format(const char *fmt, const TArgs &...args)
-{
-	return format(formatter(), fmt, args...);
-}
-
 template <typename T>
 requires (std::is_pointer_v<T>)
 inline static const char *
@@ -98,4 +91,11 @@ format(Formatter *self, const T (&data)[N])
 		format(self, data[i]);
 	}
 	return format(self, " }}");
+}
+
+template <typename ...TArgs>
+inline static const char *
+format(const char *fmt, const TArgs &...args)
+{
+	return format(formatter(), fmt, args...);
 }
