@@ -147,6 +147,12 @@ TEST_CASE("[CORE]: Formatter")
 	buffer = format("{0}{2}{1}", "0", "{1}", "2");
 	CHECK(string_literal(buffer) == "02{1}");
 
+	buffer = format("{0}{1}{0}", "0", "1");
+	CHECK(string_literal(buffer) == "010");
+
+	buffer = format("{0}{0}{0}", "0");
+	CHECK(string_literal(buffer) == "000");
+
 	buffer = format("{0}{2}{1}", "Hello, ", "!", "World");
 	CHECK(string_literal(buffer) == "Hello, World!");
 

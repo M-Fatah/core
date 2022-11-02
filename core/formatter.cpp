@@ -12,7 +12,6 @@ static constexpr const u64   FORMATTER_MAX_DEPTH_COUNT             = 256;
 
 struct Formatter_Replacement_Field
 {
-	u64 index;
 	u64 from;
 	u64 to;
 };
@@ -169,6 +168,7 @@ formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 	per_depth.fmt_count = fmt_count;
 	per_depth.arg_count = arg_count;
 
+	u64 largest_field_index = 0;
 	bool found_replacement_field_with_no_index = false;
 	bool found_replacement_field_with_index    = false;
 	for (u64 i = 0; i < per_depth.fmt_count; ++i)
@@ -176,17 +176,20 @@ formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 		if (fmt[i] == '{' && fmt[i + 1] == '}')
 		{
 			found_replacement_field_with_no_index = true;
-			per_depth.fields[per_depth.field_count].index = per_depth.field_count;
-			per_depth.field_count++;
+			++per_depth.field_count;
+			largest_field_index = per_depth.field_count - 1;
 			++i;
 			continue;
 		}
 
 		if (fmt[i] == '{' && fmt[i + 1] >= '0' && fmt[i + 1] <= '9' && fmt[i + 2] == '}')
 		{
+			u64 index = fmt[i + 1] - '0';
+			if (index > largest_field_index)
+				largest_field_index = index;
+
 			found_replacement_field_with_index = true;
-			per_depth.fields[per_depth.field_count].index = fmt[i + 1] - '0';
-			per_depth.field_count++;
+			++per_depth.field_count;
 			++i;
 			++i;
 			continue;
@@ -253,12 +256,15 @@ formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 		return false;
 	}
 
-	if (self->current_processing_depth_index == 0 && per_depth.field_count != per_depth.arg_count && per_depth.field_count != 0)
+	if (self->current_processing_depth_index == 0 && per_depth.field_count != 0)
 	{
-		++self->current_processing_depth_index;
-		LOG_ERROR("[FORMATTER]: Mismatch between Replacement field count '{}' and argument count '{}'!", per_depth.field_count, per_depth.arg_count);
-		--self->current_processing_depth_index;
-		return false;
+		if (per_depth.field_count != per_depth.arg_count && (largest_field_index + 1) != per_depth.arg_count)
+		{
+			++self->current_processing_depth_index;
+			LOG_ERROR("[FORMATTER]: Mismatch between replacement field count '{}' and argument count '{}'!", per_depth.field_count, per_depth.arg_count);
+			--self->current_processing_depth_index;
+			return false;
+		}
 	}
 
 	return true;
@@ -378,17 +384,9 @@ formatter_parse_end(Formatter *self)
 		{
 			if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '}')
 			{
-				bool found = false;
-				for (u64 j = 0; found == false && j < per_depth.field_count; ++j)
-				{
-					const auto &field = per_depth.fields[j];
-					if (field.index == arg_index)
-					{
-						for (u64 k = field.from; k < field.to; ++k)
-							string_append(output, self->buffer[k]);
-						found = true;
-					}
-				}
+				const auto &field = per_depth.fields[arg_index];
+				for (u64 k = field.from; k < field.to; ++k)
+					string_append(output, self->buffer[k]);
 				++arg_index;
 				++i;
 				continue;
@@ -396,17 +394,10 @@ formatter_parse_end(Formatter *self)
 
 			if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] >= '0' && per_depth.fmt[i + 1] <= '9' && per_depth.fmt[i + 2] == '}')
 			{
-				bool found = false;
-				for (u64 j = 0; found == false && j < per_depth.field_count; ++j)
-				{
-					const auto &field = per_depth.fields[j];
-					if (field.index == arg_index)
-					{
-						for (u64 k = field.from; k < field.to; ++k)
-							string_append(output, self->buffer[k]);
-						found = true;
-					}
-				}
+				u64 index = per_depth.fmt[i + 1] - '0';
+				const auto &field = per_depth.fields[index];
+				for (u64 k = field.from; k < field.to; ++k)
+					string_append(output, self->buffer[k]);
 				++arg_index;
 				++i;
 				++i;
