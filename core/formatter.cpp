@@ -265,6 +265,14 @@ formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 			--self->current_processing_depth_index;
 			return false;
 		}
+
+		if ((largest_field_index + 1) > per_depth.arg_count)
+		{
+			++self->current_processing_depth_index;
+			LOG_ERROR("[FORMATTER]: Replacement field index '{}' cannot be greater than the argument count '{}'!", largest_field_index, per_depth.arg_count);
+			--self->current_processing_depth_index;
+			return false;
+		}
 	}
 
 	return true;
