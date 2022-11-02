@@ -18,13 +18,13 @@ struct Formatter_Replacement_Field
 
 struct Formatter_Context_Per_Depth
 {
-	Formatter_Replacement_Field fields[FORMATTER_MAX_REPLACEMENT_FIELD_COUNT];
-	u64 field_count;
-	u64 arg_count;
-	u64 current_processing_field_index;
-	u64 fmt_offset;
-	u64 fmt_count;
 	const char *fmt;
+	u64 fmt_count;
+	u64 fmt_offset;
+	u64 arg_count;
+	u64 field_count;
+	u64 current_processing_field_index;
+	Formatter_Replacement_Field fields[FORMATTER_MAX_REPLACEMENT_FIELD_COUNT];
 };
 
 struct Formatter
@@ -304,7 +304,7 @@ formatter_parse_next(Formatter *self, std::function<void()> &&callback)
 
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '}')
 		{
-			if (self->current_processing_depth_index > 0 && per_depth.arg_count == 0)
+			if (per_depth.arg_count == 0 && self->current_processing_depth_index > self->last_processed_depth_index)
 			{
 				string_append(self->buffer, '{');
 				string_append(self->buffer, '}');
@@ -365,13 +365,11 @@ const char *
 formatter_parse_end(Formatter *self)
 {
 	Formatter_Context_Per_Depth &per_depth = self->depths[self->current_processing_depth_index];
-
 	if (per_depth.arg_count == 0)
 		formatter_parse_next(self, []() { });
 
-	String output = string_init(memory::temp_allocator());
-
 	u64 arg_index = 0;
+	String output = string_init(memory::temp_allocator());
 	for (u64 i = 0; i < per_depth.fmt_count; ++i)
 	{
 		if (per_depth.fmt[i] == '{' && per_depth.fmt[i + 1] == '{')
@@ -500,15 +498,9 @@ format(Formatter *self, f64 data)
 const char *
 format(Formatter *self, bool data)
 {
-	auto _formatter_format_bool = [&](bool data) {
-		const char *c_string = data ? "true" : "false";
-		while (*c_string)
-		{
-			string_append(self->buffer, *c_string);
-			++c_string;
-		}
-	};
-	_formatter_format_bool(data);
+	const char *c_string = data ? "true" : "false";
+	while (*c_string)
+		string_append(self->buffer, *c_string++);
 	return self->buffer.data;
 }
 
