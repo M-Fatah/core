@@ -144,8 +144,8 @@ TEST_CASE("[CORE]: Formatter")
 	buffer = format("{}", vec3{1, 2, 3});
 	CHECK(string_literal(buffer) == "{1, 2, 3}");
 
-	buffer = format("{0}{2}{1}", "0", "{1}", "2");
-	CHECK(string_literal(buffer) == "02{1}");
+	buffer = format("{0}{2}{6}", "0", "{1}", "2");
+	CHECK(string_literal(buffer) == "");
 
 	buffer = format("{0}{1}{0}", "0", "1");
 	CHECK(string_literal(buffer) == "010");

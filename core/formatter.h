@@ -9,6 +9,7 @@
 	TODO:
 	- [ ] Implement 100% correct floating point formatting.
 	- [ ] Support format specifiers.
+	- [ ] Make formatter_parse_begin() compile time?
 	- [ ] Cleanup, simplify and collapse parse functions into one.
 */
 
