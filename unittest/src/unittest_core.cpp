@@ -132,6 +132,8 @@ TEST_CASE("[CORE]: Formatter")
 	auto buffer = format("{}/{}/{}/{}/{}/{}", "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6});
 	CHECK(string_literal(buffer) == "Hello/A/true/1.5/3/{4, 5, 6}");
 
+	buffer = format("{{0}}", 'A');
+
 	buffer = format("{}/{}", true, false);
 	CHECK(string_literal(buffer) == "true/false");
 
@@ -209,7 +211,7 @@ TEST_CASE("[CORE]: Formatter")
 	CHECK(string_literal(buffer) == "123{}4");
 
 	buffer = format("A", "B");
-	CHECK(string_literal(buffer) == "A");
+	CHECK(string_literal(buffer) == "");
 
 	buffer = format("{}A", "B");
 	CHECK(string_literal(buffer) == "BA");
