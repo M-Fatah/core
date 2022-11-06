@@ -8,15 +8,16 @@
 	- [ ] Support json serialization.
 	- [ ] Add unittests for json serialization.
 	- [ ] Define fixed size for char and bool, since they are compiler implementation specific and differ between compilers.
+	- [ ] Support pointers, c string and arrays.
 */
 
-#define SERIALIZE(T)      \
-virtual void              \
-serialize(T data) = 0;
+#define SERIALIZE(T)                        \
+virtual void                                \
+serialize(const char *name, T data) = 0;
 
-#define DESERIALIZE(T)    \
-virtual void              \
-deserialize(T &data) = 0;
+#define DESERIALIZE(T)                      \
+virtual void                                \
+deserialize(const char *name, T &data) = 0;
 
 struct Serializer
 {
@@ -49,6 +50,13 @@ struct Serializer
 	DESERIALIZE(bool)
 	DESERIALIZE(char)
 
+	// TODO:
+	virtual void
+	begin_object(const char *) { }
+
+	virtual void
+	end_object() { }
+
 	virtual void
 	clear() = 0;
 };
@@ -58,30 +66,30 @@ struct Serializer
 
 template <typename T>
 inline static void
-serialize(Serializer *, const T &)
+serialize(Serializer *, const char *, const T &)
 {
-	static_assert(sizeof(T) == 0, "There is no `void serialize(Serializer *, const T &)` function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `void serialize(Serializer *, const char *, const T &)` function overload defined for this type.");
 }
 
 template <typename T>
 inline static void
-deserialize(Serializer *, T &)
+deserialize(Serializer *, const char *, T &)
 {
-	static_assert(sizeof(T) == 0, "There is no `void deserialize(Serializer *, T &)` function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `void deserialize(Serializer *, const char *, T &)` function overload defined for this type.");
 }
 
-#define SERIALIZE(T)                   \
-inline static void                     \
-serialize(Serializer *self, T data)    \
-{                                      \
-    self->serialize(data);             \
+#define SERIALIZE(T)                                     \
+inline static void                                       \
+serialize(Serializer *self, const char *name, T data)    \
+{                                                        \
+    self->serialize(name, data);                         \
 }
 
-#define DESERIALIZE(T)                 \
-inline static void                     \
-deserialize(Serializer *self, T &data) \
-{                                      \
-    self->deserialize(data);           \
+#define DESERIALIZE(T)                                   \
+inline static void                                       \
+deserialize(Serializer *self, const char *name, T &data) \
+{                                                        \
+    self->deserialize(name, data);                       \
 }
 
 SERIALIZE(i8)

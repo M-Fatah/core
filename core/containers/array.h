@@ -284,24 +284,26 @@ destroy(Array<T> &self)
 	array_deinit(self);
 }
 
+// TODO:
 template <typename T>
 inline static void
-serialize(Serializer *serializer, const Array<T> &self)
+serialize(Serializer *serializer, const char *, const Array<T> &self)
 {
-	serialize(serializer, self.count);
+	serialize(serializer, "count", self.count);
 	for (u64 i = 0; i < self.count; ++i)
-		serialize(serializer, self[i]);
+		serialize(serializer, "", self[i]);
 }
 
+// TODO:
 template <typename T>
 inline static void
-deserialize(Serializer *serializer, Array<T> &self)
+deserialize(Serializer *serializer, const char *, Array<T> &self)
 {
 	u64 count = 0;
-	deserialize(serializer, count);
+	deserialize(serializer, "count", count);
 	array_resize(self, count);
 	for (u64 i = 0; i < count; ++i)
-		deserialize(serializer, self[i]);
+		deserialize(serializer, "", self[i]);
 }
 
 template <typename T>

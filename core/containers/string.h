@@ -776,22 +776,24 @@ hash(const String &self)
 	return hash_fnv_x32(self.data, self.count);
 }
 
+// TODO:
 inline static void
-serialize(Serializer *serializer, const String &self)
+serialize(Serializer *serializer, const char *, const String &self)
 {
-	serialize(serializer, self.count);
+	serialize(serializer, "count", self.count);
 	for (u64 i = 0; i < self.count; ++i)
-		serialize(serializer, self[i]);
+		serialize(serializer, "", self[i]);
 }
 
+// TODO:
 inline static void
-deserialize(Serializer *serializer, String &self)
+deserialize(Serializer *serializer, const char *, String &self)
 {
 	u64 count = 0;
-	deserialize(serializer, count);
+	deserialize(serializer, "count", count);
 	string_resize(self, count);
 	for (u64 i = 0; i < count; ++i)
-		deserialize(serializer, self[i]);
+		deserialize(serializer, "", self[i]);
 }
 
 inline static void
