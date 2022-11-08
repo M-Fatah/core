@@ -19,6 +19,14 @@ serialize(const char *name, T data) = 0;
 virtual void                                \
 deserialize(const char *name, T &data) = 0;
 
+enum SERIALIZER_BEGIN_STATE
+{
+	SERIALIZER_BEGIN_STATE_NONE,
+	SERIALIZER_BEGIN_STATE_OBJECT,
+	SERIALIZER_BEGIN_STATE_STRING,
+	SERIALIZER_BEGIN_STATE_ARRAY
+};
+
 struct Serializer
 {
 	virtual
@@ -52,10 +60,10 @@ struct Serializer
 
 	// TODO:
 	virtual void
-	begin_object(const char *) { }
+	begin(SERIALIZER_BEGIN_STATE, const char *) { }
 
 	virtual void
-	end_object() { }
+	end() { }
 
 	virtual void
 	clear() = 0;

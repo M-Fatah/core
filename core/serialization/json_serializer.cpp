@@ -10,8 +10,13 @@
 struct JSON_Serializer_Context
 {
 	memory::Allocator *allocator;
+
 	Array<JSON_Value> json_values;
 	Array<const char *> last_names;
+	Array<SERIALIZER_BEGIN_STATE> last_states;
+
+	bool first_element_in_string_or_array;
+
 	u64 serialization_offset;
 	u64 deserialization_offset;
 };
@@ -23,8 +28,32 @@ _json_serializer_serialize_bool(JSON_Serializer *self, const char *name, bool da
 	value.kind    = JSON_VALUE_KIND_BOOL;
 	value.as_bool = data;
 	auto &last = array_last(self->ctx->json_values);
-	ASSERT(last.kind == JSON_VALUE_KIND_OBJECT, "Shit");
-	hash_table_insert(last.as_object, string_from(name), value);
+	auto last_state = array_last(self->ctx->last_states);
+	switch (last_state)
+	{
+		case SERIALIZER_BEGIN_STATE_OBJECT:
+		{
+			hash_table_insert(last.as_object, string_from(name), value);
+			break;
+		}
+		case SERIALIZER_BEGIN_STATE_ARRAY:
+		{
+			if (self->ctx->first_element_in_string_or_array == false)
+				array_push(last.as_array, value);
+			self->ctx->first_element_in_string_or_array = false;
+			break;
+		}
+		case SERIALIZER_BEGIN_STATE_STRING:
+		{
+			ASSERT(false, "[JSON_SERIALIZER]: Cannot push bool to string.");
+			break;
+		}
+		default:
+		{
+			ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
+			break;
+		}
+	}
 }
 
 template <typename T>
@@ -35,8 +64,65 @@ _json_serializer_serialize_number(JSON_Serializer *self, const char *name, const
 	value.kind      = JSON_VALUE_KIND_NUMBER;
 	value.as_number = (f64)data;
 	auto &last = array_last(self->ctx->json_values);
-	ASSERT(last.kind == JSON_VALUE_KIND_OBJECT, "Shit");
-	hash_table_insert(last.as_object, string_from(name), value);
+	auto last_state = array_last(self->ctx->last_states);
+	switch (last_state)
+	{
+		case SERIALIZER_BEGIN_STATE_OBJECT:
+		{
+			hash_table_insert(last.as_object, string_from(name), value);
+			break;
+		}
+		case SERIALIZER_BEGIN_STATE_ARRAY:
+		{
+			if (self->ctx->first_element_in_string_or_array == false)
+				array_push(last.as_array, value);
+			self->ctx->first_element_in_string_or_array = false;
+			break;
+		}
+		case SERIALIZER_BEGIN_STATE_STRING:
+		{
+			// TODO: This works?
+			if constexpr (std::is_same_v<T, char>)
+				if (self->ctx->first_element_in_string_or_array == false)
+					string_append(last.as_string, data);
+			self->ctx->first_element_in_string_or_array = false;
+			break;
+		}
+		default:
+		{
+			ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
+			break;
+		}
+	}
+}
+
+inline static void
+_insert_value(JSON_Serializer *self, SERIALIZER_BEGIN_STATE state, const char *name, JSON_Value &value)
+{
+	switch (state)
+	{
+		case SERIALIZER_BEGIN_STATE_OBJECT:
+		{
+			hash_table_insert(self->ctx->json_values[self->ctx->json_values.count - 1].as_object, string_from(name), value);
+			break;
+		}
+		case SERIALIZER_BEGIN_STATE_ARRAY:
+		{
+			array_push(self->ctx->json_values[self->ctx->json_values.count - 1].as_array, value);
+			break;
+		}
+		case SERIALIZER_BEGIN_STATE_STRING:
+		{
+			// hash_table_insert(self->ctx->json_values[self->ctx->json_values.count - 2].as_string, string_from(array_last(self->ctx->last_names)), last);
+			// ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
+			break;
+		}
+		default:
+		{
+			ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
+			break;
+		}
+	}
 }
 
 template <typename T>
@@ -56,11 +142,13 @@ JSON_Serializer::JSON_Serializer(memory::Allocator *allocator)
 	self->ctx->deserialization_offset = 0;
 	self->ctx->json_values            = array_init<JSON_Value>(allocator);
 	self->ctx->last_names             = array_init<const char *>(allocator);
+	self->ctx->last_states            = array_init<SERIALIZER_BEGIN_STATE>(allocator);
 
 	JSON_Value object = {};
 	object.kind = JSON_VALUE_KIND_OBJECT;
 	object.as_object = hash_table_init<String, JSON_Value>();
 	array_push(self->ctx->json_values, object);
+	array_push(self->ctx->last_states, SERIALIZER_BEGIN_STATE_OBJECT);
 }
 
 JSON_Serializer::~JSON_Serializer()
@@ -264,28 +352,90 @@ JSON_Serializer::deserialize(const char *name, char &data)
 }
 
 void
-JSON_Serializer::begin_object(const char *name)
+JSON_Serializer::begin(SERIALIZER_BEGIN_STATE state, const char *name)
 {
 	JSON_Serializer *self = this;
 
-	JSON_Value object = {};
-	object.kind      = JSON_VALUE_KIND_OBJECT;
-	object.as_object = hash_table_init<String, JSON_Value>();
+	switch (state)
+	{
+		case SERIALIZER_BEGIN_STATE_OBJECT:
+		{
+			JSON_Value object = {};
+			object.kind      = JSON_VALUE_KIND_OBJECT;
+			object.as_object = hash_table_init<String, JSON_Value>();
+			// auto &last = array_last(self->ctx->json_values);
+			_insert_value(self, state, name, object);
+			array_push(self->ctx->json_values, object);
+			array_push(self->ctx->last_names, name);
+			break;
+		}
+		case SERIALIZER_BEGIN_STATE_ARRAY:
+		{
+			JSON_Value object = {};
+			object.kind     = JSON_VALUE_KIND_ARRAY;
+			object.as_array = array_init<JSON_Value>();
+			// auto &last = array_last(self->ctx->json_values);
+			_insert_value(self, state, name, object);
+			array_push(self->ctx->json_values, object);
+			array_push(self->ctx->last_names, name);
+			self->ctx->first_element_in_string_or_array = true;
+			break;
+		}
+		case SERIALIZER_BEGIN_STATE_STRING:
+		{
+			JSON_Value object = {};
+			object.kind      = JSON_VALUE_KIND_STRING;
+			object.as_string = string_init();
+			// auto &last = array_last(self->ctx->json_values);
+			_insert_value(self, state, name, object);
+			array_push(self->ctx->json_values, object);
+			array_push(self->ctx->last_names, name);
+			self->ctx->first_element_in_string_or_array = true;
+			break;
+		}
+		default:
+		{
+			ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
+			break;
+		}
+	}
 
-	auto &last = array_last(self->ctx->json_values);
-	hash_table_insert(last.as_object, string_from(name), object);
-	array_push(self->ctx->json_values, object);
-	array_push(self->ctx->last_names, name);
+	array_push(self->ctx->last_states, state);
 }
 
 void
-JSON_Serializer::end_object()
+JSON_Serializer::end()
 {
 	JSON_Serializer *self = this;
 	auto &last = array_last(self->ctx->json_values);
-	hash_table_insert(self->ctx->json_values[self->ctx->json_values.count - 2].as_object, string_from(array_last(self->ctx->last_names)), last);
+	auto last_state = self->ctx->last_states[self->ctx->last_states.count - 2];
+	switch (last_state)
+	{
+		case SERIALIZER_BEGIN_STATE_OBJECT:
+		{
+			hash_table_insert(self->ctx->json_values[self->ctx->json_values.count - 2].as_object, string_from(array_last(self->ctx->last_names)), last);
+			break;
+		}
+		case SERIALIZER_BEGIN_STATE_ARRAY:
+		{
+			array_push(self->ctx->json_values[self->ctx->json_values.count - 2].as_array, last);
+			break;
+		}
+		case SERIALIZER_BEGIN_STATE_STRING:
+		{
+			// hash_table_insert(self->ctx->json_values[self->ctx->json_values.count - 2].as_string, string_from(array_last(self->ctx->last_names)), last);
+			ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
+			break;
+		}
+		default:
+		{
+			ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
+			break;
+		}
+	}
 	array_pop(self->ctx->json_values);
 	array_pop(self->ctx->last_names);
+	array_pop(self->ctx->last_states);
 }
 
 void

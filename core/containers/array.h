@@ -287,11 +287,13 @@ destroy(Array<T> &self)
 // TODO:
 template <typename T>
 inline static void
-serialize(Serializer *serializer, const char *, const Array<T> &self)
+serialize(Serializer *serializer, const char *name, const Array<T> &self)
 {
+	serializer->begin(SERIALIZER_BEGIN_STATE_ARRAY, name);
 	serialize(serializer, "count", self.count);
 	for (u64 i = 0; i < self.count; ++i)
 		serialize(serializer, "", self[i]);
+	serializer->end();
 }
 
 // TODO:

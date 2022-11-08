@@ -778,11 +778,13 @@ hash(const String &self)
 
 // TODO:
 inline static void
-serialize(Serializer *serializer, const char *, const String &self)
+serialize(Serializer *serializer, const char *name, const String &self)
 {
+	serializer->begin(SERIALIZER_BEGIN_STATE_STRING, name);
 	serialize(serializer, "count", self.count);
 	for (u64 i = 0; i < self.count; ++i)
 		serialize(serializer, "", self[i]);
+	serializer->end();
 }
 
 // TODO:

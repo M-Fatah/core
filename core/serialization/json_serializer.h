@@ -52,10 +52,10 @@ struct JSON_Serializer : Serializer
 	DESERIALIZE(char)
 
 	void
-	begin_object(const char *name) override;
+	begin(SERIALIZER_BEGIN_STATE state, const char *name) override;
 
 	void
-	end_object() override;
+	end() override;
 
 	void
 	clear() override;

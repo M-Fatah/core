@@ -133,7 +133,8 @@ TEST_CASE("[CORE]: Formatter")
 	auto buffer = format("{}/{}/{}/{}/{}/{}", "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6});
 	CHECK(string_literal(buffer) == "Hello/A/true/1.5/3/{4, 5, 6}");
 
-	buffer = format("{{0}}", 'A');
+	buffer = format("{{0}}");
+	CHECK(string_literal(buffer) == "{0}");
 
 	buffer = format("{}/{}", true, false);
 	CHECK(string_literal(buffer) == "true/false");
@@ -493,6 +494,7 @@ struct Serialization_Test_Data_Nested
 	f32 number1;
 	bool boolean;
 	String string;
+	Array<f32> array;
 };
 
 struct Serialization_Test_Data
@@ -501,17 +503,20 @@ struct Serialization_Test_Data
 	i32 y;
 	i32 z;
 	Serialization_Test_Data_Nested nested;
+	String outer_string;
+	Array<String> outer_array;
 };
 
 inline static void
 serialize(Serializer *serializer, const char *name, const Serialization_Test_Data_Nested &data)
 {
-	serializer->begin_object(name);
+	serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
 	serialize(serializer, "number0", data.number0);
 	serialize(serializer, "number1", data.number1);
 	serialize(serializer, "boolean", data.boolean);
-	// serialize(serializer, "string", data.string);
-	serializer->end_object();
+	serialize(serializer, "string", data.string);
+	serialize(serializer, "array", data.array);
+	serializer->end();
 }
 
 inline static void
@@ -528,12 +533,14 @@ deserialize(Serializer *serializer, const char *, Serialization_Test_Data_Nested
 inline static void
 serialize(Serializer *serializer, const char *name, const Serialization_Test_Data &data)
 {
-	serializer->begin_object(name);
+	serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
 	serialize(serializer, "x", data.x);
 	serialize(serializer, "y", data.y);
 	serialize(serializer, "z", data.z);
 	serialize(serializer, "nested", data.nested);
-	serializer->end_object();
+	serialize(serializer, "outer_string", data.outer_string);
+	serialize(serializer, "outer_array", data.outer_array);
+	serializer->end();
 }
 
 inline static void
@@ -556,7 +563,15 @@ TEST_CASE("[CORE]: JSON_Serializer")
 	DEFER(json_serializer_deinit(serializer));
 
 	Serialization_Test_Data data = {1, 2, 3};
-	data.nested = {4, 5, true, string_from("Hello", memory::temp_allocator())};
+	data.nested = {4, 5, true, string_from("Hello", memory::temp_allocator()), array_from<f32>({1.5f, 2.5f, 3.5f}, memory::temp_allocator())};
+	data.outer_string = string_from("HELLO2", memory::temp_allocator());
+	data.outer_array  = array_init<String>(memory::temp_allocator());
+
+	array_push(data.outer_array, string_from("This", memory::temp_allocator()));
+	array_push(data.outer_array, string_from("is", memory::temp_allocator()));
+	array_push(data.outer_array, string_from("a", memory::temp_allocator()));
+	array_push(data.outer_array, string_from("string", memory::temp_allocator()));
+	array_push(data.outer_array, string_from("array", memory::temp_allocator()));
 
 	json_serializer_serialize(serializer, "Data", data);
 	json_serializer_to_file(serializer, FILENAME);
