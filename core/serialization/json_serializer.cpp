@@ -155,6 +155,9 @@ JSON_Serializer::~JSON_Serializer()
 {
 	JSON_Serializer *self = this;
 	memory::Allocator *allocator = self->ctx->allocator;
+	destroy(self->ctx->json_values);
+	array_deinit(self->ctx->last_names);
+	array_deinit(self->ctx->last_states);
 	memory::deallocate(allocator, self->ctx);
 	self->ctx = nullptr;
 }
@@ -363,10 +366,9 @@ JSON_Serializer::begin(SERIALIZER_BEGIN_STATE state, const char *name)
 			JSON_Value object = {};
 			object.kind      = JSON_VALUE_KIND_OBJECT;
 			object.as_object = hash_table_init<String, JSON_Value>();
-			// auto &last = array_last(self->ctx->json_values);
-			_insert_value(self, state, name, object);
 			array_push(self->ctx->json_values, object);
 			array_push(self->ctx->last_names, name);
+			array_push(self->ctx->last_states, state);
 			break;
 		}
 		case SERIALIZER_BEGIN_STATE_ARRAY:
@@ -374,10 +376,9 @@ JSON_Serializer::begin(SERIALIZER_BEGIN_STATE state, const char *name)
 			JSON_Value object = {};
 			object.kind     = JSON_VALUE_KIND_ARRAY;
 			object.as_array = array_init<JSON_Value>();
-			// auto &last = array_last(self->ctx->json_values);
-			_insert_value(self, state, name, object);
 			array_push(self->ctx->json_values, object);
 			array_push(self->ctx->last_names, name);
+			array_push(self->ctx->last_states, state);
 			self->ctx->first_element_in_string_or_array = true;
 			break;
 		}
@@ -386,10 +387,9 @@ JSON_Serializer::begin(SERIALIZER_BEGIN_STATE state, const char *name)
 			JSON_Value object = {};
 			object.kind      = JSON_VALUE_KIND_STRING;
 			object.as_string = string_init();
-			// auto &last = array_last(self->ctx->json_values);
-			_insert_value(self, state, name, object);
 			array_push(self->ctx->json_values, object);
 			array_push(self->ctx->last_names, name);
+			array_push(self->ctx->last_states, state);
 			self->ctx->first_element_in_string_or_array = true;
 			break;
 		}
@@ -399,8 +399,6 @@ JSON_Serializer::begin(SERIALIZER_BEGIN_STATE state, const char *name)
 			break;
 		}
 	}
-
-	array_push(self->ctx->last_states, state);
 }
 
 void
@@ -423,7 +421,6 @@ JSON_Serializer::end()
 		}
 		case SERIALIZER_BEGIN_STATE_STRING:
 		{
-			// hash_table_insert(self->ctx->json_values[self->ctx->json_values.count - 2].as_string, string_from(array_last(self->ctx->last_names)), last);
 			ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
 			break;
 		}
@@ -433,6 +430,7 @@ JSON_Serializer::end()
 			break;
 		}
 	}
+
 	array_pop(self->ctx->json_values);
 	array_pop(self->ctx->last_names);
 	array_pop(self->ctx->last_states);

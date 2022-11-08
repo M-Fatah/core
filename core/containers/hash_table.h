@@ -318,14 +318,18 @@ destroy(Hash_Table<K, V> &self)
 // TODO:
 template <typename K, typename V>
 inline static void
-serialize(Serializer *serializer, const char *, const Hash_Table<K, V> &self)
+serialize(Serializer *serializer, const char *name, const Hash_Table<K, V> &self)
 {
+	serializer->begin(SERIALIZER_BEGIN_STATE_ARRAY, name);
 	serialize(serializer, "count", self.count);
-	for (const auto &entry: self)
+	for (const auto &entry : self)
 	{
+		serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, "");
 		serialize(serializer, "key", entry.key);
 		serialize(serializer, "value", entry.value);
+		serializer->end();
 	}
+	serializer->end();
 }
 
 // TODO:

@@ -374,8 +374,9 @@ game_deinit(Game &self)
 }
 
 inline static void
-serialize(Serializer *self, const char *, const Game &data)
+serialize(Serializer *self, const char *name, const Game &data)
 {
+	self->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
 	serialize(self, "a", data.a);
 	serialize(self, "b", data.b);
 	serialize(self, "c", data.c);
@@ -383,11 +384,13 @@ serialize(Serializer *self, const char *, const Game &data)
 	serialize(self, "e", data.e);
 	serialize(self, "f", data.f);
 	serialize(self, "g", data.g);
+	self->end();
 }
 
 inline static void
-deserialize(Serializer *self, const char *, Game &data)
+deserialize(Serializer *self, const char *name, Game &data)
 {
+	self->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
 	deserialize(self, "a", data.a);
 	deserialize(self, "b", data.b);
 	deserialize(self, "c", data.c);
@@ -395,6 +398,7 @@ deserialize(Serializer *self, const char *, Game &data)
 	deserialize(self, "e", data.e);
 	deserialize(self, "f", data.f);
 	deserialize(self, "g", data.g);
+	self->end();
 }
 
 TEST_CASE("[CORE]: Binary_Serializer")
@@ -520,14 +524,15 @@ serialize(Serializer *serializer, const char *name, const Serialization_Test_Dat
 }
 
 inline static void
-deserialize(Serializer *serializer, const char *, Serialization_Test_Data_Nested &data)
+deserialize(Serializer *serializer, const char *name, Serialization_Test_Data_Nested &data)
 {
-	// serializer->begin_object(name);
+	serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
 	deserialize(serializer, "number0", data.number0);
 	deserialize(serializer, "number1", data.number1);
 	deserialize(serializer, "boolean", data.boolean);
-	// deserialize(serializer, "string", data.string);
-	// serializer->end_object();
+	deserialize(serializer, "string", data.string);
+	deserialize(serializer, "array", data.array);
+	serializer->end();
 }
 
 inline static void
@@ -544,14 +549,16 @@ serialize(Serializer *serializer, const char *name, const Serialization_Test_Dat
 }
 
 inline static void
-deserialize(Serializer *serializer, const char *, Serialization_Test_Data &data)
+deserialize(Serializer *serializer, const char *name, Serialization_Test_Data &data)
 {
-	// serializer->begin_object(name);
+	serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
 	deserialize(serializer, "x", data.x);
 	deserialize(serializer, "y", data.y);
 	deserialize(serializer, "z", data.z);
-	// deserialize(serializer, "nested", data.nested);
-	// serializer->end_object();
+	deserialize(serializer, "nested", data.nested);
+	deserialize(serializer, "outer_string", data.outer_string);
+	deserialize(serializer, "outer_array", data.outer_array);
+	serializer->end();
 }
 
 // TODO:
@@ -573,8 +580,27 @@ TEST_CASE("[CORE]: JSON_Serializer")
 	array_push(data.outer_array, string_from("string", memory::temp_allocator()));
 	array_push(data.outer_array, string_from("array", memory::temp_allocator()));
 
+	Game original_game = game_init();
+	DEFER(game_deinit(original_game));
+	{
+		original_game.a = 31;
+		original_game.b = 37;
+		original_game.c = 1.5f;
+		original_game.d = 'A';
+		array_push(original_game.e, 0.5f);
+		array_push(original_game.e, 1.5f);
+		array_push(original_game.e, 2.5f);
+		string_append(original_game.f, "Hello1");
+		hash_table_insert(original_game.g, string_literal("1"), 1.0f);
+		hash_table_insert(original_game.g, string_literal("2"), 2.0f);
+		hash_table_insert(original_game.g, string_literal("3"), 3.0f);
+	}
+
+	json_serializer_serialize(serializer, "original_game", original_game);
 	json_serializer_serialize(serializer, "Data", data);
 	json_serializer_to_file(serializer, FILENAME);
+
+	// TODO:
 	i32 x = 0;
 	unused(x);
 }
