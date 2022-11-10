@@ -569,7 +569,10 @@ TEST_CASE("[CORE]: JSON_Serializer")
 	JSON_Serializer *serializer = json_serializer_init();
 	DEFER(json_serializer_deinit(serializer));
 
-	Serialization_Test_Data data = {1, 2, 3};
+	Serialization_Test_Data data = {};
+	data.x = 1;
+	data.y = 1;
+	data.z = 1;
 	data.nested = {4, 5, true, string_from("Hello", memory::temp_allocator()), array_from<f32>({1.5f, 2.5f, 3.5f}, memory::temp_allocator())};
 	data.outer_string = string_from("HELLO2", memory::temp_allocator());
 	data.outer_array  = array_init<String>(memory::temp_allocator());
