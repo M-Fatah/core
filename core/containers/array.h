@@ -165,6 +165,7 @@ array_remove(Array<T> &self, u64 index)
 	--self.count;
 }
 
+// TODO: Better name.
 template <typename T, typename P>
 inline static void
 array_remove_if(Array<T> &self, P &&predicate)
@@ -177,6 +178,16 @@ array_remove_if(Array<T> &self, P &&predicate)
 			--i;
 		}
 	}
+}
+
+// TODO: Better name.
+template <typename T>
+inline static void
+array_remove_ordered(Array<T> &self, u64 index)
+{
+	ASSERT(index < self.count, "[ARRAY]: Access out of range.");
+	::memmove(self.data + index, self.data + index + 1, (self.count - index - 1) * sizeof(T));
+	--self.count;
 }
 
 template <typename T>

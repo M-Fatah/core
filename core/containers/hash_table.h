@@ -192,6 +192,13 @@ hash_table_find(const Hash_Table<K, V> &self, const K &key)
 }
 
 template <typename K, typename V>
+inline static Hash_Table_Entry<const K, V> *
+hash_table_find(Hash_Table<K, V> &self, const K &key)
+{
+	return (Hash_Table_Entry<const K, V> *)hash_table_find((const Hash_Table<K, V> &)self, key);
+}
+
+template <typename K, typename V>
 inline static bool
 hash_table_remove(Hash_Table<K, V> &self, const K &key)
 {
