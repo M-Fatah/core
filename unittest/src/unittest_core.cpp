@@ -226,6 +226,7 @@ TEST_CASE("[CORE]: Formatter")
 	CHECK(string_literal(buffer) == "A/B");
 }
 
+// TODO: Add proper API.
 TEST_CASE("[CORE]: JSON")
 {
 	SUBCASE("parse string")
@@ -252,63 +253,63 @@ TEST_CASE("[CORE]: JSON")
 
 		CHECK(error == false);
 		CHECK(value.kind == JSON_VALUE_KIND_OBJECT);
-		CHECK(value.as_object.count == 7);
+		CHECK(value.as_object->count == 7);
 
 		{
-			auto name_entry = hash_table_find(value.as_object, string_literal("name"));
+			auto name_entry = hash_table_find(*value.as_object, string_literal("name"));
 			CHECK(name_entry != nullptr);
 			CHECK(name_entry->key == "name");
 			CHECK(name_entry->value.kind == JSON_VALUE_KIND_STRING);
-			CHECK(name_entry->value.as_string == "Mist");
+			CHECK(*name_entry->value.as_string == "Mist");
 		}
 		{
-			auto nil_entry = hash_table_find(value.as_object, string_literal("nil"));
+			auto nil_entry = hash_table_find(*value.as_object, string_literal("nil"));
 			CHECK(nil_entry != nullptr);
 			CHECK(nil_entry->key == "nil");
 			CHECK(nil_entry->value.kind == JSON_VALUE_KIND_NULL);
 		}
 		{
-			auto right_entry = hash_table_find(value.as_object, string_literal("right"));
+			auto right_entry = hash_table_find(*value.as_object, string_literal("right"));
 			CHECK(right_entry != nullptr);
 			CHECK(right_entry->key == "right");
 			CHECK(right_entry->value.kind == JSON_VALUE_KIND_BOOL);
 			CHECK(right_entry->value.as_bool == true);
 		}
 		{
-			auto wrong_entry = hash_table_find(value.as_object, string_literal("wrong"));
+			auto wrong_entry = hash_table_find(*value.as_object, string_literal("wrong"));
 			CHECK(wrong_entry != nullptr);
 			CHECK(wrong_entry->key == "wrong");
 			CHECK(wrong_entry->value.kind == JSON_VALUE_KIND_BOOL);
 			CHECK(wrong_entry->value.as_bool == false);
 		}
 		{
-			auto number_entry = hash_table_find(value.as_object, string_literal("number"));
+			auto number_entry = hash_table_find(*value.as_object, string_literal("number"));
 			CHECK(number_entry != nullptr);
 			CHECK(number_entry->key == "number");
 			CHECK(number_entry->value.kind == JSON_VALUE_KIND_NUMBER);
 			CHECK(number_entry->value.as_number == 123.456);
 		}
 		{
-			auto array_entry = hash_table_find(value.as_object, string_literal("array"));
+			auto array_entry = hash_table_find(*value.as_object, string_literal("array"));
 			CHECK(array_entry != nullptr);
 			CHECK(array_entry->key == "array");
-			CHECK(array_entry->value.as_array.count == 2);
-			CHECK(array_entry->value.as_array[0].kind == JSON_VALUE_KIND_NUMBER);
-			CHECK(array_entry->value.as_array[0].as_number == 1);
-			CHECK(array_entry->value.as_array[1].kind == JSON_VALUE_KIND_BOOL);
-			CHECK(array_entry->value.as_array[1].as_bool == false);
+			CHECK(array_entry->value.as_array->count == 2);
+			CHECK((*array_entry->value.as_array)[0].kind == JSON_VALUE_KIND_NUMBER);
+			CHECK((*array_entry->value.as_array)[0].as_number == 1);
+			CHECK((*array_entry->value.as_array)[1].kind == JSON_VALUE_KIND_BOOL);
+			CHECK((*array_entry->value.as_array)[1].as_bool == false);
 		}
 		{
-			auto sub_object_entry = hash_table_find(value.as_object, string_literal("sub_object"));
+			auto sub_object_entry = hash_table_find(*value.as_object, string_literal("sub_object"));
 			CHECK(sub_object_entry != nullptr);
 			CHECK(sub_object_entry->key == "sub_object");
 			CHECK(sub_object_entry->value.kind == JSON_VALUE_KIND_OBJECT);
 
-			auto sub_object_name_entry = hash_table_find(sub_object_entry->value.as_object, string_literal("name"));
+			auto sub_object_name_entry = hash_table_find(*sub_object_entry->value.as_object, string_literal("name"));
 			CHECK(sub_object_name_entry != nullptr);
 			CHECK(sub_object_name_entry->key == "name");
 			CHECK(sub_object_name_entry->value.kind == JSON_VALUE_KIND_STRING);
-			CHECK(sub_object_name_entry->value.as_string == "sub_object");
+			CHECK(*sub_object_name_entry->value.as_string == "sub_object");
 		}
 	}
 
@@ -571,8 +572,8 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 	Serialization_Test_Data data = {};
 	data.x = 1;
-	data.y = 1;
-	data.z = 1;
+	data.y = 2;
+	data.z = 3;
 	data.nested = {4, 5, true, string_from("Hello", memory::temp_allocator()), array_from<f32>({1.5f, 2.5f, 3.5f}, memory::temp_allocator())};
 	data.outer_string = string_from("HELLO2", memory::temp_allocator());
 	data.outer_array  = array_init<String>(memory::temp_allocator());
@@ -601,6 +602,21 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 	json_serializer_serialize(serializer, "original_game", original_game);
 	json_serializer_serialize(serializer, "Data", data);
+	json_serializer_to_file(serializer, FILENAME);
+
+	Game new_game = game_init();
+	DEFER(game_deinit(new_game));
+	// TODO: Needs intitialization.
+	Serialization_Test_Data new_data = {};
+
+	serializer->deserializing = true;
+	json_serializer_deserialize(serializer, "original_game", new_game);
+	json_serializer_deserialize(serializer, "Data", new_data);
+
+	json_serializer_clear(serializer);
+	serializer->deserializing = false;
+	json_serializer_serialize(serializer, "original_game", new_game);
+	json_serializer_serialize(serializer, "Data", new_data);
 	json_serializer_to_file(serializer, FILENAME);
 
 	// TODO:

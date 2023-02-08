@@ -12,13 +12,13 @@ struct JSON_Serializer_Context
 	memory::Allocator *allocator;
 
 	Array<JSON_Value> json_values;
+	Array<JSON_Value> objects;
 	Array<const char *> last_names;
 	Array<SERIALIZER_BEGIN_STATE> last_states;
 
-	bool first_element_in_string_or_array;
-
-	u64 serialization_offset;
-	u64 deserialization_offset;
+	u64 index;
+	u64 serialization_index;
+	u64 deserialization_index;
 };
 
 inline static void
@@ -33,14 +33,12 @@ _json_serializer_serialize_bool(JSON_Serializer *self, const char *name, bool da
 	{
 		case SERIALIZER_BEGIN_STATE_OBJECT:
 		{
-			hash_table_insert(last.as_object, string_from(name), value);
+			json_value_object_insert_at(last, string_literal(name), value);
 			break;
 		}
 		case SERIALIZER_BEGIN_STATE_ARRAY:
 		{
-			if (self->ctx->first_element_in_string_or_array == false)
-				array_push(last.as_array, value);
-			self->ctx->first_element_in_string_or_array = false;
+			array_push(*last.as_array, value);
 			break;
 		}
 		case SERIALIZER_BEGIN_STATE_STRING:
@@ -69,52 +67,19 @@ _json_serializer_serialize_number(JSON_Serializer *self, const char *name, const
 	{
 		case SERIALIZER_BEGIN_STATE_OBJECT:
 		{
-			hash_table_insert(last.as_object, string_from(name), value);
+			json_value_object_insert_at(last, string_literal(name), value);
 			break;
 		}
 		case SERIALIZER_BEGIN_STATE_ARRAY:
 		{
-			if (self->ctx->first_element_in_string_or_array == false)
-				array_push(last.as_array, value);
-			self->ctx->first_element_in_string_or_array = false;
+			array_push(*last.as_array, value);
 			break;
 		}
 		case SERIALIZER_BEGIN_STATE_STRING:
 		{
 			// TODO: This works?
 			if constexpr (std::is_same_v<T, char>)
-				if (self->ctx->first_element_in_string_or_array == false)
-					string_append(last.as_string, data);
-			self->ctx->first_element_in_string_or_array = false;
-			break;
-		}
-		default:
-		{
-			ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
-			break;
-		}
-	}
-}
-
-inline static void
-_insert_value(JSON_Serializer *self, SERIALIZER_BEGIN_STATE state, const char *name, JSON_Value &value)
-{
-	switch (state)
-	{
-		case SERIALIZER_BEGIN_STATE_OBJECT:
-		{
-			hash_table_insert(self->ctx->json_values[self->ctx->json_values.count - 1].as_object, string_from(name), value);
-			break;
-		}
-		case SERIALIZER_BEGIN_STATE_ARRAY:
-		{
-			array_push(self->ctx->json_values[self->ctx->json_values.count - 1].as_array, value);
-			break;
-		}
-		case SERIALIZER_BEGIN_STATE_STRING:
-		{
-			// hash_table_insert(self->ctx->json_values[self->ctx->json_values.count - 2].as_string, string_from(array_last(self->ctx->last_names)), last);
-			// ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
+				string_append(*last.as_string, data);
 			break;
 		}
 		default:
@@ -127,8 +92,85 @@ _insert_value(JSON_Serializer *self, SERIALIZER_BEGIN_STATE state, const char *n
 
 template <typename T>
 inline static void
-_json_serializer_deserialize(JSON_Serializer *, const char *, T &)
+_json_serializer_deserialize(JSON_Serializer *self, const char *name, T &data)
 {
+	auto &value = self->ctx->objects[self->ctx->deserialization_index];
+	auto entry = hash_table_find(*value.as_object, string_literal(name));
+	if (entry)
+	{
+		auto &vv = entry->value;
+		switch (vv.kind)
+		{
+			case JSON_VALUE_KIND_NULL:
+			{
+				data = NULL;
+				break;
+			}
+			case JSON_VALUE_KIND_BOOL:
+			{
+				data = vv.as_bool;
+				break;
+			}
+			case JSON_VALUE_KIND_NUMBER:
+			{
+				data = (T)vv.as_number;
+				break;
+			}
+			case JSON_VALUE_KIND_ARRAY:
+			{
+				// TODO: Support different types.
+				auto &elem = (*vv.as_array)[self->ctx->index];
+				switch (elem.kind)
+				{
+					case JSON_VALUE_KIND_NUMBER:
+						data = (T)elem.as_number;
+						break;
+					case JSON_VALUE_KIND_STRING:
+						if (self->ctx->index == 0)
+						{
+							data = (T)(*elem.as_string)[self->ctx->index];
+							self->ctx->index++;
+						}
+						else
+						{
+							data = (T)(*elem.as_string)[self->ctx->index - 1];
+							self->ctx->index++;
+						}
+						break;
+					case JSON_VALUE_KIND_OBJECT:
+					{
+						self->ctx->deserialization_index++;
+						break;
+					}
+					// case JSON_VALUE_KIND_OBJECT:
+					// {
+					// 	if (self->ctx->index % 2 == 0)
+					// 		auto entry = hash_table_find(*elem.as_object, string_literal("key"));
+					// 		data = entry->value[]
+					// 	break;
+					// }
+				}
+				break;
+			}
+			// TODO: Add const char * serialization for strings?
+			case JSON_VALUE_KIND_STRING:
+			{
+				if (self->ctx->index == 0)
+				{
+					data = (T)(vv.as_string->count);
+					self->ctx->index++;
+				}
+				else
+				{
+					data = (T)(*vv.as_string)[self->ctx->index - 1];
+					self->ctx->index++;
+				}
+				break;
+			}
+			default:
+				break;
+		}
+	}
 }
 
 // API.
@@ -136,17 +178,15 @@ JSON_Serializer::JSON_Serializer(memory::Allocator *allocator)
 {
 	JSON_Serializer *self = this;
 
-	self->ctx                         = memory::allocate<JSON_Serializer_Context>(allocator);
-	self->ctx->allocator              = allocator;
-	self->ctx->serialization_offset   = 0;
-	self->ctx->deserialization_offset = 0;
-	self->ctx->json_values            = array_init<JSON_Value>(allocator);
-	self->ctx->last_names             = array_init<const char *>(allocator);
-	self->ctx->last_states            = array_init<SERIALIZER_BEGIN_STATE>(allocator);
+	self->deserializing = false;
+	self->ctx              = memory::allocate_zeroed<JSON_Serializer_Context>(allocator);
+	self->ctx->allocator   = allocator;
+	self->ctx->json_values = array_init<JSON_Value>(allocator);
+	self->ctx->objects = array_init<JSON_Value>(allocator);
+	self->ctx->last_names  = array_init<const char *>(allocator);
+	self->ctx->last_states = array_init<SERIALIZER_BEGIN_STATE>(allocator);
 
-	JSON_Value object = {};
-	object.kind = JSON_VALUE_KIND_OBJECT;
-	object.as_object = hash_table_init<String, JSON_Value>();
+	JSON_Value object = json_value_init_as_object(allocator);
 	array_push(self->ctx->json_values, object);
 	array_push(self->ctx->last_states, SERIALIZER_BEGIN_STATE_OBJECT);
 }
@@ -156,6 +196,7 @@ JSON_Serializer::~JSON_Serializer()
 	JSON_Serializer *self = this;
 	memory::Allocator *allocator = self->ctx->allocator;
 	destroy(self->ctx->json_values);
+	destroy(self->ctx->objects);
 	array_deinit(self->ctx->last_names);
 	array_deinit(self->ctx->last_states);
 	memory::deallocate(allocator, self->ctx);
@@ -165,7 +206,6 @@ JSON_Serializer::~JSON_Serializer()
 void
 JSON_Serializer::serialize(const char *name, i8 data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_serialize_number(self, name, data);
 }
@@ -173,7 +213,6 @@ JSON_Serializer::serialize(const char *name, i8 data)
 void
 JSON_Serializer::serialize(const char *name, i16 data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_serialize_number(self, name, data);
 }
@@ -181,7 +220,6 @@ JSON_Serializer::serialize(const char *name, i16 data)
 void
 JSON_Serializer::serialize(const char *name, i32 data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_serialize_number(self, name, data);
 }
@@ -189,7 +227,6 @@ JSON_Serializer::serialize(const char *name, i32 data)
 void
 JSON_Serializer::serialize(const char *name, i64 data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_serialize_number(self, name, data);
 }
@@ -197,7 +234,6 @@ JSON_Serializer::serialize(const char *name, i64 data)
 void
 JSON_Serializer::serialize(const char *name, u8 data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_serialize_number(self, name, data);
 }
@@ -205,7 +241,6 @@ JSON_Serializer::serialize(const char *name, u8 data)
 void
 JSON_Serializer::serialize(const char *name, u16 data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_serialize_number(self, name, data);
 }
@@ -213,7 +248,6 @@ JSON_Serializer::serialize(const char *name, u16 data)
 void
 JSON_Serializer::serialize(const char *name, u32 data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_serialize_number(self, name, data);
 }
@@ -221,7 +255,6 @@ JSON_Serializer::serialize(const char *name, u32 data)
 void
 JSON_Serializer::serialize(const char *name, u64 data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_serialize_number(self, name, data);
 }
@@ -229,7 +262,6 @@ JSON_Serializer::serialize(const char *name, u64 data)
 void
 JSON_Serializer::serialize(const char *name, f32 data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_serialize_number(self, name, data);
 }
@@ -237,7 +269,6 @@ JSON_Serializer::serialize(const char *name, f32 data)
 void
 JSON_Serializer::serialize(const char *name, f64 data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_serialize_number(self, name, data);
 }
@@ -245,7 +276,6 @@ JSON_Serializer::serialize(const char *name, f64 data)
 void
 JSON_Serializer::serialize(const char *name, bool data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_serialize_bool(self, name, data);
 }
@@ -253,7 +283,6 @@ JSON_Serializer::serialize(const char *name, bool data)
 void
 JSON_Serializer::serialize(const char *name, char data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_serialize_number(self, name, data);
 }
@@ -261,7 +290,6 @@ JSON_Serializer::serialize(const char *name, char data)
 void
 JSON_Serializer::deserialize(const char *name, i8 &data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_deserialize(self, name, data);
 }
@@ -269,7 +297,6 @@ JSON_Serializer::deserialize(const char *name, i8 &data)
 void
 JSON_Serializer::deserialize(const char *name, i16 &data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_deserialize(self, name, data);
 }
@@ -277,7 +304,6 @@ JSON_Serializer::deserialize(const char *name, i16 &data)
 void
 JSON_Serializer::deserialize(const char *name, i32 &data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_deserialize(self, name, data);
 }
@@ -285,7 +311,6 @@ JSON_Serializer::deserialize(const char *name, i32 &data)
 void
 JSON_Serializer::deserialize(const char *name, i64 &data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_deserialize(self, name, data);
 }
@@ -293,7 +318,6 @@ JSON_Serializer::deserialize(const char *name, i64 &data)
 void
 JSON_Serializer::deserialize(const char *name, u8 &data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_deserialize(self, name, data);
 }
@@ -301,7 +325,6 @@ JSON_Serializer::deserialize(const char *name, u8 &data)
 void
 JSON_Serializer::deserialize(const char *name, u16 &data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_deserialize(self, name, data);
 }
@@ -309,7 +332,6 @@ JSON_Serializer::deserialize(const char *name, u16 &data)
 void
 JSON_Serializer::deserialize(const char *name, u32 &data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_deserialize(self, name, data);
 }
@@ -317,7 +339,6 @@ JSON_Serializer::deserialize(const char *name, u32 &data)
 void
 JSON_Serializer::deserialize(const char *name, u64 &data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_deserialize(self, name, data);
 }
@@ -325,7 +346,6 @@ JSON_Serializer::deserialize(const char *name, u64 &data)
 void
 JSON_Serializer::deserialize(const char *name, f32 &data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_deserialize(self, name, data);
 }
@@ -333,7 +353,6 @@ JSON_Serializer::deserialize(const char *name, f32 &data)
 void
 JSON_Serializer::deserialize(const char *name, f64 &data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_deserialize(self, name, data);
 }
@@ -341,7 +360,6 @@ JSON_Serializer::deserialize(const char *name, f64 &data)
 void
 JSON_Serializer::deserialize(const char *name, bool &data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_deserialize(self, name, data);
 }
@@ -349,9 +367,37 @@ JSON_Serializer::deserialize(const char *name, bool &data)
 void
 JSON_Serializer::deserialize(const char *name, char &data)
 {
-	unused(name);
 	JSON_Serializer *self = this;
 	_json_serializer_deserialize(self, name, data);
+}
+
+inline static void
+_insert_value(JSON_Serializer *self, JSON_Value &value)
+{
+	auto last_state = self->ctx->last_states[self->ctx->last_states.count - 1];
+	switch (last_state)
+	{
+		case SERIALIZER_BEGIN_STATE_OBJECT:
+		{
+			json_value_object_insert_at(self->ctx->json_values[self->ctx->json_values.count - 1], string_literal(array_last(self->ctx->last_names)), value);
+			break;
+		}
+		case SERIALIZER_BEGIN_STATE_ARRAY:
+		{
+			array_push(*self->ctx->json_values[self->ctx->json_values.count - 1].as_array, value);
+			break;
+		}
+		case SERIALIZER_BEGIN_STATE_STRING:
+		{
+			ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
+			break;
+		}
+		default:
+		{
+			ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
+			break;
+		}
+	}
 }
 
 void
@@ -363,34 +409,54 @@ JSON_Serializer::begin(SERIALIZER_BEGIN_STATE state, const char *name)
 	{
 		case SERIALIZER_BEGIN_STATE_OBJECT:
 		{
-			JSON_Value object = {};
-			object.kind      = JSON_VALUE_KIND_OBJECT;
-			object.as_object = hash_table_init<String, JSON_Value>();
-			array_push(self->ctx->json_values, object);
-			array_push(self->ctx->last_names, name);
+			if (self->deserializing == false)
+			{
+				array_push(self->ctx->last_names, name);
+				JSON_Value object = json_value_init_as_object();
+				_insert_value(self, object);
+				array_push(self->ctx->objects, object);
+				array_push(self->ctx->json_values, object);
+			}
+			else
+			{
+				static bool first = true;
+				if (first)
+				{
+					self->ctx->deserialization_index = 0;
+					first = false;
+				}
+				else
+				{
+					self->ctx->deserialization_index++;
+				}
+			}
 			array_push(self->ctx->last_states, state);
 			break;
 		}
 		case SERIALIZER_BEGIN_STATE_ARRAY:
 		{
-			JSON_Value object = {};
-			object.kind     = JSON_VALUE_KIND_ARRAY;
-			object.as_array = array_init<JSON_Value>();
-			array_push(self->ctx->json_values, object);
-			array_push(self->ctx->last_names, name);
+			if (self->deserializing == false)
+			{
+				array_push(self->ctx->last_names, name);
+				JSON_Value object = json_value_init_as_array();
+				_insert_value(self, object);
+				array_push(self->ctx->json_values, object);
+			}
+			self->ctx->index = 0;
 			array_push(self->ctx->last_states, state);
-			self->ctx->first_element_in_string_or_array = true;
 			break;
 		}
 		case SERIALIZER_BEGIN_STATE_STRING:
 		{
-			JSON_Value object = {};
-			object.kind      = JSON_VALUE_KIND_STRING;
-			object.as_string = string_init();
-			array_push(self->ctx->json_values, object);
-			array_push(self->ctx->last_names, name);
+			if (self->deserializing == false)
+			{
+				array_push(self->ctx->last_names, name);
+				JSON_Value object = json_value_init_as_string("");
+				_insert_value(self, object);
+				array_push(self->ctx->json_values, object);
+			}
+			self->ctx->index = 0;
 			array_push(self->ctx->last_states, state);
-			self->ctx->first_element_in_string_or_array = true;
 			break;
 		}
 		default:
@@ -405,34 +471,23 @@ void
 JSON_Serializer::end()
 {
 	JSON_Serializer *self = this;
-	auto &last = array_last(self->ctx->json_values);
-	auto last_state = self->ctx->last_states[self->ctx->last_states.count - 2];
-	switch (last_state)
+
+	if (self->deserializing == false)
 	{
-		case SERIALIZER_BEGIN_STATE_OBJECT:
+		array_pop(self->ctx->json_values);
+		array_pop(self->ctx->last_names);
+	}
+	else
+	{
+		switch (array_last(self->ctx->last_states))
 		{
-			hash_table_insert(self->ctx->json_values[self->ctx->json_values.count - 2].as_object, string_from(array_last(self->ctx->last_names)), last);
-			break;
-		}
-		case SERIALIZER_BEGIN_STATE_ARRAY:
-		{
-			array_push(self->ctx->json_values[self->ctx->json_values.count - 2].as_array, last);
-			break;
-		}
-		case SERIALIZER_BEGIN_STATE_STRING:
-		{
-			ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
-			break;
-		}
-		default:
-		{
-			ASSERT(false, "[JSON_SERIALIZER]: Invalid SERIALIZER_BEGIN_STATE enum.");
-			break;
+			case SERIALIZER_BEGIN_STATE_ARRAY:
+			{
+				self->ctx->deserialization_index--;
+				break;
+			}
 		}
 	}
-
-	array_pop(self->ctx->json_values);
-	array_pop(self->ctx->last_names);
 	array_pop(self->ctx->last_states);
 }
 
@@ -448,11 +503,14 @@ JSON_Serializer::clear()
 	//    and then allocates a new one that of the total size of the previous blocks combined and with a different pointer,
 	//    which will make our array's data pointer invalid.
 	//
-	hash_table_clear(self->ctx->json_values[0].as_object);
+	hash_table_clear(*self->ctx->json_values[0].as_object);
 	// TODO:
-	// array_clear(self->ctx->json_values);
-	self->ctx->serialization_offset   = 0;
-	self->ctx->deserialization_offset = 0;
+	array_resize(self->ctx->json_values, 1);
+	array_resize(self->ctx->last_states, 1);
+	array_clear(self->ctx->last_names);
+	array_clear(self->ctx->objects);
+	self->ctx->serialization_index   = 0;
+	self->ctx->deserialization_index = 0;
 }
 
 JSON_Serializer *

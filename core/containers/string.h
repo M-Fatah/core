@@ -781,21 +781,25 @@ inline static void
 serialize(Serializer *serializer, const char *name, const String &self)
 {
 	serializer->begin(SERIALIZER_BEGIN_STATE_STRING, name);
-	serialize(serializer, "count", self.count);
+	serialize(serializer, name, self.count);
+	// TODO: Remove the necessity to using the same name for each array element.
 	for (u64 i = 0; i < self.count; ++i)
-		serialize(serializer, "", self[i]);
+		serialize(serializer, name, self[i]);
 	serializer->end();
 }
 
 // TODO:
 inline static void
-deserialize(Serializer *serializer, const char *, String &self)
+deserialize(Serializer *serializer, const char *name, String &self)
 {
+	serializer->begin(SERIALIZER_BEGIN_STATE_STRING, name);
 	u64 count = 0;
-	deserialize(serializer, "count", count);
+	deserialize(serializer, name, count);
 	string_resize(self, count);
+	// TODO: Remove the necessity to using the same name for each array element.
 	for (u64 i = 0; i < count; ++i)
-		deserialize(serializer, "", self[i]);
+		deserialize(serializer, name, self[i]);
+	serializer->end();
 }
 
 inline static void

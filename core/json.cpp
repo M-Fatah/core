@@ -135,9 +135,7 @@ _json_parser_parse_true(JSON_Parser &self)
 	_json_parser_skip_char(self, 'u');
 	_json_parser_skip_char(self, 'e');
 
-	JSON_Value value = {};
-	value.kind    = JSON_VALUE_KIND_BOOL;
-	value.as_bool = true;
+	JSON_Value value = json_value_init_as_bool(true);
 	return value;
 }
 
@@ -150,9 +148,7 @@ _json_parser_parse_false(JSON_Parser &self)
 	_json_parser_skip_char(self, 's');
 	_json_parser_skip_char(self, 'e');
 
-	JSON_Value value = {};
-	value.kind    = JSON_VALUE_KIND_BOOL;
-	value.as_bool = false;
+	JSON_Value value = json_value_init_as_bool(false);
 	return value;
 }
 
@@ -194,9 +190,7 @@ _json_parser_parse_number(JSON_Parser &self)
 	self.column_number += u32(end - self.iterator);
 	self.iterator = end;
 
-	JSON_Value value = {};
-	value.kind      = JSON_VALUE_KIND_NUMBER;
-	value.as_number = number;
+	JSON_Value value = json_value_init_as_number(number);
 	return value;
 }
 
@@ -227,9 +221,7 @@ _json_parser_parse_string(JSON_Parser &self)
 
 	DEFER(_json_parser_skip_char(self, '"'));
 
-	JSON_Value value = {};
-	value.kind = JSON_VALUE_KIND_STRING;
-	value.as_string = string_from(begin, self.iterator, self.allocator);
+	JSON_Value value = json_value_init_as_string(string_from(begin, self.iterator, memory::temp_allocator()), self.allocator);
 	return value;
 }
 
@@ -245,11 +237,12 @@ _json_parser_parse_array_elements(JSON_Parser &self, JSON_Value &value)
 		auto element = _json_parser_parse_value(self);
 		if (self.error)
 		{
-			array_deinit(value.as_array);
+			json_value_deinit(value);
 			return;
 		}
 
-		array_push(value.as_array, element);
+		// TODO: Add equivalent function to json_value_object_insert_at();
+		array_push(*value.as_array, element);
 
 		_json_parser_skip_space_and_comments(self);
 		if (*self.iterator == ']')
@@ -264,9 +257,7 @@ _json_parser_parse_array(JSON_Parser &self)
 	_json_parser_skip_char(self, '[');
 	_json_parser_skip_space_and_comments(self);
 
-	JSON_Value value = {};
-	value.kind = JSON_VALUE_KIND_ARRAY;
-	value.as_array = array_init<JSON_Value>(self.allocator);
+	JSON_Value value = json_value_init_as_array(self.allocator);
 
 	if (*self.iterator != ']')
 		_json_parser_parse_array_elements(self, value);
@@ -288,7 +279,7 @@ _json_parser_parse_object_members(JSON_Parser &self, JSON_Value &value)
 		JSON_Value key = _json_parser_parse_string(self);
 		if (self.error)
 		{
-			hash_table_deinit(value.as_object);
+			json_value_deinit(value);
 			return;
 		}
 
@@ -299,11 +290,11 @@ _json_parser_parse_object_members(JSON_Parser &self, JSON_Value &value)
 		auto member = _json_parser_parse_value(self);
 		if (self.error)
 		{
-			hash_table_deinit(value.as_object);
+			json_value_deinit(value);
 			return;
 		}
 
-		hash_table_insert(value.as_object, key.as_string, member);
+		json_value_object_insert_at(value, *key.as_string, member);
 
 		_json_parser_skip_space_and_comments(self);
 		if (*self.iterator == '}' || *self.iterator == 0)
@@ -319,9 +310,7 @@ _json_parser_parse_object(JSON_Parser &self)
 	_json_parser_skip_char(self, '{');
 	_json_parser_skip_space_and_comments(self);
 
-	JSON_Value value = {};
-	value.kind = JSON_VALUE_KIND_OBJECT;
-	value.as_object = hash_table_init<String, JSON_Value>(self.allocator);
+	JSON_Value value = json_value_init_as_object(self.allocator);
 
 	if (*self.iterator != '}')
 		_json_parser_parse_object_members(self, value);
@@ -362,7 +351,7 @@ inline static void
 _json_value_array_to_string(const JSON_Value &self, String &json_string, i32 indent_level = 0)
 {
 	string_append(json_string, "[\n");
-	for (u64 i = 0; i < self.as_array.count; ++i)
+	for (u64 i = 0; i < self.as_array->count; ++i)
 	{
 		if (i > 0)
 		{
@@ -372,7 +361,7 @@ _json_value_array_to_string(const JSON_Value &self, String &json_string, i32 ind
 
 		string_append(json_string, '\t', indent_level + 1);
 
-		const auto &value = self.as_array[i];
+		const auto &value = (*self.as_array)[i];
 		switch (value.kind)
 		{
 			case JSON_VALUE_KIND_NULL:
@@ -385,7 +374,7 @@ _json_value_array_to_string(const JSON_Value &self, String &json_string, i32 ind
 				string_append(json_string, "{}", value.as_number);
 				break;
 			case JSON_VALUE_KIND_STRING:
-				string_append(json_string, "\"{}\"", value.as_string.data);
+				string_append(json_string, "\"{}\"", value.as_string->data);
 				break;
 			case JSON_VALUE_KIND_ARRAY:
 				_json_value_array_to_string(value, json_string, indent_level + 1);
@@ -405,7 +394,7 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, i32 in
 {
 	string_append(json_string, "{{\n");
 	i32 i = 0;
-	for (const auto &[key, value] : self.as_object)
+	for (const auto &[key, value] : *self.as_object)
 	{
 		if (i > 0)
 			string_append(json_string, ",\n");
@@ -424,7 +413,7 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, i32 in
 				string_append(json_string, "{}", value.as_number);
 				break;
 			case JSON_VALUE_KIND_STRING:
-				string_append(json_string, "\"{}\"", value.as_string.data);
+				string_append(json_string, "\"{}\"", value.as_string->data);
 				break;
 			case JSON_VALUE_KIND_ARRAY:
 				_json_value_array_to_string(value, json_string, indent_level + 1);
@@ -497,19 +486,35 @@ json_value_deinit(JSON_Value &self)
 		case JSON_VALUE_KIND_NULL:
 		case JSON_VALUE_KIND_BOOL:
 		case JSON_VALUE_KIND_NUMBER:
+		{
 			break;
+		}
 		case JSON_VALUE_KIND_STRING:
-			string_deinit(self.as_string);
+		{
+			destroy(*self.as_string);
+			memory::deallocate(self.allocator, self.as_string);
+			self.allocator = nullptr;
 			break;
+		}
 		case JSON_VALUE_KIND_ARRAY:
-			destroy(self.as_array);
+		{
+			destroy(*self.as_array);
+			memory::deallocate(self.allocator, self.as_array);
+			self.allocator = nullptr;
 			break;
+		}
 		case JSON_VALUE_KIND_OBJECT:
-			destroy(self.as_object);
+		{
+			destroy(*self.as_object);
+			memory::deallocate(self.allocator, self.as_object);
+			self.allocator = nullptr;
 			break;
+		}
 		default:
+		{
 			ASSERT(false, "[JSON]: Invalid JSON_VALUE_KIND.");
 			break;
+		}
 	}
 }
 

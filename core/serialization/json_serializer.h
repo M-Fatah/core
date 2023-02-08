@@ -21,6 +21,8 @@ struct JSON_Serializer : Serializer
 {
 	struct JSON_Serializer_Context *ctx;
 
+	bool deserializing;
+
 	JSON_Serializer(memory::Allocator *allocator = memory::heap_allocator());
 
 	~JSON_Serializer() override;

@@ -327,33 +327,43 @@ template <typename K, typename V>
 inline static void
 serialize(Serializer *serializer, const char *name, const Hash_Table<K, V> &self)
 {
-	serializer->begin(SERIALIZER_BEGIN_STATE_ARRAY, name);
+	serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
 	serialize(serializer, "count", self.count);
+	serializer->begin(SERIALIZER_BEGIN_STATE_ARRAY, "data");
 	for (const auto &entry : self)
 	{
-		serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, "");
+		// TODO: Remove the necessity to using the same name for each array element.
+		serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, "data");
 		serialize(serializer, "key", entry.key);
 		serialize(serializer, "value", entry.value);
 		serializer->end();
 	}
+	serializer->end();
 	serializer->end();
 }
 
 // TODO:
 template <typename K, typename V>
 inline static void
-deserialize(Serializer *serializer, const char *, Hash_Table<K, V> &self)
+deserialize(Serializer *serializer, const char *name, Hash_Table<K, V> &self)
 {
+	serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
 	u64 count = 0;
 	deserialize(serializer, "count", count);
+	serializer->begin(SERIALIZER_BEGIN_STATE_ARRAY, "data");
 	for (u64 i = 0; i < count; ++i)
 	{
+		// TODO: Remove the necessity to using the same name for each array element.
+		serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, "data");
 		K key = {};
 		V value = {};
 		deserialize(serializer, "key", key);
 		deserialize(serializer, "value", value);
 		hash_table_insert(self, key, value);
+		serializer->end();
 	}
+	serializer->end();
+	serializer->end();
 }
 
 template <typename K, typename V>

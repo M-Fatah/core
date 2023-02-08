@@ -300,23 +300,31 @@ template <typename T>
 inline static void
 serialize(Serializer *serializer, const char *name, const Array<T> &self)
 {
-	serializer->begin(SERIALIZER_BEGIN_STATE_ARRAY, name);
+	serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
 	serialize(serializer, "count", self.count);
+	serializer->begin(SERIALIZER_BEGIN_STATE_ARRAY, "data");
+	// TODO: Remove the necessity to using the same name for each array element.
 	for (u64 i = 0; i < self.count; ++i)
-		serialize(serializer, "", self[i]);
+		serialize(serializer, "data", self[i]);
+	serializer->end();
 	serializer->end();
 }
 
 // TODO:
 template <typename T>
 inline static void
-deserialize(Serializer *serializer, const char *, Array<T> &self)
+deserialize(Serializer *serializer, const char *name, Array<T> &self)
 {
+	serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
 	u64 count = 0;
 	deserialize(serializer, "count", count);
 	array_resize(self, count);
+	serializer->begin(SERIALIZER_BEGIN_STATE_ARRAY, "data");
+	// TODO: Remove the necessity to using the same name for each array element.
 	for (u64 i = 0; i < count; ++i)
-		deserialize(serializer, "", self[i]);
+		deserialize(serializer, "data", self[i]);
+	serializer->end();
+	serializer->end();
 }
 
 template <typename T>
