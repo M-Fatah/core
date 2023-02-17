@@ -71,7 +71,7 @@ type_of<f32>()
 
 inline static const Type _foo_fields[] = {
 	// TODO: Fix offsetof in array elements.
-	{ "array", TYPE_KIND_ARRAY, sizeof(i32) * 3, offsetof(Foo, array), alignof(i32[3]), { type_of<i32>(), 3} },
+	{ "array", TYPE_KIND_ARRAY, sizeof(Foo::array), offsetof(Foo, array), alignof(i32[3]), { type_of<i32>(), 3} },
 };
 
 inline static const Type _foo_type = {
@@ -130,6 +130,16 @@ print(Value v)
 {
 	switch (v.type->kind)
 	{
+		case TYPE_KIND_INT:
+		{
+			printf("%d", *(i32 *)v.data);
+			break;
+		}
+		case TYPE_KIND_FLOAT:
+		{
+			printf("%g", *(f32 *)v.data);
+			break;
+		}
 		case TYPE_KIND_STRUCT:
 		{
 			printf("{ ");
@@ -143,20 +153,11 @@ print(Value v)
 			printf(" }\n");
 			break;
 		}
-		case TYPE_KIND_FLOAT:
-		{
-			printf("%g", *(f32 *)v.data);
-			break;
-		}
-		case TYPE_KIND_INT:
-		{
-			printf("%d", *(i32 *)v.data);
-			break;
-		}
 		case TYPE_KIND_POINTER:
 		{
 			const auto *pointee = v.type->as_pointer.pointee_type;
 			uptr p = *(uptr *)(v.data);
+			printf("%p: ", (void *)p);
 			print({(void *)p, pointee});
 			break;
 		}

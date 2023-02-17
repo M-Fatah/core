@@ -7,8 +7,9 @@
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Rename TYPE_KIND enum.
 	- [ ] Group primitive types together, and type check them through type_of<T>()?
-	- [ ] Add pointer => pointee.
-	- [ ] Add array => element_type and count.
+			=> TYPE_KIND_PRIMITIVE => type_ptr == reflect_type<char>()????
+	- [x] Add pointer => pointee.
+	- [x] Add array => element_type and count.
 		- [ ] offsetof is not correct in array elements.
 	- [ ] Simplify writing.
 	- [ ] Cleanup.
