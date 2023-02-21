@@ -55,9 +55,9 @@ destroy(T &)
 	static_assert(sizeof(T) == 0, "There is no `void destroy(T &)` function overload defined for this type.");
 }
 
-template <typename T>
+template <typename ...TArgs>
 void
-unused(const T &)
+unused(const TArgs &...)
 {
 
 }

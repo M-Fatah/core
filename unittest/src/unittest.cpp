@@ -4,7 +4,6 @@
 #include <core/reflect.h>
 #include <core/platform/platform.h>
 
-
 struct Vector3
 {
 	f32 x, y, z;
@@ -20,111 +19,19 @@ struct Pointer
 	f32 *ptr;
 };
 
-inline static const Type _vec3_fields[] = {
-	{ "x", TYPE_KIND_FLOAT, sizeof(f32), offsetof(Vector3, x), alignof(f32), 0, 0 },
-	{ "y", TYPE_KIND_FLOAT, sizeof(f32), offsetof(Vector3, y), alignof(f32), 0, 0 },
-	{ "z", TYPE_KIND_FLOAT, sizeof(f32), offsetof(Vector3, z), alignof(f32), 0, 0 }
-};
+TYPE_OF(Vector3, TYPE_KIND_STRUCT, {
+	TYPE_OF_FIELD(x, TYPE_KIND_FLOAT, Vector3, f32),
+	TYPE_OF_FIELD(y, TYPE_KIND_FLOAT, Vector3, f32),
+	TYPE_OF_FIELD(z, TYPE_KIND_FLOAT, Vector3, f32)
+})
 
-inline static const Type _vec3_type = {
-	.name = "Vector3",
-	.kind = TYPE_KIND_STRUCT,
-	.size = sizeof(Vector3),
-	.offset = offsetof(Vector3, x),
-	.align = alignof(Vector3),
-	.as_struct = {
-		_vec3_fields,
-		3
-	}
-};
+TYPE_OF(Foo, TYPE_KIND_STRUCT, {
+	TYPE_OF_FIELD(array, TYPE_KIND_ARRAY, Foo, i32[3], type_of<i32>(), 3)
+})
 
-inline static const Type _i32_type = {
-	.name = "i32",
-	.kind = TYPE_KIND_INT,
-	.size = sizeof(i32),
-	.offset = 0,
-	.align = alignof(i32),
-	.as_struct = {}
-};
-
-template <>
-inline const Type *
-type_of<i32>()
-{
-	return &_i32_type;
-}
-
-inline static const Type _f32_type = {
-	.name = "f32",
-	.kind = TYPE_KIND_FLOAT,
-	.size = sizeof(f32),
-	.offset = 0,
-	.align = alignof(f32),
-	.as_struct = {}
-};
-
-template <>
-inline const Type *
-type_of<f32>()
-{
-	return &_f32_type;
-}
-
-
-inline static const Type _foo_fields[] = {
-	// TODO: Fix offsetof in array elements.
-	{ "array", TYPE_KIND_ARRAY, sizeof(Foo::array), offsetof(Foo, array), alignof(i32[3]), { type_of<i32>(), 3} },
-};
-
-inline static const Type _foo_type = {
-	.name = "Foo",
-	.kind = TYPE_KIND_STRUCT,
-	.size = sizeof(Foo),
-	.offset = offsetof(Foo, array),
-	.align = alignof(Foo),
-	.as_struct = {
-		_foo_fields,
-		1
-	}
-};
-
-inline static const Type _pointer_fields[] = {
-	// TODO: Fix offsetof in array elements.
-	{ "ptr", TYPE_KIND_POINTER, sizeof(f32 *), offsetof(Pointer, ptr), alignof(f32 *), { type_of<f32>(), 0 } },
-};
-
-inline static const Type _pointer_type = {
-	.name = "Pointer",
-	.kind = TYPE_KIND_STRUCT,
-	.size = sizeof(Pointer),
-	.offset = offsetof(Pointer, ptr),
-	.align = alignof(Pointer),
-	.as_struct = {
-		_pointer_fields,
-		1
-	}
-};
-
-template <>
-inline const Type *
-type_of<Pointer>()
-{
-	return &_pointer_type;
-}
-
-template <>
-inline const Type *
-type_of<Foo>()
-{
-	return &_foo_type;
-}
-
-template <>
-inline const Type *
-type_of<Vector3>()
-{
-	return &_vec3_type;
-}
+TYPE_OF(Pointer, TYPE_KIND_STRUCT, {
+	{ "ptr", TYPE_KIND_POINTER, sizeof(f32 *), offsetof(Pointer, ptr), alignof(f32 *), type_of<f32>(), 0 }
+})
 
 inline static void
 print(Value v)
@@ -169,14 +76,6 @@ print(Value v)
 			printf(" }\n");
 			break;
 		}
-		case TYPE_KIND_POINTER:
-		{
-			const auto *pointee = v.type->as_pointer.pointee;
-			uptr p = *(uptr *)(v.data);
-			printf("%p: ", (void *)p);
-			print({(void *)p, pointee});
-			break;
-		}
 		case TYPE_KIND_ARRAY:
 		{
 			printf("[ ");
@@ -188,6 +87,14 @@ print(Value v)
 				print({(char *)v.data + element->size * i, element});
 			}
 			printf(" ]");
+			break;
+		}
+		case TYPE_KIND_POINTER:
+		{
+			const auto *pointee = v.type->as_pointer.pointee;
+			uptr *pointer = *(uptr **)(v.data);
+			printf("%p: ", pointer);
+			print({pointer, pointee});
 			break;
 		}
 	}
@@ -202,11 +109,13 @@ main(i32 argc, char **argv)
 	platform_set_current_directory();
 
 	auto *vec3_type = type_of<Vector3>();
+	auto *i32_type = type_of<i32>();
 	print(value_of(Vector3{1.0f, 2.0f, 3.0f}));
 	print(value_of(Foo{{1, 2, 3}}));
 	f32 x = 5.0f;
 	print(value_of(Pointer{&x}));
 	unused(vec3_type);
+	unused(i32_type);
 
 	return 0;
 
