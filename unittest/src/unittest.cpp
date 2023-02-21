@@ -138,7 +138,7 @@ print(Value v)
 		}
 		case TYPE_KIND_UINT:
 		{
-			printf("%zu", *(u32 *)v.data);
+			printf("%u", *(u32 *)v.data);
 			break;
 		}
 		case TYPE_KIND_FLOAT:
