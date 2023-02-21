@@ -21,9 +21,9 @@ struct Pointer
 };
 
 inline static const Type _vec3_fields[] = {
-	{ "x", TYPE_KIND_FLOAT, sizeof(f32), offsetof(Vector3, x), alignof(f32) },
-	{ "y", TYPE_KIND_FLOAT, sizeof(f32), offsetof(Vector3, y), alignof(f32) },
-	{ "z", TYPE_KIND_FLOAT, sizeof(f32), offsetof(Vector3, z), alignof(f32) }
+	{ "x", TYPE_KIND_FLOAT, sizeof(f32), offsetof(Vector3, x), alignof(f32), 0, 0 },
+	{ "y", TYPE_KIND_FLOAT, sizeof(f32), offsetof(Vector3, y), alignof(f32), 0, 0 },
+	{ "z", TYPE_KIND_FLOAT, sizeof(f32), offsetof(Vector3, z), alignof(f32), 0, 0 }
 };
 
 inline static const Type _vec3_type = {
@@ -33,8 +33,8 @@ inline static const Type _vec3_type = {
 	.offset = offsetof(Vector3, x),
 	.align = alignof(Vector3),
 	.as_struct = {
-		.fields = _vec3_fields,
-		.field_count = 3
+		_vec3_fields,
+		3
 	}
 };
 
@@ -43,7 +43,8 @@ inline static const Type _i32_type = {
 	.kind = TYPE_KIND_INT,
 	.size = sizeof(i32),
 	.offset = 0,
-	.align = alignof(i32)
+	.align = alignof(i32),
+	.as_struct = {}
 };
 
 template <>
@@ -58,7 +59,8 @@ inline static const Type _f32_type = {
 	.kind = TYPE_KIND_FLOAT,
 	.size = sizeof(f32),
 	.offset = 0,
-	.align = alignof(f32)
+	.align = alignof(f32),
+	.as_struct = {}
 };
 
 template <>
@@ -81,15 +83,14 @@ inline static const Type _foo_type = {
 	.offset = offsetof(Foo, array),
 	.align = alignof(Foo),
 	.as_struct = {
-		.fields = _foo_fields,
-		.field_count = 1
+		_foo_fields,
+		1
 	}
 };
 
-
 inline static const Type _pointer_fields[] = {
 	// TODO: Fix offsetof in array elements.
-	{ "ptr", TYPE_KIND_POINTER, sizeof(f32 *), offsetof(Pointer, ptr), alignof(f32 *), { type_of<f32>() } },
+	{ "ptr", TYPE_KIND_POINTER, sizeof(f32 *), offsetof(Pointer, ptr), alignof(f32 *), { type_of<f32>(), 0 } },
 };
 
 inline static const Type _pointer_type = {
@@ -99,8 +100,8 @@ inline static const Type _pointer_type = {
 	.offset = offsetof(Pointer, ptr),
 	.align = alignof(Pointer),
 	.as_struct = {
-		.fields = _pointer_fields,
-		.field_count = 1
+		_pointer_fields,
+		1
 	}
 };
 
@@ -132,12 +133,27 @@ print(Value v)
 	{
 		case TYPE_KIND_INT:
 		{
-			printf("%d", *(i32 *)v.data);
+			printf("%ld", *(i64 *)v.data);
+			break;
+		}
+		case TYPE_KIND_UINT:
+		{
+			printf("%zu", *(u64 *)v.data);
 			break;
 		}
 		case TYPE_KIND_FLOAT:
 		{
-			printf("%g", *(f32 *)v.data);
+			printf("%g", *(f64 *)v.data);
+			break;
+		}
+		case TYPE_KIND_BOOL:
+		{
+			printf("%s", *(bool *)v.data ? "true": "false");
+			break;
+		}
+		case TYPE_KIND_CHAR:
+		{
+			printf("%c", *(char *)v.data);
 			break;
 		}
 		case TYPE_KIND_STRUCT:
@@ -190,7 +206,7 @@ main(i32 argc, char **argv)
 	print(value_of(Foo{{1, 2, 3}}));
 	f32 x = 5.0f;
 	print(value_of(Pointer{&x}));
-	(void *)vec3_type;
+	unused(vec3_type);
 
 	return 0;
 
