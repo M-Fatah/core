@@ -11,6 +11,7 @@
 	- [x] Add pointer => pointee.
 	- [x] Add array => element_type and count.
 		- [ ] offsetof is not correct in array elements.
+	- [ ] Differentiate between variable name and type name.
 	- [ ] Simplify writing.
 	- [ ] Cleanup.
 */
@@ -43,16 +44,15 @@ struct Type
 		} as_struct;
 		struct
 		{
-			const Type *pointee_type;
+			const Type *pointee;
 		} as_pointer;
 		struct
 		{
-			const Type *element_type;
+			const Type *element;
 			u64 element_count;
 		} as_array;
 	};
 };
-
 
 struct Value
 {

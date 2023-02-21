@@ -23,7 +23,7 @@ struct Pointer
 inline static const Type _vec3_fields[] = {
 	{ "x", TYPE_KIND_FLOAT, sizeof(f32), offsetof(Vector3, x), alignof(f32) },
 	{ "y", TYPE_KIND_FLOAT, sizeof(f32), offsetof(Vector3, y), alignof(f32) },
-	{ "z", TYPE_KIND_FLOAT, sizeof(f32), offsetof(Vector3, z), alignof(f32) },
+	{ "z", TYPE_KIND_FLOAT, sizeof(f32), offsetof(Vector3, z), alignof(f32) }
 };
 
 inline static const Type _vec3_type = {
@@ -155,7 +155,7 @@ print(Value v)
 		}
 		case TYPE_KIND_POINTER:
 		{
-			const auto *pointee = v.type->as_pointer.pointee_type;
+			const auto *pointee = v.type->as_pointer.pointee;
 			uptr p = *(uptr *)(v.data);
 			printf("%p: ", (void *)p);
 			print({(void *)p, pointee});
@@ -168,7 +168,7 @@ print(Value v)
 			{
 				if (i != 0)
 					printf(", ");
-				const auto *element = v.type->as_array.element_type;
+				const auto *element = v.type->as_array.element;
 				print({(char *)v.data + element->size * i, element});
 			}
 			printf(" ]");
