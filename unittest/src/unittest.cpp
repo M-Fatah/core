@@ -133,17 +133,17 @@ print(Value v)
 	{
 		case TYPE_KIND_INT:
 		{
-			printf("%ld", *(i64 *)v.data);
+			printf("%d", *(i32 *)v.data);
 			break;
 		}
 		case TYPE_KIND_UINT:
 		{
-			printf("%zu", *(u64 *)v.data);
+			printf("%zu", *(u32 *)v.data);
 			break;
 		}
 		case TYPE_KIND_FLOAT:
 		{
-			printf("%g", *(f64 *)v.data);
+			printf("%g", *(f32 *)v.data);
 			break;
 		}
 		case TYPE_KIND_BOOL:
