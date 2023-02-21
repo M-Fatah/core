@@ -20,7 +20,7 @@ enum TYPE_KIND
 	TYPE_KIND_INT,
 	TYPE_KIND_UINT,
 	TYPE_KIND_FLOAT,
-	TPYE_KIND_BOOL,
+	TYPE_KIND_BOOL,
 	TYPE_KIND_CHAR,
 	TYPE_KIND_STRUCT,
 	TYPE_KIND_POINTER,
@@ -61,16 +61,16 @@ struct Value
 };
 
 template <typename T>
-inline static Value
-value_of(T &&type)
-{
-	return Value{&type, type_of<T>()};
-}
-
-template <typename T>
 inline static const Type *
 type_of()
 {
 	static_assert(sizeof(T) == 0, "There is no `const Type * type_of<T>()` function overload defined for this type.");
 	return nullptr;
+}
+
+template <typename T>
+inline static Value
+value_of(T &&type)
+{
+	return Value{&type, type_of<T>()};
 }
