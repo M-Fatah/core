@@ -20,9 +20,9 @@ struct Pointer
 };
 
 TYPE_OF(Vector3, TYPE_KIND_STRUCT, {
-	TYPE_OF_FIELD(x, TYPE_KIND_FLOAT, Vector3, f32),
-	TYPE_OF_FIELD(y, TYPE_KIND_FLOAT, Vector3, f32),
-	TYPE_OF_FIELD(z, TYPE_KIND_FLOAT, Vector3, f32)
+	TYPE_OF_FIELD(x, TYPE_KIND_FLOAT, Vector3, f32, 0, 0),
+	TYPE_OF_FIELD(y, TYPE_KIND_FLOAT, Vector3, f32, 0, 0),
+	TYPE_OF_FIELD(z, TYPE_KIND_FLOAT, Vector3, f32, 0, 0)
 })
 
 TYPE_OF(Foo, TYPE_KIND_STRUCT, {
@@ -93,7 +93,7 @@ print(Value v)
 		{
 			const auto *pointee = v.type->as_pointer.pointee;
 			uptr *pointer = *(uptr **)(v.data);
-			printf("%p: ", pointer);
+			printf("%p: ", (void *)pointer);
 			print({pointer, pointee});
 			break;
 		}

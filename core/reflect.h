@@ -69,7 +69,7 @@ type_of()
 	return nullptr;
 }
 
-#define TYPE_OF(T, KIND, ...)                                  \
+#define TYPE_OF(T, KIND)                                       \
 template <>                                                    \
 inline const Type *                                            \
 type_of<T>()                                                   \
@@ -105,7 +105,7 @@ template <>                                                   \
 inline const Type *                                           \
 type_of<T>()                                                  \
 {                                                             \
-    static const Type _##T##_type##_fields[] = ##__VA_ARGS__; \
+    static const Type _##T##_type_fields[] = __VA_ARGS__;     \
                                                               \
     static const Type _##T##_type = {                         \
         .name = #T,                                           \
@@ -114,8 +114,8 @@ type_of<T>()                                                  \
         .offset = 0,                                          \
         .align = alignof(T),                                  \
         .as_struct = {                                        \
-            _##T##_type##_fields,                             \
-            sizeof(_##T##_type##_fields) / sizeof(Type)       \
+            _##T##_type_fields,                               \
+            sizeof(_##T##_type_fields) / sizeof(Type)         \
         }                                                     \
     };                                                        \
     return &_##T##_type;                                      \
