@@ -17,6 +17,8 @@ struct Foo
 struct Pointer
 {
 	f32 *ptr;
+	i32 *ptr_i32;
+	i8  *ptr_i8;
 };
 
 TYPE_OF(Vector3, TYPE_KIND_STRUCT, {
@@ -30,7 +32,11 @@ TYPE_OF(Foo, TYPE_KIND_STRUCT, {
 })
 
 TYPE_OF(Pointer, TYPE_KIND_STRUCT, {
-	{ "ptr", TYPE_KIND_POINTER, sizeof(f32 *), offsetof(Pointer, ptr), alignof(f32 *), type_of<f32>(), 0 }
+	// { "ptr", TYPE_KIND_POINTER, sizeof(f32 *), offsetof(Pointer, ptr), alignof(f32 *), type_of<f32>(), 0 }
+	// TODO: This lacks proper offset information!
+	*type_of<f32 *>(),
+	*type_of<i32 *>(),
+	*type_of<i8 *>()
 })
 
 inline static void
@@ -110,12 +116,18 @@ main(i32 argc, char **argv)
 
 	auto *vec3_type = type_of<Vector3>();
 	auto *i32_type = type_of<i32>();
+	auto *foo_ptr_type = type_of<Foo *>();
+	auto *foo_array_type = type_of<Foo[3]>();
 	print(value_of(Vector3{1.0f, 2.0f, 3.0f}));
 	print(value_of(Foo{{1, 2, 3}}));
-	f32 x = 5.0f;
-	print(value_of(Pointer{&x}));
+	f32 x = 5.5f;
+	i32 y = 3;
+	i8  z = 7;
+	print(value_of(Pointer{&x, &y, &z}));
 	unused(vec3_type);
 	unused(i32_type);
+	unused(foo_ptr_type);
+	unused(foo_array_type);
 
 	return 0;
 

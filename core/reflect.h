@@ -11,8 +11,11 @@
 	- [x] Add pointer => pointee.
 	- [x] Add array => element_type and count.
 		- [ ] offsetof is not correct in array elements.
+	- [x] Generate reflection for pointers.
+	- [x] Generate reflection for arrays.
+	- [ ] Generate reflection for enums.
 	- [ ] Differentiate between variable name and type name.
-	- [ ] Generate reflection for pointers/arrays/enums.
+	- [ ] Prettify typid(T).name().
 	- [ ] Simplify writing.
 	- [ ] Cleanup.
 */
@@ -119,6 +122,41 @@ type_of<T>()                                                  \
         }                                                     \
     };                                                        \
     return &_##T##_type;                                      \
+}
+
+template <typename T>
+requires (std::is_array_v<T>)
+inline const Type *
+type_of()
+{
+	static const Type _array_type = {
+		.name = typeid(T).name(),
+		.kind = TYPE_KIND_ARRAY,
+		.size = sizeof(T),
+		.offset = 0,
+		.align = alignof(T),
+		.as_array = {
+			type_of<typename std::remove_all_extents<T>::type>(),
+			sizeof(T) / sizeof(typename std::remove_all_extents<T>::type)
+		}
+	};
+	return &_array_type;
+}
+
+template <typename T>
+requires (std::is_pointer_v<T>)
+inline const Type *
+type_of()
+{
+	static const Type _pointer_type = {
+		.name = typeid(T).name(),
+		.kind = TYPE_KIND_POINTER,
+		.size = sizeof(T),
+		.offset = 0,
+		.align = alignof(T),
+		.as_pointer = type_of<std::remove_pointer_t<T>>()
+	};
+	return &_pointer_type;
 }
 
 template <typename T>
