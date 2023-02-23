@@ -2,6 +2,9 @@
 
 #include "defines.h"
 
+#include <string_view>
+#include <type_traits>
+
 /*
 	TODO:
 	- [ ] Name as reflect/reflector/reflection?
@@ -17,8 +20,10 @@
 	- [ ] Differentiate between variable name and type name.
 	- [ ] Try to constexpr everything.
 	- [x] Prettify typid(T).name().
+	- [ ] Unify naming => Arrays on MSVC are "Foo[3]" but on GCC are "Foo [3]".
 	- [ ] Simplify writing.
 	- [ ] Declare functions as static?
+	- [ ] Try to get rid of std includes.
 	- [ ] Cleanup.
 */
 
@@ -131,50 +136,48 @@ type_of<T>()                                                  \
 	return &_##T##_type;                                      \
 }
 
-#include <type_traits>
-
 template <typename T>
 inline static const char *
 name_of()
 {
+	auto nn = [&]<typename R>() -> std::string_view {
 	#ifdef __clang__
-		const char *p = __PRETTY_FUNCTION__;
+		return __PRETTY_FUNCTION__;
 	#elif defined(__GNUC__)
-		const char *p = __PRETTY_FUNCTION__;
+		return __PRETTY_FUNCTION__;
 	#elif defined(_MSC_VER)
-		const char *p = __FUNCSIG__;
+		return __FUNCSIG__;
 	#else
-		#error "[REFLECT]: Unsupported compiler"
+		#error "Unsupported compiler"
 	#endif
-
-	auto get_type_name = [&]() -> const char * {
-		static char buff[1024] = {};
-		while (*p++ != '=');
-		for (; *p == ' '; ++p);
-		const char *p2 = p;
-		int count = 1;
-		for (;;++p2)
-		{
-			switch (*p2)
-			{
-				case '[':
-					++count;
-					break;
-				case ']':
-				{
-					--count;
-					if (!count)
-					{
-						::memcpy(buff, p, p2 - p);
-						return buff;
-					}
-				}
-			}
-		}
 	};
 
-	static const char *name = get_type_name();
-	return name;
+	static char buff[1024] = {};
+	constexpr auto wrapped_name = nn.template operator()<T>();
+	constexpr auto prefix_length = nn.template operator()<void>().find("void");
+	constexpr auto suffix_length = nn.template operator()<void>().length() - prefix_length - std::string_view("void").length();
+	constexpr auto type_name_length = wrapped_name.length() - prefix_length - suffix_length;
+
+#if defined(_MSC_VER)
+	if constexpr (std::is_enum_v<T>)
+	{
+		constexpr auto type_prefix_length = nn.template operator()<T>().find("enum ", prefix_length);
+		constexpr auto data = wrapped_name.substr(type_prefix_length + 5, type_name_length - 5);
+		::memcpy((char *)buff, data.data(), data.length());
+		return buff;
+	}
+	else if constexpr (std::is_compound_v<T>)
+	{
+		constexpr auto type_prefix_length = nn.template operator()<T>().find("struct ", prefix_length);
+		constexpr auto data = wrapped_name.substr(type_prefix_length + 7, type_name_length - 7);
+		::memcpy((char *)buff, data.data(), data.length());
+		return buff;
+	}
+#else
+	constexpr auto data = wrapped_name.substr(prefix_length, type_name_length);
+	::memcpy((char *)buff, data.data(), data.length());
+	return buff;
+#endif
 }
 
 template <typename T>
