@@ -171,7 +171,6 @@ name_of()
 				}
 			}
 		}
-		return "";
 	};
 
 	static const char *name = get_type_name();
