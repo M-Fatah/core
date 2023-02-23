@@ -103,6 +103,10 @@ print(Value v)
 			print({pointer, pointee});
 			break;
 		}
+		default:
+		{
+			break;
+		}
 	}
 }
 
@@ -118,16 +122,23 @@ main(i32 argc, char **argv)
 	auto *i32_type = type_of<i32>();
 	auto *foo_ptr_type = type_of<Foo *>();
 	auto *foo_array_type = type_of<Foo[3]>();
+	auto *type_kind_enum_type = type_of<TYPE_KIND>();
 	print(value_of(Vector3{1.0f, 2.0f, 3.0f}));
 	print(value_of(Foo{{1, 2, 3}}));
 	f32 x = 5.5f;
 	i32 y = 3;
 	i8  z = 7;
 	print(value_of(Pointer{&x, &y, &z}));
+	auto *foo_array_type2 = type_of<Foo[3]>();
 	unused(vec3_type);
 	unused(i32_type);
 	unused(foo_ptr_type);
 	unused(foo_array_type);
+	unused(foo_array_type2);
+	unused(type_kind_enum_type);
+
+	printf("%s\n", foo_ptr_type->name);
+	printf("%s\n", foo_array_type->name);
 
 	return 0;
 

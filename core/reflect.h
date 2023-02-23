@@ -15,8 +15,10 @@
 	- [x] Generate reflection for arrays.
 	- [ ] Generate reflection for enums.
 	- [ ] Differentiate between variable name and type name.
-	- [ ] Prettify typid(T).name().
+	- [ ] Try to constexpr everything.
+	- [x] Prettify typid(T).name().
 	- [ ] Simplify writing.
+	- [ ] Declare functions as static?
 	- [ ] Cleanup.
 */
 
@@ -29,7 +31,8 @@ enum TYPE_KIND
 	TYPE_KIND_CHAR,
 	TYPE_KIND_STRUCT,
 	TYPE_KIND_ARRAY,
-	TYPE_KIND_POINTER
+	TYPE_KIND_POINTER,
+	TYPE_KIND_ENUM
 };
 
 struct Type
@@ -55,6 +58,10 @@ struct Type
 		{
 			const Type *pointee;
 		} as_pointer;
+		struct
+		{
+			u64 element_count;
+		} as_enum;
 	};
 };
 
@@ -77,15 +84,15 @@ template <>                                                    \
 inline const Type *                                            \
 type_of<T>()                                                   \
 {                                                              \
-    static const Type _##T##_type = {                          \
-        .name = #T,                                            \
-        .kind = KIND,                                          \
-        .size = sizeof(T),                                     \
-        .offset = 0,                                           \
-        .align = alignof(T),                                   \
-        .as_struct = {}                                        \
-    };                                                         \
-    return &_##T##_type;                                       \
+	static const Type _##T##_type = {                          \
+		.name = #T,                                            \
+		.kind = KIND,                                          \
+		.size = sizeof(T),                                     \
+		.offset = 0,                                           \
+		.align = alignof(T),                                   \
+		.as_struct = {}                                        \
+	};                                                         \
+	return &_##T##_type;                                       \
 }
 
 TYPE_OF(i8, TYPE_KIND_INT)
@@ -108,20 +115,83 @@ template <>                                                   \
 inline const Type *                                           \
 type_of<T>()                                                  \
 {                                                             \
-    static const Type _##T##_type_fields[] = __VA_ARGS__;     \
-                                                              \
-    static const Type _##T##_type = {                         \
-        .name = #T,                                           \
-        .kind = KIND,                                         \
-        .size = sizeof(T),                                    \
-        .offset = 0,                                          \
-        .align = alignof(T),                                  \
-        .as_struct = {                                        \
-            _##T##_type_fields,                               \
-            sizeof(_##T##_type_fields) / sizeof(Type)         \
-        }                                                     \
-    };                                                        \
-    return &_##T##_type;                                      \
+	static const Type _##T##_type_fields[] = __VA_ARGS__;     \
+	                                                          \
+	static const Type _##T##_type = {                         \
+		.name = #T,                                           \
+		.kind = KIND,                                         \
+		.size = sizeof(T),                                    \
+		.offset = 0,                                          \
+		.align = alignof(T),                                  \
+		.as_struct = {                                        \
+			_##T##_type_fields,                               \
+			sizeof(_##T##_type_fields) / sizeof(Type)         \
+		}                                                     \
+	};                                                        \
+	return &_##T##_type;                                      \
+}
+
+#include <type_traits>
+
+template <typename T>
+inline static const char *
+name_of()
+{
+	#ifdef __clang__
+		const char *p = __PRETTY_FUNCTION__;
+	#elif defined(__GNUC__)
+		const char *p = __PRETTY_FUNCTION__;
+	#elif defined(_MSC_VER)
+		const char *p = __FUNCSIG__;
+	#else
+		#error "[REFLECT]: Unsupported compiler"
+	#endif
+
+	auto get_type_name = [&]() -> const char * {
+		static char buff[1024] = {};
+		while (*p++ != '=');
+		for (; *p == ' '; ++p);
+		const char *p2 = p;
+		int count = 1;
+		for (;;++p2)
+		{
+			switch (*p2)
+			{
+				case '[':
+					++count;
+					break;
+				case ']':
+				{
+					--count;
+					if (!count)
+					{
+						::memcpy(buff, p, p2 - p);
+						return buff;
+					}
+				}
+			}
+		}
+		return "";
+	};
+
+	static const char *name = get_type_name();
+	return name;
+}
+
+template <typename T>
+requires (std::is_enum_v<T>)
+inline const Type *
+type_of()
+{
+	static const Type _enum_type = {
+		.name = name_of<T>(),
+		.kind = TYPE_KIND_ENUM,
+		.size = sizeof(T),
+		.offset = 0,
+		.align = alignof(T),
+		.as_enum = {}
+	};
+	return &_enum_type;
 }
 
 template <typename T>
@@ -130,7 +200,7 @@ inline const Type *
 type_of()
 {
 	static const Type _array_type = {
-		.name = typeid(T).name(),
+		.name = name_of<T>(),
 		.kind = TYPE_KIND_ARRAY,
 		.size = sizeof(T),
 		.offset = 0,
@@ -149,7 +219,7 @@ inline const Type *
 type_of()
 {
 	static const Type _pointer_type = {
-		.name = typeid(T).name(),
+		.name = name_of<T>(),
 		.kind = TYPE_KIND_POINTER,
 		.size = sizeof(T),
 		.offset = 0,
@@ -166,6 +236,4 @@ value_of(T &&type)
 	return {&type, type_of<T>()};
 }
 
-#define TYPE_OF_FIELD(NAME, KIND, STRUCT, TYPE, ...)                                \
-{ #NAME, KIND, sizeof(TYPE), offsetof(STRUCT, NAME), alignof(TYPE), ##__VA_ARGS__ }
-// #undef TYPE_OF
+#define TYPE_OF_FIELD(NAME, KIND, STRUCT, TYPE, ...) { #NAME, KIND, sizeof(TYPE), offsetof(STRUCT, NAME), alignof(TYPE), ##__VA_ARGS__ }
