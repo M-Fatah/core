@@ -22,23 +22,22 @@ struct Pointer
 };
 
 TYPE_OF(Vector3, TYPE_KIND_STRUCT, {
-	TYPE_OF_FIELD(x, TYPE_KIND_FLOAT, Vector3, f32, 0, 0),
-	TYPE_OF_FIELD(y, TYPE_KIND_FLOAT, Vector3, f32, 0, 0),
-	TYPE_OF_FIELD(z, TYPE_KIND_FLOAT, Vector3, f32, 0, 0)
+	TYPE_OF_FIELD(x, TYPE_KIND_FLOAT, f32, 0, 0),
+	TYPE_OF_FIELD(y, TYPE_KIND_FLOAT, f32, 0, 0),
+	TYPE_OF_FIELD(z, TYPE_KIND_FLOAT, f32, 0, 0)
 })
 
 TYPE_OF(Foo, TYPE_KIND_STRUCT, {
-	TYPE_OF_FIELD(array, TYPE_KIND_ARRAY, Foo, i32[3], type_of<i32>(), 3)
+	TYPE_OF_FIELD(array, TYPE_KIND_ARRAY, i32[3], type_of<i32>(), 3)
 })
 
 TYPE_OF(Pointer, TYPE_KIND_STRUCT, {
-	// { "ptr", TYPE_KIND_POINTER, sizeof(f32 *), offsetof(Pointer, ptr), alignof(f32 *), type_of<f32>(), 0 }
-	// TODO: This lacks proper offset information!
-	*type_of<f32 *>(),
-	*type_of<i32 *>(),
-	*type_of<i8 *>()
+	TYPE_OF_FIELD(ptr, TYPE_KIND_POINTER, f32 *, type_of<f32>(), 0),
+	TYPE_OF_FIELD(ptr_i32, TYPE_KIND_POINTER, i32 *, type_of<i32>(), 0),
+	TYPE_OF_FIELD(ptr_i8, TYPE_KIND_POINTER, i8 *, type_of<i8>(), 0)
 })
 
+#include <inttypes.h>
 inline static void
 print(Value v)
 {
@@ -46,7 +45,24 @@ print(Value v)
 	{
 		case TYPE_KIND_INT:
 		{
-			printf("%d", *(i32 *)v.data);
+			switch (v.type->size)
+			{
+				case 1:
+					printf("%d", *(i8 *)v.data);
+					break;
+				case 2:
+					printf("%d", *(i16 *)v.data);
+					break;
+				case 4:
+					printf("%d", *(i32 *)v.data);
+					break;
+				case 8:
+					printf("%" PRId64, *(i64 *)v.data);
+					break;
+				default:
+					printf("%d", *(i32 *)v.data);
+					break;
+			}
 			break;
 		}
 		case TYPE_KIND_UINT:
