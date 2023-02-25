@@ -192,13 +192,67 @@ requires (std::is_enum_v<T>)
 constexpr inline static const Type *
 type_of()
 {
+	// TODO: Cleanup.
+	// TODO: Get names.
+	// TODO: Get values.
+	constexpr auto is_valid = []<typename E, E e>() -> bool {
+		#if defined(_MSC_VER)
+			auto name = __FUNCSIG__;
+			i32 i = (i32)strlen(name);
+			for (; i >= 0; --i) {
+				if (name[i] == '>') {
+					break;
+				}
+			}
+			for (; i >= 0; --i) {
+				if (name[i] == ')') {
+					break;
+				}
+			}
+		#elif defined(__GNUC__) || defined(__clang__)
+			auto name = __PRETTY_FUNCTION__;
+			i32 i = (i32)strlen(name);
+			for (; i >= 0; --i) {
+				if (name[i] == ' ') {
+					break;
+				}
+			}
+		#else
+			#error "Unsupported compiler"
+		#endif
+
+		char c = name[i + 1];
+		if ((c >= '0' && c <= '9') || c == '(' || c == ')') {
+			return false;
+		}
+		return true;
+	};
+
+	u64 count = 0;
+	auto count_valid_impl = [&]<T A>() {
+		count += is_valid.template operator()<T, A>();
+	};
+
+	auto count_valid = [&]<int... A>() {
+		(count_valid_impl.template operator()<(T)A>(), ...);
+	};
+
+	auto make_sequence = [&]<int...I>(std::integer_sequence<int, I...> unnused) {
+		unused(unnused);
+		count_valid.template operator()<I...>();
+	};
+
+	make_sequence.template operator()(std::make_integer_sequence<int, 100>());
+
 	static const Type _enum_type = {
 		.name = name_of<T>(),
 		.kind = TYPE_KIND_ENUM,
 		.size = sizeof(T),
 		.offset = 0,
 		.align = alignof(T),
-		.as_enum = {}
+		.as_enum = {
+			.element_count = count
+		}
 	};
 	return &_enum_type;
 }

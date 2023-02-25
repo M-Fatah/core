@@ -41,7 +41,7 @@ typedef uintptr_t uptr;
 namespace memory { struct Allocator; }
 
 template <typename T>
-inline static T
+constexpr inline static T
 clone(const T &, memory::Allocator *)
 {
 	static_assert(sizeof(T) == 0, "There is no `T clone(const T &, memory::Allocator *)` function overload defined for this type.");
@@ -49,14 +49,14 @@ clone(const T &, memory::Allocator *)
 }
 
 template <typename T>
-inline static void
+constexpr inline static void
 destroy(T &)
 {
 	static_assert(sizeof(T) == 0, "There is no `void destroy(T &)` function overload defined for this type.");
 }
 
 template <typename ...TArgs>
-void
+constexpr inline static void
 unused(const TArgs &...)
 {
 
