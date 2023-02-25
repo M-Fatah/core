@@ -228,21 +228,13 @@ type_of()
 		return true;
 	};
 
-	u64 count = 0;
-	auto count_valid_impl = [&]<T A>() {
-		count += is_valid.template operator()<T, A>();
+	auto count_valid_impl = [&]<T A>() -> u64 {
+		return is_valid.template operator()<T, A>();
 	};
 
-	auto count_valid = [&]<int... A>() {
-		(count_valid_impl.template operator()<(T)A>(), ...);
+	auto count_valid = [&]<i32... A>(std::integer_sequence<i32, A...>) {
+		return (count_valid_impl.template operator()<(T)A>() + ...);
 	};
-
-	auto make_sequence = [&]<int...I>(std::integer_sequence<int, I...> unnused) {
-		unused(unnused);
-		count_valid.template operator()<I...>();
-	};
-
-	make_sequence.template operator()(std::make_integer_sequence<int, 100>());
 
 	static const Type _enum_type = {
 		.name = name_of<T>(),
@@ -251,7 +243,7 @@ type_of()
 		.offset = 0,
 		.align = alignof(T),
 		.as_enum = {
-			.element_count = count
+			.element_count = count_valid.template operator()(std::make_integer_sequence<i32, 100>())
 		}
 	};
 	return &_enum_type;
