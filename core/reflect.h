@@ -2,6 +2,7 @@
 
 #include "defines.h"
 
+#include <array>
 #include <string_view>
 #include <type_traits>
 
@@ -17,6 +18,7 @@
 	- [ ] Simplify writing.
 	- [ ] Declare functions as static?
 	- [ ] Try to get rid of std includes.
+	- [ ] Use string_view for names and avoid allocations at all?
 	- [ ] Cleanup.
 	- [x] Add array => element_type and count.
 		- [ ] offsetof is not correct in array elements.
@@ -66,7 +68,7 @@ struct Type
 		struct
 		{
 			const i32 *indices;
-			const char **names;
+			const char (*names)[1024];
 			u64 element_count;
 		} as_enum;
 	};
@@ -189,92 +191,80 @@ name_of()
 #endif
 }
 
+// TODO: Simplify and properly name variables.
 template <typename T>
 requires (std::is_enum_v<T>)
 constexpr inline static const Type *
 type_of()
 {
-	// TODO: Cleanup.
-	// TODO: Get range?
-
+	// TODO: Store enum range?
 	struct Enum_Value_Data
 	{
 		bool is_valid;
 		i32 index;
-		const char *name;
+		std::string_view name;
 	};
 
-	auto get_enum_value_data = []<T e>() -> Enum_Value_Data {
+	constexpr const u64 MAX_ENUM_COUNT = 100;
+
+	constexpr auto get_enum_value_data = []<T V>() -> Enum_Value_Data {
+
+		constexpr auto get_function_name = []<T D>() -> std::string_view {
+			#if defined(_MSC_VER)
+				return __FUNCSIG__;
+			#elif defined(__GNUC__) || defined(__clang__)
+				return __PRETTY_FUNCTION__;
+			#else
+				#error "Unsupported compiler"
+			#endif
+		};
+
+		constexpr auto wrapped_name = get_function_name.template operator()<V>();
+
 		#if defined(_MSC_VER)
-			auto name = __FUNCSIG__;
-			i32 i = (i32)::strlen(name);
-			for (; i >= 0; --i) {
-				if (name[i] == '>') {
-					break;
-				}
-			}
-			for (; i >= 0; --i) {
-				if (name[i] == ')') {
-					break;
-				}
-			}
+			constexpr auto prefix_length = get_function_name.template operator()<V>().find("()<") + 3;
+			constexpr auto type_name_length = get_function_name.template operator()<V>().find(">", prefix_length) - prefix_length;
 		#elif defined(__GNUC__) || defined(__clang__)
-			auto name = __PRETTY_FUNCTION__;
-			i32 i = (i32)::strlen(name);
-			for (; i >= 0; --i) {
-				if (name[i] == ' ') {
-					break;
-				}
-			}
+			constexpr auto prefix_length = get_function_name.template operator()<V>().find("= ") + 2;
+			constexpr auto type_name_length = get_function_name.template operator()<V>().find(";", prefix_length) - prefix_length;
 		#else
 			#error "Unsupported compiler"
 		#endif
 
-		char c = name[i + 1];
-		if ((c >= '0' && c <= '9') || c == '(' || c == ')') {
+		constexpr char c = wrapped_name.data()[prefix_length];
+		if constexpr ((c >= '0' && c <= '9') || c == '(' || c == ')')
+		{
 			return {};
 		}
-
-		static char buff[1024] = {};
-
-		#if defined(_MSC_VER)
-			i += 2;
-			u64 ii = 0;
-			while (name[i] != '>')
-			{
-				buff[ii++] = name[i++];
-			}
-		#elif defined(__GNUC__) || defined(__clang__)
-			++i;
-			u64 ii = 0;
-			while (name[i] != ']')
-			{
-				buff[ii++] = name[i++];
-			}
-		#endif
-
-		return {true, (i32)e, buff};
+		else
+		{
+			return {true, (i32)V, {wrapped_name.data() + prefix_length, type_name_length}};
+		}
 	};
 
-	auto get_enum_value_count = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>) -> u64 {
+	constexpr auto get_enum_value_count = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>) -> u64 {
 		return (get_enum_value_data.template operator()<(T)index>().is_valid + ...);
 	};
 
-	auto count = get_enum_value_count.template operator()(std::make_integer_sequence<i32, 100>());
-
-	auto get_enum_value_index = [get_enum_value_data, count]<i32... index>(std::integer_sequence<i32, index...>) -> i32 * {
-		u64 c = 0;
-		static i32 index_array[100] = {};
-		((get_enum_value_data.template operator()<(T)index>().is_valid ? index_array[c++] = get_enum_value_data.template operator()<(T)index>().index : 0), ...);
-		return index_array;
+	constexpr auto get_data = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>)  {
+		constexpr std::array<Enum_Value_Data, sizeof...(index)> data{get_enum_value_data.template operator()<(T)index>()...};
+		return data;
 	};
 
-	auto get_enum_value_name = [get_enum_value_data, count]<i32... index>(std::integer_sequence<i32, index...>) -> const char ** {
-		u64 c = 0;
-		static const char * name_array[100] = {};
-		((get_enum_value_data.template operator()<(T)index>().is_valid ? name_array[c++] = get_enum_value_data.template operator()<(T)index>().name : ""), ...);
-		return name_array;
-	};
+	constexpr auto count = get_enum_value_count.template operator()(std::make_integer_sequence<i32, MAX_ENUM_COUNT>());
+	constexpr auto data  = get_data.template operator()(std::make_integer_sequence<i32, MAX_ENUM_COUNT>());
+
+	static i32 indices[count] = {};
+	static char names[count][1024] = {};
+	for (u64 i = 0, c = 0; i < MAX_ENUM_COUNT; ++i)
+	{
+		if (const auto &d = data[i]; d.is_valid)
+		{
+			indices[c] = d.index;
+			::memcpy(names[c], d.name.data(), d.name.length());
+			++c;
+		}
+	}
 
 	static const Type _enum_type = {
 		.name = name_of<T>(),
@@ -283,8 +273,8 @@ type_of()
 		.offset = 0,
 		.align = alignof(T),
 		.as_enum = {
-			.indices = get_enum_value_index.template operator()(std::make_integer_sequence<i32, 100>()),
-			.names = get_enum_value_name.template operator()(std::make_integer_sequence<i32, 100>()),
+			.indices = indices,
+			.names = names,
 			.element_count = count
 		}
 	};
