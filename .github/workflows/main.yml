@@ -25,6 +25,7 @@ jobs:
         with:
           submodules: 'true'
 
+      # TODO: Install GCC without using a script.
       - name: Installing GCC
         if: matrix.os == 'ubuntu-latest'
         uses: egor-tensin/setup-gcc@v1
