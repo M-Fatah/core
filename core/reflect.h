@@ -65,6 +65,8 @@ struct Type
 		} as_pointer;
 		struct
 		{
+			const i32 *indices;
+			const char **names;
 			u64 element_count;
 		} as_enum;
 	};
@@ -193,12 +195,19 @@ constexpr inline static const Type *
 type_of()
 {
 	// TODO: Cleanup.
-	// TODO: Get names.
-	// TODO: Get values.
-	constexpr auto is_valid = []<typename E, E e>() -> bool {
+	// TODO: Get range?
+
+	struct Enum_Value_Data
+	{
+		bool is_valid;
+		i32 index;
+		const char *name;
+	};
+
+	auto get_enum_value_data = []<T e>() -> Enum_Value_Data {
 		#if defined(_MSC_VER)
 			auto name = __FUNCSIG__;
-			i32 i = (i32)strlen(name);
+			i32 i = (i32)::strlen(name);
 			for (; i >= 0; --i) {
 				if (name[i] == '>') {
 					break;
@@ -211,7 +220,7 @@ type_of()
 			}
 		#elif defined(__GNUC__) || defined(__clang__)
 			auto name = __PRETTY_FUNCTION__;
-			i32 i = (i32)strlen(name);
+			i32 i = (i32)::strlen(name);
 			for (; i >= 0; --i) {
 				if (name[i] == ' ') {
 					break;
@@ -223,26 +232,49 @@ type_of()
 
 		char c = name[i + 1];
 		if ((c >= '0' && c <= '9') || c == '(' || c == ')') {
-			return false;
+			return {};
 		}
-		return true;
+
+		static char buff[1024] = {};
+
+		#if defined(_MSC_VER)
+			i += 2;
+			u64 ii = 0;
+			while (name[i] != '>')
+			{
+				buff[ii++] = name[i++];
+			}
+		#elif defined(__GNUC__) || defined(__clang__)
+			++i;
+			u64 ii = 0;
+			while (name[i] != ']')
+			{
+				buff[ii++] = name[i++];
+			}
+		#endif
+
+		return {true, (i32)e, buff};
 	};
 
-	u64 count = 0;
-	auto count_valid_impl = [&]<T A>() {
-		count += is_valid.template operator()<T, A>();
+	auto get_enum_value_count = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>) -> u64 {
+		return (get_enum_value_data.template operator()<(T)index>().is_valid + ...);
 	};
 
-	auto count_valid = [&]<int... A>() {
-		(count_valid_impl.template operator()<(T)A>(), ...);
+	auto count = get_enum_value_count.template operator()(std::make_integer_sequence<i32, 100>());
+
+	auto get_enum_value_index = [get_enum_value_data, count]<i32... index>(std::integer_sequence<i32, index...>) -> i32 * {
+		u64 c = 0;
+		static i32 index_array[100] = {};
+		((get_enum_value_data.template operator()<(T)index>().is_valid ? index_array[c++] = get_enum_value_data.template operator()<(T)index>().index : 0), ...);
+		return index_array;
 	};
 
-	auto make_sequence = [&]<int...I>(std::integer_sequence<int, I...> unnused) {
-		unused(unnused);
-		count_valid.template operator()<I...>();
+	auto get_enum_value_name = [get_enum_value_data, count]<i32... index>(std::integer_sequence<i32, index...>) -> const char ** {
+		u64 c = 0;
+		static const char * name_array[100] = {};
+		((get_enum_value_data.template operator()<(T)index>().is_valid ? name_array[c++] = get_enum_value_data.template operator()<(T)index>().name : ""), ...);
+		return name_array;
 	};
-
-	make_sequence.template operator()(std::make_integer_sequence<int, 100>());
 
 	static const Type _enum_type = {
 		.name = name_of<T>(),
@@ -251,6 +283,8 @@ type_of()
 		.offset = 0,
 		.align = alignof(T),
 		.as_enum = {
+			.indices = get_enum_value_index.template operator()(std::make_integer_sequence<i32, 100>()),
+			.names = get_enum_value_name.template operator()(std::make_integer_sequence<i32, 100>()),
 			.element_count = count
 		}
 	};
