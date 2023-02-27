@@ -32,10 +32,15 @@ struct Point
 	T x, y, z;
 };
 
-TYPE_OF(Point<i32>, TYPE_KIND_STRUCT, {
-	TYPE_OF_FIELD(x, TYPE_KIND_INT, i32, 0, 0),
-	TYPE_OF_FIELD(y, TYPE_KIND_INT, i32, 0, 0),
-	TYPE_OF_FIELD(z, TYPE_KIND_INT, i32, 0, 0)
+// TODO: - Need to figure out field's TYPE_KIND based on the template parameter passed.
+//       - Need to properly get struct name with the correct template specialization (for example => convert `int` to `i32`).
+//       - Need to figure out a way to get rid of the `template <typename T>`?
+//       - Need to provide an interface to calls like this `const Type *point_i32_type = type_of<Point<i32>>();`.
+template <typename T>
+TYPE_OF_TEMPLATE(Point<T>, TYPE_KIND_STRUCT, {
+	TYPE_OF_FIELD(x, TYPE_KIND_INT, T, 0, 0),
+	TYPE_OF_FIELD(y, TYPE_KIND_INT, T, 0, 0),
+	TYPE_OF_FIELD(z, TYPE_KIND_INT, T, 0, 0)
 })
 
 TEST_CASE("[CORE]: Reflect")
@@ -180,8 +185,9 @@ TEST_CASE("[CORE]: Reflect")
 
 	SUBCASE("type_of<T> template struct")
 	{
-		const Type *point_i32_type = type_of<Point<i32>>();
-		CHECK(string_literal(point_i32_type->name) == "Point<i32>");
+		// const Type *point_i32_type = type_of<Point<i32>>();
+		const Type *point_i32_type = type_of(Point<i32>{1, 2, 3});
+		CHECK(string_literal(point_i32_type->name) == "Point<int>");
 		CHECK(point_i32_type->kind == TYPE_KIND_STRUCT);
 		CHECK(point_i32_type->size == sizeof(Point<i32>));
 		CHECK(point_i32_type->offset == 0);

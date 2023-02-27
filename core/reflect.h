@@ -22,7 +22,9 @@
 	- [ ] Use string_view for names and avoid allocations at all?
 	- [ ] Cleanup.
 	- [ ] Unify naming, instead of float, use "f32"?
-	- [ ] Provide an interface for writing template struct reflection code.
+	- [x] Provide an interface for writing template struct reflection code.
+		- [ ] Generate nested template reflection code.
+		- [ ] Simplify it.
 	- [x] Add array => element_type and count.
 		- [ ] offsetof is not correct in array elements => is it necessary?
 	- [x] Add pointer => pointee.
@@ -144,6 +146,26 @@ type_of<T>()                                        \
 	static const Type _type_fields[] = __VA_ARGS__; \
 	static const Type _type = {                     \
 		.name = #T,                                 \
+		.kind = KIND,                               \
+		.size = sizeof(T),                          \
+		.offset = 0,                                \
+		.align = alignof(T),                        \
+		.as_struct = {                              \
+			_type_fields,                           \
+			sizeof(_type_fields) / sizeof(Type)     \
+		}                                           \
+	};                                              \
+	return &_type;                                  \
+}
+
+#define TYPE_OF_TEMPLATE(T, KIND, ...)              \
+inline const Type *                                 \
+type_of(const T)                                    \
+{                                                   \
+	using type = T;                                 \
+	static const Type _type_fields[] = __VA_ARGS__; \
+	static const Type _type = {                     \
+		.name = name_of<T>(),                       \
 		.kind = KIND,                               \
 		.size = sizeof(T),                          \
 		.offset = 0,                                \
