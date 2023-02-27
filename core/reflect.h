@@ -3,6 +3,8 @@
 #include "defines.h"
 
 #include <array>
+#include <string.h>
+#include <stddef.h>
 #include <string_view>
 #include <type_traits>
 
@@ -12,7 +14,6 @@
 	- [ ] Rename TYPE_KIND enum.
 	- [ ] Group primitive types together, and type check them through type_of<T>()?
 			=> TYPE_KIND_PRIMITIVE => type_ptr == reflect_type<char>()????
-	- [ ] Generate reflection for enums.
 	- [ ] Differentiate between variable name and type name.
 	- [ ] Try to constexpr everything.
 	- [ ] Simplify writing.
@@ -25,8 +26,11 @@
 	- [x] Add pointer => pointee.
 	- [x] Generate reflection for pointers.
 	- [x] Generate reflection for arrays.
+	- [x] Generate reflection for enums.
 	- [x] Prettify typid(T).name().
 	- [x] Unify naming => Arrays on MSVC are "Foo[3]" but on GCC are "Foo [3]".
+		- [ ] Stick with "Foo[3]" or "Foo [3]"?
+	- [ ] Add unittests.
 */
 
 enum TYPE_KIND
