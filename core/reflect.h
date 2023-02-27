@@ -30,7 +30,7 @@
 	- [x] Prettify typid(T).name().
 	- [x] Unify naming => Arrays on MSVC are "Foo[3]" but on GCC are "Foo [3]".
 		- [ ] Stick with "Foo[3]" or "Foo [3]"?
-	- [ ] Add unittests.
+	- [x] Add unittests.
 */
 
 enum TYPE_KIND
