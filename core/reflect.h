@@ -21,12 +21,16 @@
 	- [ ] Try to get rid of std includes.
 	- [ ] Use string_view for names and avoid allocations at all?
 	- [ ] Cleanup.
+	- [ ] Unify naming, instead of float, use "f32"?
 	- [x] Add array => element_type and count.
-		- [ ] offsetof is not correct in array elements.
+		- [ ] offsetof is not correct in array elements => is it necessary?
 	- [x] Add pointer => pointee.
 	- [x] Generate reflection for pointers.
 	- [x] Generate reflection for arrays.
 	- [x] Generate reflection for enums.
+		- [ ] Add enum range?
+		- [ ] What if enum were used as flags?
+		- [ ] Add ability for the user to define enum range?
 	- [x] Prettify typid(T).name().
 	- [x] Unify naming => Arrays on MSVC are "Foo[3]" but on GCC are "Foo [3]".
 		- [ ] Stick with "Foo[3]" or "Foo [3]"?
@@ -246,17 +250,13 @@ type_of()
 		}
 	};
 
-	constexpr auto get_enum_value_count = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>) -> u64 {
+	constexpr auto count = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>) -> u64 {
 		return (get_enum_value_data.template operator()<(T)index>().is_valid + ...);
-	};
+	}.template operator()(std::make_integer_sequence<i32, MAX_ENUM_COUNT>());
 
-	constexpr auto get_data = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>)  {
-		constexpr std::array<Enum_Value_Data, sizeof...(index)> data{get_enum_value_data.template operator()<(T)index>()...};
-		return data;
-	};
-
-	constexpr auto count = get_enum_value_count.template operator()(std::make_integer_sequence<i32, MAX_ENUM_COUNT>());
-	constexpr auto data  = get_data.template operator()(std::make_integer_sequence<i32, MAX_ENUM_COUNT>());
+	constexpr auto data = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>) -> std::array<Enum_Value_Data, MAX_ENUM_COUNT> {
+		return {get_enum_value_data.template operator()<(T)index>()...};
+	}.template operator()(std::make_integer_sequence<i32, MAX_ENUM_COUNT>());
 
 	static i32 indices[count] = {};
 	static char names[count][1024] = {};
