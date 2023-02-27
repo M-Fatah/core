@@ -26,11 +26,25 @@ TYPE_OF(Vector3, TYPE_KIND_STRUCT, {
 	TYPE_OF_FIELD(z, TYPE_KIND_FLOAT, f32, 0, 0)
 })
 
+template <typename T>
+struct Point
+{
+	T x, y, z;
+};
+
+TYPE_OF(Point<i32>, TYPE_KIND_STRUCT, {
+	TYPE_OF_FIELD(x, TYPE_KIND_INT, i32, 0, 0),
+	TYPE_OF_FIELD(y, TYPE_KIND_INT, i32, 0, 0),
+	TYPE_OF_FIELD(z, TYPE_KIND_INT, i32, 0, 0)
+})
+
 TEST_CASE("[CORE]: Reflect")
 {
 	SUBCASE("type_of<T> struct")
 	{
+		Vector3 vec3 = {1.0f, 2.0f, 3.0f};
 		const Type *vec3_type = type_of<Vector3>();
+		CHECK(vec3_type == type_of(vec3));
 		CHECK(string_literal(vec3_type->name) == "Vector3");
 		CHECK(vec3_type->kind == TYPE_KIND_STRUCT);
 		CHECK(vec3_type->size == sizeof(Vector3));
@@ -162,6 +176,18 @@ TEST_CASE("[CORE]: Reflect")
 			CHECK(reflect_enum_type->as_enum.indices[i] == i);
 			CHECK(reflect_enum_type->as_enum.names[i] == string_from(memory::temp_allocator(), "REFLECT_ENUM_{}", i));
 		}
+	}
+
+	SUBCASE("type_of<T> template struct")
+	{
+		const Type *point_i32_type = type_of<Point<i32>>();
+		CHECK(string_literal(point_i32_type->name) == "Point<i32>");
+		CHECK(point_i32_type->kind == TYPE_KIND_STRUCT);
+		CHECK(point_i32_type->size == sizeof(Point<i32>));
+		CHECK(point_i32_type->offset == 0);
+		CHECK(point_i32_type->align == alignof(Point<i32>));
+		CHECK(point_i32_type->as_struct.fields != nullptr);
+		CHECK(point_i32_type->as_struct.field_count == 3);
 	}
 }
 

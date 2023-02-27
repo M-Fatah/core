@@ -22,6 +22,7 @@
 	- [ ] Use string_view for names and avoid allocations at all?
 	- [ ] Cleanup.
 	- [ ] Unify naming, instead of float, use "f32"?
+	- [ ] Provide an interface for writing template struct reflection code.
 	- [x] Add array => element_type and count.
 		- [ ] offsetof is not correct in array elements => is it necessary?
 	- [x] Add pointer => pointee.
@@ -96,20 +97,27 @@ type_of()
 	return nullptr;
 }
 
-#define TYPE_OF(T, KIND)                                       \
-template <>                                                    \
-inline const Type *                                            \
-type_of<T>()                                                   \
-{                                                              \
-	static const Type _##T##_type = {                          \
-		.name = #T,                                            \
-		.kind = KIND,                                          \
-		.size = sizeof(T),                                     \
-		.offset = 0,                                           \
-		.align = alignof(T),                                   \
-		.as_struct = {}                                        \
-	};                                                         \
-	return &_##T##_type;                                       \
+template <typename T>
+constexpr inline const Type *
+type_of(const T)
+{
+	return type_of<T>();
+}
+
+#define TYPE_OF(T, KIND)                            \
+template <>                                         \
+inline const Type *                                 \
+type_of<T>()                                        \
+{                                                   \
+	static const Type _type = {                     \
+		.name = #T,                                 \
+		.kind = KIND,                               \
+		.size = sizeof(T),                          \
+		.offset = 0,                                \
+		.align = alignof(T),                        \
+		.as_struct = {}                             \
+	};                                              \
+	return &_type;                                  \
 }
 
 TYPE_OF(i8, TYPE_KIND_INT)
@@ -127,25 +135,25 @@ TYPE_OF(char, TYPE_KIND_CHAR)
 
 #undef TYPE_OF
 
-#define TYPE_OF(T, KIND, ...)                                 \
-template <>                                                   \
-inline const Type *                                           \
-type_of<T>()                                                  \
-{                                                             \
-	using type = T;                                           \
-	static const Type _##T##_type_fields[] = __VA_ARGS__;     \
-	static const Type _##T##_type = {                         \
-		.name = #T,                                           \
-		.kind = KIND,                                         \
-		.size = sizeof(T),                                    \
-		.offset = 0,                                          \
-		.align = alignof(T),                                  \
-		.as_struct = {                                        \
-			_##T##_type_fields,                               \
-			sizeof(_##T##_type_fields) / sizeof(Type)         \
-		}                                                     \
-	};                                                        \
-	return &_##T##_type;                                      \
+#define TYPE_OF(T, KIND, ...)                       \
+template <>                                         \
+inline const Type *                                 \
+type_of<T>()                                        \
+{                                                   \
+	using type = T;                                 \
+	static const Type _type_fields[] = __VA_ARGS__; \
+	static const Type _type = {                     \
+		.name = #T,                                 \
+		.kind = KIND,                               \
+		.size = sizeof(T),                          \
+		.offset = 0,                                \
+		.align = alignof(T),                        \
+		.as_struct = {                              \
+			_type_fields,                           \
+			sizeof(_type_fields) / sizeof(Type)     \
+		}                                           \
+	};                                              \
+	return &_type;                                  \
 }
 
 #define TYPE_OF_FIELD(NAME, KIND, T, ...) { #NAME, KIND, sizeof(T), offsetof(type, NAME), alignof(T), ##__VA_ARGS__ }
