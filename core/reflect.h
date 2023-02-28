@@ -168,27 +168,6 @@ type_of(const T)                                    \
 	using type = T;                                 \
 	static const Type _type_fields[] = __VA_ARGS__; \
 	static const Type _type = {                     \
-		.name = #T,                                 \
-		.kind = kind_of<T>(),                       \
-		.size = sizeof(T),                          \
-		.offset = 0,                                \
-		.align = alignof(T),                        \
-		.as_struct = {                              \
-			_type_fields,                           \
-			sizeof(_type_fields) / sizeof(Type)     \
-		}                                           \
-	};                                              \
-	return &_type;                                  \
-}
-
-#define TYPE_OF_TEMPLATE(T, TEMPLATE, ...)          \
-TEMPLATE                                            \
-inline const Type *                                 \
-type_of(const T)                                    \
-{                                                   \
-	using type = T;                                 \
-	static const Type _type_fields[] = __VA_ARGS__; \
-	static const Type _type = {                     \
 		.name = name_of<T>(),                       \
 		.kind = kind_of<T>(),                       \
 		.size = sizeof(T),                          \
