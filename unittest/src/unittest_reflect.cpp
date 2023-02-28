@@ -20,10 +20,10 @@ struct Vector3
 	f32 x, y, z;
 };
 
-TYPE_OF(Vector3, TYPE_KIND_STRUCT, {
-	TYPE_OF_FIELD(x, TYPE_KIND_FLOAT, f32, 0, 0),
-	TYPE_OF_FIELD(y, TYPE_KIND_FLOAT, f32, 0, 0),
-	TYPE_OF_FIELD(z, TYPE_KIND_FLOAT, f32, 0, 0)
+TYPE_OF(Vector3, {
+	TYPE_OF_FIELD(x, f32, 0, 0),
+	TYPE_OF_FIELD(y, f32, 0, 0),
+	TYPE_OF_FIELD(z, f32, 0, 0)
 })
 
 template <typename T>
@@ -32,15 +32,12 @@ struct Point
 	T x, y, z;
 };
 
-// TODO: - Need to figure out field's TYPE_KIND based on the template parameter passed.
-//       - Need to properly get struct name with the correct template specialization (for example => convert `int` to `i32`).
+// TODO: - Need to properly get struct name with the correct template specialization (for example => convert `int` to `i32`).
 //       - Need to figure out a way to get rid of the `template <typename T>`?
-//       - Need to provide an interface to calls like this `const Type *point_i32_type = type_of<Point<i32>>();`.
-template <typename T>
-TYPE_OF_TEMPLATE(Point<T>, TYPE_KIND_STRUCT, {
-	TYPE_OF_FIELD(x, TYPE_KIND_INT, T, 0, 0),
-	TYPE_OF_FIELD(y, TYPE_KIND_INT, T, 0, 0),
-	TYPE_OF_FIELD(z, TYPE_KIND_INT, T, 0, 0)
+TYPE_OF_TEMPLATE(Point<T>, template <typename T>, {
+	TYPE_OF_FIELD(x, T, 0, 0),
+	TYPE_OF_FIELD(y, T, 0, 0),
+	TYPE_OF_FIELD(z, T, 0, 0)
 })
 
 TEST_CASE("[CORE]: Reflect")
@@ -123,8 +120,9 @@ TEST_CASE("[CORE]: Reflect")
 
 	SUBCASE("type_of<T> array")
 	{
+		Vector3 array[3] = {{1.0f, 2.0f, 3.0f}, {4.0f, 5.0f, 6.0f}, {7.0f, 8.0f, 9.0f}};
 		const Type *vec3_type_array = type_of<Vector3 [3]>();
-
+		CHECK(vec3_type_array == type_of(array));
 		CHECK(string_literal(vec3_type_array->name) == "Vector3[3]");
 		CHECK(vec3_type_array->kind == TYPE_KIND_ARRAY);
 		CHECK(vec3_type_array->size == sizeof(Vector3[3]));
@@ -167,6 +165,7 @@ TEST_CASE("[CORE]: Reflect")
 	SUBCASE("type_of<T> enum")
 	{
 		const Type *reflect_enum_type = type_of<REFLECT>();
+		CHECK(reflect_enum_type == type_of(REFLECT_ENUM_0));
 		CHECK(string_literal(reflect_enum_type->name) == "REFLECT");
 		CHECK(reflect_enum_type->kind == TYPE_KIND_ENUM);
 		CHECK(reflect_enum_type->size == sizeof(REFLECT));
@@ -185,8 +184,12 @@ TEST_CASE("[CORE]: Reflect")
 
 	SUBCASE("type_of<T> template struct")
 	{
-		// const Type *point_i32_type = type_of<Point<i32>>();
+		CHECK(type_of<Point<f32>>() != nullptr);
+		CHECK(type_of<Point<Vector3>>() != nullptr);
+		CHECK(type_of<Point<Point<Vector3>>>() != nullptr);
+
 		const Type *point_i32_type = type_of(Point<i32>{1, 2, 3});
+		CHECK(point_i32_type == type_of<Point<i32>>());
 		CHECK(string_literal(point_i32_type->name) == "Point<int>");
 		CHECK(point_i32_type->kind == TYPE_KIND_STRUCT);
 		CHECK(point_i32_type->size == sizeof(Point<i32>));

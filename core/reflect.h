@@ -92,28 +92,52 @@ struct Value
 };
 
 template <typename T>
-constexpr inline static const Type *
-type_of()
+constexpr inline const Type *
+type_of(const T)
 {
-	static_assert(sizeof(T) == 0, "There is no `const Type * type_of<T>()` function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `const Type * type_of(const T)` function overload defined for this type.");
 	return nullptr;
 }
 
 template <typename T>
-constexpr inline const Type *
-type_of(const T)
+constexpr inline static const Type *
+type_of()
 {
-	return type_of<T>();
+	T t = {};
+	return type_of(t);
 }
 
-#define TYPE_OF(T, KIND)                            \
-template <>                                         \
+template <typename T>
+constexpr inline static TYPE_KIND
+kind_of()
+{
+	if constexpr (std::is_same_v<T, i8> || std::is_same_v<T, i16> || std::is_same_v<T, i32> || std::is_same_v<T, i64>)
+		return TYPE_KIND_INT;
+	else if constexpr (std::is_same_v<T, u8> || std::is_same_v<T, u16> || std::is_same_v<T, u32> || std::is_same_v<T, u64>)
+		return TYPE_KIND_UINT;
+	else if constexpr (std::is_same_v<T, f32> || std::is_same_v<T, f64>)
+		return TYPE_KIND_FLOAT;
+	else if constexpr (std::is_same_v<T, bool>)
+		return TYPE_KIND_BOOL;
+	else if constexpr (std::is_same_v<T, char>)
+		return TYPE_KIND_CHAR;
+	else if constexpr (std::is_array_v<T>)
+		return TYPE_KIND_ARRAY;
+	else if constexpr (std::is_pointer_v<T>)
+		return TYPE_KIND_POINTER;
+	else if constexpr (std::is_enum_v<T>)
+		return TYPE_KIND_ENUM;
+	else if constexpr (std::is_compound_v<T>)
+		return TYPE_KIND_STRUCT;
+}
+
+#define TYPE_OF(T)                                  \
 inline const Type *                                 \
-type_of<T>()                                        \
+type_of(const T)                                    \
 {                                                   \
 	static const Type _type = {                     \
 		.name = #T,                                 \
-		.kind = KIND,                               \
+		.kind = kind_of<T>(),                       \
 		.size = sizeof(T),                          \
 		.offset = 0,                                \
 		.align = alignof(T),                        \
@@ -122,31 +146,30 @@ type_of<T>()                                        \
 	return &_type;                                  \
 }
 
-TYPE_OF(i8, TYPE_KIND_INT)
-TYPE_OF(i16, TYPE_KIND_INT)
-TYPE_OF(i32, TYPE_KIND_INT)
-TYPE_OF(i64, TYPE_KIND_INT)
-TYPE_OF(u8, TYPE_KIND_UINT)
-TYPE_OF(u16, TYPE_KIND_UINT)
-TYPE_OF(u32, TYPE_KIND_UINT)
-TYPE_OF(u64, TYPE_KIND_UINT)
-TYPE_OF(f32, TYPE_KIND_FLOAT)
-TYPE_OF(f64, TYPE_KIND_FLOAT)
-TYPE_OF(bool, TYPE_KIND_BOOL)
-TYPE_OF(char, TYPE_KIND_CHAR)
+TYPE_OF(i8)
+TYPE_OF(i16)
+TYPE_OF(i32)
+TYPE_OF(i64)
+TYPE_OF(u8)
+TYPE_OF(u16)
+TYPE_OF(u32)
+TYPE_OF(u64)
+TYPE_OF(f32)
+TYPE_OF(f64)
+TYPE_OF(bool)
+TYPE_OF(char)
 
 #undef TYPE_OF
 
-#define TYPE_OF(T, KIND, ...)                       \
-template <>                                         \
+#define TYPE_OF(T, ...)                             \
 inline const Type *                                 \
-type_of<T>()                                        \
+type_of(const T)                                    \
 {                                                   \
 	using type = T;                                 \
 	static const Type _type_fields[] = __VA_ARGS__; \
 	static const Type _type = {                     \
 		.name = #T,                                 \
-		.kind = KIND,                               \
+		.kind = kind_of<T>(),                       \
 		.size = sizeof(T),                          \
 		.offset = 0,                                \
 		.align = alignof(T),                        \
@@ -158,7 +181,8 @@ type_of<T>()                                        \
 	return &_type;                                  \
 }
 
-#define TYPE_OF_TEMPLATE(T, KIND, ...)              \
+#define TYPE_OF_TEMPLATE(T, TEMPLATE, ...)          \
+TEMPLATE                                            \
 inline const Type *                                 \
 type_of(const T)                                    \
 {                                                   \
@@ -166,7 +190,7 @@ type_of(const T)                                    \
 	static const Type _type_fields[] = __VA_ARGS__; \
 	static const Type _type = {                     \
 		.name = name_of<T>(),                       \
-		.kind = KIND,                               \
+		.kind = kind_of<T>(),                       \
 		.size = sizeof(T),                          \
 		.offset = 0,                                \
 		.align = alignof(T),                        \
@@ -178,7 +202,7 @@ type_of(const T)                                    \
 	return &_type;                                  \
 }
 
-#define TYPE_OF_FIELD(NAME, KIND, T, ...) { #NAME, KIND, sizeof(T), offsetof(type, NAME), alignof(T), ##__VA_ARGS__ }
+#define TYPE_OF_FIELD(NAME, T, ...) { #NAME, kind_of<T>(), sizeof(T), offsetof(type, NAME), alignof(T), ##__VA_ARGS__ }
 
 // TODO: Simplify and properly name variables.
 template <typename T>
@@ -233,7 +257,7 @@ name_of()
 template <typename T>
 requires (std::is_enum_v<T>)
 constexpr inline static const Type *
-type_of()
+type_of(const T)
 {
 	// TODO: Store enum range?
 	struct Enum_Value_Data
@@ -302,7 +326,7 @@ type_of()
 
 	static const Type _enum_type = {
 		.name = name_of<T>(),
-		.kind = TYPE_KIND_ENUM,
+		.kind = kind_of<T>(),
 		.size = sizeof(T),
 		.offset = 0,
 		.align = alignof(T),
@@ -315,33 +339,33 @@ type_of()
 	return &_enum_type;
 }
 
-template <typename T>
-requires (std::is_array_v<T>)
+template <typename T, u64 N>
 constexpr inline static const Type *
-type_of()
+type_of(const T(&)[N])
 {
 	static const Type _array_type = {
-		.name = name_of<T>(),
-		.kind = TYPE_KIND_ARRAY,
-		.size = sizeof(T),
+		.name = name_of<T[N]>(),
+		.kind = kind_of<T[N]>(),
+		.size = sizeof(T[N]),
 		.offset = 0,
-		.align = alignof(T),
+		.align = alignof(T[N]),
+		// TODO: Test if we can remove this and keep only `T`.
 		.as_array = {
-			type_of<typename std::remove_all_extents<T>::type>(),
-			sizeof(T) / sizeof(typename std::remove_all_extents<T>::type)
+			type_of<typename std::remove_all_extents<T[N]>::type>(),
+			sizeof(T[N]) / sizeof(typename std::remove_all_extents<T[N]>::type)
 		}
 	};
 	return &_array_type;
 }
 
 template <typename T>
-requires (std::is_pointer_v<T>)
+requires (std::is_pointer_v<T> && !std::is_array_v<T>)
 constexpr inline static const Type *
-type_of()
+type_of(const T)
 {
 	static const Type _pointer_type = {
 		.name = name_of<T>(),
-		.kind = TYPE_KIND_POINTER,
+		.kind = kind_of<T>(),
 		.size = sizeof(T),
 		.offset = 0,
 		.align = alignof(T),
