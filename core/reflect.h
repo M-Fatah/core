@@ -331,17 +331,16 @@ type_of(const T(&)[N])
 		.size = sizeof(T[N]),
 		.offset = 0,
 		.align = alignof(T[N]),
-		// TODO: Test if we can remove this and keep only `T`.
 		.as_array = {
-			type_of<typename std::remove_all_extents<T[N]>::type>(),
-			sizeof(T[N]) / sizeof(typename std::remove_all_extents<T[N]>::type)
+			type_of<T>(),
+			N
 		}
 	};
 	return &_array_type;
 }
 
 template <typename T>
-requires (std::is_pointer_v<T> && !std::is_array_v<T>)
+requires (std::is_pointer_v<T>)
 constexpr inline static const Type *
 type_of(const T)
 {
