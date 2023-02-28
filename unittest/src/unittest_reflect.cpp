@@ -40,6 +40,19 @@ TYPE_OF(Point<T>, {
 	TYPE_OF_FIELD(z, T, 0, 0)
 })
 
+template <typename T, typename R>
+struct Foo
+{
+	T x;
+	R y;
+};
+
+template <typename T, typename R>
+TYPE_OF(SINGLE_ARG(Foo<T, R>), {
+	TYPE_OF_FIELD(x, T, 0, 0),
+	TYPE_OF_FIELD(y, R, 0, 0)
+})
+
 TEST_CASE("[CORE]: Reflect")
 {
 	SUBCASE("type_of<T> primitives")
@@ -139,6 +152,10 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(point_i32_type->align == alignof(Point<i32>));
 		CHECK(point_i32_type->as_struct.fields != nullptr);
 		CHECK(point_i32_type->as_struct.field_count == 3);
+
+		Foo<f32, i32> foo = {1.5f, 1};
+		auto foo_f32_i32_type = type_of<Foo<f32, i32>>();
+		CHECK(foo_f32_i32_type == type_of(foo));
 	}
 
 	SUBCASE("type_of<T> array")

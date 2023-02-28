@@ -203,6 +203,8 @@ TYPE_OF(char)
 
 #undef TYPE_OF
 
+#define SINGLE_ARG(...) __VA_ARGS__
+
 #define TYPE_OF(T, ...)                             \
 inline static const Type *                          \
 type_of(const T)                                    \
