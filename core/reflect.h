@@ -146,10 +146,17 @@ name_of()
 		#endif
 	};
 
+	// TODO: Cleanup.
 	constexpr auto fill_buffer = [](char (&buffer)[1024], const std::string_view &data) {
 		u64 count = 0;
 		for (u64 i = 0; i < data.length(); ++i)
 		{
+			std::string_view d = {data.data() + i, data.length() - i};
+			if (d.starts_with("struct "))
+				i += 7;
+			else if (d.starts_with("enum "))
+				i += 5;
+
 			if (data.data()[i] != ' ')
 				buffer[count++] = data.data()[i];
 		}
@@ -160,24 +167,8 @@ name_of()
 	constexpr auto prefix_length = get_function_name.template operator()<void>().find("void");
 	constexpr auto suffix_length = get_function_name.template operator()<void>().length() - prefix_length - std::string_view("void").length();
 	constexpr auto type_name_length = wrapped_name.length() - prefix_length - suffix_length;
-
-#if defined(_MSC_VER)
-	if constexpr (std::is_enum_v<T>)
-	{
-		constexpr auto type_prefix_length = get_function_name.template operator()<T>().find("enum ", prefix_length);
-		fill_buffer(buffer, wrapped_name.substr(type_prefix_length + 5, type_name_length - 5));
-		return buffer;
-	}
-	else if constexpr (std::is_compound_v<T>)
-	{
-		constexpr auto type_prefix_length = get_function_name.template operator()<T>().find("struct ", prefix_length);
-		fill_buffer(buffer, wrapped_name.substr(type_prefix_length + 7, type_name_length - 7));
-		return buffer;
-	}
-#else
 	fill_buffer(buffer, wrapped_name.substr(prefix_length, type_name_length));
 	return buffer;
-#endif
 }
 
 template <typename T>
