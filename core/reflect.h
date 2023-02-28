@@ -92,22 +92,6 @@ struct Value
 };
 
 template <typename T>
-constexpr inline const Type *
-type_of(const T)
-{
-	static_assert(sizeof(T) == 0, "There is no `const Type * type_of(const T)` function overload defined for this type.");
-	return nullptr;
-}
-
-template <typename T>
-constexpr inline static const Type *
-type_of()
-{
-	T t = {};
-	return type_of(t);
-}
-
-template <typename T>
 constexpr inline static TYPE_KIND
 kind_of()
 {
@@ -129,6 +113,63 @@ kind_of()
 		return TYPE_KIND_ENUM;
 	else if constexpr (std::is_compound_v<T>)
 		return TYPE_KIND_STRUCT;
+}
+
+// TODO: Simplify and properly name variables.
+template <typename T>
+constexpr inline static const char *
+name_of()
+{
+	constexpr auto get_function_name = []<typename R>() -> std::string_view {
+		#if defined(_MSC_VER)
+			return __FUNCSIG__;
+		#elif defined(__GNUC__) || defined(__clang__)
+			return __PRETTY_FUNCTION__;
+		#else
+			#error "Unsupported compiler"
+		#endif
+	};
+
+	constexpr auto fill_buffer = [](char (&buffer)[1024], const std::string_view &data) {
+		u64 count = 0;
+		for (u64 i = 0; i < data.length(); ++i)
+		{
+			if (data.data()[i] != ' ')
+				buffer[count++] = data.data()[i];
+		}
+	};
+
+	static char buffer[1024] = {};
+	constexpr auto wrapped_name = get_function_name.template operator()<T>();
+	constexpr auto prefix_length = get_function_name.template operator()<void>().find("void");
+	constexpr auto suffix_length = get_function_name.template operator()<void>().length() - prefix_length - std::string_view("void").length();
+	constexpr auto type_name_length = wrapped_name.length() - prefix_length - suffix_length;
+
+#if defined(_MSC_VER)
+	if constexpr (std::is_enum_v<T>)
+	{
+		constexpr auto type_prefix_length = get_function_name.template operator()<T>().find("enum ", prefix_length);
+		fill_buffer(buffer, wrapped_name.substr(type_prefix_length + 5, type_name_length - 5));
+		return buffer;
+	}
+	else if constexpr (std::is_compound_v<T>)
+	{
+		constexpr auto type_prefix_length = get_function_name.template operator()<T>().find("struct ", prefix_length);
+		fill_buffer(buffer, wrapped_name.substr(type_prefix_length + 7, type_name_length - 7));
+		return buffer;
+	}
+#else
+	fill_buffer(buffer, wrapped_name.substr(prefix_length, type_name_length));
+	return buffer;
+#endif
+}
+
+template <typename T>
+constexpr inline const Type *
+type_of(const T)
+{
+	static_assert(sizeof(T) == 0, "There is no `const Type * type_of(const T)` function overload defined for this type.");
+	return nullptr;
 }
 
 #define TYPE_OF(T)                                  \
@@ -183,53 +224,12 @@ type_of(const T)                                    \
 
 #define TYPE_OF_FIELD(NAME, T, ...) { #NAME, kind_of<T>(), sizeof(T), offsetof(type, NAME), alignof(T), ##__VA_ARGS__ }
 
-// TODO: Simplify and properly name variables.
 template <typename T>
-constexpr inline static const char *
-name_of()
+constexpr inline static const Type *
+type_of()
 {
-	constexpr auto get_function_name = []<typename R>() -> std::string_view {
-		#if defined(_MSC_VER)
-			return __FUNCSIG__;
-		#elif defined(__GNUC__) || defined(__clang__)
-			return __PRETTY_FUNCTION__;
-		#else
-			#error "Unsupported compiler"
-		#endif
-	};
-
-	constexpr auto fill_buffer = [](char (&buffer)[1024], const std::string_view &data) {
-		u64 count = 0;
-		for (u64 i = 0; i < data.length(); ++i)
-		{
-			if (data.data()[i] != ' ')
-				buffer[count++] = data.data()[i];
-		}
-	};
-
-	static char buffer[1024] = {};
-	constexpr auto wrapped_name = get_function_name.template operator()<T>();
-	constexpr auto prefix_length = get_function_name.template operator()<void>().find("void");
-	constexpr auto suffix_length = get_function_name.template operator()<void>().length() - prefix_length - std::string_view("void").length();
-	constexpr auto type_name_length = wrapped_name.length() - prefix_length - suffix_length;
-
-#if defined(_MSC_VER)
-	if constexpr (std::is_enum_v<T>)
-	{
-		constexpr auto type_prefix_length = get_function_name.template operator()<T>().find("enum ", prefix_length);
-		fill_buffer(buffer, wrapped_name.substr(type_prefix_length + 5, type_name_length - 5));
-		return buffer;
-	}
-	else if constexpr (std::is_compound_v<T>)
-	{
-		constexpr auto type_prefix_length = get_function_name.template operator()<T>().find("struct ", prefix_length);
-		fill_buffer(buffer, wrapped_name.substr(type_prefix_length + 7, type_name_length - 7));
-		return buffer;
-	}
-#else
-	fill_buffer(buffer, wrapped_name.substr(prefix_length, type_name_length));
-	return buffer;
-#endif
+	T t = {};
+	return type_of(t);
 }
 
 // TODO: Simplify and properly name variables.
