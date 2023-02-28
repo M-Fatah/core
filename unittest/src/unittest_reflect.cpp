@@ -33,7 +33,6 @@ struct Point
 };
 
 // TODO: - Need to properly get struct name with the correct template specialization (for example => convert `int` to `i32`).
-//       - Need to figure out a way to get rid of the `template <typename T>`?
 template <typename T>
 TYPE_OF(Point<T>, {
 	TYPE_OF_FIELD(x, T, 0, 0),
