@@ -28,6 +28,7 @@
 	- [ ] Use string_view for names and avoid allocations at all?
 	- [ ] Cleanup.
 	- [ ] Unify naming, instead of float, use "f32"?
+	- [x] Fix nesting.
 	- [x] Provide an interface for writing template struct reflection code.
 		- [x] Generate nested template reflection code.
 		- [x] Simplify it.
@@ -59,18 +60,27 @@ enum TYPE_KIND
 	TYPE_KIND_ENUM
 };
 
+// TODO: Remove and simplify Type struct.
+struct Type;
+
+struct Type_Field
+{
+	const char *name;
+	u64 offset;
+	const Type *type;
+};
+
 struct Type
 {
 	const char *name;
 	TYPE_KIND kind;
 	u64 size;
-	u64 offset;
 	u64 align;
 	union
 	{
 		struct
 		{
-			const Type *fields;
+			const Type_Field *fields;
 			u64 field_count;
 		} as_struct;
 		struct
@@ -186,7 +196,6 @@ type_of(const T)                                    \
 		.name = #T,                                 \
 		.kind = kind_of<T>(),                       \
 		.size = sizeof(T),                          \
-		.offset = 0,                                \
 		.align = alignof(T),                        \
 		.as_struct = {}                             \
 	};                                              \
@@ -210,27 +219,26 @@ TYPE_OF(char)
 
 #define SINGLE_ARG(...) __VA_ARGS__
 
-#define TYPE_OF(T, ...)                             \
-inline static const Type *                          \
-type_of(const T)                                    \
-{                                                   \
-	using type = T;                                 \
-	static const Type _type_fields[] = __VA_ARGS__; \
-	static const Type _type = {                     \
-		.name = name_of<T>(),                       \
-		.kind = kind_of<T>(),                       \
-		.size = sizeof(T),                          \
-		.offset = 0,                                \
-		.align = alignof(T),                        \
-		.as_struct = {                              \
-			_type_fields,                           \
-			sizeof(_type_fields) / sizeof(Type)     \
-		}                                           \
-	};                                              \
-	return &_type;                                  \
+#define TYPE_OF(T, ...)                                   \
+inline static const Type *                                \
+type_of(const T)                                          \
+{                                                         \
+	using type = T;                                       \
+	static const Type_Field _type_fields[] = __VA_ARGS__; \
+	static const Type _type = {                           \
+		.name = name_of<T>(),                             \
+		.kind = kind_of<T>(),                             \
+		.size = sizeof(T),                                \
+		.align = alignof(T),                              \
+		.as_struct = {                                    \
+			_type_fields,                                 \
+			sizeof(_type_fields) / sizeof(Type_Field)     \
+		}                                                 \
+	};                                                    \
+	return &_type;                                        \
 }
 
-#define TYPE_OF_FIELD(NAME, T, ...) { #NAME, kind_of<T>(), sizeof(T), offsetof(type, NAME), alignof(T), ##__VA_ARGS__ }
+#define TYPE_OF_FIELD(NAME, T) { #NAME, offsetof(type, NAME), type_of<T>() }
 
 template <typename T>
 constexpr inline static const Type *
@@ -315,7 +323,6 @@ type_of(const T)
 		.name = name_of<T>(),
 		.kind = kind_of<T>(),
 		.size = sizeof(T),
-		.offset = 0,
 		.align = alignof(T),
 		.as_enum = {
 			.indices = indices,
@@ -334,7 +341,6 @@ type_of(const T(&)[N])
 		.name = name_of<T[N]>(),
 		.kind = kind_of<T[N]>(),
 		.size = sizeof(T[N]),
-		.offset = 0,
 		.align = alignof(T[N]),
 		.as_array = {
 			type_of<T>(),
@@ -353,7 +359,6 @@ type_of(const T)
 		.name = name_of<T>(),
 		.kind = kind_of<T>(),
 		.size = sizeof(T),
-		.offset = 0,
 		.align = alignof(T),
 		.as_pointer = type_of<std::remove_pointer_t<T>>()
 	};
