@@ -16,15 +16,16 @@
 			=> TYPE_KIND_PRIMITIVE => type_ptr == reflect_type<char>()????
 	- [ ] Differentiate between variable name and type name.
 	- [ ] Try to constexpr everything.
-	- [ ] Simplify writing.
-	- [ ] Declare functions as static?
+	- [x] Simplify writing.
+		- [ ] Get rid of missing initializer list initialization warning.
+	- [x] Declare functions as static?
 	- [ ] Try to get rid of std includes.
 	- [ ] Use string_view for names and avoid allocations at all?
 	- [ ] Cleanup.
 	- [ ] Unify naming, instead of float, use "f32"?
 	- [x] Provide an interface for writing template struct reflection code.
-		- [ ] Generate nested template reflection code.
-		- [ ] Simplify it.
+		- [x] Generate nested template reflection code.
+		- [x] Simplify it.
 	- [x] Add array => element_type and count.
 		- [ ] offsetof is not correct in array elements => is it necessary?
 	- [x] Add pointer => pointee.
@@ -165,15 +166,15 @@ name_of()
 }
 
 template <typename T>
-constexpr inline const Type *
+constexpr inline static const Type *
 type_of(const T)
 {
-	static_assert(sizeof(T) == 0, "There is no `const Type * type_of(const T)` function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `inline static const Type * type_of(const T)` function overload defined for this type.");
 	return nullptr;
 }
 
 #define TYPE_OF(T)                                  \
-inline const Type *                                 \
+inline const static Type *                          \
 type_of(const T)                                    \
 {                                                   \
 	static const Type _type = {                     \
@@ -203,7 +204,7 @@ TYPE_OF(char)
 #undef TYPE_OF
 
 #define TYPE_OF(T, ...)                             \
-inline const Type *                                 \
+inline static const Type *                          \
 type_of(const T)                                    \
 {                                                   \
 	using type = T;                                 \

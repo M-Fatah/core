@@ -44,14 +44,50 @@ TEST_CASE("[CORE]: Reflect")
 {
 	SUBCASE("type_of<T> primitives")
 	{
-		f32 v = 1.0f;
+		i32 i32_v = -1;
+		const Type *i32_type = type_of<i32>();
+		CHECK(i32_type == type_of(i32_v));
+		CHECK(string_literal(i32_type->name) == "i32");
+		CHECK(i32_type->kind == TYPE_KIND_INT);
+		CHECK(i32_type->size == sizeof(i32));
+		CHECK(i32_type->offset == 0);
+		CHECK(i32_type->align == alignof(i32));
+
+		u32 u32_v = 1;
+		const Type *u32_type = type_of<u32>();
+		CHECK(u32_type == type_of(u32_v));
+		CHECK(string_literal(u32_type->name) == "u32");
+		CHECK(u32_type->kind == TYPE_KIND_UINT);
+		CHECK(u32_type->size == sizeof(u32));
+		CHECK(u32_type->offset == 0);
+		CHECK(u32_type->align == alignof(u32));
+
+		f32 f32_v = 1.0f;
 		const Type *f32_type = type_of<f32>();
-		CHECK(f32_type == type_of(v));
+		CHECK(f32_type == type_of(f32_v));
 		CHECK(string_literal(f32_type->name) == "f32");
 		CHECK(f32_type->kind == TYPE_KIND_FLOAT);
 		CHECK(f32_type->size == sizeof(f32));
 		CHECK(f32_type->offset == 0);
 		CHECK(f32_type->align == alignof(f32));
+
+		bool bool_v = true;
+		const Type *bool_type = type_of<bool>();
+		CHECK(bool_type == type_of(bool_v));
+		CHECK(string_literal(bool_type->name) == "bool");
+		CHECK(bool_type->kind == TYPE_KIND_BOOL);
+		CHECK(bool_type->size == sizeof(bool));
+		CHECK(bool_type->offset == 0);
+		CHECK(bool_type->align == alignof(bool));
+
+		char char_v = 'A';
+		const Type *char_type = type_of<char>();
+		CHECK(char_type == type_of(char_v));
+		CHECK(string_literal(char_type->name) == "char");
+		CHECK(char_type->kind == TYPE_KIND_CHAR);
+		CHECK(char_type->size == sizeof(char));
+		CHECK(char_type->offset == 0);
+		CHECK(char_type->align == alignof(char));
 	}
 
 	SUBCASE("type_of<T> struct")
@@ -86,6 +122,23 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(field_z.size == sizeof(f32));
 		CHECK(field_z.offset == offsetof(Vector3, z));
 		CHECK(field_z.align == alignof(f32));
+	}
+
+	SUBCASE("type_of<T> template struct")
+	{
+		CHECK(type_of<Point<f32>>() != nullptr);
+		CHECK(type_of<Point<Vector3>>() != nullptr);
+		CHECK(type_of<Point<Point<Vector3>>>() != nullptr);
+
+		const Type *point_i32_type = type_of(Point<i32>{1, 2, 3});
+		CHECK(point_i32_type == type_of<Point<i32>>());
+		CHECK(string_literal(point_i32_type->name) == "Point<int>");
+		CHECK(point_i32_type->kind == TYPE_KIND_STRUCT);
+		CHECK(point_i32_type->size == sizeof(Point<i32>));
+		CHECK(point_i32_type->offset == 0);
+		CHECK(point_i32_type->align == alignof(Point<i32>));
+		CHECK(point_i32_type->as_struct.fields != nullptr);
+		CHECK(point_i32_type->as_struct.field_count == 3);
 	}
 
 	SUBCASE("type_of<T> array")
@@ -192,23 +245,6 @@ TEST_CASE("[CORE]: Reflect")
 			CHECK(reflect_enum_type->as_enum.indices[i] == i);
 			CHECK(reflect_enum_type->as_enum.names[i] == string_from(memory::temp_allocator(), "REFLECT_ENUM_{}", i));
 		}
-	}
-
-	SUBCASE("type_of<T> template struct")
-	{
-		CHECK(type_of<Point<f32>>() != nullptr);
-		CHECK(type_of<Point<Vector3>>() != nullptr);
-		CHECK(type_of<Point<Point<Vector3>>>() != nullptr);
-
-		const Type *point_i32_type = type_of(Point<i32>{1, 2, 3});
-		CHECK(point_i32_type == type_of<Point<i32>>());
-		CHECK(string_literal(point_i32_type->name) == "Point<int>");
-		CHECK(point_i32_type->kind == TYPE_KIND_STRUCT);
-		CHECK(point_i32_type->size == sizeof(Point<i32>));
-		CHECK(point_i32_type->offset == 0);
-		CHECK(point_i32_type->align == alignof(Point<i32>));
-		CHECK(point_i32_type->as_struct.fields != nullptr);
-		CHECK(point_i32_type->as_struct.field_count == 3);
 	}
 }
 
