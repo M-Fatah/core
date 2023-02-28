@@ -8,6 +8,11 @@
 #include <string_view>
 #include <type_traits>
 
+#if defined (__GNUC__)
+	#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#elif defined (__clang__)
+	#pragma clang diagnostic ignored "-Wmissing-field-initializers"
+#endif
 /*
 	TODO:
 	- [ ] Name as reflect/reflector/reflection?
