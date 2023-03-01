@@ -152,10 +152,12 @@ name_of()
 		for (u64 i = 0; i < data.length(); ++i)
 		{
 			std::string_view d = {data.data() + i, data.length() - i};
-			if (d.starts_with("struct "))
-				i += 7;
-			else if (d.starts_with("enum "))
+			if (d.starts_with("enum "))
 				i += 5;
+			else if (d.starts_with("class "))
+				i += 6;
+			else if (d.starts_with("struct "))
+				i += 7;
 
 			if (data.data()[i] != ' ')
 				buffer[count++] = data.data()[i];
@@ -179,18 +181,18 @@ type_of(const T)
 	return nullptr;
 }
 
-#define TYPE_OF(T)                                  \
-inline const static Type *                          \
-type_of(const T)                                    \
-{                                                   \
-	static const Type _type = {                     \
-		.name = #T,                                 \
-		.kind = kind_of<T>(),                       \
-		.size = sizeof(T),                          \
-		.align = alignof(T),                        \
-		.as_struct = {}                             \
-	};                                              \
-	return &_type;                                  \
+#define TYPE_OF(T)                                        \
+inline const static Type *                                \
+type_of(const T)                                          \
+{                                                         \
+	static const Type _type = {                           \
+		.name = #T,                                       \
+		.kind = kind_of<T>(),                             \
+		.size = sizeof(T),                                \
+		.align = alignof(T),                              \
+		.as_struct = {}                                   \
+	};                                                    \
+	return &_type;                                        \
 }
 
 TYPE_OF(i8)
