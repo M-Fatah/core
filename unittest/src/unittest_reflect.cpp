@@ -28,7 +28,6 @@ TYPE_OF(Vector3, {
 	TYPE_OF_FIELD(z)
 })
 
-// TODO: - Need to properly get struct name with the correct template specialization (for example => convert `int` to `i32`).
 template <typename T>
 struct Point
 {

@@ -15,25 +15,23 @@
 #endif
 /*
 	TODO:
+	- [ ] Create global constexpr values for enum range and name length.
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Rename TYPE_KIND enum.
 	- [ ] Group primitive types together, and type check them through type_of<T>()?
 			=> TYPE_KIND_PRIMITIVE => type_ptr == reflect_type<char>()????
-	- [ ] Differentiate between variable name and type name.
 	- [ ] Try to constexpr everything.
-	- [x] Simplify writing.
-		- [ ] Get rid of missing initializer list initialization warning.
 	- [x] Declare functions as static?
 	- [ ] Try to get rid of std includes.
 	- [ ] Use string_view for names and avoid allocations at all?
 	- [ ] Cleanup.
-	- [ ] Unify naming, instead of float, use "f32"?
+	- [x] Differentiate between variable name and type name.
 	- [x] Fix nesting.
 	- [x] Provide an interface for writing template struct reflection code.
 		- [x] Generate nested template reflection code.
 		- [x] Simplify it.
 	- [x] Add array => element_type and count.
-		- [ ] offsetof is not correct in array elements => is it necessary?
+		- [x] offsetof is not correct in array elements => is it necessary?
 	- [x] Add pointer => pointee.
 	- [x] Generate reflection for pointers.
 	- [x] Generate reflection for arrays.
@@ -41,9 +39,13 @@
 		- [ ] Add enum range?
 		- [ ] What if enum were used as flags?
 		- [ ] Add ability for the user to define enum range?
+		- [ ] What if the user used weird assignment values (for example => ENUM_ZERO = 0, ENUM_THREE = 3, ENUM_TWO = 2)?
 	- [x] Prettify typid(T).name().
 	- [x] Unify naming => Arrays on MSVC are "Foo[3]" but on GCC are "Foo [3]".
+		- [ ] Unify naming, instead of float, use "f32"?
 		- [ ] Stick with "Foo[3]" or "Foo [3]"?
+	- [x] Simplify writing.
+		- [x] Get rid of missing initializer list initialization warning.
 	- [x] Add unittests.
 */
 
@@ -108,7 +110,7 @@ struct Value
 };
 
 template <typename T>
-constexpr inline static TYPE_KIND
+inline static constexpr TYPE_KIND
 kind_of()
 {
 	if constexpr (std::is_same_v<T, i8> || std::is_same_v<T, i16> || std::is_same_v<T, i32> || std::is_same_v<T, i64>)
@@ -131,9 +133,8 @@ kind_of()
 		return TYPE_KIND_STRUCT;
 }
 
-// TODO: Simplify and properly name variables.
 template <typename T>
-constexpr inline static const char *
+inline static constexpr const char *
 name_of()
 {
 	constexpr auto get_function_name = []<typename R>() -> std::string_view {
@@ -142,39 +143,39 @@ name_of()
 		#elif defined(__GNUC__) || defined(__clang__)
 			return __PRETTY_FUNCTION__;
 		#else
-			#error "Unsupported compiler"
+			#error "[REFLECT]: Unsupported compiler."
 		#endif
 	};
 
-	// TODO: Cleanup.
-	constexpr auto fill_buffer = [](char (&buffer)[1024], const std::string_view &data) {
-		u64 count = 0;
-		for (u64 i = 0; i < data.length(); ++i)
+	constexpr auto get_type_name = [](const std::string_view &type_name) -> const char * {
+		static char name[1024] = {};
+		for (u64 i = 0, count = 0; i < type_name.length(); ++i)
 		{
-			std::string_view d = {data.data() + i, data.length() - i};
-			if (d.starts_with("enum "))
+			std::string_view n = {type_name.data() + i, type_name.length() - i};
+			if (n.starts_with("enum "))
 				i += 5;
-			else if (d.starts_with("class "))
+			else if (n.starts_with("class "))
 				i += 6;
-			else if (d.starts_with("struct "))
+			else if (n.starts_with("struct "))
 				i += 7;
 
-			if (data.data()[i] != ' ')
-				buffer[count++] = data.data()[i];
+			if (type_name.data()[i] != ' ')
+				name[count++] = type_name.data()[i];
 		}
+		return name;
 	};
 
-	static char buffer[1024] = {};
-	constexpr auto wrapped_name = get_function_name.template operator()<T>();
-	constexpr auto prefix_length = get_function_name.template operator()<void>().find("void");
-	constexpr auto suffix_length = get_function_name.template operator()<void>().length() - prefix_length - std::string_view("void").length();
-	constexpr auto type_name_length = wrapped_name.length() - prefix_length - suffix_length;
-	fill_buffer(buffer, wrapped_name.substr(prefix_length, type_name_length));
-	return buffer;
+	constexpr auto type_function_name      = get_function_name.template operator()<T>();
+	constexpr auto void_function_name      = get_function_name.template operator()<void>();
+	constexpr auto type_name_prefix_length = void_function_name.find("void");
+	constexpr auto type_name_suffix_length = void_function_name.length() - type_name_prefix_length - 4;
+	constexpr auto type_name_length        = type_function_name.length() - type_name_prefix_length - type_name_suffix_length;
+
+	return get_type_name({type_function_name.data() + type_name_prefix_length, type_name_length});
 }
 
 template <typename T>
-constexpr inline static const Type *
+inline static constexpr const Type *
 type_of(const T)
 {
 	static_assert(sizeof(T) == 0, "There is no `inline static const Type * type_of(const T)` function overload defined for this type.");
@@ -182,7 +183,7 @@ type_of(const T)
 }
 
 #define TYPE_OF(T)                                        \
-inline const static Type *                                \
+inline static const Type *                                \
 type_of(const T)                                          \
 {                                                         \
 	static const Type _type = {                           \
@@ -235,7 +236,7 @@ type_of(const T)                                          \
 #define TYPE_OF_FIELD(NAME) { #NAME, offsetof(type, NAME), type_of(t.NAME) }
 
 template <typename T>
-constexpr inline static const Type *
+inline static constexpr const Type *
 type_of()
 {
 	T t = {};
@@ -245,7 +246,7 @@ type_of()
 // TODO: Simplify and properly name variables.
 template <typename T>
 requires (std::is_enum_v<T>)
-constexpr inline static const Type *
+inline static constexpr const Type *
 type_of(const T)
 {
 	// TODO: Store enum range?
@@ -328,7 +329,7 @@ type_of(const T)
 }
 
 template <typename T, u64 N>
-constexpr inline static const Type *
+inline static constexpr const Type *
 type_of(const T(&)[N])
 {
 	static const Type _array_type = {
@@ -346,7 +347,7 @@ type_of(const T(&)[N])
 
 template <typename T>
 requires (std::is_pointer_v<T>)
-constexpr inline static const Type *
+inline static constexpr const Type *
 type_of(const T)
 {
 	static const Type _pointer_type = {
@@ -360,7 +361,7 @@ type_of(const T)
 }
 
 template <typename T>
-constexpr inline static const Value
+inline static constexpr const Value
 value_of(T &&type)
 {
 	return {&type, type_of<T>()};
