@@ -25,11 +25,18 @@ jobs:
         with:
           submodules: 'true'
 
+      # TODO: Install GCC without using a script.
+      - name: Installing GCC
+        if: matrix.os == 'ubuntu-latest'
+        uses: egor-tensin/setup-gcc@v1
+        with:
+          version: 12
+
       - name: Installing Linux dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
             sudo apt update
-            sudo apt-get install -y gcc-12 g++-12 libx11-dev libxkbcommon-x11-dev libx11-xcb-dev
+            sudo apt-get install -y libx11-dev libxkbcommon-x11-dev libx11-xcb-dev
 
       - name: Configuring
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{matrix.build-variant}} -DCORE_BUILD_UNITY=OFF # TODO: Re-enable unity build.
