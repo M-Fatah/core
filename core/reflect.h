@@ -215,6 +215,7 @@ inline static const Type *                                \
 type_of(const T)                                          \
 {                                                         \
 	using type = T;                                       \
+	T t = {};                                             \
 	static const Type_Field _type_fields[] = __VA_ARGS__; \
 	static const Type _type = {                           \
 		.name = name_of<T>(),                             \
@@ -229,7 +230,7 @@ type_of(const T)                                          \
 	return &_type;                                        \
 }
 
-#define TYPE_OF_FIELD(NAME, T) { #NAME, offsetof(type, NAME), type_of<T>() }
+#define TYPE_OF_FIELD(NAME) { #NAME, offsetof(type, NAME), type_of(t.NAME) }
 
 template <typename T>
 constexpr inline static const Type *

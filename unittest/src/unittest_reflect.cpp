@@ -23,9 +23,9 @@ struct Vector3
 };
 
 TYPE_OF(Vector3, {
-	TYPE_OF_FIELD(x, f32),
-	TYPE_OF_FIELD(y, f32),
-	TYPE_OF_FIELD(z, f32)
+	TYPE_OF_FIELD(x),
+	TYPE_OF_FIELD(y),
+	TYPE_OF_FIELD(z)
 })
 
 // TODO: - Need to properly get struct name with the correct template specialization (for example => convert `int` to `i32`).
@@ -37,9 +37,9 @@ struct Point
 
 template <typename T>
 TYPE_OF(Point<T>, {
-	TYPE_OF_FIELD(x, T),
-	TYPE_OF_FIELD(y, T),
-	TYPE_OF_FIELD(z, T)
+	TYPE_OF_FIELD(x),
+	TYPE_OF_FIELD(y),
+	TYPE_OF_FIELD(z)
 })
 
 template <typename T, typename R>
@@ -51,8 +51,8 @@ struct Foo
 
 template <typename T, typename R>
 TYPE_OF(SINGLE_ARG(Foo<T, R>), {
-	TYPE_OF_FIELD(x, T),
-	TYPE_OF_FIELD(y, R)
+	TYPE_OF_FIELD(x),
+	TYPE_OF_FIELD(y)
 })
 
 TEST_CASE("[CORE]: Reflect")
