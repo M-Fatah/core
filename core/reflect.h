@@ -1,6 +1,6 @@
 #pragma once
 
-#include "defines.h"
+#include "core/defines.h"
 
 #include <array>
 #include <string.h>
@@ -13,40 +13,30 @@
 #elif defined (__clang__)
 	#pragma clang diagnostic ignored "-Wmissing-field-initializers"
 #endif
+
 /*
 	TODO:
-	- [ ] Create global constexpr values for enum range and name length.
-	- [ ] Name as reflect/reflector/reflection?
-	- [ ] Rename TYPE_KIND enum.
-	- [ ] Group primitive types together, and type check them through type_of<T>()?
-			=> TYPE_KIND_PRIMITIVE => type_ptr == reflect_type<char>()????
-	- [ ] Try to constexpr everything.
-	- [x] Declare functions as static?
-	- [ ] Try to get rid of std includes.
-	- [ ] Use string_view for names and avoid allocations at all?
-	- [ ] Cleanup.
-	- [x] Differentiate between variable name and type name.
-	- [x] Fix nesting.
-	- [x] Provide an interface for writing template struct reflection code.
-		- [x] Generate nested template reflection code.
-		- [x] Simplify it.
-	- [x] Add array => element_type and count.
-		- [x] offsetof is not correct in array elements => is it necessary?
-	- [x] Add pointer => pointee.
-	- [x] Generate reflection for pointers.
-	- [x] Generate reflection for arrays.
-	- [x] Generate reflection for enums.
-		- [ ] Add enum range?
-		- [ ] What if enum were used as flags?
-		- [ ] Add ability for the user to define enum range?
-		- [ ] What if the user used weird assignment values (for example => ENUM_ZERO = 0, ENUM_THREE = 3, ENUM_TWO = 2)?
-	- [x] Prettify typid(T).name().
+	- [x] Generate reflection
+		- [x] pointers.
+		- [x] arrays.
+		- [x] enums.
+			- [ ] Add enum range?
+			- [ ] What if enum were used as flags?
+			- [ ] Add ability for the user to define enum range?
+			- [ ] What if the user used weird assignment values (for example => ENUM_ZERO = 0, ENUM_THREE = 3, ENUM_TWO = 2)?
+		- [ ] Empty structs.
 	- [x] Unify naming => Arrays on MSVC are "Foo[3]" but on GCC are "Foo [3]".
 		- [ ] Unify naming, instead of float, use "f32"?
 		- [ ] Stick with "Foo[3]" or "Foo [3]"?
-	- [x] Simplify writing.
-		- [x] Get rid of missing initializer list initialization warning.
-	- [x] Add unittests.
+	- [ ] Cleanup warning defines for "missing-field-initializers".
+	- [ ] Name as reflect/reflector/reflection?
+	- [ ] Create global constexpr values for enum range and name length.
+	- [ ] Group primitive types together, and type check them through type_of<T>()?
+			=> TYPE_KIND_PRIMITIVE => type_ptr == reflect_type<char>()????
+	- [ ] Try to constexpr everything.
+	- [ ] Try to get rid of std includes.
+	- [ ] Use string_view for names and avoid allocations at all?
+	- [ ] Cleanup.
 */
 
 enum TYPE_KIND
@@ -182,18 +172,18 @@ type_of(const T)
 	return nullptr;
 }
 
-#define TYPE_OF(T)                                        \
-inline static const Type *                                \
-type_of(const T)                                          \
-{                                                         \
-	static const Type _type = {                           \
-		.name = #T,                                       \
-		.kind = kind_of<T>(),                             \
-		.size = sizeof(T),                                \
-		.align = alignof(T),                              \
-		.as_struct = {}                                   \
-	};                                                    \
-	return &_type;                                        \
+#define TYPE_OF(T)                                                                     \
+inline static const Type *                                                             \
+type_of(const T)                                                                       \
+{                                                                                      \
+	static const Type _type = {                                                        \
+		.name = #T,                                                                    \
+		.kind = kind_of<T>(),                                                          \
+		.size = sizeof(T),                                                             \
+		.align = alignof(T),                                                           \
+		.as_struct = {}                                                                \
+	};                                                                                 \
+	return &_type;                                                                     \
 }
 
 TYPE_OF(i8)
@@ -211,29 +201,42 @@ TYPE_OF(char)
 
 #undef TYPE_OF
 
-#define SINGLE_ARG(...) __VA_ARGS__
+#define TYPE_OF_FIELD16(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD15(__VA_ARGS__)
+#define TYPE_OF_FIELD15(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD14(__VA_ARGS__)
+#define TYPE_OF_FIELD14(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD13(__VA_ARGS__)
+#define TYPE_OF_FIELD13(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD12(__VA_ARGS__)
+#define TYPE_OF_FIELD12(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD11(__VA_ARGS__)
+#define TYPE_OF_FIELD11(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD10(__VA_ARGS__)
+#define TYPE_OF_FIELD10(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD9(__VA_ARGS__)
+#define TYPE_OF_FIELD9(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD8(__VA_ARGS__)
+#define TYPE_OF_FIELD8(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD7(__VA_ARGS__)
+#define TYPE_OF_FIELD7(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD6(__VA_ARGS__)
+#define TYPE_OF_FIELD6(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD5(__VA_ARGS__)
+#define TYPE_OF_FIELD5(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD4(__VA_ARGS__)
+#define TYPE_OF_FIELD4(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD3(__VA_ARGS__)
+#define TYPE_OF_FIELD3(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD2(__VA_ARGS__)
+#define TYPE_OF_FIELD2(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD1(__VA_ARGS__)
+#define TYPE_OF_FIELD1(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }
 
-#define TYPE_OF(T, ...)                                   \
-inline static const Type *                                \
-type_of(const T)                                          \
-{                                                         \
-	using type = T;                                       \
-	T t = {};                                             \
-	static const Type_Field _type_fields[] = __VA_ARGS__; \
-	static const Type _type = {                           \
-		.name = name_of<T>(),                             \
-		.kind = kind_of<T>(),                             \
-		.size = sizeof(T),                                \
-		.align = alignof(T),                              \
-		.as_struct = {                                    \
-			_type_fields,                                 \
-			sizeof(_type_fields) / sizeof(Type_Field)     \
-		}                                                 \
-	};                                                    \
-	return &_type;                                        \
+#define TYPE_OF(T, ...)                                                                \
+inline static const Type *                                                             \
+type_of(const T)                                                                       \
+{                                                                                      \
+	using type = T;                                                                    \
+	T t = {};                                                                          \
+	static const Type_Field _type_fields[] = { OVERLOAD(TYPE_OF_FIELD, __VA_ARGS__) }; \
+	static const Type _type = {                                                        \
+		.name = name_of<T>(),                                                          \
+		.kind = kind_of<T>(),                                                          \
+		.size = sizeof(T),                                                             \
+		.align = alignof(T),                                                           \
+		.as_struct = {                                                                 \
+			_type_fields,                                                              \
+			sizeof(_type_fields) / sizeof(Type_Field)                                  \
+		}                                                                              \
+	};                                                                                 \
+	return &_type;                                                                     \
 }
-
-#define TYPE_OF_FIELD(NAME) { #NAME, offsetof(type, NAME), type_of(t.NAME) }
 
 template <typename T>
 inline static constexpr const Type *

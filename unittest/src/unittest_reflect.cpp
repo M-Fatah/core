@@ -22,11 +22,7 @@ struct Vector3
 	f32 x, y, z;
 };
 
-TYPE_OF(Vector3, {
-	TYPE_OF_FIELD(x),
-	TYPE_OF_FIELD(y),
-	TYPE_OF_FIELD(z)
-})
+TYPE_OF(Vector3, x, y, z)
 
 template <typename T>
 struct Point
@@ -35,11 +31,7 @@ struct Point
 };
 
 template <typename T>
-TYPE_OF(Point<T>, {
-	TYPE_OF_FIELD(x),
-	TYPE_OF_FIELD(y),
-	TYPE_OF_FIELD(z)
-})
+TYPE_OF(Point<T>, x, y, z)
 
 template <typename T, typename R>
 struct Foo
@@ -49,10 +41,7 @@ struct Foo
 };
 
 template <typename T, typename R>
-TYPE_OF(SINGLE_ARG(Foo<T, R>), {
-	TYPE_OF_FIELD(x),
-	TYPE_OF_FIELD(y)
-})
+TYPE_OF(SINGLE_ARG(Foo<T, R>), x, y)
 
 TEST_CASE("[CORE]: Reflect")
 {
