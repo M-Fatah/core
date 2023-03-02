@@ -37,6 +37,7 @@
 	- [ ] Try to constexpr everything.
 	- [ ] Try to get rid of std includes.
 	- [ ] Use string_view for names and avoid allocations at all?
+	- [ ] Add unittests for kind_of<T>(), name_of<T>()?
 	- [ ] Cleanup.
 */
 
@@ -190,6 +191,16 @@ type_of(const T)
 #define TYPE_OF_FIELD02(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD01(__VA_ARGS__)
 #define TYPE_OF_FIELD01(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }
 
+// TODO: Remove and only use name_of<T>() function.
+template <typename>
+struct is_templated : std::false_type {};
+
+template <template <typename ...> typename T, typename ...TArgs>
+struct is_templated<T<TArgs ...>> : std::true_type {};
+
+template <typename T>
+constexpr auto is_templated_v = is_templated<T>::value;
+
 #define TYPE_OF(T, ...)                                                                     \
 inline static const Type *                                                                  \
 type_of(const T)                                                                            \
@@ -200,7 +211,7 @@ type_of(const T)                                                                
 		static const Type_Field _type_fields [] = { OVERLOAD(TYPE_OF_FIELD, __VA_ARGS__) }; \
 	)                                                                                       \
 	static const Type _type = {                                                             \
-		.name = name_of<T>(),                                                               \
+		.name = is_templated_v<T> ? name_of<T>() : #T,                                      \
 		.kind = kind_of<T>(),                                                               \
 		.size = sizeof(T),                                                                  \
 		.align = alignof(T),                                                                \

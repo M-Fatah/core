@@ -4,8 +4,6 @@
 
 #include <doctest/doctest.h>
 
-// TODO: Add unittests for type name.
-
 enum REFLECT
 {
 	REFLECT_ENUM_0,
@@ -57,7 +55,7 @@ TEST_CASE("[CORE]: Reflect")
 		i32 i32_v = -1;
 		const Type *i32_type = type_of<i32>();
 		CHECK(i32_type == type_of(i32_v));
-		CHECK(string_literal(i32_type->name) == "int");
+		CHECK(string_literal(i32_type->name) == "i32");
 		CHECK(i32_type->kind == TYPE_KIND_INT);
 		CHECK(i32_type->size == sizeof(i32));
 		CHECK(i32_type->align == alignof(i32));
@@ -65,7 +63,7 @@ TEST_CASE("[CORE]: Reflect")
 		u32 u32_v = 1;
 		const Type *u32_type = type_of<u32>();
 		CHECK(u32_type == type_of(u32_v));
-		CHECK(string_literal(u32_type->name) == "unsignedint");
+		CHECK(string_literal(u32_type->name) == "u32");
 		CHECK(u32_type->kind == TYPE_KIND_UINT);
 		CHECK(u32_type->size == sizeof(u32));
 		CHECK(u32_type->align == alignof(u32));
@@ -73,7 +71,7 @@ TEST_CASE("[CORE]: Reflect")
 		f32 f32_v = 1.0f;
 		const Type *f32_type = type_of<f32>();
 		CHECK(f32_type == type_of(f32_v));
-		CHECK(string_literal(f32_type->name) == "float");
+		CHECK(string_literal(f32_type->name) == "f32");
 		CHECK(f32_type->kind == TYPE_KIND_FLOAT);
 		CHECK(f32_type->size == sizeof(f32));
 		CHECK(f32_type->align == alignof(f32));
@@ -119,6 +117,7 @@ TEST_CASE("[CORE]: Reflect")
 		auto field_x = vec3_type->as_struct.fields[0];
 		CHECK(string_literal(field_x.name) == "x");
 		CHECK(field_x.offset == offsetof(Vector3, x));
+		CHECK(string_literal(field_x.type->name) == "f32");
 		CHECK(field_x.type->kind == TYPE_KIND_FLOAT);
 		CHECK(field_x.type->size == sizeof(f32));
 		CHECK(field_x.type->align == alignof(f32));
@@ -126,6 +125,7 @@ TEST_CASE("[CORE]: Reflect")
 		auto field_y = vec3_type->as_struct.fields[1];
 		CHECK(string_literal(field_y.name) == "y");
 		CHECK(field_y.offset == offsetof(Vector3, y));
+		CHECK(string_literal(field_y.type->name) == "f32");
 		CHECK(field_y.type->kind == TYPE_KIND_FLOAT);
 		CHECK(field_y.type->size == sizeof(f32));
 		CHECK(field_y.type->align == alignof(f32));
@@ -133,6 +133,7 @@ TEST_CASE("[CORE]: Reflect")
 		auto field_z = vec3_type->as_struct.fields[2];
 		CHECK(string_literal(field_z.name) == "z");
 		CHECK(field_z.offset == offsetof(Vector3, z));
+		CHECK(string_literal(field_z.type->name) == "f32");
 		CHECK(field_z.type->kind == TYPE_KIND_FLOAT);
 		CHECK(field_z.type->size == sizeof(f32));
 		CHECK(field_z.type->align == alignof(f32));
@@ -169,6 +170,7 @@ TEST_CASE("[CORE]: Reflect")
 		auto foo_point_vector3_field_x = foo_point_vector3_type->as_struct.fields[0];
 		CHECK(string_literal(foo_point_vector3_field_x.name) == "x");
 		CHECK(foo_point_vector3_field_x.offset == offsetof(foo_point_vector3_templated_type, x));
+		CHECK(string_literal(foo_point_vector3_field_x.type->name) == "Point<int>");
 		CHECK(foo_point_vector3_field_x.type->kind == TYPE_KIND_STRUCT);
 		CHECK(foo_point_vector3_field_x.type->size == sizeof(Point<i32>));
 		CHECK(foo_point_vector3_field_x.type->align == alignof(Point<i32>));
@@ -178,6 +180,7 @@ TEST_CASE("[CORE]: Reflect")
 		auto foo_point_vector3_field_y = foo_point_vector3_type->as_struct.fields[1];
 		CHECK(string_literal(foo_point_vector3_field_y.name) == "y");
 		CHECK(foo_point_vector3_field_y.offset == offsetof(foo_point_vector3_templated_type, y));
+		CHECK(string_literal(foo_point_vector3_field_y.type->name) == "Vector3");
 		CHECK(foo_point_vector3_field_y.type->kind == TYPE_KIND_STRUCT);
 		CHECK(foo_point_vector3_field_y.type->size == sizeof(Vector3));
 		CHECK(foo_point_vector3_field_y.type->align == alignof(Vector3));
@@ -208,6 +211,7 @@ TEST_CASE("[CORE]: Reflect")
 		auto field_x = vec3_type->as_struct.fields[0];
 		CHECK(string_literal(field_x.name) == "x");
 		CHECK(field_x.offset == offsetof(Vector3, x));
+		CHECK(string_literal(field_x.type->name) == "f32");
 		CHECK(field_x.type->kind == TYPE_KIND_FLOAT);
 		CHECK(field_x.type->size == sizeof(f32));
 		CHECK(field_x.type->align == alignof(f32));
@@ -248,6 +252,7 @@ TEST_CASE("[CORE]: Reflect")
 		auto field_x = vec3_type->as_struct.fields[0];
 		CHECK(string_literal(field_x.name) == "x");
 		CHECK(field_x.offset == offsetof(Vector3, x));
+		CHECK(field_x.type->name == "f32");
 		CHECK(field_x.type->kind == TYPE_KIND_FLOAT);
 		CHECK(field_x.type->size == sizeof(f32));
 		CHECK(field_x.type->align == alignof(f32));
@@ -255,6 +260,7 @@ TEST_CASE("[CORE]: Reflect")
 		auto field_y = vec3_type->as_struct.fields[1];
 		CHECK(string_literal(field_y.name) == "y");
 		CHECK(field_y.offset == offsetof(Vector3, y));
+		CHECK(field_y.type->name == "f32");
 		CHECK(field_y.type->kind == TYPE_KIND_FLOAT);
 		CHECK(field_y.type->size == sizeof(f32));
 		CHECK(field_y.type->align == alignof(f32));
@@ -262,6 +268,7 @@ TEST_CASE("[CORE]: Reflect")
 		auto field_z = vec3_type->as_struct.fields[2];
 		CHECK(string_literal(field_z.name) == "z");
 		CHECK(field_z.offset == offsetof(Vector3, z));
+		CHECK(field_z.type->name == "f32");
 		CHECK(field_z.type->kind == TYPE_KIND_FLOAT);
 		CHECK(field_z.type->size == sizeof(f32));
 		CHECK(field_z.type->align == alignof(f32));
