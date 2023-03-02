@@ -50,7 +50,7 @@ TYPE_OF(SINGLE_ARG(Foo<T, R>), x, y)
 
 TEST_CASE("[CORE]: Reflect")
 {
-	SUBCASE("name_of<T>")
+	SUBCASE("name_of<T> primitives")
 	{
 		auto i08_name = name_of<i8>();
 		auto i16_name = name_of<i16>();
@@ -83,6 +83,22 @@ TEST_CASE("[CORE]: Reflect")
 
 		CHECK(string_literal(bool_name) == "bool");
 		CHECK(string_literal(char_name) == "char");
+	}
+
+	SUBCASE("name_of<T> struct")
+	{
+		auto vec3_name = name_of<Vector3>();
+		CHECK(string_literal(vec3_name) == "Vector3");
+	}
+
+	SUBCASE("name_of<T> template struct")
+	{
+		auto point_i32_name = name_of<Point<i32>>();
+		auto point_f32_name = name_of<Point<f32>>();
+		auto point_vec3_name = name_of<Point<Vector3>>();
+		CHECK(string_literal(point_i32_name) == "Point<i32>");
+		CHECK(string_literal(point_f32_name) == "Point<f32>");
+		CHECK(string_literal(point_vec3_name) == "Point<Vector3>");
 	}
 
 	SUBCASE("type_of<T> primitives")
@@ -182,7 +198,7 @@ TEST_CASE("[CORE]: Reflect")
 
 		const Type *point_i32_type = type_of(Point<i32>{1, 2, 3});
 		CHECK(point_i32_type == type_of<Point<i32>>());
-		CHECK(string_literal(point_i32_type->name) == "Point<int>");
+		CHECK(string_literal(point_i32_type->name) == "Point<i32>");
 		CHECK(point_i32_type->kind == TYPE_KIND_STRUCT);
 		CHECK(point_i32_type->size == sizeof(Point<i32>));
 		CHECK(point_i32_type->align == alignof(Point<i32>));
@@ -194,7 +210,7 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(foo_f32_i32_type == type_of(foo));
 
 		auto foo_point_vector3_type = type_of<Foo<Point<i32>, Vector3>>();
-		CHECK(string_literal(foo_point_vector3_type->name) == "Foo<Point<int>,Vector3>");
+		CHECK(string_literal(foo_point_vector3_type->name) == "Foo<Point<i32>,Vector3>");
 		CHECK(foo_point_vector3_type->kind == TYPE_KIND_STRUCT);
 		CHECK(foo_point_vector3_type->size == sizeof(Foo<Point<i32>, Vector3>));
 		CHECK(foo_point_vector3_type->align == alignof(Foo<Point<i32>, Vector3>));
@@ -205,7 +221,7 @@ TEST_CASE("[CORE]: Reflect")
 		auto foo_point_vector3_field_x = foo_point_vector3_type->as_struct.fields[0];
 		CHECK(string_literal(foo_point_vector3_field_x.name) == "x");
 		CHECK(foo_point_vector3_field_x.offset == offsetof(foo_point_vector3_templated_type, x));
-		CHECK(string_literal(foo_point_vector3_field_x.type->name) == "Point<int>");
+		CHECK(string_literal(foo_point_vector3_field_x.type->name) == "Point<i32>");
 		CHECK(foo_point_vector3_field_x.type->kind == TYPE_KIND_STRUCT);
 		CHECK(foo_point_vector3_field_x.type->size == sizeof(Point<i32>));
 		CHECK(foo_point_vector3_field_x.type->align == alignof(Point<i32>));

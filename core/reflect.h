@@ -182,8 +182,36 @@ name_of()
 				else if (n.starts_with("struct "))
 					i += 7;
 
-				if (type_name.data()[i] != ' ')
+				// TODO: Cleanup.
+				if (type_name.data()[i] != ' ' && i < type_name.length() && count < sizeof(name))
+				{
+					if (type_name.data()[i] == '<')
+					{
+						++i;
+						name[count++] = '<';
+						const char *ptr = type_name.data() + i;
+						while (*ptr != ',' && *ptr != '>')
+							ptr++;
+
+						u64 diff = ptr - (type_name.data() + i);
+						std::string_view nn = {type_name.data() + i, diff};
+						if (nn == "int")
+						{
+							name[count++] = 'i';
+							name[count++] = '3';
+							name[count++] = '2';
+							i += 3;
+						}
+						else if (nn == "float")
+						{
+							name[count++] = 'f';
+							name[count++] = '3';
+							name[count++] = '2';
+							i += 5;
+						}
+					}
 					name[count++] = type_name.data()[i];
+				}
 			}
 			return name;
 		};
