@@ -17,6 +17,13 @@ enum REFLECT
 	REFLECT_ENUM_6,
 };
 
+struct Empty
+{
+
+};
+
+TYPE_OF(Empty)
+
 struct Vector3
 {
 	f32 x, y, z;
@@ -50,7 +57,7 @@ TEST_CASE("[CORE]: Reflect")
 		i32 i32_v = -1;
 		const Type *i32_type = type_of<i32>();
 		CHECK(i32_type == type_of(i32_v));
-		CHECK(string_literal(i32_type->name) == "i32");
+		CHECK(string_literal(i32_type->name) == "int");
 		CHECK(i32_type->kind == TYPE_KIND_INT);
 		CHECK(i32_type->size == sizeof(i32));
 		CHECK(i32_type->align == alignof(i32));
@@ -58,7 +65,7 @@ TEST_CASE("[CORE]: Reflect")
 		u32 u32_v = 1;
 		const Type *u32_type = type_of<u32>();
 		CHECK(u32_type == type_of(u32_v));
-		CHECK(string_literal(u32_type->name) == "u32");
+		CHECK(string_literal(u32_type->name) == "unsignedint");
 		CHECK(u32_type->kind == TYPE_KIND_UINT);
 		CHECK(u32_type->size == sizeof(u32));
 		CHECK(u32_type->align == alignof(u32));
@@ -66,7 +73,7 @@ TEST_CASE("[CORE]: Reflect")
 		f32 f32_v = 1.0f;
 		const Type *f32_type = type_of<f32>();
 		CHECK(f32_type == type_of(f32_v));
-		CHECK(string_literal(f32_type->name) == "f32");
+		CHECK(string_literal(f32_type->name) == "float");
 		CHECK(f32_type->kind == TYPE_KIND_FLOAT);
 		CHECK(f32_type->size == sizeof(f32));
 		CHECK(f32_type->align == alignof(f32));
@@ -90,6 +97,16 @@ TEST_CASE("[CORE]: Reflect")
 
 	SUBCASE("type_of<T> struct")
 	{
+		Empty empty = {};
+		const Type *empty_type = type_of<Empty>();
+		CHECK(empty_type == type_of(empty));
+		CHECK(string_literal(empty_type->name) == "Empty");
+		CHECK(empty_type->kind == TYPE_KIND_STRUCT);
+		CHECK(empty_type->size == sizeof(Empty));
+		CHECK(empty_type->align == alignof(Empty));
+		CHECK(empty_type->as_struct.fields == nullptr);
+		CHECK(empty_type->as_struct.field_count == 0);
+
 		Vector3 vec3 = {1.0f, 2.0f, 3.0f};
 		const Type *vec3_type = type_of<Vector3>();
 		CHECK(vec3_type == type_of(vec3));

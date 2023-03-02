@@ -25,7 +25,8 @@
 			- [ ] Add ability for the user to define enum range?
 			- [ ] What if the user used weird assignment values (for example => ENUM_ZERO = 0, ENUM_THREE = 3, ENUM_TWO = 2)?
 		- [ ] Empty structs.
-	- [x] Unify naming => Arrays on MSVC are "Foo[3]" but on GCC are "Foo [3]".
+	- [ ] Fix naming issue, where `unsigned int` => `unsignedint`.
+		- [x] Unify naming => Arrays on MSVC are "Foo[3]" but on GCC are "Foo [3]".
 		- [ ] Unify naming, instead of float, use "f32"?
 		- [ ] Stick with "Foo[3]" or "Foo [3]"?
 	- [ ] Cleanup warning defines for "missing-field-initializers".
@@ -172,18 +173,40 @@ type_of(const T)
 	return nullptr;
 }
 
-#define TYPE_OF(T)                                                                     \
-inline static const Type *                                                             \
-type_of(const T)                                                                       \
-{                                                                                      \
-	static const Type _type = {                                                        \
-		.name = #T,                                                                    \
-		.kind = kind_of<T>(),                                                          \
-		.size = sizeof(T),                                                             \
-		.align = alignof(T),                                                           \
-		.as_struct = {}                                                                \
-	};                                                                                 \
-	return &_type;                                                                     \
+#define TYPE_OF_FIELD16(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD15(__VA_ARGS__)
+#define TYPE_OF_FIELD15(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD14(__VA_ARGS__)
+#define TYPE_OF_FIELD14(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD13(__VA_ARGS__)
+#define TYPE_OF_FIELD13(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD12(__VA_ARGS__)
+#define TYPE_OF_FIELD12(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD11(__VA_ARGS__)
+#define TYPE_OF_FIELD11(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD10(__VA_ARGS__)
+#define TYPE_OF_FIELD10(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD09(__VA_ARGS__)
+#define TYPE_OF_FIELD09(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD08(__VA_ARGS__)
+#define TYPE_OF_FIELD08(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD07(__VA_ARGS__)
+#define TYPE_OF_FIELD07(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD06(__VA_ARGS__)
+#define TYPE_OF_FIELD06(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD05(__VA_ARGS__)
+#define TYPE_OF_FIELD05(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD04(__VA_ARGS__)
+#define TYPE_OF_FIELD04(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD03(__VA_ARGS__)
+#define TYPE_OF_FIELD03(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD02(__VA_ARGS__)
+#define TYPE_OF_FIELD02(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD01(__VA_ARGS__)
+#define TYPE_OF_FIELD01(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }
+
+#define TYPE_OF(T, ...)                                                                              \
+inline static const Type *                                                                           \
+type_of(const T)                                                                                     \
+{                                                                                                    \
+	__VA_OPT__(using TYPE = T;)                                                                      \
+	__VA_OPT__(TYPE t = {};)                                                                         \
+	__VA_OPT__(static const Type_Field _type_fields [] = { OVERLOAD(TYPE_OF_FIELD, __VA_ARGS__) }) ; \
+	static const Type _type = {                                                                      \
+		.name = name_of<T>(),                                                                        \
+		.kind = kind_of<T>(),                                                                        \
+		.size = sizeof(T),                                                                           \
+		.align = alignof(T),                                                                         \
+		.as_struct = {                                                                               \
+			__VA_OPT__(_type_fields, sizeof(_type_fields) / sizeof(Type_Field))                      \
+		}                                                                                            \
+	};                                                                                               \
+	return &_type;                                                                                   \
 }
 
 TYPE_OF(i8)
@@ -198,45 +221,6 @@ TYPE_OF(f32)
 TYPE_OF(f64)
 TYPE_OF(bool)
 TYPE_OF(char)
-
-#undef TYPE_OF
-
-#define TYPE_OF_FIELD16(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD15(__VA_ARGS__)
-#define TYPE_OF_FIELD15(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD14(__VA_ARGS__)
-#define TYPE_OF_FIELD14(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD13(__VA_ARGS__)
-#define TYPE_OF_FIELD13(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD12(__VA_ARGS__)
-#define TYPE_OF_FIELD12(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD11(__VA_ARGS__)
-#define TYPE_OF_FIELD11(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD10(__VA_ARGS__)
-#define TYPE_OF_FIELD10(NAME, ...) { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD9(__VA_ARGS__)
-#define TYPE_OF_FIELD9(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD8(__VA_ARGS__)
-#define TYPE_OF_FIELD8(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD7(__VA_ARGS__)
-#define TYPE_OF_FIELD7(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD6(__VA_ARGS__)
-#define TYPE_OF_FIELD6(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD5(__VA_ARGS__)
-#define TYPE_OF_FIELD5(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD4(__VA_ARGS__)
-#define TYPE_OF_FIELD4(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD3(__VA_ARGS__)
-#define TYPE_OF_FIELD3(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD2(__VA_ARGS__)
-#define TYPE_OF_FIELD2(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }, TYPE_OF_FIELD1(__VA_ARGS__)
-#define TYPE_OF_FIELD1(NAME, ...)  { #NAME, offsetof(type, NAME), type_of(t.NAME) }
-
-#define TYPE_OF(T, ...)                                                                \
-inline static const Type *                                                             \
-type_of(const T)                                                                       \
-{                                                                                      \
-	using type = T;                                                                    \
-	T t = {};                                                                          \
-	static const Type_Field _type_fields[] = { OVERLOAD(TYPE_OF_FIELD, __VA_ARGS__) }; \
-	static const Type _type = {                                                        \
-		.name = name_of<T>(),                                                          \
-		.kind = kind_of<T>(),                                                          \
-		.size = sizeof(T),                                                             \
-		.align = alignof(T),                                                           \
-		.as_struct = {                                                                 \
-			_type_fields,                                                              \
-			sizeof(_type_fields) / sizeof(Type_Field)                                  \
-		}                                                                              \
-	};                                                                                 \
-	return &_type;                                                                     \
-}
 
 template <typename T>
 inline static constexpr const Type *
