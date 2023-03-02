@@ -24,28 +24,31 @@
 			- [ ] What if enum were used as flags?
 			- [ ] Add ability for the user to define enum range?
 			- [ ] What if the user used weird assignment values (for example => ENUM_ZERO = 0, ENUM_THREE = 3, ENUM_TWO = 2)?
-		- [ ] Empty structs.
-	- [ ] Fix naming issue, where `unsigned int` => `unsignedint`.
-		- [x] Unify naming => Arrays on MSVC are "Foo[3]" but on GCC are "Foo [3]".
+		- [x] Empty structs.
+	- [x] Unify naming => Arrays on MSVC are "Foo[3]" but on GCC are "Foo [3]".
 		- [ ] Unify naming, instead of float, use "f32"?
 		- [ ] Stick with "Foo[3]" or "Foo [3]"?
 	- [ ] Cleanup warning defines for "missing-field-initializers".
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Create global constexpr values for enum range and name length.
-	- [ ] Group primitive types together, and type check them through type_of<T>()?
-			=> TYPE_KIND_PRIMITIVE => type_ptr == reflect_type<char>()????
 	- [ ] Try to constexpr everything.
 	- [ ] Try to get rid of std includes.
 	- [ ] Use string_view for names and avoid allocations at all?
-	- [ ] Add unittests for kind_of<T>(), name_of<T>()?
 	- [ ] Cleanup.
 */
 
 enum TYPE_KIND
 {
-	TYPE_KIND_INT,
-	TYPE_KIND_UINT,
-	TYPE_KIND_FLOAT,
+	TYPE_KIND_I8,
+	TYPE_KIND_I16,
+	TYPE_KIND_I32,
+	TYPE_KIND_I64,
+	TYPE_KIND_U8,
+	TYPE_KIND_U16,
+	TYPE_KIND_U32,
+	TYPE_KIND_U64,
+	TYPE_KIND_F32,
+	TYPE_KIND_F64,
 	TYPE_KIND_BOOL,
 	TYPE_KIND_CHAR,
 	TYPE_KIND_STRUCT,
@@ -105,12 +108,26 @@ template <typename T>
 inline static constexpr TYPE_KIND
 kind_of()
 {
-	if constexpr (std::is_same_v<T, i8> || std::is_same_v<T, i16> || std::is_same_v<T, i32> || std::is_same_v<T, i64>)
-		return TYPE_KIND_INT;
-	else if constexpr (std::is_same_v<T, u8> || std::is_same_v<T, u16> || std::is_same_v<T, u32> || std::is_same_v<T, u64>)
-		return TYPE_KIND_UINT;
-	else if constexpr (std::is_same_v<T, f32> || std::is_same_v<T, f64>)
-		return TYPE_KIND_FLOAT;
+	if constexpr (std::is_same_v<T, i8>)
+		return TYPE_KIND_I8;
+	else if constexpr (std::is_same_v<T, i16>)
+		return TYPE_KIND_I16;
+	else if constexpr (std::is_same_v<T, i32>)
+		return TYPE_KIND_I32;
+	else if constexpr (std::is_same_v<T, i64>)
+		return TYPE_KIND_I64;
+	else if constexpr (std::is_same_v<T, u8>)
+		return TYPE_KIND_U8;
+	else if constexpr (std::is_same_v<T, u16>)
+		return TYPE_KIND_U16;
+	else if constexpr (std::is_same_v<T, u32>)
+		return TYPE_KIND_U32;
+	else if constexpr (std::is_same_v<T, u64>)
+		return TYPE_KIND_U64;
+	else if constexpr (std::is_same_v<T, f32>)
+		return TYPE_KIND_F32;
+	else if constexpr (std::is_same_v<T, f64>)
+		return TYPE_KIND_F64;
 	else if constexpr (std::is_same_v<T, bool>)
 		return TYPE_KIND_BOOL;
 	else if constexpr (std::is_same_v<T, char>)
@@ -129,41 +146,56 @@ template <typename T>
 inline static constexpr const char *
 name_of()
 {
-	constexpr auto get_function_name = []<typename R>() -> std::string_view {
-		#if defined(_MSC_VER)
-			return __FUNCSIG__;
-		#elif defined(__GNUC__) || defined(__clang__)
-			return __PRETTY_FUNCTION__;
-		#else
-			#error "[REFLECT]: Unsupported compiler."
-		#endif
-	};
+		 if constexpr (std::is_same_v<T, i8>)   return "i8";
+	else if constexpr (std::is_same_v<T, i16>)  return "i16";
+	else if constexpr (std::is_same_v<T, i32>)  return "i32";
+	else if constexpr (std::is_same_v<T, i64>)  return "i64";
+	else if constexpr (std::is_same_v<T, u8>)   return "u8";
+	else if constexpr (std::is_same_v<T, u16>)  return "u16";
+	else if constexpr (std::is_same_v<T, u32>)  return "u32";
+	else if constexpr (std::is_same_v<T, u64>)  return "u64";
+	else if constexpr (std::is_same_v<T, f32>)  return "f32";
+	else if constexpr (std::is_same_v<T, f64>)  return "f64";
+	else if constexpr (std::is_same_v<T, bool>) return "bool";
+	else if constexpr (std::is_same_v<T, char>) return "char";
+	else
+	{
+		constexpr auto get_function_name = []<typename R>() -> std::string_view {
+			#if defined(_MSC_VER)
+				return __FUNCSIG__;
+			#elif defined(__GNUC__) || defined(__clang__)
+				return __PRETTY_FUNCTION__;
+			#else
+				#error "[REFLECT]: Unsupported compiler."
+			#endif
+		};
 
-	constexpr auto get_type_name = [](const std::string_view &type_name) -> const char * {
-		static char name[1024] = {};
-		for (u64 i = 0, count = 0; i < type_name.length(); ++i)
-		{
-			std::string_view n = {type_name.data() + i, type_name.length() - i};
-			if (n.starts_with("enum "))
-				i += 5;
-			else if (n.starts_with("class "))
-				i += 6;
-			else if (n.starts_with("struct "))
-				i += 7;
+		constexpr auto get_type_name = [](const std::string_view &type_name) -> const char * {
+			static char name[1024] = {};
+			for (u64 i = 0, count = 0; i < type_name.length(); ++i)
+			{
+				std::string_view n = {type_name.data() + i, type_name.length() - i};
+				if (n.starts_with("enum "))
+					i += 5;
+				else if (n.starts_with("class "))
+					i += 6;
+				else if (n.starts_with("struct "))
+					i += 7;
 
-			if (type_name.data()[i] != ' ')
-				name[count++] = type_name.data()[i];
-		}
-		return name;
-	};
+				if (type_name.data()[i] != ' ')
+					name[count++] = type_name.data()[i];
+			}
+			return name;
+		};
 
-	constexpr auto type_function_name      = get_function_name.template operator()<T>();
-	constexpr auto void_function_name      = get_function_name.template operator()<void>();
-	constexpr auto type_name_prefix_length = void_function_name.find("void");
-	constexpr auto type_name_suffix_length = void_function_name.length() - type_name_prefix_length - 4;
-	constexpr auto type_name_length        = type_function_name.length() - type_name_prefix_length - type_name_suffix_length;
+		constexpr auto type_function_name      = get_function_name.template operator()<T>();
+		constexpr auto void_function_name      = get_function_name.template operator()<void>();
+		constexpr auto type_name_prefix_length = void_function_name.find("void");
+		constexpr auto type_name_suffix_length = void_function_name.length() - type_name_prefix_length - 4;
+		constexpr auto type_name_length        = type_function_name.length() - type_name_prefix_length - type_name_suffix_length;
 
-	return get_type_name({type_function_name.data() + type_name_prefix_length, type_name_length});
+		return get_type_name({type_function_name.data() + type_name_prefix_length, type_name_length});
+	}
 }
 
 template <typename T>
@@ -191,16 +223,6 @@ type_of(const T)
 #define TYPE_OF_FIELD02(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD01(__VA_ARGS__)
 #define TYPE_OF_FIELD01(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }
 
-// TODO: Remove and only use name_of<T>() function.
-template <typename>
-struct is_templated : std::false_type {};
-
-template <template <typename ...> typename T, typename ...TArgs>
-struct is_templated<T<TArgs ...>> : std::true_type {};
-
-template <typename T>
-constexpr auto is_templated_v = is_templated<T>::value;
-
 #define TYPE_OF(T, ...)                                                                     \
 inline static const Type *                                                                  \
 type_of(const T)                                                                            \
@@ -211,7 +233,7 @@ type_of(const T)                                                                
 		static const Type_Field _type_fields [] = { OVERLOAD(TYPE_OF_FIELD, __VA_ARGS__) }; \
 	)                                                                                       \
 	static const Type _type = {                                                             \
-		.name = is_templated_v<T> ? name_of<T>() : #T,                                      \
+		.name = name_of<T>(),                                                               \
 		.kind = kind_of<T>(),                                                               \
 		.size = sizeof(T),                                                                  \
 		.align = alignof(T),                                                                \
