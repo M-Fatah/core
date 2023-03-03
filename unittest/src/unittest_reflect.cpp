@@ -104,13 +104,43 @@ TEST_CASE("[CORE]: Reflect")
 
 	SUBCASE("name_of<T> template struct")
 	{
+		auto point_i08_name = name_of<Point<i8>>();
+		auto point_i16_name = name_of<Point<i16>>();
 		auto point_i32_name = name_of<Point<i32>>();
+		auto point_i64_name = name_of<Point<i64>>();
+
+		auto point_u08_name = name_of<Point<u8>>();
+		auto point_u16_name = name_of<Point<u16>>();
+		auto point_u32_name = name_of<Point<u32>>();
+		auto point_u64_name = name_of<Point<u64>>();
+
 		auto point_f32_name = name_of<Point<f32>>();
+		auto point_f64_name = name_of<Point<f64>>();
+
+		auto point_bool_name = name_of<Point<bool>>();
+		auto point_char_name = name_of<Point<char>>();
+
 		auto point_vec3_name = name_of<Point<Vector3>>();
+
 		auto foo_i32_f32_name = name_of<Foo<i32, f32>>();
 		auto bar_i32_f32_vec3_name = name_of<Bar<i32, f32, Vector3>>();
+
+		CHECK(string_literal(point_i08_name) == "Point<i8>");
+		CHECK(string_literal(point_i16_name) == "Point<i16>");
 		CHECK(string_literal(point_i32_name) == "Point<i32>");
+		CHECK(string_literal(point_i64_name) == "Point<i64>");
+
+		CHECK(string_literal(point_u08_name) == "Point<u8>");
+		CHECK(string_literal(point_u16_name) == "Point<u16>");
+		CHECK(string_literal(point_u32_name) == "Point<u32>");
+		CHECK(string_literal(point_u64_name) == "Point<u64>");
+
 		CHECK(string_literal(point_f32_name) == "Point<f32>");
+		CHECK(string_literal(point_f64_name) == "Point<f64>");
+
+		CHECK(string_literal(point_bool_name) == "Point<bool>");
+		CHECK(string_literal(point_char_name) == "Point<char>");
+
 		CHECK(string_literal(point_vec3_name) == "Point<Vector3>");
 		CHECK(string_literal(foo_i32_f32_name) == "Foo<i32,f32>");
 		CHECK(string_literal(bar_i32_f32_vec3_name) == "Bar<i32,f32,Vector3>");

@@ -26,7 +26,7 @@
 			- [ ] What if the user used weird assignment values (for example => ENUM_ZERO = 0, ENUM_THREE = 3, ENUM_TWO = 2)?
 		- [x] Empty structs.
 	- [x] Unify naming => Arrays on MSVC are "Foo[3]" but on GCC are "Foo [3]".
-		- [ ] Unify naming, instead of float, use "f32"?
+		- [x] Unify naming, instead of float, use "f32"?
 		- [ ] Stick with "Foo[3]" or "Foo [3]"?
 	- [ ] Cleanup warning defines for "missing-field-initializers".
 	- [ ] Name as reflect/reflector/reflection?
@@ -185,12 +185,59 @@ name_of()
 
 				u64 diff = ptr - (type_name.data() + i);
 				std::string_view nn = {type_name.data() + i, diff};
-				if (nn == "int")
+				if (nn == "signed char")
+				{
+					name[count++] = 'i';
+					name[count++] = '8';
+					i += 11;
+				}
+				else if (nn == "short int")
+				{
+					name[count++] = 'i';
+					name[count++] = '1';
+					name[count++] = '6';
+					i += 9;
+				}
+				else if (nn == "int")
 				{
 					name[count++] = 'i';
 					name[count++] = '3';
 					name[count++] = '2';
 					i += 3;
+				}
+				else if (nn == "long int")
+				{
+					name[count++] = 'i';
+					name[count++] = '6';
+					name[count++] = '4';
+					i += 8;
+				}
+				else if (nn == "unsigned char")
+				{
+					name[count++] = 'u';
+					name[count++] = '8';
+					i += 13;
+				}
+				else if (nn == "short unsigned int")
+				{
+					name[count++] = 'u';
+					name[count++] = '1';
+					name[count++] = '6';
+					i += 18;
+				}
+				else if (nn == "unsigned int")
+				{
+					name[count++] = 'u';
+					name[count++] = '3';
+					name[count++] = '2';
+					i += 12;
+				}
+				else if (nn == "long unsigned int")
+				{
+					name[count++] = 'u';
+					name[count++] = '6';
+					name[count++] = '4';
+					i += 17;
 				}
 				else if (nn == "float")
 				{
@@ -198,6 +245,13 @@ name_of()
 					name[count++] = '3';
 					name[count++] = '2';
 					i += 5;
+				}
+				else if (nn == "double")
+				{
+					name[count++] = 'f';
+					name[count++] = '6';
+					name[count++] = '4';
+					i += 6;
 				}
 				else if (nn.starts_with("enum "))
 				{
