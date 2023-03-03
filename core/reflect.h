@@ -521,5 +521,6 @@ template <typename T>
 inline static constexpr const Value
 value_of(T &&type)
 {
-	return {&type, type_of<T>()};
+	T t = type;
+	return {&type, type_of(t)};
 }

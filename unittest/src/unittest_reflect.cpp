@@ -30,6 +30,16 @@ struct Vector3
 TYPE_OF(Vector3, x, y, z)
 
 template <typename T>
+class Foo_Class
+{
+public:
+	T x, y;
+};
+
+template <typename T>
+TYPE_OF(Foo_Class<T>, x, y);
+
+template <typename T>
 struct Point
 {
 	T x, y, z;
@@ -284,6 +294,13 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(foo_point_vector3_field_y.type->as_struct.field_count == 3);
 	}
 
+	SUBCASE("type_of<T> template class")
+	{
+		Foo_Class<i32> foo_class;
+		auto foo_class_i32_type = type_of<Foo_Class<i32>>();
+		CHECK(foo_class_i32_type == type_of(foo_class));
+	}
+
 	SUBCASE("type_of<T> array")
 	{
 		Vector3 array[3] = {{1.0f, 2.0f, 3.0f}, {4.0f, 5.0f, 6.0f}, {7.0f, 8.0f, 9.0f}};
@@ -389,6 +406,14 @@ TEST_CASE("[CORE]: Reflect")
 			CHECK(reflect_enum_type->as_enum.indices[i] == i);
 			CHECK(reflect_enum_type->as_enum.names[i] == string_from(memory::temp_allocator(), "REFLECT_ENUM_{}", i));
 		}
+	}
+
+	SUBCASE("value_of(T)")
+	{
+		i32 v = 1;
+		auto i32_value = value_of(v);
+		CHECK(*(i32 *)i32_value.data == *(i32 *)value_of((i32)1).data);
+		CHECK(i32_value.type == value_of((i32)1).type);
 	}
 }
 
