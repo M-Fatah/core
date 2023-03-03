@@ -48,6 +48,17 @@ struct Foo
 template <typename T, typename R>
 TYPE_OF(SINGLE_ARG(Foo<T, R>), x, y)
 
+template <typename T, typename R, typename E>
+struct Bar
+{
+	T x;
+	R y;
+	E z;
+};
+
+template <typename T, typename R, typename E>
+TYPE_OF(SINGLE_ARG(Bar<T, R, E>), x, y, z)
+
 TEST_CASE("[CORE]: Reflect")
 {
 	SUBCASE("name_of<T> primitives")
@@ -96,9 +107,13 @@ TEST_CASE("[CORE]: Reflect")
 		auto point_i32_name = name_of<Point<i32>>();
 		auto point_f32_name = name_of<Point<f32>>();
 		auto point_vec3_name = name_of<Point<Vector3>>();
+		auto foo_i32_f32_name = name_of<Foo<i32, f32>>();
+		auto bar_i32_f32_vec3_name = name_of<Bar<i32, f32, Vector3>>();
 		CHECK(string_literal(point_i32_name) == "Point<i32>");
 		CHECK(string_literal(point_f32_name) == "Point<f32>");
 		CHECK(string_literal(point_vec3_name) == "Point<Vector3>");
+		CHECK(string_literal(foo_i32_f32_name) == "Foo<i32,f32>");
+		CHECK(string_literal(bar_i32_f32_vec3_name) == "Bar<i32,f32,Vector3>");
 	}
 
 	SUBCASE("type_of<T> primitives")

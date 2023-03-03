@@ -170,6 +170,47 @@ name_of()
 			#endif
 		};
 
+		constexpr auto sanitise_name = [](char (&name)[1024], u64 &i, u64 &count, const std::string_view &type_name) {
+			auto c = type_name.data()[i];
+			if (c == '<' || c == ',')
+			{
+				++i;
+				name[count++] = c;
+				const char *ptr = type_name.data() + i;
+				while (*ptr != ',' && *ptr != '>')
+					ptr++;
+
+				u64 diff = ptr - (type_name.data() + i);
+				std::string_view nn = {type_name.data() + i, diff};
+				if (nn == "int")
+				{
+					name[count++] = 'i';
+					name[count++] = '3';
+					name[count++] = '2';
+					i += 3;
+				}
+				else if (nn == "float")
+				{
+					name[count++] = 'f';
+					name[count++] = '3';
+					name[count++] = '2';
+					i += 5;
+				}
+				else if (nn.starts_with("enum "))
+				{
+					i += 5;
+				}
+				else if (nn.starts_with("class "))
+				{
+					i += 6;
+				}
+				else if (nn.starts_with("struct "))
+				{
+					i += 7;
+				}
+			}
+		};
+
 		constexpr auto get_type_name = [](const std::string_view &type_name) -> const char * {
 			static char name[1024] = {};
 			for (u64 i = 0, count = 0; i < type_name.length(); ++i)
@@ -185,31 +226,9 @@ name_of()
 				// TODO: Cleanup.
 				if (type_name.data()[i] != ' ' && i < type_name.length() && count < sizeof(name))
 				{
-					if (type_name.data()[i] == '<')
-					{
-						++i;
-						name[count++] = '<';
-						const char *ptr = type_name.data() + i;
-						while (*ptr != ',' && *ptr != '>')
-							ptr++;
-
-						u64 diff = ptr - (type_name.data() + i);
-						std::string_view nn = {type_name.data() + i, diff};
-						if (nn == "int")
-						{
-							name[count++] = 'i';
-							name[count++] = '3';
-							name[count++] = '2';
-							i += 3;
-						}
-						else if (nn == "float")
-						{
-							name[count++] = 'f';
-							name[count++] = '3';
-							name[count++] = '2';
-							i += 5;
-						}
-					}
+					sanitise_name(name, i, count, type_name);
+					if (type_name.data()[i] == ',')
+						sanitise_name(name, i, count, type_name);
 					name[count++] = type_name.data()[i];
 				}
 			}
