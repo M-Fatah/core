@@ -180,6 +180,9 @@ name_of()
 				while (*ptr != ',' && *ptr != '>')
 					ptr++;
 
+				if (type_name.data()[i] == ' ')
+					i++;
+
 				u64 diff = ptr - (type_name.data() + i);
 				std::string_view nn = {type_name.data() + i, diff};
 				if (nn == "int")
@@ -211,7 +214,7 @@ name_of()
 			}
 		};
 
-		constexpr auto get_type_name = [](const std::string_view &type_name) -> const char * {
+		constexpr auto get_type_name = [sanitise_name](const std::string_view &type_name) -> const char * {
 			static char name[1024] = {};
 			for (u64 i = 0, count = 0; i < type_name.length(); ++i)
 			{
