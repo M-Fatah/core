@@ -191,6 +191,13 @@ name_of()
 					name[count++] = '8';
 					i += 11;
 				}
+				else if (nn == "short")
+				{
+					name[count++] = 'i';
+					name[count++] = '1';
+					name[count++] = '6';
+					i += 5;
+				}
 				else if (nn == "short int")
 				{
 					name[count++] = 'i';
@@ -205,6 +212,13 @@ name_of()
 					name[count++] = '2';
 					i += 3;
 				}
+				else if (nn == "__int64")
+				{
+					name[count++] = 'i';
+					name[count++] = '6';
+					name[count++] = '4';
+					i += 7;
+				}
 				else if (nn == "long int")
 				{
 					name[count++] = 'i';
@@ -217,6 +231,13 @@ name_of()
 					name[count++] = 'u';
 					name[count++] = '8';
 					i += 13;
+				}
+				else if (nn == "unsigned short")
+				{
+					name[count++] = 'u';
+					name[count++] = '1';
+					name[count++] = '6';
+					i += 14;
 				}
 				else if (nn == "short unsigned int")
 				{
@@ -231,6 +252,13 @@ name_of()
 					name[count++] = '3';
 					name[count++] = '2';
 					i += 12;
+				}
+				else if (nn == "unsigned __int64")
+				{
+					name[count++] = 'u';
+					name[count++] = '6';
+					name[count++] = '4';
+					i += 16;
 				}
 				else if (nn == "long unsigned int")
 				{
