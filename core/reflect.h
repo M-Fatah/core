@@ -17,17 +17,17 @@
 /*
 	TODO:
 	- [x] Generate reflection
-		- [x] pointers.
-		- [x] arrays.
-		- [x] enums.
+		- [x] Primitives.
+		- [x] Pointers.
+		- [x] Arrays.
+		- [x] Structs and Classes.
+			- [x] Empty structs and classes.
+		- [x] Enums.
 			- [ ] Add enum range?
 			- [ ] What if enum were used as flags?
 			- [ ] Add ability for the user to define enum range?
 			- [ ] What if the user used weird assignment values (for example => ENUM_ZERO = 0, ENUM_THREE = 3, ENUM_TWO = 2)?
-		- [x] Empty structs.
-	- [x] Unify naming => Arrays on MSVC are "Foo[3]" but on GCC are "Foo [3]".
-		- [x] Unify naming, instead of float, use "f32"?
-		- [ ] Stick with "Foo[3]" or "Foo [3]"?
+			- [ ] Preserve the order of enum values.
 	- [ ] Cleanup warning defines for "missing-field-initializers".
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Create global constexpr values for enum range and name length.
@@ -57,14 +57,11 @@ enum TYPE_KIND
 	TYPE_KIND_ENUM
 };
 
-// TODO: Remove and simplify Type struct.
-struct Type;
-
 struct Type_Field
 {
 	const char *name;
 	u64 offset;
-	const Type *type;
+	const struct Type *type;
 };
 
 struct Type
@@ -355,28 +352,28 @@ type_of(const T)
 #define TYPE_OF_FIELD02(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD01(__VA_ARGS__)
 #define TYPE_OF_FIELD01(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }
 
-#define TYPE_OF(T, ...)                                                                     \
-inline static const Type *                                                                  \
-type_of(const T)                                                                            \
-{                                                                                           \
-	__VA_OPT__(                                                                             \
-		using TYPE = T;                                                                     \
-		TYPE t = {};                                                                        \
-		static const Type_Field _type_fields [] = { OVERLOAD(TYPE_OF_FIELD, __VA_ARGS__) }; \
-	)                                                                                       \
-	static const Type _type = {                                                             \
-		.name = name_of<T>(),                                                               \
-		.kind = kind_of<T>(),                                                               \
-		.size = sizeof(T),                                                                  \
-		.align = alignof(T),                                                                \
-		.as_struct = {                                                                      \
-			__VA_OPT__(                                                                     \
-				_type_fields,                                                               \
-				sizeof(_type_fields) / sizeof(Type_Field)                                   \
-			)                                                                               \
-		}                                                                                   \
-	};                                                                                      \
-	return &_type;                                                                          \
+#define TYPE_OF(T, ...)                                                               \
+inline static const Type *                                                            \
+type_of(const T)                                                                      \
+{                                                                                     \
+	__VA_OPT__(                                                                       \
+		using TYPE = T;                                                               \
+		TYPE t = {};                                                                  \
+		static const Type_Field fields [] = { OVERLOAD(TYPE_OF_FIELD, __VA_ARGS__) }; \
+	)                                                                                 \
+	static const Type self = {                                                        \
+		.name = name_of<T>(),                                                         \
+		.kind = kind_of<T>(),                                                         \
+		.size = sizeof(T),                                                            \
+		.align = alignof(T),                                                          \
+		.as_struct = {                                                                \
+			__VA_OPT__(                                                               \
+				fields,                                                               \
+				sizeof(fields) / sizeof(Type_Field)                                   \
+			)                                                                         \
+		}                                                                             \
+	};                                                                                \
+	return &self;                                                                     \
 }
 
 TYPE_OF(i8)
@@ -391,14 +388,6 @@ TYPE_OF(f32)
 TYPE_OF(f64)
 TYPE_OF(bool)
 TYPE_OF(char)
-
-template <typename T>
-inline static constexpr const Type *
-type_of()
-{
-	T t = {};
-	return type_of(t);
-}
 
 // TODO: Simplify and properly name variables.
 template <typename T>
@@ -471,7 +460,7 @@ type_of(const T)
 		}
 	}
 
-	static const Type _enum_type = {
+	static const Type self = {
 		.name = name_of<T>(),
 		.kind = kind_of<T>(),
 		.size = sizeof(T),
@@ -482,24 +471,24 @@ type_of(const T)
 			.element_count = count
 		}
 	};
-	return &_enum_type;
+	return &self;
 }
 
 template <typename T, u64 N>
 inline static constexpr const Type *
 type_of(const T(&)[N])
 {
-	static const Type _array_type = {
+	static const Type self = {
 		.name = name_of<T[N]>(),
 		.kind = kind_of<T[N]>(),
 		.size = sizeof(T[N]),
 		.align = alignof(T[N]),
 		.as_array = {
-			type_of<T>(),
+			type_of(T{}),
 			N
 		}
 	};
-	return &_array_type;
+	return &self;
 }
 
 template <typename T>
@@ -507,14 +496,22 @@ requires (std::is_pointer_v<T>)
 inline static constexpr const Type *
 type_of(const T)
 {
-	static const Type _pointer_type = {
+	static const Type self = {
 		.name = name_of<T>(),
 		.kind = kind_of<T>(),
 		.size = sizeof(T),
 		.align = alignof(T),
-		.as_pointer = type_of<std::remove_pointer_t<T>>()
+		.as_pointer = type_of(std::remove_pointer_t<T>{})
 	};
-	return &_pointer_type;
+	return &self;
+}
+
+template <typename T>
+inline static constexpr const Type *
+type_of()
+{
+	T t = {};
+	return type_of(t);
 }
 
 template <typename T>
