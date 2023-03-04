@@ -475,9 +475,11 @@ inline static constexpr const Type *
 type_of(const T)
 {
 	using Pointee = std::remove_pointer_t<T>;
+
 	static const Type *pointee = nullptr;
 	if constexpr (not std::is_same_v<Pointee, void>)
 		pointee = type_of(Pointee{});
+
 	static const Type self = {
 		.name = name_of<T>(),
 		.kind = kind_of<T>(),
@@ -492,8 +494,7 @@ template <typename T>
 inline static constexpr const Type *
 type_of()
 {
-	T t = {};
-	return type_of(t);
+	return type_of(T{});
 }
 
 template <typename T>
