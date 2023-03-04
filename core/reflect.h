@@ -398,7 +398,8 @@ requires (std::is_enum_v<T>)
 inline static constexpr const Type *
 type_of(const T)
 {
-	// TODO: Store enum range?
+	constexpr const u64 MAX_ENUM_COUNT = 100;
+
 	struct Enum_Value_Data
 	{
 		bool is_valid;
@@ -406,50 +407,32 @@ type_of(const T)
 		std::string_view name;
 	};
 
-	constexpr const u64 MAX_ENUM_COUNT = 100;
-
 	constexpr auto get_enum_value_data = []<T V>() -> Enum_Value_Data {
-
-		constexpr auto get_function_name = []<T D>() -> std::string_view {
-			#if defined(_MSC_VER)
-				return __FUNCSIG__;
-			#elif defined(__GNUC__) || defined(__clang__)
-				return __PRETTY_FUNCTION__;
-			#else
-				#error "Unsupported compiler"
-			#endif
-		};
-
-		constexpr auto wrapped_name = get_function_name.template operator()<V>();
-
 		#if defined(_MSC_VER)
-			constexpr auto prefix_length = get_function_name.template operator()<V>().find("()<") + 3;
-			constexpr auto type_name_length = get_function_name.template operator()<V>().find(">", prefix_length) - prefix_length;
+			constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
+			constexpr auto type_name_prefix_length = type_function_name.find("()<") + 3;
+			constexpr auto type_name_length        = type_function_name.find(">", type_name_prefix_length) - type_name_prefix_length;
 		#elif defined(__GNUC__) || defined(__clang__)
-			constexpr auto prefix_length = get_function_name.template operator()<V>().find("= ") + 2;
-			constexpr auto type_name_length = get_function_name.template operator()<V>().find(";", prefix_length) - prefix_length;
+			constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
+			constexpr auto type_name_prefix_length = type_function_name.find("= ") + 2;
+			constexpr auto type_name_length        = type_function_name.find("]", type_name_prefix_length) - type_name_prefix_length;
 		#else
-			#error "Unsupported compiler"
+			#error "[REFLECT]: Unsupported compiler."
 		#endif
 
-		constexpr char c = wrapped_name.data()[prefix_length];
-		if constexpr ((c >= '0' && c <= '9') || c == '(' || c == ')')
-		{
+		char c = type_function_name.data()[type_name_prefix_length];
+		if ((c >= '0' && c <= '9') || c == '(' || c == ')')
 			return {};
-		}
-		else
-		{
-			return {true, (i32)V, {wrapped_name.data() + prefix_length, type_name_length}};
-		}
+		return {true, (i32)V, {type_function_name.data() + type_name_prefix_length, type_name_length}};
 	};
 
 	constexpr auto count = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>) -> u64 {
 		return (get_enum_value_data.template operator()<(T)index>().is_valid + ...);
-	}.template operator()(std::make_integer_sequence<i32, MAX_ENUM_COUNT>());
+	}(std::make_integer_sequence<i32, MAX_ENUM_COUNT>());
 
 	constexpr auto data = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>) -> std::array<Enum_Value_Data, MAX_ENUM_COUNT> {
 		return {get_enum_value_data.template operator()<(T)index>()...};
-	}.template operator()(std::make_integer_sequence<i32, MAX_ENUM_COUNT>());
+	}(std::make_integer_sequence<i32, MAX_ENUM_COUNT>());
 
 	static i32 indices[count] = {};
 	static char names[count][1024] = {};
