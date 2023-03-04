@@ -402,12 +402,11 @@ type_of(const T)
 
 	struct Enum_Value_Data
 	{
-		bool is_valid;
 		i32 index;
 		std::string_view name;
 	};
 
-	constexpr auto get_enum_value_data = []<T V>() -> Enum_Value_Data {
+	constexpr auto get_enum_value_data = []<T v>() -> Enum_Value_Data {
 		#if defined(_MSC_VER)
 			constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
 			constexpr auto type_name_prefix_length = type_function_name.find("()<") + 3;
@@ -420,14 +419,14 @@ type_of(const T)
 			#error "[REFLECT]: Unsupported compiler."
 		#endif
 
-		char c = type_function_name.data()[type_name_prefix_length];
+		char c = type_function_name.at(type_name_prefix_length);
 		if ((c >= '0' && c <= '9') || c == '(' || c == ')')
 			return {};
-		return {true, (i32)V, {type_function_name.data() + type_name_prefix_length, type_name_length}};
+		return {(i32)v, {type_function_name.data() + type_name_prefix_length, type_name_length}};
 	};
 
 	constexpr auto count = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>) -> u64 {
-		return (get_enum_value_data.template operator()<(T)index>().is_valid + ...);
+		return ((get_enum_value_data.template operator()<(T)index>().name != "") + ...);
 	}(std::make_integer_sequence<i32, MAX_ENUM_COUNT>());
 
 	constexpr auto data = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>) -> std::array<Enum_Value_Data, MAX_ENUM_COUNT> {
@@ -438,7 +437,7 @@ type_of(const T)
 	static char names[count][1024] = {};
 	for (u64 i = 0, c = 0; i < MAX_ENUM_COUNT; ++i)
 	{
-		if (const auto &d = data[i]; d.is_valid)
+		if (const auto &d = data[i]; d.name != "")
 		{
 			indices[c] = d.index;
 			::memcpy(names[c], d.name.data(), d.name.length());
