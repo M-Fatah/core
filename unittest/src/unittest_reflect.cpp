@@ -89,6 +89,8 @@ TEST_CASE("[CORE]: Reflect")
 		auto bool_name = name_of<bool>();
 		auto char_name = name_of<char>();
 
+		auto void_name = name_of<void>();
+
 		CHECK(string_literal(i08_name) == "i8");
 		CHECK(string_literal(i16_name) == "i16");
 		CHECK(string_literal(i32_name) == "i32");
@@ -104,6 +106,8 @@ TEST_CASE("[CORE]: Reflect")
 
 		CHECK(string_literal(bool_name) == "bool");
 		CHECK(string_literal(char_name) == "char");
+
+		CHECK(string_literal(void_name) == "void");
 	}
 
 	SUBCASE("name_of<T> struct")
@@ -348,8 +352,10 @@ TEST_CASE("[CORE]: Reflect")
 
 	SUBCASE("type_of<T> pointer")
 	{
-		const Type *vec3_type_pointer = type_of<Vector3 *>();
+		const Type *void_ptr_type = type_of<void*>();
+		CHECK(string_literal(void_ptr_type->name) == "void*");
 
+		const Type *vec3_type_pointer = type_of<Vector3 *>();
 		CHECK(string_literal(vec3_type_pointer->name) == "Vector3*");
 		CHECK(vec3_type_pointer->kind == TYPE_KIND_POINTER);
 		CHECK(vec3_type_pointer->size == sizeof(Vector3*));
@@ -357,7 +363,6 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(vec3_type_pointer->as_pointer.pointee != nullptr);
 
 		const Type *vec3_type = vec3_type_pointer->as_pointer.pointee;
-
 		CHECK(string_literal(vec3_type->name) == "Vector3");
 		CHECK(vec3_type->kind == TYPE_KIND_STRUCT);
 		CHECK(vec3_type->size == sizeof(Vector3));

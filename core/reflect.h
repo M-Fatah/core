@@ -18,7 +18,7 @@
 	TODO:
 	- [x] Generate reflection
 		- [x] Primitives.
-			- [ ] void?
+			- [x] void?
 		- [x] Pointers.
 		- [x] Arrays.
 		- [x] Structs and Classes.
@@ -499,12 +499,16 @@ requires (std::is_pointer_v<T>)
 inline static constexpr const Type *
 type_of(const T)
 {
+	using Pointee = std::remove_pointer_t<T>;
+	static const Type *pointee = nullptr;
+	if constexpr (not std::is_same_v<Pointee, void>)
+		pointee = type_of(Pointee{});
 	static const Type self = {
 		.name = name_of<T>(),
 		.kind = kind_of<T>(),
 		.size = sizeof(T),
 		.align = alignof(T),
-		.as_pointer = type_of(std::remove_pointer_t<T>{})
+		.as_pointer = pointee
 	};
 	return &self;
 }
