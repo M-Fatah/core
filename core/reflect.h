@@ -8,12 +8,6 @@
 #include <string_view>
 #include <type_traits>
 
-#if defined (__GNUC__)
-	#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-#elif defined (__clang__)
-	#pragma clang diagnostic ignored "-Wmissing-field-initializers"
-#endif
-
 /*
 	TODO:
 	- [x] Generate reflection
@@ -31,7 +25,6 @@
 			- [ ] Preserve the order of enum values.
 			- [ ] Enums with the same value?
 			- [ ] Enum class?
-	- [ ] Cleanup warning defines for "missing-field-initializers".
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Create global constexpr values for enum range and name length.
 	- [ ] Try to constexpr everything.
