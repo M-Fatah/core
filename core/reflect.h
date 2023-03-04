@@ -18,6 +18,7 @@
 	TODO:
 	- [x] Generate reflection
 		- [x] Primitives.
+			- [ ] void?
 		- [x] Pointers.
 		- [x] Arrays.
 		- [x] Structs and Classes.
@@ -28,6 +29,8 @@
 			- [ ] Add ability for the user to define enum range?
 			- [ ] What if the user used weird assignment values (for example => ENUM_ZERO = 0, ENUM_THREE = 3, ENUM_TWO = 2)?
 			- [ ] Preserve the order of enum values.
+			- [ ] Enums with the same value?
+			- [ ] Enum class?
 	- [ ] Cleanup warning defines for "missing-field-initializers".
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Create global constexpr values for enum range and name length.
@@ -352,28 +355,28 @@ type_of(const T)
 #define TYPE_OF_FIELD02(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD01(__VA_ARGS__)
 #define TYPE_OF_FIELD01(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }
 
-#define TYPE_OF(T, ...)                                                               \
-inline static const Type *                                                            \
-type_of(const T)                                                                      \
-{                                                                                     \
-	__VA_OPT__(                                                                       \
-		using TYPE = T;                                                               \
-		TYPE t = {};                                                                  \
-		static const Type_Field fields [] = { OVERLOAD(TYPE_OF_FIELD, __VA_ARGS__) }; \
-	)                                                                                 \
-	static const Type self = {                                                        \
-		.name = name_of<T>(),                                                         \
-		.kind = kind_of<T>(),                                                         \
-		.size = sizeof(T),                                                            \
-		.align = alignof(T),                                                          \
-		.as_struct = {                                                                \
-			__VA_OPT__(                                                               \
-				fields,                                                               \
-				sizeof(fields) / sizeof(Type_Field)                                   \
-			)                                                                         \
-		}                                                                             \
-	};                                                                                \
-	return &self;                                                                     \
+#define TYPE_OF(T, ...)                                                              \
+inline static const Type *                                                           \
+type_of(const T)                                                                     \
+{                                                                                    \
+	__VA_OPT__(                                                                      \
+		using TYPE = T;                                                              \
+		TYPE t = {};                                                                 \
+		static const Type_Field fields[] = { OVERLOAD(TYPE_OF_FIELD, __VA_ARGS__) }; \
+	)                                                                                \
+	static const Type self = {                                                       \
+		.name = name_of<T>(),                                                        \
+		.kind = kind_of<T>(),                                                        \
+		.size = sizeof(T),                                                           \
+		.align = alignof(T),                                                         \
+		.as_struct = {                                                               \
+			__VA_OPT__(                                                              \
+				fields,                                                              \
+				sizeof(fields) / sizeof(Type_Field)                                  \
+			)                                                                        \
+		}                                                                            \
+	};                                                                               \
+	return &self;                                                                    \
 }
 
 TYPE_OF(i8)
