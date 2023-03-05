@@ -391,15 +391,21 @@ requires (std::is_enum_v<T>)
 inline static constexpr const Type *
 type_of(const T)
 {
-	constexpr const u64 MAX_ENUM_COUNT = 100;
+	constexpr const u64 ENUM_VALUE_COUNT_MAX = 30;
 
-	struct Enum_Value_Data
+	struct Enum_Value
 	{
 		i32 index;
 		std::string_view name;
 	};
 
-	constexpr auto get_enum_value_data = []<T v>() -> Enum_Value_Data {
+	struct Enum
+	{
+		std::array<Enum_Value, ENUM_VALUE_COUNT_MAX> values;
+		u64 count;
+	};
+
+	constexpr auto get_enum_value = []<T V>() -> Enum_Value {
 		#if defined(_MSC_VER)
 			constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
 			constexpr auto type_name_prefix_length = type_function_name.find("()<") + 3;
@@ -415,25 +421,24 @@ type_of(const T)
 		char c = type_function_name.at(type_name_prefix_length);
 		if ((c >= '0' && c <= '9') || c == '(' || c == ')')
 			return {};
-		return {(i32)v, {type_function_name.data() + type_name_prefix_length, type_name_length}};
+		return {(i32)V, {type_function_name.data() + type_name_prefix_length, type_name_length}};
 	};
 
-	constexpr auto count = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>) -> u64 {
-		return ((get_enum_value_data.template operator()<(T)index>().name != "") + ...);
-	}(std::make_integer_sequence<i32, MAX_ENUM_COUNT>());
+	constexpr auto data = [get_enum_value]<i32... I>(std::integer_sequence<i32, I...>) -> Enum {
+		return {
+			{get_enum_value.template operator()<(T)I>()...},
+			((get_enum_value.template operator()<(T)I>().name != "") + ...)
+		};
+	}(std::make_integer_sequence<i32, ENUM_VALUE_COUNT_MAX>());
 
-	constexpr auto data = [get_enum_value_data]<i32... index>(std::integer_sequence<i32, index...>) -> std::array<Enum_Value_Data, MAX_ENUM_COUNT> {
-		return {get_enum_value_data.template operator()<(T)index>()...};
-	}(std::make_integer_sequence<i32, MAX_ENUM_COUNT>());
-
-	static i32 indices[count] = {};
-	static char names[count][1024] = {};
-	for (u64 i = 0, c = 0; i < MAX_ENUM_COUNT; ++i)
+	static i32 indices[data.count] = {};
+	static char names[data.count][1024] = {};
+	for (u64 i = 0, c = 0; i < ENUM_VALUE_COUNT_MAX; ++i)
 	{
-		if (const auto &d = data[i]; d.name != "")
+		if (const auto &value = data.values[i]; value.name != "")
 		{
-			indices[c] = d.index;
-			::memcpy(names[c], d.name.data(), d.name.length());
+			indices[c] = value.index;
+			::memcpy(names[c], value.name.data(), value.name.length());
 			++c;
 		}
 	}
@@ -446,7 +451,7 @@ type_of(const T)
 		.as_enum = {
 			.indices = indices,
 			.names = names,
-			.element_count = count
+			.element_count = data.count
 		}
 	};
 	return &self;
@@ -474,12 +479,9 @@ requires (std::is_pointer_v<T>)
 inline static constexpr const Type *
 type_of(const T)
 {
-	using Pointee = std::remove_pointer_t<T>;
-
 	static const Type *pointee = nullptr;
-	if constexpr (not std::is_same_v<Pointee, void>)
-		pointee = type_of(Pointee{});
-
+	if constexpr (not std::is_same_v<std::remove_pointer_t<T>, void>)
+		pointee = type_of(std::remove_pointer_t<T>{});
 	static const Type self = {
 		.name = name_of<T>(),
 		.kind = kind_of<T>(),
