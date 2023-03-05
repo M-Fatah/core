@@ -24,7 +24,7 @@
 			- [x] Macro helper.
 				- [x] What if enum were used as flags?
 				- [x] What if the user used weird assignment values (for example => ENUM_ZERO = 0, ENUM_THREE = 3, ENUM_TWO = 2)?
-					- [x] Preserve the order of enum values.
+					- [x] Preserve the order of enum values?
 				- [x] Enums with the same value?
 				- [x] Enums with negative values?
 			- [ ] Simplify OVERLOARD(TYPE_OF_ENUM_VALUE, __VA_ARGS__) and use FOR_EACH() macro?
@@ -36,8 +36,10 @@
 	- [ ] Cleanup.
 */
 
-inline static constexpr const u64 REFLECT_MAX_NAME_LENGTH      = 64;
-inline static constexpr const u64 REFLECT_MAX_ENUM_VALUE_COUNT = 32;
+inline static constexpr const u64 REFLECT_MAX_NAME_LENGTH      =  64;
+inline static constexpr const i32 REFLECT_MIN_ENUM_VALUE       = -32;
+inline static constexpr const i32 REFLECT_MAX_ENUM_VALUE       =  32;
+inline static constexpr const i32 REFLECT_MAX_ENUM_VALUE_COUNT = REFLECT_MAX_ENUM_VALUE - REFLECT_MIN_ENUM_VALUE;
 
 enum TYPE_KIND
 {
@@ -320,22 +322,22 @@ type_of(const T)
 	return nullptr;
 }
 
-#define TYPE_OF_FIELD16(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD15(__VA_ARGS__)
-#define TYPE_OF_FIELD15(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD14(__VA_ARGS__)
-#define TYPE_OF_FIELD14(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD13(__VA_ARGS__)
-#define TYPE_OF_FIELD13(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD12(__VA_ARGS__)
-#define TYPE_OF_FIELD12(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD11(__VA_ARGS__)
-#define TYPE_OF_FIELD11(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD10(__VA_ARGS__)
-#define TYPE_OF_FIELD10(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD09(__VA_ARGS__)
-#define TYPE_OF_FIELD09(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD08(__VA_ARGS__)
-#define TYPE_OF_FIELD08(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD07(__VA_ARGS__)
-#define TYPE_OF_FIELD07(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD06(__VA_ARGS__)
-#define TYPE_OF_FIELD06(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD05(__VA_ARGS__)
-#define TYPE_OF_FIELD05(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD04(__VA_ARGS__)
-#define TYPE_OF_FIELD04(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD03(__VA_ARGS__)
-#define TYPE_OF_FIELD03(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD02(__VA_ARGS__)
-#define TYPE_OF_FIELD02(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD01(__VA_ARGS__)
-#define TYPE_OF_FIELD01(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }
+#define TYPE_OF_FIELD16(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD15(__VA_ARGS__)
+#define TYPE_OF_FIELD15(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD14(__VA_ARGS__)
+#define TYPE_OF_FIELD14(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD13(__VA_ARGS__)
+#define TYPE_OF_FIELD13(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD12(__VA_ARGS__)
+#define TYPE_OF_FIELD12(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD11(__VA_ARGS__)
+#define TYPE_OF_FIELD11(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD10(__VA_ARGS__)
+#define TYPE_OF_FIELD10(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD09(__VA_ARGS__)
+#define TYPE_OF_FIELD09(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD08(__VA_ARGS__)
+#define TYPE_OF_FIELD08(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD07(__VA_ARGS__)
+#define TYPE_OF_FIELD07(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD06(__VA_ARGS__)
+#define TYPE_OF_FIELD06(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD05(__VA_ARGS__)
+#define TYPE_OF_FIELD05(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD04(__VA_ARGS__)
+#define TYPE_OF_FIELD04(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD03(__VA_ARGS__)
+#define TYPE_OF_FIELD03(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD02(__VA_ARGS__)
+#define TYPE_OF_FIELD02(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD01(__VA_ARGS__)
+#define TYPE_OF_FIELD01(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}
 
 #define TYPE_OF(T, ...)                                                              \
 inline static const Type *                                                           \
@@ -486,8 +488,8 @@ type_of(const T)
 
 	constexpr auto data = [get_enum_value]<i32... I>(std::integer_sequence<i32, I...>) -> Enum {
 		return {
-			{get_enum_value.template operator()<(T)I>()...},
-			((get_enum_value.template operator()<(T)I>().name != "") + ...)
+			{ get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>()...},
+			((get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>().name != "") + ...)
 		};
 	}(std::make_integer_sequence<i32, REFLECT_MAX_ENUM_VALUE_COUNT>());
 

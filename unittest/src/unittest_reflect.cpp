@@ -15,6 +15,13 @@ enum REFLECT
 	REFLECT_ENUM_6,
 };
 
+enum class ENUM_CLASS
+{
+	NEG_ONE = -1,
+	ZERO,
+	ONE
+};
+
 enum UNORDERED_ENUM
 {
 	UNORDERED_ENUM_ONE = 1,
@@ -30,12 +37,6 @@ enum EMPTY_ENUM
 };
 
 TYPE_OF_ENUM(EMPTY_ENUM)
-
-enum class ENUM_CLASS
-{
-	ZERO,
-	ONE
-};
 
 enum ENUM_WITH_SAME_VALUES
 {
@@ -467,11 +468,13 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(enum_class_type->size == sizeof(ENUM_CLASS));
 		CHECK(enum_class_type->align == alignof(ENUM_CLASS));
 		CHECK(enum_class_type->as_enum.values != nullptr);
-		CHECK(enum_class_type->as_enum.element_count == 2);
-		CHECK(enum_class_type->as_enum.values[0].index == 0);
-		CHECK(enum_class_type->as_enum.values[0].name == string_literal("ENUM_CLASS::ZERO"));
-		CHECK(enum_class_type->as_enum.values[1].index == 1);
-		CHECK(enum_class_type->as_enum.values[1].name == string_literal("ENUM_CLASS::ONE"));
+		CHECK(enum_class_type->as_enum.element_count == 3);
+		CHECK(enum_class_type->as_enum.values[0].index == -1);
+		CHECK(enum_class_type->as_enum.values[0].name == string_literal("ENUM_CLASS::NEG_ONE"));
+		CHECK(enum_class_type->as_enum.values[1].index == 0);
+		CHECK(enum_class_type->as_enum.values[1].name == string_literal("ENUM_CLASS::ZERO"));
+		CHECK(enum_class_type->as_enum.values[2].index == 1);
+		CHECK(enum_class_type->as_enum.values[2].name == string_literal("ENUM_CLASS::ONE"));
 
 		const Type *enum_with_same_values_type = type_of<ENUM_WITH_SAME_VALUES>();
 		CHECK(enum_with_same_values_type == type_of(ENUM_WITH_SAME_VALUES{}));
