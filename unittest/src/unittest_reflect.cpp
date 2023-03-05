@@ -15,6 +15,36 @@ enum REFLECT
 	REFLECT_ENUM_6,
 };
 
+enum UNORDERED_ENUM
+{
+	UNORDERED_ENUM_ONE = 1,
+	UNORDERED_ENUM_MINUS_ONE = -1,
+	UNORDERED_ENUM_ZERO = 0
+};
+
+TYPE_OF_ENUM(UNORDERED_ENUM, UNORDERED_ENUM_ONE, UNORDERED_ENUM_MINUS_ONE, UNORDERED_ENUM_ZERO)
+
+enum EMPTY_ENUM
+{
+
+};
+
+TYPE_OF_ENUM(EMPTY_ENUM)
+
+enum class ENUM_CLASS
+{
+	ZERO,
+	ONE
+};
+
+enum ENUM_WITH_SAME_VALUES
+{
+	ZERO,
+	ONE_MINUS_ONE = 0
+};
+
+TYPE_OF_ENUM(ENUM_WITH_SAME_VALUES, ZERO, ONE_MINUS_ONE)
+
 struct Empty
 {
 
@@ -402,15 +432,59 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(reflect_enum_type->kind == TYPE_KIND_ENUM);
 		CHECK(reflect_enum_type->size == sizeof(REFLECT));
 		CHECK(reflect_enum_type->align == alignof(REFLECT));
-		CHECK(reflect_enum_type->as_enum.indices != nullptr);
-		CHECK(reflect_enum_type->as_enum.names != nullptr);
+		CHECK(reflect_enum_type->as_enum.values != nullptr);
 		CHECK(reflect_enum_type->as_enum.element_count == 7);
 
 		for (u64 i = 0; i < reflect_enum_type->as_enum.element_count; ++i)
 		{
-			CHECK(reflect_enum_type->as_enum.indices[i] == i);
-			CHECK(reflect_enum_type->as_enum.names[i] == string_from(memory::temp_allocator(), "REFLECT_ENUM_{}", i));
+			CHECK(reflect_enum_type->as_enum.values[i].index == i);
+			CHECK(reflect_enum_type->as_enum.values[i].name == string_from(memory::temp_allocator(), "REFLECT_ENUM_{}", i));
 		}
+
+		const Type *unordered_enum_type = type_of<UNORDERED_ENUM>();
+		CHECK(unordered_enum_type == type_of(UNORDERED_ENUM_ONE));
+		CHECK(string_literal(unordered_enum_type->name) == "UNORDERED_ENUM");
+		CHECK(unordered_enum_type->kind == TYPE_KIND_ENUM);
+		CHECK(unordered_enum_type->size == sizeof(UNORDERED_ENUM));
+		CHECK(unordered_enum_type->align == alignof(UNORDERED_ENUM));
+		CHECK(unordered_enum_type->as_enum.values != nullptr);
+		CHECK(unordered_enum_type->as_enum.element_count == 3);
+		CHECK(unordered_enum_type->as_enum.values[0].index == 1);
+		CHECK(unordered_enum_type->as_enum.values[0].name == string_literal("UNORDERED_ENUM_ONE"));
+		CHECK(unordered_enum_type->as_enum.values[1].index == -1);
+		CHECK(unordered_enum_type->as_enum.values[1].name == string_literal("UNORDERED_ENUM_MINUS_ONE"));
+		CHECK(unordered_enum_type->as_enum.values[2].index == 0);
+		CHECK(unordered_enum_type->as_enum.values[2].name == string_literal("UNORDERED_ENUM_ZERO"));
+
+		const Type *empty_enum_type = type_of<EMPTY_ENUM>();
+		CHECK(empty_enum_type == type_of(EMPTY_ENUM{}));
+		CHECK(string_literal(empty_enum_type->name) == "EMPTY_ENUM");
+
+		const Type *enum_class_type = type_of<ENUM_CLASS>();
+		CHECK(enum_class_type == type_of(ENUM_CLASS{}));
+		CHECK(string_literal(enum_class_type->name) == "ENUM_CLASS");
+		CHECK(enum_class_type->kind == TYPE_KIND_ENUM);
+		CHECK(enum_class_type->size == sizeof(ENUM_CLASS));
+		CHECK(enum_class_type->align == alignof(ENUM_CLASS));
+		CHECK(enum_class_type->as_enum.values != nullptr);
+		CHECK(enum_class_type->as_enum.element_count == 2);
+		CHECK(enum_class_type->as_enum.values[0].index == 0);
+		CHECK(enum_class_type->as_enum.values[0].name == string_literal("ENUM_CLASS::ZERO"));
+		CHECK(enum_class_type->as_enum.values[1].index == 1);
+		CHECK(enum_class_type->as_enum.values[1].name == string_literal("ENUM_CLASS::ONE"));
+
+		const Type *enum_with_same_values_type = type_of<ENUM_WITH_SAME_VALUES>();
+		CHECK(enum_with_same_values_type == type_of(ENUM_WITH_SAME_VALUES{}));
+		CHECK(string_literal(enum_with_same_values_type->name) == "ENUM_WITH_SAME_VALUES");
+		CHECK(enum_with_same_values_type->kind == TYPE_KIND_ENUM);
+		CHECK(enum_with_same_values_type->size == sizeof(ENUM_WITH_SAME_VALUES));
+		CHECK(enum_with_same_values_type->align == alignof(ENUM_WITH_SAME_VALUES));
+		CHECK(enum_with_same_values_type->as_enum.values != nullptr);
+		CHECK(enum_with_same_values_type->as_enum.element_count == 2);
+		CHECK(enum_with_same_values_type->as_enum.values[0].index == 0);
+		CHECK(enum_with_same_values_type->as_enum.values[0].name == string_literal("ZERO"));
+		CHECK(enum_with_same_values_type->as_enum.values[1].index == 0);
+		CHECK(enum_with_same_values_type->as_enum.values[1].name == string_literal("ONE_MINUS_ONE"));
 	}
 
 	SUBCASE("value_of(T)")
