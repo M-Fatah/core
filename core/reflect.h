@@ -20,14 +20,16 @@
 			- [ ] Simplify OVERLOARD(TYPE_OF_FIELD, __VA_ARGS__) and use FOR_EACH() macro?
 			- [ ] Handle private variables inside classes by overloading member functions?
 		- [x] Enums.
-			- [ ] Add enum range?
-			- [ ] What if enum were used as flags?
-			- [ ] Add ability for the user to define enum range?
-			- [ ] What if the user used weird assignment values (for example => ENUM_ZERO = 0, ENUM_THREE = 3, ENUM_TWO = 2)?
-				- [ ] Preserve the order of enum values.
-			- [ ] Enums with the same value?
-			- [ ] Enum class?
+			- [x] Enum class?
+			- [x] Macro helper.
+				- [x] What if enum were used as flags?
+				- [x] What if the user used weird assignment values (for example => ENUM_ZERO = 0, ENUM_THREE = 3, ENUM_TWO = 2)?
+					- [x] Preserve the order of enum values.
+				- [x] Enums with the same value?
+				- [x] Enums with negative values?
+			- [ ] Simplify OVERLOARD(TYPE_OF_ENUM_VALUE, __VA_ARGS__) and use FOR_EACH() macro?
 			- [ ] Simplify type_of(Enum).
+			- [ ] Add enum range?
 	- [ ] Simplify, optimize and cleanup name_of<T>().
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Use string_view for names and avoid allocations at all?
@@ -57,6 +59,12 @@ enum TYPE_KIND
 	TYPE_KIND_STRUCT
 };
 
+struct Type_Enum_Value
+{
+	i32 index;
+	const char *name;
+};
+
 struct Type_Field
 {
 	const char *name;
@@ -83,8 +91,7 @@ struct Type
 		} as_array;
 		struct
 		{
-			const i32 *indices;
-			const char (*names)[REFLECT_MAX_NAME_LENGTH];
+			const Type_Enum_Value *values;
 			u64 element_count;
 		} as_enum;
 		struct
@@ -402,6 +409,45 @@ type_of(const T(&)[N])
 	return &self;
 }
 
+#define TYPE_OF_ENUM_VALUE16(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE15(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE15(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE14(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE14(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE13(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE13(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE12(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE12(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE11(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE11(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE10(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE10(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE09(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE09(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE08(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE08(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE07(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE07(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE06(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE06(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE05(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE05(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE04(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE04(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE03(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE03(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE02(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE02(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE01(__VA_ARGS__)
+#define TYPE_OF_ENUM_VALUE01(VALUE, ...) {(i32)VALUE, #VALUE}
+
+#define TYPE_OF_ENUM(T, ...)                                                                   \
+inline static const Type *                                                                     \
+type_of(const T)                                                                               \
+{                                                                                              \
+	__VA_OPT__(                                                                                \
+		static const Type_Enum_Value values[] = { OVERLOAD(TYPE_OF_ENUM_VALUE, __VA_ARGS__) }; \
+	)                                                                                          \
+	static const Type self = {                                                                 \
+		.name = name_of<T>(),                                                                  \
+		.kind = kind_of<T>(),                                                                  \
+		.size = sizeof(T),                                                                     \
+		.align = alignof(T),                                                                   \
+		.as_enum = {                                                                           \
+			__VA_OPT__(                                                                        \
+				values,                                                                        \
+				sizeof(values) / sizeof(Type_Enum_Value)                                       \
+			)                                                                                  \
+		}                                                                                      \
+	};                                                                                         \
+	return &self;                                                                              \
+}
+
 template <typename T>
 requires (std::is_enum_v<T>)
 inline static constexpr const Type *
@@ -445,14 +491,15 @@ type_of(const T)
 		};
 	}(std::make_integer_sequence<i32, REFLECT_MAX_ENUM_VALUE_COUNT>());
 
-	static i32 indices[data.count] = {};
+	static Type_Enum_Value values[data.count] = {};
 	static char names[data.count][REFLECT_MAX_NAME_LENGTH] = {};
 	for (u64 i = 0, c = 0; i < REFLECT_MAX_ENUM_VALUE_COUNT; ++i)
 	{
 		if (const auto &value = data.values[i]; value.name != "")
 		{
-			indices[c] = value.index;
+			values[c].index = value.index;
 			::memcpy(names[c], value.name.data(), value.name.length());
+			values[c].name = names[c];
 			++c;
 		}
 	}
@@ -463,8 +510,7 @@ type_of(const T)
 		.size = sizeof(T),
 		.align = alignof(T),
 		.as_enum = {
-			.indices = indices,
-			.names = names,
+			.values = values,
 			.element_count = data.count
 		}
 	};
