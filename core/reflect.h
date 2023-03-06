@@ -30,9 +30,7 @@
 			- [ ] Simplify OVERLOARD(TYPE_OF_ENUM_VALUE, __VA_ARGS__) and use FOR_EACH() macro?
 			- [ ] Simplify type_of(Enum).
 			- [ ] Add enum range?
-	- [ ] Simplify, optimize and cleanup name_of<T>().
 	- [ ] Name as reflect/reflector/reflection?
-	- [ ] Use string_view for names and avoid allocations at all?
 	- [ ] Cleanup.
 */
 
@@ -148,19 +146,15 @@ name_of()
 			static char name[REFLECT_MAX_NAME_LENGTH] = {};
 			for (u64 i = 0, count = 0; i < type_name.length() && count < REFLECT_MAX_NAME_LENGTH - 1; ++i)
 			{
-				std::string_view n = {type_name.data() + i, type_name.length() - i};
-				if (n.starts_with("enum "))
-				{
-					i += 5;
-				}
-				else if (n.starts_with("class "))
-				{
-					i += 6;
-				}
-				else if (n.starts_with("struct "))
-				{
-					i += 7;
-				}
+				#if defined(_MSC_VER)
+					std::string_view type_name_prefix = {type_name.data() + i, type_name.length() - i};
+					if (type_name_prefix.starts_with("enum "))
+						i += 5;
+					else if (type_name_prefix.starts_with("class "))
+						i += 6;
+					else if (type_name_prefix.starts_with("struct "))
+						i += 7;
+				#endif
 
 				if (type_name.at(i) == ' ')
 					++i;
@@ -177,76 +171,76 @@ name_of()
 					while (*ptr != '>' && *ptr != ',')
 						++ptr;
 
-					n = {type_name.data() + i, (u64)(ptr - (type_name.data() + i))};
-					if (n == "signed char")
+					std::string_view template_type_name = {type_name.data() + i, (u64)(ptr - (type_name.data() + i))};
+					if (template_type_name == "signed char")
 					{
 						string_append(name, "i8", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
-					else if (n == "short")
+					else if (template_type_name == "short")
 					{
 						string_append(name, "i16", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
-					else if (n == "short int")
+					else if (template_type_name == "short int")
 					{
 						string_append(name, "i16", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
-					else if (n == "int")
+					else if (template_type_name == "int")
 					{
 						string_append(name, "i32", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
-					else if (n == "__int64")
+					else if (template_type_name == "__int64")
 					{
 						string_append(name, "i64", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
-					else if (n == "long int")
+					else if (template_type_name == "long int")
 					{
 						string_append(name, "i64", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
-					else if (n == "unsigned char")
+					else if (template_type_name == "unsigned char")
 					{
 						string_append(name, "u8", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
-					else if (n == "unsigned short")
+					else if (template_type_name == "unsigned short")
 					{
 						string_append(name, "u16", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
-					else if (n == "short unsigned int")
+					else if (template_type_name == "short unsigned int")
 					{
 						string_append(name, "u16", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
-					else if (n == "unsigned int")
+					else if (template_type_name == "unsigned int")
 					{
 						string_append(name, "u32", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
-					else if (n == "unsigned __int64")
+					else if (template_type_name == "unsigned __int64")
 					{
 						string_append(name, "u64", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
-					else if (n == "long unsigned int")
+					else if (template_type_name == "long unsigned int")
 					{
 						string_append(name, "u64", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
-					else if (n == "float")
+					else if (template_type_name == "float")
 					{
 						string_append(name, "f32", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
-					else if (n == "double")
+					else if (template_type_name == "double")
 					{
 						string_append(name, "f64", count);
-						i += n.length();
+						i += template_type_name.length();
 					}
 					--i;
 				}
@@ -259,7 +253,6 @@ name_of()
 		constexpr auto type_name_prefix_length = void_function_name.find("void");
 		constexpr auto type_name_suffix_length = void_function_name.length() - type_name_prefix_length - 4;
 		constexpr auto type_name_length        = type_function_name.length() - type_name_prefix_length - type_name_suffix_length;
-
 		return get_type_name({type_function_name.data() + type_name_prefix_length, type_name_length});
 	}
 }
