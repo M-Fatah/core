@@ -178,19 +178,7 @@ name_of()
 						++ptr;
 
 					n = {type_name.data() + i, (u64)(ptr - (type_name.data() + i))};
-					if (n.starts_with("enum "))
-					{
-						i += 5;
-					}
-					else if (n.starts_with("class "))
-					{
-						i += 6;
-					}
-					else if (n.starts_with("struct "))
-					{
-						i += 7;
-					}
-					else if (n == "signed char")
+					if (n == "signed char")
 					{
 						string_append(name, "i8", count);
 						i += n.length();
