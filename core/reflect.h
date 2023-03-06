@@ -24,7 +24,7 @@
 			- [x] Macro helper.
 				- [x] What if enum were used as flags?
 				- [x] What if the user used weird assignment values (for example => ENUM_ZERO = 0, ENUM_THREE = 3, ENUM_TWO = 2)?
-					- [x] Preserve the order of enum values.
+					- [x] Preserve the order of enum values?
 				- [x] Enums with the same value?
 				- [x] Enums with negative values?
 			- [ ] Simplify OVERLOARD(TYPE_OF_ENUM_VALUE, __VA_ARGS__) and use FOR_EACH() macro?
@@ -36,8 +36,10 @@
 	- [ ] Cleanup.
 */
 
-inline static constexpr const u64 REFLECT_MAX_NAME_LENGTH      = 64;
-inline static constexpr const u64 REFLECT_MAX_ENUM_VALUE_COUNT = 32;
+inline static constexpr const u64 REFLECT_MAX_NAME_LENGTH      =  64;
+inline static constexpr const i32 REFLECT_MIN_ENUM_VALUE       = -32;
+inline static constexpr const i32 REFLECT_MAX_ENUM_VALUE       =  32;
+inline static constexpr const i32 REFLECT_MAX_ENUM_VALUE_COUNT = REFLECT_MAX_ENUM_VALUE - REFLECT_MIN_ENUM_VALUE;
 
 enum TYPE_KIND
 {
@@ -124,6 +126,7 @@ name_of()
 	else if constexpr (std::is_same_v<T, f64>)  return "f64";
 	else if constexpr (std::is_same_v<T, bool>) return "bool";
 	else if constexpr (std::is_same_v<T, char>) return "char";
+	else if constexpr (std::is_same_v<T, void>) return "void";
 	else
 	{
 		constexpr auto get_function_name = []<typename R>() -> std::string_view {
@@ -136,129 +139,128 @@ name_of()
 			#endif
 		};
 
-		constexpr auto get_unified_name = [](char (&name)[REFLECT_MAX_NAME_LENGTH], u64 &i, u64 &count, const std::string_view &type_name) {
-			constexpr auto string_append = [](char (&name)[REFLECT_MAX_NAME_LENGTH], const char *n, u64 &count) {
-				while(*n != '\0')
-					name[count++] = *n++;
-			};
-
-			auto c = type_name.data()[i];
-			if (c == '<' || c == ',')
-			{
-				++i;
-				name[count++] = c;
-				const char *ptr = type_name.data() + i;
-				while (*ptr != ',' && *ptr != '>')
-					ptr++;
-
-				if (type_name.data()[i] == ' ')
-					i++;
-
-				u64 diff = ptr - (type_name.data() + i);
-				std::string_view nn = {type_name.data() + i, diff};
-				if (nn == "signed char")
-				{
-					string_append(name, "i8", count);
-					i += nn.length();
-				}
-				else if (nn == "short")
-				{
-					string_append(name, "i16", count);
-					i += nn.length();
-				}
-				else if (nn == "short int")
-				{
-					string_append(name, "i16", count);
-					i += nn.length();
-				}
-				else if (nn == "int")
-				{
-					string_append(name, "i32", count);
-					i += nn.length();
-				}
-				else if (nn == "__int64")
-				{
-					string_append(name, "i64", count);
-					i += nn.length();
-				}
-				else if (nn == "long int")
-				{
-					string_append(name, "i64", count);
-					i += nn.length();
-				}
-				else if (nn == "unsigned char")
-				{
-					string_append(name, "u8", count);
-					i += nn.length();
-				}
-				else if (nn == "unsigned short")
-				{
-					string_append(name, "u16", count);
-					i += nn.length();
-				}
-				else if (nn == "short unsigned int")
-				{
-					string_append(name, "u16", count);
-					i += nn.length();
-				}
-				else if (nn == "unsigned int")
-				{
-					string_append(name, "u32", count);
-					i += nn.length();
-				}
-				else if (nn == "unsigned __int64")
-				{
-					string_append(name, "u64", count);
-					i += nn.length();
-				}
-				else if (nn == "long unsigned int")
-				{
-					string_append(name, "u64", count);
-					i += nn.length();
-				}
-				else if (nn == "float")
-				{
-					string_append(name, "f32", count);
-					i += nn.length();
-				}
-				else if (nn == "double")
-				{
-					string_append(name, "f64", count);
-					i += nn.length();
-				}
-				else if (nn.starts_with("enum "))
-				{
-					i += 5;
-				}
-				else if (nn.starts_with("class "))
-				{
-					i += 6;
-				}
-				else if (nn.starts_with("struct "))
-				{
-					i += 7;
-				}
-			}
+		constexpr auto string_append = [](char *string, const char *to_append, u64 &count) {
+			while(*to_append != '\0' && count < REFLECT_MAX_NAME_LENGTH - 1)
+				string[count++] = *to_append++;
 		};
 
-		constexpr auto get_type_name = [get_unified_name](const std::string_view &type_name) -> const char * {
+		constexpr auto get_type_name = [string_append](const std::string_view &type_name) -> const char * {
 			static char name[REFLECT_MAX_NAME_LENGTH] = {};
-			for (u64 i = 0, count = 0; i < type_name.length(); ++i)
+			for (u64 i = 0, count = 0; i < type_name.length() && count < REFLECT_MAX_NAME_LENGTH - 1; ++i)
 			{
 				std::string_view n = {type_name.data() + i, type_name.length() - i};
 				if (n.starts_with("enum "))
-					i += 5;
-				else if (n.starts_with("class "))
-					i += 6;
-				else if (n.starts_with("struct "))
-					i += 7;
-
-				if (type_name.data()[i] != ' ' && i < type_name.length() && count < sizeof(name))
 				{
-					get_unified_name(name, i, count, type_name);
-					if (type_name.data()[i] == ',')
-						get_unified_name(name, i, count, type_name);
-					name[count++] = type_name.data()[i];
+					i += 5;
+				}
+				else if (n.starts_with("class "))
+				{
+					i += 6;
+				}
+				else if (n.starts_with("struct "))
+				{
+					i += 7;
+				}
+
+				if (type_name.at(i) == ' ')
+					++i;
+
+				char c = type_name.at(i);
+				name[count++] = c;
+				if (c == '<' || c == ',')
+				{
+					++i;
+					if (type_name.at(i) == ' ')
+						++i;
+
+					const char *ptr = type_name.data() + i;
+					while (*ptr != '>' && *ptr != ',')
+						++ptr;
+
+					n = {type_name.data() + i, (u64)(ptr - (type_name.data() + i))};
+					if (n.starts_with("enum "))
+					{
+						i += 5;
+					}
+					else if (n.starts_with("class "))
+					{
+						i += 6;
+					}
+					else if (n.starts_with("struct "))
+					{
+						i += 7;
+					}
+					else if (n == "signed char")
+					{
+						string_append(name, "i8", count);
+						i += n.length();
+					}
+					else if (n == "short")
+					{
+						string_append(name, "i16", count);
+						i += n.length();
+					}
+					else if (n == "short int")
+					{
+						string_append(name, "i16", count);
+						i += n.length();
+					}
+					else if (n == "int")
+					{
+						string_append(name, "i32", count);
+						i += n.length();
+					}
+					else if (n == "__int64")
+					{
+						string_append(name, "i64", count);
+						i += n.length();
+					}
+					else if (n == "long int")
+					{
+						string_append(name, "i64", count);
+						i += n.length();
+					}
+					else if (n == "unsigned char")
+					{
+						string_append(name, "u8", count);
+						i += n.length();
+					}
+					else if (n == "unsigned short")
+					{
+						string_append(name, "u16", count);
+						i += n.length();
+					}
+					else if (n == "short unsigned int")
+					{
+						string_append(name, "u16", count);
+						i += n.length();
+					}
+					else if (n == "unsigned int")
+					{
+						string_append(name, "u32", count);
+						i += n.length();
+					}
+					else if (n == "unsigned __int64")
+					{
+						string_append(name, "u64", count);
+						i += n.length();
+					}
+					else if (n == "long unsigned int")
+					{
+						string_append(name, "u64", count);
+						i += n.length();
+					}
+					else if (n == "float")
+					{
+						string_append(name, "f32", count);
+						i += n.length();
+					}
+					else if (n == "double")
+					{
+						string_append(name, "f64", count);
+						i += n.length();
+					}
+					--i;
 				}
 			}
 			return name;
@@ -320,22 +322,22 @@ type_of(const T)
 	return nullptr;
 }
 
-#define TYPE_OF_FIELD16(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD15(__VA_ARGS__)
-#define TYPE_OF_FIELD15(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD14(__VA_ARGS__)
-#define TYPE_OF_FIELD14(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD13(__VA_ARGS__)
-#define TYPE_OF_FIELD13(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD12(__VA_ARGS__)
-#define TYPE_OF_FIELD12(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD11(__VA_ARGS__)
-#define TYPE_OF_FIELD11(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD10(__VA_ARGS__)
-#define TYPE_OF_FIELD10(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD09(__VA_ARGS__)
-#define TYPE_OF_FIELD09(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD08(__VA_ARGS__)
-#define TYPE_OF_FIELD08(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD07(__VA_ARGS__)
-#define TYPE_OF_FIELD07(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD06(__VA_ARGS__)
-#define TYPE_OF_FIELD06(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD05(__VA_ARGS__)
-#define TYPE_OF_FIELD05(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD04(__VA_ARGS__)
-#define TYPE_OF_FIELD04(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD03(__VA_ARGS__)
-#define TYPE_OF_FIELD03(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD02(__VA_ARGS__)
-#define TYPE_OF_FIELD02(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }, TYPE_OF_FIELD01(__VA_ARGS__)
-#define TYPE_OF_FIELD01(NAME, ...) { #NAME, offsetof(TYPE, NAME), type_of(t.NAME) }
+#define TYPE_OF_FIELD16(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD15(__VA_ARGS__)
+#define TYPE_OF_FIELD15(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD14(__VA_ARGS__)
+#define TYPE_OF_FIELD14(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD13(__VA_ARGS__)
+#define TYPE_OF_FIELD13(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD12(__VA_ARGS__)
+#define TYPE_OF_FIELD12(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD11(__VA_ARGS__)
+#define TYPE_OF_FIELD11(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD10(__VA_ARGS__)
+#define TYPE_OF_FIELD10(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD09(__VA_ARGS__)
+#define TYPE_OF_FIELD09(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD08(__VA_ARGS__)
+#define TYPE_OF_FIELD08(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD07(__VA_ARGS__)
+#define TYPE_OF_FIELD07(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD06(__VA_ARGS__)
+#define TYPE_OF_FIELD06(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD05(__VA_ARGS__)
+#define TYPE_OF_FIELD05(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD04(__VA_ARGS__)
+#define TYPE_OF_FIELD04(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD03(__VA_ARGS__)
+#define TYPE_OF_FIELD03(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD02(__VA_ARGS__)
+#define TYPE_OF_FIELD02(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD01(__VA_ARGS__)
+#define TYPE_OF_FIELD01(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}
 
 #define TYPE_OF(T, ...)                                                              \
 inline static const Type *                                                           \
@@ -486,8 +488,8 @@ type_of(const T)
 
 	constexpr auto data = [get_enum_value]<i32... I>(std::integer_sequence<i32, I...>) -> Enum {
 		return {
-			{get_enum_value.template operator()<(T)I>()...},
-			((get_enum_value.template operator()<(T)I>().name != "") + ...)
+			{ get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>()...},
+			((get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>().name != "") + ...)
 		};
 	}(std::make_integer_sequence<i32, REFLECT_MAX_ENUM_VALUE_COUNT>());
 
