@@ -22,6 +22,16 @@ enum class ENUM_CLASS
 	ONE
 };
 
+enum ENUM_WITH_FLAGS
+{
+	ONE          = 1 << 0,
+	TWO          = 1 << 1,
+	FOUR         = 1 << 2,
+	TWO_POWER_16 = 1 << 16
+};
+
+TYPE_OF_ENUM(ENUM_WITH_FLAGS, ONE, TWO, FOUR, TWO_POWER_16)
+
 enum UNORDERED_ENUM
 {
 	UNORDERED_ENUM_ONE = 1,
@@ -475,6 +485,23 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(enum_class_type->as_enum.values[1].name == string_literal("ENUM_CLASS::ZERO"));
 		CHECK(enum_class_type->as_enum.values[2].index == 1);
 		CHECK(enum_class_type->as_enum.values[2].name == string_literal("ENUM_CLASS::ONE"));
+
+		const Type *enum_with_flags_type = type_of<ENUM_WITH_FLAGS>();
+		CHECK(enum_with_flags_type == type_of(ENUM_WITH_FLAGS{}));
+		CHECK(string_literal(enum_with_flags_type->name) == "ENUM_WITH_FLAGS");
+		CHECK(enum_with_flags_type->kind == TYPE_KIND_ENUM);
+		CHECK(enum_with_flags_type->size == sizeof(ENUM_WITH_FLAGS));
+		CHECK(enum_with_flags_type->align == alignof(ENUM_WITH_FLAGS));
+		CHECK(enum_with_flags_type->as_enum.values != nullptr);
+		CHECK(enum_with_flags_type->as_enum.element_count == 4);
+		CHECK(enum_with_flags_type->as_enum.values[0].index == 1);
+		CHECK(enum_with_flags_type->as_enum.values[0].name == string_literal("ONE"));
+		CHECK(enum_with_flags_type->as_enum.values[1].index == 2);
+		CHECK(enum_with_flags_type->as_enum.values[1].name == string_literal("TWO"));
+		CHECK(enum_with_flags_type->as_enum.values[2].index == 4);
+		CHECK(enum_with_flags_type->as_enum.values[2].name == string_literal("FOUR"));
+		CHECK(enum_with_flags_type->as_enum.values[3].index == 65536);
+		CHECK(enum_with_flags_type->as_enum.values[3].name == string_literal("TWO_POWER_16"));
 
 		const Type *enum_with_same_values_type = type_of<ENUM_WITH_SAME_VALUES>();
 		CHECK(enum_with_same_values_type == type_of(ENUM_WITH_SAME_VALUES{}));
