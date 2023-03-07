@@ -189,6 +189,18 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(string_literal(const_void_name) == "const void");
 	}
 
+	SUBCASE("name_of<T> pointer")
+	{
+		auto vec3_ptr_name = name_of<Vector3 *>();
+		CHECK(string_literal(vec3_ptr_name) == "Vector3*");
+
+		auto const_vec3_ptr_name = name_of<const Vector3 *>();
+		CHECK(string_literal(const_vec3_ptr_name) == "const Vector3*");
+
+		auto const_point_const_i32_ptr_name = name_of<const Point<const i32 *>>();
+		CHECK(string_literal(const_point_const_i32_ptr_name) == "const Point<const i32*>");
+	}
+
 	SUBCASE("name_of<T> struct")
 	{
 		auto vec3_name = name_of<Vector3>();
@@ -219,9 +231,11 @@ TEST_CASE("[CORE]: Reflect")
 		auto point_void_name = name_of<Point<void>>();
 
 		auto point_vec3_name = name_of<Point<Vector3>>();
+		auto point_const_vec3_name = name_of<Point<const Vector3>>();
 
 		auto foo_i32_f32_name = name_of<Foo<i32, f32>>();
 		auto bar_i32_f32_vec3_name = name_of<Bar<i32, f32, Vector3>>();
+		auto bar_const_i32_const_f32_const_vec3_name = name_of<Bar<const i32, const f32, const Vector3>>();
 
 		CHECK(string_literal(point_i08_name) == "Point<i8>");
 		CHECK(string_literal(point_i16_name) == "Point<i16>");
@@ -242,8 +256,11 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(string_literal(point_void_name) == "Point<void>");
 
 		CHECK(string_literal(point_vec3_name) == "Point<Vector3>");
+		CHECK(string_literal(point_const_vec3_name) == "Point<const Vector3>");
+
 		CHECK(string_literal(foo_i32_f32_name) == "Foo<i32,f32>");
 		CHECK(string_literal(bar_i32_f32_vec3_name) == "Bar<i32,f32,Vector3>");
+		CHECK(string_literal(bar_const_i32_const_f32_const_vec3_name) == "Bar<const i32,const f32,const Vector3>");
 	}
 
 	SUBCASE("type_of<T> primitives")

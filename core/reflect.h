@@ -34,8 +34,9 @@
 	- [ ] name_of<T>().
 		- [x] Names with const specifier.
 		- [x] Fix name_of<void>() on GCC.
-		- [ ] Pointer names.
+		- [x] Pointer names.
 		- [ ] Figure out a way to use alias names like `String` instead of `Array<char>`?
+		- [ ] Put space after comma, before array `[]` and before pointer `*` names.
 		- [ ] Simplify.
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Cleanup.
@@ -164,6 +165,9 @@ name_of()
 					i += 7;
 				}
 			#endif
+
+			if (type_name.at(type_name.length() - 1) == '*')
+				type_name.remove_suffix(1);
 
 			if (type_name == "signed char")
 			{
