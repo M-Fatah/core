@@ -33,7 +33,7 @@
 			- [ ] Add enum range?
 	- [ ] name_of<T>().
 		- [x] Names with const specifier.
-		- [ ] Fix name_of<void>() on GCC.
+		- [x] Fix name_of<void>() on GCC.
 		- [ ] Pointer names.
 		- [ ] Figure out a way to use alias names like `String` instead of `Array<char>`?
 		- [ ] Simplify.
@@ -134,16 +134,6 @@ name_of()
 	else if constexpr (std::is_same_v<T, void>) return "void";
 	else
 	{
-		constexpr auto get_function_name = []<typename R>() -> std::string_view {
-			#if defined(_MSC_VER)
-				return __FUNCSIG__;
-			#elif defined(__GNUC__) || defined(__clang__)
-				return __PRETTY_FUNCTION__;
-			#else
-				#error "[REFLECT]: Unsupported compiler."
-			#endif
-		};
-
 		constexpr auto string_append = [](char *string, const char *to_append, u64 &count) {
 			while(*to_append != '\0' && count < REFLECT_MAX_NAME_LENGTH - 1)
 				string[count++] = *to_append++;
@@ -229,7 +219,7 @@ name_of()
 			}
 		};
 
-		constexpr auto get_type_name = [append_type_name_prettified, string_append](const std::string_view &type_name) -> const char * {
+		constexpr auto get_type_name = [append_type_name_prettified](const std::string_view &type_name) -> const char * {
 			static char name[REFLECT_MAX_NAME_LENGTH] = {};
 			for (u64 i = 0, count = 0; i < type_name.length() && count < REFLECT_MAX_NAME_LENGTH - 1; ++i)
 			{
@@ -271,11 +261,17 @@ name_of()
 			return name;
 		};
 
-		constexpr auto type_function_name      = get_function_name.template operator()<T>();
-		constexpr auto void_function_name      = get_function_name.template operator()<void>();
-		constexpr auto type_name_prefix_length = void_function_name.find("void");
-		constexpr auto type_name_suffix_length = void_function_name.length() - type_name_prefix_length - 4;
-		constexpr auto type_name_length        = type_function_name.length() - type_name_prefix_length - type_name_suffix_length;
+		#if defined(_MSC_VER)
+			constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
+			constexpr auto type_name_prefix_length = type_function_name.find("()<") + 3;
+			constexpr auto type_name_length        = type_function_name.find(">", type_name_prefix_length) - type_name_prefix_length;
+		#elif defined(__GNUC__) || defined(__clang__)
+			constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
+			constexpr auto type_name_prefix_length = type_function_name.find("= ") + 2;
+			constexpr auto type_name_length        = type_function_name.find_last_of("]") - type_name_prefix_length;
+		#else
+			#error "[REFLECT]: Unsupported compiler."
+		#endif
 		return get_type_name({type_function_name.data() + type_name_prefix_length, type_name_length});
 	}
 }
