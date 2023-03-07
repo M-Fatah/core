@@ -147,6 +147,24 @@ name_of()
 				i += 6;
 			}
 
+			#if defined(_MSC_VER)
+				if (type_name.starts_with("enum "))
+				{
+					type_name.remove_prefix(5);
+					i += 5;
+				}
+				else if (type_name.starts_with("class "))
+				{
+					type_name.remove_prefix(6);
+					i += 6;
+				}
+				else if (type_name.starts_with("struct "))
+				{
+					type_name.remove_prefix(7);
+					i += 7;
+				}
+			#endif
+
 			if (type_name == "signed char")
 			{
 				string_append(name, "i8", count);
@@ -223,16 +241,6 @@ name_of()
 			static char name[REFLECT_MAX_NAME_LENGTH] = {};
 			for (u64 i = 0, count = 0; i < type_name.length() && count < REFLECT_MAX_NAME_LENGTH - 1; ++i)
 			{
-				#if defined(_MSC_VER)
-				std::string_view type_name_prefix = {type_name.data() + i, type_name.length() - i};
-					if (type_name_prefix.starts_with("enum "))
-						i += 5;
-					else if (type_name_prefix.starts_with("class "))
-						i += 6;
-					else if (type_name_prefix.starts_with("struct "))
-						i += 7;
-				#endif
-
 				append_type_name_prettified(name, {type_name.data() + i, type_name.length() - i}, count, i);
 
 				if (i < type_name.length())

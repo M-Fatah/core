@@ -193,6 +193,9 @@ TEST_CASE("[CORE]: Reflect")
 	{
 		auto vec3_name = name_of<Vector3>();
 		CHECK(string_literal(vec3_name) == "Vector3");
+
+		auto const_vec3_name = name_of<const Vector3>();
+		CHECK(string_literal(const_vec3_name) == "const Vector3");
 	}
 
 	SUBCASE("name_of<T> template struct")
