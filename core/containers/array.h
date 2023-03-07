@@ -3,6 +3,7 @@
 #include "core/defines.h"
 #include "core/assert.h"
 #include "core/formatter.h"
+#include "core/reflect.h"
 #include "core/memory/memory.h"
 #include "core/serialization/serializer.h"
 
@@ -317,3 +318,6 @@ format(Formatter *formatter, const Array<T> &self)
 	}
 	format(formatter, " }}");
 }
+
+template <typename T>
+TYPE_OF(Array<T>, data, count, capacity, allocator)

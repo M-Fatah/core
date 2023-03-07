@@ -1,6 +1,8 @@
 #include <core/defines.h>
 #include <core/reflect.h>
+#include <core/containers/array.h>
 #include <core/containers/string.h>
+#include <core/containers/hash_table.h>
 
 #include <doctest/doctest.h>
 
@@ -132,6 +134,24 @@ TEST_CASE("[CORE]: Reflect")
 
 		auto void_name = name_of<void>();
 
+		auto const_i08_name = name_of<const i8>();
+		auto const_i16_name = name_of<const i16>();
+		auto const_i32_name = name_of<const i32>();
+		auto const_i64_name = name_of<const i64>();
+
+		auto const_u08_name = name_of<const u8>();
+		auto const_u16_name = name_of<const u16>();
+		auto const_u32_name = name_of<const u32>();
+		auto const_u64_name = name_of<const u64>();
+
+		auto const_f32_name = name_of<const f32>();
+		auto const_f64_name = name_of<const f64>();
+
+		auto const_bool_name = name_of<const bool>();
+		auto const_char_name = name_of<const char>();
+
+		auto const_void_name = name_of<const void>();
+
 		CHECK(string_literal(i08_name) == "i8");
 		CHECK(string_literal(i16_name) == "i16");
 		CHECK(string_literal(i32_name) == "i32");
@@ -149,6 +169,24 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(string_literal(char_name) == "char");
 
 		CHECK(string_literal(void_name) == "void");
+
+		CHECK(string_literal(const_i08_name) == "const i8");
+		CHECK(string_literal(const_i16_name) == "const i16");
+		CHECK(string_literal(const_i32_name) == "const i32");
+		CHECK(string_literal(const_i64_name) == "const i64");
+
+		CHECK(string_literal(const_u08_name) == "const u8");
+		CHECK(string_literal(const_u16_name) == "const u16");
+		CHECK(string_literal(const_u32_name) == "const u32");
+		CHECK(string_literal(const_u64_name) == "const u64");
+
+		CHECK(string_literal(const_f32_name) == "const f32");
+		CHECK(string_literal(const_f64_name) == "const f64");
+
+		CHECK(string_literal(const_bool_name) == "const bool");
+		CHECK(string_literal(const_char_name) == "const char");
+
+		CHECK(string_literal(const_void_name) == "const void");
 	}
 
 	SUBCASE("name_of<T> struct")
@@ -244,21 +282,19 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(char_type->align == alignof(char));
 	}
 
-	SUBCASE("type_of<T> struct")
+	SUBCASE("type_of<T> pointer")
 	{
-		Empty empty = {};
-		const Type *empty_type = type_of<Empty>();
-		CHECK(empty_type == type_of(empty));
-		CHECK(string_literal(empty_type->name) == "Empty");
-		CHECK(empty_type->kind == TYPE_KIND_STRUCT);
-		CHECK(empty_type->size == sizeof(Empty));
-		CHECK(empty_type->align == alignof(Empty));
-		CHECK(empty_type->as_struct.fields == nullptr);
-		CHECK(empty_type->as_struct.field_count == 0);
+		const Type *void_ptr_type = type_of<void*>();
+		CHECK(string_literal(void_ptr_type->name) == "void*");
 
-		Vector3 vec3 = {1.0f, 2.0f, 3.0f};
-		const Type *vec3_type = type_of<Vector3>();
-		CHECK(vec3_type == type_of(vec3));
+		const Type *vec3_type_pointer = type_of<Vector3 *>();
+		CHECK(string_literal(vec3_type_pointer->name) == "Vector3*");
+		CHECK(vec3_type_pointer->kind == TYPE_KIND_POINTER);
+		CHECK(vec3_type_pointer->size == sizeof(Vector3*));
+		CHECK(vec3_type_pointer->align == alignof(Vector3*));
+		CHECK(vec3_type_pointer->as_pointer.pointee != nullptr);
+
+		const Type *vec3_type = vec3_type_pointer->as_pointer.pointee;
 		CHECK(string_literal(vec3_type->name) == "Vector3");
 		CHECK(vec3_type->kind == TYPE_KIND_STRUCT);
 		CHECK(vec3_type->size == sizeof(Vector3));
@@ -288,62 +324,6 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(field_z.type->kind == TYPE_KIND_F32);
 		CHECK(field_z.type->size == sizeof(f32));
 		CHECK(field_z.type->align == alignof(f32));
-	}
-
-	SUBCASE("type_of<T> template struct")
-	{
-		CHECK(type_of<Point<f32>>() != nullptr);
-		CHECK(type_of<Point<Vector3>>() != nullptr);
-		CHECK(type_of<Point<Point<Vector3>>>() != nullptr);
-
-		const Type *point_i32_type = type_of(Point<i32>{1, 2, 3});
-		CHECK(point_i32_type == type_of<Point<i32>>());
-		CHECK(string_literal(point_i32_type->name) == "Point<i32>");
-		CHECK(point_i32_type->kind == TYPE_KIND_STRUCT);
-		CHECK(point_i32_type->size == sizeof(Point<i32>));
-		CHECK(point_i32_type->align == alignof(Point<i32>));
-		CHECK(point_i32_type->as_struct.fields != nullptr);
-		CHECK(point_i32_type->as_struct.field_count == 3);
-
-		Foo<f32, i32> foo = {1.5f, 1};
-		auto foo_f32_i32_type = type_of<Foo<f32, i32>>();
-		CHECK(foo_f32_i32_type == type_of(foo));
-
-		auto foo_point_vector3_type = type_of<Foo<Point<i32>, Vector3>>();
-		CHECK(string_literal(foo_point_vector3_type->name) == "Foo<Point<i32>,Vector3>");
-		CHECK(foo_point_vector3_type->kind == TYPE_KIND_STRUCT);
-		CHECK(foo_point_vector3_type->size == sizeof(Foo<Point<i32>, Vector3>));
-		CHECK(foo_point_vector3_type->align == alignof(Foo<Point<i32>, Vector3>));
-		CHECK(foo_point_vector3_type->as_struct.fields != nullptr);
-		CHECK(foo_point_vector3_type->as_struct.field_count == 2);
-
-		using foo_point_vector3_templated_type = Foo<Point<i32>, Vector3>;
-		auto foo_point_vector3_field_x = foo_point_vector3_type->as_struct.fields[0];
-		CHECK(string_literal(foo_point_vector3_field_x.name) == "x");
-		CHECK(foo_point_vector3_field_x.offset == offsetof(foo_point_vector3_templated_type, x));
-		CHECK(string_literal(foo_point_vector3_field_x.type->name) == "Point<i32>");
-		CHECK(foo_point_vector3_field_x.type->kind == TYPE_KIND_STRUCT);
-		CHECK(foo_point_vector3_field_x.type->size == sizeof(Point<i32>));
-		CHECK(foo_point_vector3_field_x.type->align == alignof(Point<i32>));
-		CHECK(foo_point_vector3_field_x.type->as_struct.fields != nullptr);
-		CHECK(foo_point_vector3_field_x.type->as_struct.field_count == 3);
-
-		auto foo_point_vector3_field_y = foo_point_vector3_type->as_struct.fields[1];
-		CHECK(string_literal(foo_point_vector3_field_y.name) == "y");
-		CHECK(foo_point_vector3_field_y.offset == offsetof(foo_point_vector3_templated_type, y));
-		CHECK(string_literal(foo_point_vector3_field_y.type->name) == "Vector3");
-		CHECK(foo_point_vector3_field_y.type->kind == TYPE_KIND_STRUCT);
-		CHECK(foo_point_vector3_field_y.type->size == sizeof(Vector3));
-		CHECK(foo_point_vector3_field_y.type->align == alignof(Vector3));
-		CHECK(foo_point_vector3_field_y.type->as_struct.fields != nullptr);
-		CHECK(foo_point_vector3_field_y.type->as_struct.field_count == 3);
-	}
-
-	SUBCASE("type_of<T> template class")
-	{
-		Foo_Class<i32> foo_class;
-		auto foo_class_i32_type = type_of<Foo_Class<i32>>();
-		CHECK(foo_class_i32_type == type_of(foo_class));
 	}
 
 	SUBCASE("type_of<T> array")
@@ -360,50 +340,6 @@ TEST_CASE("[CORE]: Reflect")
 
 		const Type *vec3_type = vec3_type_array->as_array.element;
 
-		CHECK(string_literal(vec3_type->name) == "Vector3");
-		CHECK(vec3_type->kind == TYPE_KIND_STRUCT);
-		CHECK(vec3_type->size == sizeof(Vector3));
-		CHECK(vec3_type->align == alignof(Vector3));
-		CHECK(vec3_type->as_struct.field_count == 3);
-
-		auto field_x = vec3_type->as_struct.fields[0];
-		CHECK(string_literal(field_x.name) == "x");
-		CHECK(field_x.offset == offsetof(Vector3, x));
-		CHECK(string_literal(field_x.type->name) == "f32");
-		CHECK(field_x.type->kind == TYPE_KIND_F32);
-		CHECK(field_x.type->size == sizeof(f32));
-		CHECK(field_x.type->align == alignof(f32));
-
-		auto field_y = vec3_type->as_struct.fields[1];
-		CHECK(string_literal(field_y.name) == "y");
-		CHECK(field_y.offset == offsetof(Vector3, y));
-		CHECK(string_literal(field_y.type->name) == "f32");
-		CHECK(field_y.type->kind == TYPE_KIND_F32);
-		CHECK(field_y.type->size == sizeof(f32));
-		CHECK(field_y.type->align == alignof(f32));
-
-		auto field_z = vec3_type->as_struct.fields[2];
-		CHECK(string_literal(field_z.name) == "z");
-		CHECK(field_z.offset == offsetof(Vector3, z));
-		CHECK(string_literal(field_z.type->name) == "f32");
-		CHECK(field_z.type->kind == TYPE_KIND_F32);
-		CHECK(field_z.type->size == sizeof(f32));
-		CHECK(field_z.type->align == alignof(f32));
-	}
-
-	SUBCASE("type_of<T> pointer")
-	{
-		const Type *void_ptr_type = type_of<void*>();
-		CHECK(string_literal(void_ptr_type->name) == "void*");
-
-		const Type *vec3_type_pointer = type_of<Vector3 *>();
-		CHECK(string_literal(vec3_type_pointer->name) == "Vector3*");
-		CHECK(vec3_type_pointer->kind == TYPE_KIND_POINTER);
-		CHECK(vec3_type_pointer->size == sizeof(Vector3*));
-		CHECK(vec3_type_pointer->align == alignof(Vector3*));
-		CHECK(vec3_type_pointer->as_pointer.pointee != nullptr);
-
-		const Type *vec3_type = vec3_type_pointer->as_pointer.pointee;
 		CHECK(string_literal(vec3_type->name) == "Vector3");
 		CHECK(vec3_type->kind == TYPE_KIND_STRUCT);
 		CHECK(vec3_type->size == sizeof(Vector3));
@@ -515,6 +451,120 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(enum_with_same_values_type->as_enum.values[0].name == string_literal("ZERO"));
 		CHECK(enum_with_same_values_type->as_enum.values[1].index == 0);
 		CHECK(enum_with_same_values_type->as_enum.values[1].name == string_literal("ONE_MINUS_ONE"));
+	}
+
+	SUBCASE("type_of<T> struct")
+	{
+		Empty empty = {};
+		const Type *empty_type = type_of<Empty>();
+		CHECK(empty_type == type_of(empty));
+		CHECK(string_literal(empty_type->name) == "Empty");
+		CHECK(empty_type->kind == TYPE_KIND_STRUCT);
+		CHECK(empty_type->size == sizeof(Empty));
+		CHECK(empty_type->align == alignof(Empty));
+		CHECK(empty_type->as_struct.fields == nullptr);
+		CHECK(empty_type->as_struct.field_count == 0);
+
+		Vector3 vec3 = {1.0f, 2.0f, 3.0f};
+		const Type *vec3_type = type_of<Vector3>();
+		CHECK(vec3_type == type_of(vec3));
+		CHECK(string_literal(vec3_type->name) == "Vector3");
+		CHECK(vec3_type->kind == TYPE_KIND_STRUCT);
+		CHECK(vec3_type->size == sizeof(Vector3));
+		CHECK(vec3_type->align == alignof(Vector3));
+		CHECK(vec3_type->as_struct.field_count == 3);
+
+		auto field_x = vec3_type->as_struct.fields[0];
+		CHECK(string_literal(field_x.name) == "x");
+		CHECK(field_x.offset == offsetof(Vector3, x));
+		CHECK(string_literal(field_x.type->name) == "f32");
+		CHECK(field_x.type->kind == TYPE_KIND_F32);
+		CHECK(field_x.type->size == sizeof(f32));
+		CHECK(field_x.type->align == alignof(f32));
+
+		auto field_y = vec3_type->as_struct.fields[1];
+		CHECK(string_literal(field_y.name) == "y");
+		CHECK(field_y.offset == offsetof(Vector3, y));
+		CHECK(string_literal(field_y.type->name) == "f32");
+		CHECK(field_y.type->kind == TYPE_KIND_F32);
+		CHECK(field_y.type->size == sizeof(f32));
+		CHECK(field_y.type->align == alignof(f32));
+
+		auto field_z = vec3_type->as_struct.fields[2];
+		CHECK(string_literal(field_z.name) == "z");
+		CHECK(field_z.offset == offsetof(Vector3, z));
+		CHECK(string_literal(field_z.type->name) == "f32");
+		CHECK(field_z.type->kind == TYPE_KIND_F32);
+		CHECK(field_z.type->size == sizeof(f32));
+		CHECK(field_z.type->align == alignof(f32));
+	}
+
+	SUBCASE("type_of<T> template struct")
+	{
+		CHECK(type_of<Point<f32>>() != nullptr);
+		CHECK(type_of<Point<Vector3>>() != nullptr);
+		CHECK(type_of<Point<Point<Vector3>>>() != nullptr);
+
+		const Type *point_i32_type = type_of(Point<i32>{1, 2, 3});
+		CHECK(point_i32_type == type_of<Point<i32>>());
+		CHECK(string_literal(point_i32_type->name) == "Point<i32>");
+		CHECK(point_i32_type->kind == TYPE_KIND_STRUCT);
+		CHECK(point_i32_type->size == sizeof(Point<i32>));
+		CHECK(point_i32_type->align == alignof(Point<i32>));
+		CHECK(point_i32_type->as_struct.fields != nullptr);
+		CHECK(point_i32_type->as_struct.field_count == 3);
+
+		Foo<f32, i32> foo = {1.5f, 1};
+		auto foo_f32_i32_type = type_of<Foo<f32, i32>>();
+		CHECK(foo_f32_i32_type == type_of(foo));
+
+		auto foo_point_vector3_type = type_of<Foo<Point<i32>, Vector3>>();
+		CHECK(string_literal(foo_point_vector3_type->name) == "Foo<Point<i32>,Vector3>");
+		CHECK(foo_point_vector3_type->kind == TYPE_KIND_STRUCT);
+		CHECK(foo_point_vector3_type->size == sizeof(Foo<Point<i32>, Vector3>));
+		CHECK(foo_point_vector3_type->align == alignof(Foo<Point<i32>, Vector3>));
+		CHECK(foo_point_vector3_type->as_struct.fields != nullptr);
+		CHECK(foo_point_vector3_type->as_struct.field_count == 2);
+
+		using foo_point_vector3_templated_type = Foo<Point<i32>, Vector3>;
+		auto foo_point_vector3_field_x = foo_point_vector3_type->as_struct.fields[0];
+		CHECK(string_literal(foo_point_vector3_field_x.name) == "x");
+		CHECK(foo_point_vector3_field_x.offset == offsetof(foo_point_vector3_templated_type, x));
+		CHECK(string_literal(foo_point_vector3_field_x.type->name) == "Point<i32>");
+		CHECK(foo_point_vector3_field_x.type->kind == TYPE_KIND_STRUCT);
+		CHECK(foo_point_vector3_field_x.type->size == sizeof(Point<i32>));
+		CHECK(foo_point_vector3_field_x.type->align == alignof(Point<i32>));
+		CHECK(foo_point_vector3_field_x.type->as_struct.fields != nullptr);
+		CHECK(foo_point_vector3_field_x.type->as_struct.field_count == 3);
+
+		auto foo_point_vector3_field_y = foo_point_vector3_type->as_struct.fields[1];
+		CHECK(string_literal(foo_point_vector3_field_y.name) == "y");
+		CHECK(foo_point_vector3_field_y.offset == offsetof(foo_point_vector3_templated_type, y));
+		CHECK(string_literal(foo_point_vector3_field_y.type->name) == "Vector3");
+		CHECK(foo_point_vector3_field_y.type->kind == TYPE_KIND_STRUCT);
+		CHECK(foo_point_vector3_field_y.type->size == sizeof(Vector3));
+		CHECK(foo_point_vector3_field_y.type->align == alignof(Vector3));
+		CHECK(foo_point_vector3_field_y.type->as_struct.fields != nullptr);
+		CHECK(foo_point_vector3_field_y.type->as_struct.field_count == 3);
+	}
+
+	SUBCASE("type_of<T> template class")
+	{
+		Foo_Class<i32> foo_class;
+		auto foo_class_i32_type = type_of<Foo_Class<i32>>();
+		CHECK(foo_class_i32_type == type_of(foo_class));
+	}
+
+	SUBCASE("type_of<T> containers")
+	{
+		auto array_u8_type = type_of<Array<u8>>();
+		CHECK(array_u8_type == type_of(Array<u8>{}));
+
+		auto string_type = type_of<String>();
+		CHECK(string_type == type_of(String{}));
+
+		auto hash_table_i32_string_type = type_of<Hash_Table<i32, String>>();
+		CHECK(hash_table_i32_string_type == type_of(Hash_Table<i32, String>{}));
 	}
 
 	SUBCASE("value_of(T)")

@@ -17,6 +17,7 @@
 		- [x] Arrays.
 		- [x] Structs and Classes.
 			- [x] Empty structs and classes.
+			- [ ] Abstract structs/classes?
 			- [ ] Simplify OVERLOARD(TYPE_OF_FIELD, __VA_ARGS__) and use FOR_EACH() macro?
 			- [ ] Handle private variables inside classes by overloading member functions?
 		- [x] Enums.
@@ -30,6 +31,10 @@
 			- [ ] Simplify OVERLOARD(TYPE_OF_ENUM_VALUE, __VA_ARGS__) and use FOR_EACH() macro?
 			- [ ] Simplify type_of(Enum).
 			- [ ] Add enum range?
+	- [ ] name_of<T>().
+		- [x] Names with const specifier.
+		- [ ] Pointer names.
+		- [ ] Figure out a way to use alias names like `String` instead of `Array<char>`?
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Cleanup.
 */
@@ -142,12 +147,85 @@ name_of()
 				string[count++] = *to_append++;
 		};
 
-		constexpr auto get_type_name = [string_append](const std::string_view &type_name) -> const char * {
+		constexpr auto append_type_name_prettified = [string_append](char *name, const std::string_view &type_name, u64 &count, u64 &i) {
+			if (type_name == "signed char")
+			{
+				string_append(name, "i8", count);
+				i += type_name.length();
+			}
+			else if (type_name == "short")
+			{
+				string_append(name, "i16", count);
+				i += type_name.length();
+			}
+			else if (type_name == "short int")
+			{
+				string_append(name, "i16", count);
+				i += type_name.length();
+			}
+			else if (type_name == "int")
+			{
+				string_append(name, "i32", count);
+				i += type_name.length();
+			}
+			else if (type_name == "__int64")
+			{
+				string_append(name, "i64", count);
+				i += type_name.length();
+			}
+			else if (type_name == "long int")
+			{
+				string_append(name, "i64", count);
+				i += type_name.length();
+			}
+			else if (type_name == "unsigned char")
+			{
+				string_append(name, "u8", count);
+				i += type_name.length();
+			}
+			else if (type_name == "unsigned short")
+			{
+				string_append(name, "u16", count);
+				i += type_name.length();
+			}
+			else if (type_name == "short unsigned int")
+			{
+				string_append(name, "u16", count);
+				i += type_name.length();
+			}
+			else if (type_name == "unsigned int")
+			{
+				string_append(name, "u32", count);
+				i += type_name.length();
+			}
+			else if (type_name == "unsigned __int64")
+			{
+				string_append(name, "u64", count);
+				i += type_name.length();
+			}
+			else if (type_name == "long unsigned int")
+			{
+				string_append(name, "u64", count);
+				i += type_name.length();
+			}
+			else if (type_name == "float")
+			{
+				string_append(name, "f32", count);
+				i += type_name.length();
+			}
+			else if (type_name == "double")
+			{
+				string_append(name, "f64", count);
+				i += type_name.length();
+			}
+		};
+
+		constexpr auto get_type_name = [append_type_name_prettified](const std::string_view &type_name) -> const char * {
 			static char name[REFLECT_MAX_NAME_LENGTH] = {};
 			for (u64 i = 0, count = 0; i < type_name.length() && count < REFLECT_MAX_NAME_LENGTH - 1; ++i)
 			{
+				std::string_view type_name_prefix = {type_name.data() + i, type_name.length() - i};
 				#if defined(_MSC_VER)
-					std::string_view type_name_prefix = {type_name.data() + i, type_name.length() - i};
 					if (type_name_prefix.starts_with("enum "))
 						i += 5;
 					else if (type_name_prefix.starts_with("class "))
@@ -156,93 +234,36 @@ name_of()
 						i += 7;
 				#endif
 
-				if (type_name.at(i) == ' ')
-					++i;
-
-				char c = type_name.at(i);
-				name[count++] = c;
-				if (c == '<' || c == ',')
+				if (type_name_prefix.starts_with("const "))
 				{
-					++i;
+					string_append(name, "const ", count);
+					type_name_prefix.remove_prefix(6);
+					i += 6;
+				}
+
+				append_type_name_prettified(name, type_name_prefix, count, i);
+
+				if (i < type_name.length())
+				{
 					if (type_name.at(i) == ' ')
 						++i;
 
-					const char *ptr = type_name.data() + i;
-					while (*ptr != '>' && *ptr != ',')
-						++ptr;
+					char c = type_name.at(i);
+					name[count++] = c;
+					if (c == '<' || c == ',')
+					{
+						++i;
+						if (type_name.at(i) == ' ')
+							++i;
 
-					std::string_view template_type_name = {type_name.data() + i, (u64)(ptr - (type_name.data() + i))};
-					if (template_type_name == "signed char")
-					{
-						string_append(name, "i8", count);
-						i += template_type_name.length();
+						const char *ptr = type_name.data() + i;
+						while (*ptr != '>' && *ptr != ',')
+							++ptr;
+
+						std::string_view template_type_name = {type_name.data() + i, (u64)(ptr - (type_name.data() + i))};
+						append_type_name_prettified(name, template_type_name, count, i);
+						--i;
 					}
-					else if (template_type_name == "short")
-					{
-						string_append(name, "i16", count);
-						i += template_type_name.length();
-					}
-					else if (template_type_name == "short int")
-					{
-						string_append(name, "i16", count);
-						i += template_type_name.length();
-					}
-					else if (template_type_name == "int")
-					{
-						string_append(name, "i32", count);
-						i += template_type_name.length();
-					}
-					else if (template_type_name == "__int64")
-					{
-						string_append(name, "i64", count);
-						i += template_type_name.length();
-					}
-					else if (template_type_name == "long int")
-					{
-						string_append(name, "i64", count);
-						i += template_type_name.length();
-					}
-					else if (template_type_name == "unsigned char")
-					{
-						string_append(name, "u8", count);
-						i += template_type_name.length();
-					}
-					else if (template_type_name == "unsigned short")
-					{
-						string_append(name, "u16", count);
-						i += template_type_name.length();
-					}
-					else if (template_type_name == "short unsigned int")
-					{
-						string_append(name, "u16", count);
-						i += template_type_name.length();
-					}
-					else if (template_type_name == "unsigned int")
-					{
-						string_append(name, "u32", count);
-						i += template_type_name.length();
-					}
-					else if (template_type_name == "unsigned __int64")
-					{
-						string_append(name, "u64", count);
-						i += template_type_name.length();
-					}
-					else if (template_type_name == "long unsigned int")
-					{
-						string_append(name, "u64", count);
-						i += template_type_name.length();
-					}
-					else if (template_type_name == "float")
-					{
-						string_append(name, "f32", count);
-						i += template_type_name.length();
-					}
-					else if (template_type_name == "double")
-					{
-						string_append(name, "f64", count);
-						i += template_type_name.length();
-					}
-					--i;
 				}
 			}
 			return name;
@@ -363,7 +384,7 @@ inline static constexpr const Type *
 type_of(const T)
 {
 	static const Type *pointee = nullptr;
-	if constexpr (not std::is_same_v<std::remove_pointer_t<T>, void>)
+	if constexpr (not std::is_same_v<std::remove_pointer_t<T>, void> && not std::is_abstract_v<std::remove_pointer_t<T>>)
 		pointee = type_of(std::remove_pointer_t<T>{});
 	static const Type self = {
 		.name = name_of<T>(),
