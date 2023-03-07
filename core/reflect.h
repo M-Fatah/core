@@ -33,8 +33,10 @@
 			- [ ] Add enum range?
 	- [ ] name_of<T>().
 		- [x] Names with const specifier.
+		- [ ] Fix name_of<void>() on GCC.
 		- [ ] Pointer names.
 		- [ ] Figure out a way to use alias names like `String` instead of `Array<char>`?
+		- [ ] Simplify.
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Cleanup.
 */
@@ -147,7 +149,14 @@ name_of()
 				string[count++] = *to_append++;
 		};
 
-		constexpr auto append_type_name_prettified = [string_append](char *name, const std::string_view &type_name, u64 &count, u64 &i) {
+		constexpr auto append_type_name_prettified = [string_append](char *name, std::string_view type_name, u64 &count, u64 &i) {
+			if (type_name.starts_with("const "))
+			{
+				string_append(name, "const ", count);
+				type_name.remove_prefix(6);
+				i += 6;
+			}
+
 			if (type_name == "signed char")
 			{
 				string_append(name, "i8", count);
@@ -220,12 +229,12 @@ name_of()
 			}
 		};
 
-		constexpr auto get_type_name = [append_type_name_prettified](const std::string_view &type_name) -> const char * {
+		constexpr auto get_type_name = [append_type_name_prettified, string_append](const std::string_view &type_name) -> const char * {
 			static char name[REFLECT_MAX_NAME_LENGTH] = {};
 			for (u64 i = 0, count = 0; i < type_name.length() && count < REFLECT_MAX_NAME_LENGTH - 1; ++i)
 			{
-				std::string_view type_name_prefix = {type_name.data() + i, type_name.length() - i};
 				#if defined(_MSC_VER)
+				std::string_view type_name_prefix = {type_name.data() + i, type_name.length() - i};
 					if (type_name_prefix.starts_with("enum "))
 						i += 5;
 					else if (type_name_prefix.starts_with("class "))
@@ -234,14 +243,7 @@ name_of()
 						i += 7;
 				#endif
 
-				if (type_name_prefix.starts_with("const "))
-				{
-					string_append(name, "const ", count);
-					type_name_prefix.remove_prefix(6);
-					i += 6;
-				}
-
-				append_type_name_prettified(name, type_name_prefix, count, i);
+				append_type_name_prettified(name, {type_name.data() + i, type_name.length() - i}, count, i);
 
 				if (i < type_name.length())
 				{

@@ -213,6 +213,8 @@ TEST_CASE("[CORE]: Reflect")
 		auto point_bool_name = name_of<Point<bool>>();
 		auto point_char_name = name_of<Point<char>>();
 
+		auto point_void_name = name_of<Point<void>>();
+
 		auto point_vec3_name = name_of<Point<Vector3>>();
 
 		auto foo_i32_f32_name = name_of<Foo<i32, f32>>();
@@ -233,6 +235,8 @@ TEST_CASE("[CORE]: Reflect")
 
 		CHECK(string_literal(point_bool_name) == "Point<bool>");
 		CHECK(string_literal(point_char_name) == "Point<char>");
+
+		CHECK(string_literal(point_void_name) == "Point<void>");
 
 		CHECK(string_literal(point_vec3_name) == "Point<Vector3>");
 		CHECK(string_literal(foo_i32_f32_name) == "Foo<i32,f32>");
