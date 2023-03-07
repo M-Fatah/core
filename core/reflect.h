@@ -263,8 +263,8 @@ name_of()
 
 		#if defined(_MSC_VER)
 			constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
-			constexpr auto type_name_prefix_length = type_function_name.find("()<") + 3;
-			constexpr auto type_name_length        = type_function_name.find(">", type_name_prefix_length) - type_name_prefix_length;
+			constexpr auto type_name_prefix_length = type_function_name.find("name_of<") + 8;
+			constexpr auto type_name_length        = type_function_name.find_last_of(">") - type_name_prefix_length;
 		#elif defined(__GNUC__) || defined(__clang__)
 			constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
 			constexpr auto type_name_prefix_length = type_function_name.find("= ") + 2;
