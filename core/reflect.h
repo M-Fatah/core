@@ -141,11 +141,32 @@ name_of()
 		};
 
 		constexpr auto append_type_name_prettified = [string_append](char *name, std::string_view type_name, u64 &count, u64 &i) {
+			if (type_name.starts_with(' '))
+			{
+				type_name.remove_prefix(1);
+				++i;
+			}
+
+			bool add_const = false;
+			bool add_pointer = false;
 			if (type_name.starts_with("const "))
 			{
-				string_append(name, "const ", count);
+				add_const = true;
 				type_name.remove_prefix(6);
 				i += 6;
+			}
+			else if (type_name.ends_with(" const *"))
+			{
+				add_const = true;
+				add_pointer = true;
+				type_name.remove_suffix(8);
+				i += 8;
+			}
+			else if (type_name.ends_with(" const "))
+			{
+				add_const = true;
+				type_name.remove_suffix(7);
+				i += 7;
 			}
 
 			#if defined(_MSC_VER)
@@ -166,125 +187,157 @@ name_of()
 				}
 			#endif
 
-			if (type_name.at(type_name.length() - 1) == '*')
-				type_name.remove_suffix(1);
+			if (add_const)
+			{
+				string_append(name, "const ", count);
+			}
 
-			if (type_name == "signed char")
+			if (type_name.starts_with("signed char"))
 			{
 				string_append(name, "i8", count);
-				i += type_name.length();
+				type_name.remove_prefix(11);
+				i += 11;
 			}
-			else if (type_name == "short")
+			else if (type_name.starts_with("short int"))
 			{
 				string_append(name, "i16", count);
-				i += type_name.length();
+				type_name.remove_prefix(9);
+				i += 9;
 			}
-			else if (type_name == "short int")
+			else if (type_name.starts_with("short") && !type_name.starts_with("short unsigned int"))
 			{
 				string_append(name, "i16", count);
-				i += type_name.length();
+				type_name.remove_prefix(5);
+				i += 5;
 			}
-			else if (type_name == "int")
+			else if (type_name.starts_with("int"))
 			{
 				string_append(name, "i32", count);
-				i += type_name.length();
+				type_name.remove_prefix(3);
+				i += 3;
 			}
-			else if (type_name == "__int64")
+			else if (type_name.starts_with("__int64"))
 			{
 				string_append(name, "i64", count);
-				i += type_name.length();
+				type_name.remove_prefix(7);
+				i += 7;
 			}
-			else if (type_name == "long int")
+			else if (type_name.starts_with("long int"))
 			{
 				string_append(name, "i64", count);
-				i += type_name.length();
+				type_name.remove_prefix(8);
+				i += 8;
 			}
-			else if (type_name == "unsigned char")
+			else if (type_name.starts_with("unsigned char"))
 			{
 				string_append(name, "u8", count);
-				i += type_name.length();
+				type_name.remove_prefix(13);
+				i += 13;
 			}
-			else if (type_name == "unsigned short")
+			else if (type_name.starts_with("unsigned short"))
 			{
 				string_append(name, "u16", count);
-				i += type_name.length();
+				type_name.remove_prefix(14);
+				i += 14;
 			}
-			else if (type_name == "short unsigned int")
+			else if (type_name.starts_with("short unsigned int"))
 			{
 				string_append(name, "u16", count);
-				i += type_name.length();
+				type_name.remove_prefix(18);
+				i += 18;
 			}
-			else if (type_name == "unsigned int")
+			else if (type_name.starts_with("unsigned int"))
 			{
 				string_append(name, "u32", count);
-				i += type_name.length();
+				type_name.remove_prefix(12);
+				i += 12;
 			}
-			else if (type_name == "unsigned __int64")
+			else if (type_name.starts_with("unsigned __int64"))
 			{
 				string_append(name, "u64", count);
-				i += type_name.length();
+				type_name.remove_prefix(16);
+				i += 16;
 			}
-			else if (type_name == "long unsigned int")
+			else if (type_name.starts_with("long unsigned int"))
 			{
 				string_append(name, "u64", count);
-				i += type_name.length();
+				type_name.remove_prefix(17);
+				i += 17;
 			}
-			else if (type_name == "float")
+			else if (type_name.starts_with("float"))
 			{
 				string_append(name, "f32", count);
-				i += type_name.length();
+				type_name.remove_prefix(5);
+				i += 5;
 			}
-			else if (type_name == "double")
+			else if (type_name.starts_with("double"))
 			{
 				string_append(name, "f64", count);
-				i += type_name.length();
+				type_name.remove_prefix(6);
+				i += 6;
+			}
+
+			for (char c : type_name)
+			{
+				if (c != ' ')
+					name[count++] = c;
+				++i;
+			}
+
+			if (add_pointer)
+			{
+				name[count++] = '*';
+				++i;
 			}
 		};
 
-		constexpr auto get_type_name = [append_type_name_prettified](const std::string_view &type_name) -> const char * {
+		constexpr auto get_type_name = [append_type_name_prettified](std::string_view type_name) -> const char * {
 			static char name[REFLECT_MAX_NAME_LENGTH] = {};
-			for (u64 i = 0, count = 0; i < type_name.length() && count < REFLECT_MAX_NAME_LENGTH - 1; ++i)
+
+			u64 i = 0;
+			u64 count = 0;
+			if (type_name.ends_with('>') == false)
 			{
-				append_type_name_prettified(name, {type_name.data() + i, type_name.length() - i}, count, i);
+				append_type_name_prettified(name, type_name, count, i);
+			}
+			else
+			{
+				u64 length = type_name.find_first_of('<');
+				append_type_name_prettified(name, type_name.substr(0, length), count, i);
+				name[count++] = '<';
+				++i;
+				u64 prev_index = i;
 
-				if (i < type_name.length())
+				while (i < type_name.length())
 				{
-					if (type_name.at(i) == ' ')
-						++i;
+					const char *ptr = type_name.data() + i;
+					while (*ptr != '<' && *ptr != ',' && *ptr != '>')
+						++ptr;
 
-					char c = type_name.at(i);
+					char c = *ptr;
+					length = (u64)(ptr - (type_name.data() + i));
+					append_type_name_prettified(name, {type_name.data() + prev_index, length}, count, i);
 					name[count++] = c;
-					if (c == '<' || c == ',')
-					{
-						++i;
-						if (type_name.at(i) == ' ')
-							++i;
-
-						const char *ptr = type_name.data() + i;
-						while (*ptr != '>' && *ptr != ',')
-							++ptr;
-
-						std::string_view template_type_name = {type_name.data() + i, (u64)(ptr - (type_name.data() + i))};
-						append_type_name_prettified(name, template_type_name, count, i);
-						--i;
-					}
+					++i;
+					prev_index = i;
 				}
 			}
 			return name;
 		};
 
 		#if defined(_MSC_VER)
-			constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
-			constexpr auto type_name_prefix_length = type_function_name.find("name_of<") + 8;
-			constexpr auto type_name_length        = type_function_name.find_last_of(">") - type_name_prefix_length;
+			static constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
+			static constexpr auto type_name_prefix_length = type_function_name.find("name_of<") + 8;
+			static constexpr auto type_name_length        = type_function_name.find_last_of(">") - type_name_prefix_length;
 		#elif defined(__GNUC__) || defined(__clang__)
-			constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
-			constexpr auto type_name_prefix_length = type_function_name.find("= ") + 2;
-			constexpr auto type_name_length        = type_function_name.find_last_of("]") - type_name_prefix_length;
+			static constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
+			static constexpr auto type_name_prefix_length = type_function_name.find("= ") + 2;
+			static constexpr auto type_name_length        = type_function_name.find_last_of("]") - type_name_prefix_length;
 		#else
 			#error "[REFLECT]: Unsupported compiler."
 		#endif
-		return get_type_name({type_function_name.data() + type_name_prefix_length, type_name_length});
+		static const char *name = get_type_name({type_function_name.data() + type_name_prefix_length, type_name_length});
+		return name;
 	}
 }
 
