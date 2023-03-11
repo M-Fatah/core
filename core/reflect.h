@@ -39,6 +39,7 @@
 		- [ ] Figure out a way to use alias names like `String` instead of `Array<char>`?
 		- [ ] Put space after comma, before array `[]` and before pointer `*` names.
 		- [ ] Simplify.
+	- [ ] constexpr everything.
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Cleanup.
 */
@@ -141,38 +142,24 @@ name_of()
 				string[count++] = *to_append++;
 		};
 
-		constexpr auto append_type_name_prettified = [string_append](char *name, std::string_view type_name, u64 &count, u64 &i) {
+		constexpr auto append_type_name_prettified = [string_append](char *name, std::string_view type_name, u64 &count) {
 			if (type_name.starts_with(' '))
-			{
 				type_name.remove_prefix(1);
-				++i;
-			}
 
 			bool add_const = false;
-			bool add_pointer = false;
 			if (type_name.starts_with("const "))
 			{
 				add_const = true;
 				type_name.remove_prefix(6);
-				i += 6;
 			}
 
 			#if defined(_MSC_VER)
 				if (type_name.starts_with("enum "))
-				{
 					type_name.remove_prefix(5);
-					i += 5;
-				}
 				else if (type_name.starts_with("class "))
-				{
 					type_name.remove_prefix(6);
-					i += 6;
-				}
 				else if (type_name.starts_with("struct "))
-				{
 					type_name.remove_prefix(7);
-					i += 7;
-				}
 			#endif
 
 			if (add_const)
@@ -184,122 +171,95 @@ name_of()
 			{
 				string_append(name, "i8", count);
 				type_name.remove_prefix(11);
-				i += 11;
 			}
 			else if (type_name.starts_with("short int"))
 			{
 				string_append(name, "i16", count);
 				type_name.remove_prefix(9);
-				i += 9;
 			}
 			else if (type_name.starts_with("short") && !type_name.starts_with("short unsigned int"))
 			{
 				string_append(name, "i16", count);
 				type_name.remove_prefix(5);
-				i += 5;
 			}
 			else if (type_name.starts_with("int"))
 			{
 				string_append(name, "i32", count);
 				type_name.remove_prefix(3);
-				i += 3;
 			}
 			else if (type_name.starts_with("__int64"))
 			{
 				string_append(name, "i64", count);
 				type_name.remove_prefix(7);
-				i += 7;
 			}
 			else if (type_name.starts_with("long int"))
 			{
 				string_append(name, "i64", count);
 				type_name.remove_prefix(8);
-				i += 8;
 			}
 			else if (type_name.starts_with("unsigned char"))
 			{
 				string_append(name, "u8", count);
 				type_name.remove_prefix(13);
-				i += 13;
 			}
 			else if (type_name.starts_with("unsigned short"))
 			{
 				string_append(name, "u16", count);
 				type_name.remove_prefix(14);
-				i += 14;
 			}
 			else if (type_name.starts_with("short unsigned int"))
 			{
 				string_append(name, "u16", count);
 				type_name.remove_prefix(18);
-				i += 18;
 			}
 			else if (type_name.starts_with("unsigned int"))
 			{
 				string_append(name, "u32", count);
 				type_name.remove_prefix(12);
-				i += 12;
 			}
 			else if (type_name.starts_with("unsigned __int64"))
 			{
 				string_append(name, "u64", count);
 				type_name.remove_prefix(16);
-				i += 16;
 			}
 			else if (type_name.starts_with("long unsigned int"))
 			{
 				string_append(name, "u64", count);
 				type_name.remove_prefix(17);
-				i += 17;
 			}
 			else if (type_name.starts_with("float"))
 			{
 				string_append(name, "f32", count);
 				type_name.remove_prefix(5);
-				i += 5;
 			}
 			else if (type_name.starts_with("double"))
 			{
 				string_append(name, "f64", count);
 				type_name.remove_prefix(6);
-				i += 6;
 			}
 
 			for (char c : type_name)
-			{
 				if (c != ' ')
 					name[count++] = c;
-				++i;
-			}
-
-			if (add_pointer)
-			{
-				name[count++] = '*';
-				++i;
-			}
 		};
 
 		std::function<void(char *, u64 &, std::string_view)> get_name;
 		get_name = [&get_name, &append_type_name_prettified, &string_append](char *name, u64 &count, std::string_view type_name) constexpr {
-			u64 i = 0;
 			bool add_pointer = false;
 			if (type_name.ends_with(" const "))
 			{
 				string_append(name, "const ", count);
 				type_name.remove_suffix(7);
-				i += 7;
 			}
 			else if (type_name.ends_with(" const *"))
 			{
 				string_append(name, "const ", count);
 				type_name.remove_suffix(8);
-				i += 8;
 				add_pointer = true;
 			}
 			else if (type_name.ends_with('*'))
 			{
 				type_name.remove_suffix(1);
-				i += 1;
 				add_pointer = true;
 			}
 
@@ -310,7 +270,7 @@ name_of()
 			if (is_template)
 			{
 				u64 open_angle_bracket_pos = type_name.find('<');
-				append_type_name_prettified(name, type_name.substr(0, open_angle_bracket_pos), count, i);
+				append_type_name_prettified(name, type_name.substr(0, open_angle_bracket_pos), count);
 				type_name.remove_prefix(open_angle_bracket_pos + 1);
 
 				name[count++] = '<';
@@ -344,7 +304,7 @@ name_of()
 			}
 			else
 			{
-				append_type_name_prettified(name, type_name, count, i);
+				append_type_name_prettified(name, type_name, count);
 			}
 
 			if (add_pointer)
