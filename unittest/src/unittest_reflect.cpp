@@ -240,6 +240,8 @@ TEST_CASE("[CORE]: Reflect")
 
 		auto point_nested = name_of<const Point<const Point<const Point<const Point<Point<i32>>>>>>();
 		auto point_nested_ptr = name_of<const Point<const Point<const Point<const Point<Point<i32 *> *> *> *> *> *>();
+		auto point_nested_ptr2 = name_of<const Point<const Point<const Point<const Point<Point<i32 const *> *> *> *> *> *>();
+		unused(point_nested_ptr2);
 
 		CHECK(string_literal(point_i08_name) == "Point<i8>");
 		CHECK(string_literal(point_i16_name) == "Point<i16>");
@@ -268,6 +270,7 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(string_literal(bar_const_point_const_i32_const_f32_const_vec3_name) == "Bar<const Point<const i32>,const f32,const Vector3>");
 		CHECK(string_literal(point_nested) == "const Point<const Point<const Point<const Point<Point<i32>>>>>");
 		CHECK(string_literal(point_nested_ptr) == "const Point<const Point<const Point<const Point<Point<i32*>*>*>*>*>*");
+		CHECK(string_literal(point_nested_ptr2) == "const Point<const Point<const Point<const Point<Point<const i32*>*>*>*>*>*");
 	}
 
 	SUBCASE("type_of<T> primitives")
@@ -606,94 +609,3 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(i32_value.type == value_of((i32)1).type);
 	}
 }
-
-/*
-#include <inttypes.h>
-inline static void
-print(Value v)
-{
-	switch (v.type->kind)
-	{
-		case TYPE_KIND_INT:
-		{
-			switch (v.type->size)
-			{
-				case 1:
-					printf("%d", *(i8 *)v.data);
-					break;
-				case 2:
-					printf("%d", *(i16 *)v.data);
-					break;
-				case 4:
-					printf("%d", *(i32 *)v.data);
-					break;
-				case 8:
-					printf("%" PRId64, *(i64 *)v.data);
-					break;
-				default:
-					printf("%d", *(i32 *)v.data);
-					break;
-			}
-			break;
-		}
-		case TYPE_KIND_UINT:
-		{
-			printf("%u", *(u32 *)v.data);
-			break;
-		}
-		case TYPE_KIND_FLOAT:
-		{
-			printf("%g", *(f32 *)v.data);
-			break;
-		}
-		case TYPE_KIND_BOOL:
-		{
-			printf("%s", *(bool *)v.data ? "true": "false");
-			break;
-		}
-		case TYPE_KIND_CHAR:
-		{
-			printf("%c", *(char *)v.data);
-			break;
-		}
-		case TYPE_KIND_STRUCT:
-		{
-			printf("{ ");
-			for (u64 i = 0; i < v.type->as_struct.field_count; ++i)
-			{
-				if (i != 0)
-					printf(", ");
-				const auto *field = &v.type->as_struct.fields[i];
-				print({(char *)v.data + field->offset, field});
-			}
-			printf(" }\n");
-			break;
-		}
-		case TYPE_KIND_ARRAY:
-		{
-			printf("[ ");
-			for (u64 i = 0; i < v.type->as_array.element_count; ++i)
-			{
-				if (i != 0)
-					printf(", ");
-				const auto *element = v.type->as_array.element;
-				print({(char *)v.data + element->size * i, element});
-			}
-			printf(" ]");
-			break;
-		}
-		case TYPE_KIND_POINTER:
-		{
-			const auto *pointee = v.type->as_pointer.pointee;
-			uptr *pointer = *(uptr **)(v.data);
-			printf("%p: ", (void *)pointer);
-			print({pointer, pointee});
-			break;
-		}
-		default:
-		{
-			break;
-		}
-	}
-}
-*/

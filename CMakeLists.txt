@@ -34,6 +34,7 @@ else()
 endif()
 
 add_subdirectory(core)
+add_subdirectory(test)
 
 if (CORE_BUILD_UNITTEST)
     message(STATUS "Build unittest flag is enabled.")

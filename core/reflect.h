@@ -118,6 +118,174 @@ struct Value
 	const Type *type;
 };
 
+inline static constexpr void
+_reflect_append_name(char *name, u64 &count, std::string_view type_name)
+{
+	constexpr auto string_append = [](char *string, const char *to_append, u64 &count) {
+		while(*to_append != '\0' && count < REFLECT_MAX_NAME_LENGTH - 1)
+			string[count++] = *to_append++;
+	};
+
+	constexpr auto append_type_name_prettified = [string_append](char *name, std::string_view type_name, u64 &count) {
+		if (type_name.starts_with(' '))
+			type_name.remove_prefix(1);
+
+		if (type_name.starts_with("const "))
+		{
+			string_append(name, "const ", count);
+			type_name.remove_prefix(6);
+		}
+
+		#if defined(_MSC_VER)
+			if (type_name.starts_with("enum "))
+				type_name.remove_prefix(5);
+			else if (type_name.starts_with("class "))
+				type_name.remove_prefix(6);
+			else if (type_name.starts_with("struct "))
+				type_name.remove_prefix(7);
+		#endif
+
+		if (type_name.starts_with("signed char"))
+		{
+			string_append(name, "i8", count);
+			type_name.remove_prefix(11);
+		}
+		else if (type_name.starts_with("short int"))
+		{
+			string_append(name, "i16", count);
+			type_name.remove_prefix(9);
+		}
+		else if (type_name.starts_with("short") && !type_name.starts_with("short unsigned int"))
+		{
+			string_append(name, "i16", count);
+			type_name.remove_prefix(5);
+		}
+		else if (type_name.starts_with("int"))
+		{
+			string_append(name, "i32", count);
+			type_name.remove_prefix(3);
+		}
+		else if (type_name.starts_with("__int64"))
+		{
+			string_append(name, "i64", count);
+			type_name.remove_prefix(7);
+		}
+		else if (type_name.starts_with("long int"))
+		{
+			string_append(name, "i64", count);
+			type_name.remove_prefix(8);
+		}
+		else if (type_name.starts_with("unsigned char"))
+		{
+			string_append(name, "u8", count);
+			type_name.remove_prefix(13);
+		}
+		else if (type_name.starts_with("unsigned short"))
+		{
+			string_append(name, "u16", count);
+			type_name.remove_prefix(14);
+		}
+		else if (type_name.starts_with("short unsigned int"))
+		{
+			string_append(name, "u16", count);
+			type_name.remove_prefix(18);
+		}
+		else if (type_name.starts_with("unsigned int"))
+		{
+			string_append(name, "u32", count);
+			type_name.remove_prefix(12);
+		}
+		else if (type_name.starts_with("unsigned __int64"))
+		{
+			string_append(name, "u64", count);
+			type_name.remove_prefix(16);
+		}
+		else if (type_name.starts_with("long unsigned int"))
+		{
+			string_append(name, "u64", count);
+			type_name.remove_prefix(17);
+		}
+		else if (type_name.starts_with("float"))
+		{
+			string_append(name, "f32", count);
+			type_name.remove_prefix(5);
+		}
+		else if (type_name.starts_with("double"))
+		{
+			string_append(name, "f64", count);
+			type_name.remove_prefix(6);
+		}
+
+		for (char c : type_name)
+			if (c != ' ')
+				name[count++] = c;
+	};
+
+	bool add_pointer = false;
+	if (type_name.ends_with(" const "))
+	{
+		string_append(name, "const ", count);
+		type_name.remove_suffix(7);
+	}
+	else if (type_name.ends_with(" const *"))
+	{
+		string_append(name, "const ", count);
+		type_name.remove_suffix(8);
+		add_pointer = true;
+	}
+	else if (type_name.ends_with('*'))
+	{
+		type_name.remove_suffix(1);
+		add_pointer = true;
+	}
+
+	if (type_name.ends_with(' '))
+		type_name.remove_suffix(1);
+
+	if (type_name.ends_with('>'))
+	{
+		u64 open_angle_bracket_pos = type_name.find('<');
+		append_type_name_prettified(name, type_name.substr(0, open_angle_bracket_pos), count);
+		type_name.remove_prefix(open_angle_bracket_pos + 1);
+
+		name[count++] = '<';
+		u64 prev = 0;
+		u64 match = 1;
+		for (u64 c = 0; c < type_name.length(); ++c)
+		{
+			if (type_name.at(c) == '<')
+			{
+				++match;
+			}
+
+			if (type_name.at(c) == '>')
+			{
+				--match;
+				if (match <= 0)
+				{
+					_reflect_append_name(name, count, type_name.substr(prev, c - prev));
+					name[count++] = '>';
+					prev = c + 1;
+				}
+			}
+
+			if (type_name.at(c) == ',')
+			{
+				_reflect_append_name(name, count, type_name.substr(prev, c - prev));
+				name[count++] = ',';
+				prev = c + 1;
+			}
+		}
+	}
+	else
+	{
+		append_type_name_prettified(name, type_name, count);
+	}
+
+	if (add_pointer)
+		name[count++] = '*';
+}
+
 template <typename T>
 inline static constexpr const char *
 name_of()
@@ -137,195 +305,21 @@ name_of()
 	else if constexpr (std::is_same_v<T, void>) return "void";
 	else
 	{
-		constexpr auto string_append = [](char *string, const char *to_append, u64 &count) {
-			while(*to_append != '\0' && count < REFLECT_MAX_NAME_LENGTH - 1)
-				string[count++] = *to_append++;
-		};
-
-		constexpr auto append_type_name_prettified = [string_append](char *name, std::string_view type_name, u64 &count) {
-			if (type_name.starts_with(' '))
-				type_name.remove_prefix(1);
-
-			bool add_const = false;
-			if (type_name.starts_with("const "))
-			{
-				add_const = true;
-				type_name.remove_prefix(6);
-			}
-
-			#if defined(_MSC_VER)
-				if (type_name.starts_with("enum "))
-					type_name.remove_prefix(5);
-				else if (type_name.starts_with("class "))
-					type_name.remove_prefix(6);
-				else if (type_name.starts_with("struct "))
-					type_name.remove_prefix(7);
-			#endif
-
-			if (add_const)
-			{
-				string_append(name, "const ", count);
-			}
-
-			if (type_name.starts_with("signed char"))
-			{
-				string_append(name, "i8", count);
-				type_name.remove_prefix(11);
-			}
-			else if (type_name.starts_with("short int"))
-			{
-				string_append(name, "i16", count);
-				type_name.remove_prefix(9);
-			}
-			else if (type_name.starts_with("short") && !type_name.starts_with("short unsigned int"))
-			{
-				string_append(name, "i16", count);
-				type_name.remove_prefix(5);
-			}
-			else if (type_name.starts_with("int"))
-			{
-				string_append(name, "i32", count);
-				type_name.remove_prefix(3);
-			}
-			else if (type_name.starts_with("__int64"))
-			{
-				string_append(name, "i64", count);
-				type_name.remove_prefix(7);
-			}
-			else if (type_name.starts_with("long int"))
-			{
-				string_append(name, "i64", count);
-				type_name.remove_prefix(8);
-			}
-			else if (type_name.starts_with("unsigned char"))
-			{
-				string_append(name, "u8", count);
-				type_name.remove_prefix(13);
-			}
-			else if (type_name.starts_with("unsigned short"))
-			{
-				string_append(name, "u16", count);
-				type_name.remove_prefix(14);
-			}
-			else if (type_name.starts_with("short unsigned int"))
-			{
-				string_append(name, "u16", count);
-				type_name.remove_prefix(18);
-			}
-			else if (type_name.starts_with("unsigned int"))
-			{
-				string_append(name, "u32", count);
-				type_name.remove_prefix(12);
-			}
-			else if (type_name.starts_with("unsigned __int64"))
-			{
-				string_append(name, "u64", count);
-				type_name.remove_prefix(16);
-			}
-			else if (type_name.starts_with("long unsigned int"))
-			{
-				string_append(name, "u64", count);
-				type_name.remove_prefix(17);
-			}
-			else if (type_name.starts_with("float"))
-			{
-				string_append(name, "f32", count);
-				type_name.remove_prefix(5);
-			}
-			else if (type_name.starts_with("double"))
-			{
-				string_append(name, "f64", count);
-				type_name.remove_prefix(6);
-			}
-
-			for (char c : type_name)
-				if (c != ' ')
-					name[count++] = c;
-		};
-
-		std::function<void(char *, u64 &, std::string_view)> get_name;
-		get_name = [&get_name, &append_type_name_prettified, &string_append](char *name, u64 &count, std::string_view type_name) constexpr {
-			bool add_pointer = false;
-			if (type_name.ends_with(" const "))
-			{
-				string_append(name, "const ", count);
-				type_name.remove_suffix(7);
-			}
-			else if (type_name.ends_with(" const *"))
-			{
-				string_append(name, "const ", count);
-				type_name.remove_suffix(8);
-				add_pointer = true;
-			}
-			else if (type_name.ends_with('*'))
-			{
-				type_name.remove_suffix(1);
-				add_pointer = true;
-			}
-
-			if (type_name.ends_with(' '))
-				type_name.remove_suffix(1);
-
-			bool is_template = type_name.ends_with('>');
-			if (is_template)
-			{
-				u64 open_angle_bracket_pos = type_name.find('<');
-				append_type_name_prettified(name, type_name.substr(0, open_angle_bracket_pos), count);
-				type_name.remove_prefix(open_angle_bracket_pos + 1);
-
-				name[count++] = '<';
-				u64 prev = 0;
-				u64 match = 1;
-				for (u64 c = 0; c < type_name.length(); ++c)
-				{
-					if (type_name.at(c) == '<')
-					{
-						++match;
-					}
-
-					if (type_name.at(c) == '>')
-					{
-						--match;
-						if (match <= 0)
-						{
-							get_name(name, count, type_name.substr(prev, c - prev));
-							name[count++] = '>';
-							prev = c + 1;
-						}
-					}
-
-					if (type_name.at(c) == ',')
-					{
-						get_name(name, count, type_name.substr(prev, c - prev));
-						name[count++] = ',';
-						prev = c + 1;
-					}
-				}
-			}
-			else
-			{
-				append_type_name_prettified(name, type_name, count);
-			}
-
-			if (add_pointer)
-				name[count++] = '*';
-		};
-
-		auto get_type_name = [&get_name, &append_type_name_prettified](std::string_view type_name) -> const char * {
+		constexpr auto get_type_name = [](std::string_view type_name) -> const char * {
 			static char name[REFLECT_MAX_NAME_LENGTH] = {};
 			u64 count = 0;
-			get_name(name, count, type_name);
+			_reflect_append_name(name, count, type_name);
 			return name;
 		};
 
 		#if defined(_MSC_VER)
 			constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
 			constexpr auto type_name_prefix_length = type_function_name.find("name_of<") + 8;
-			constexpr auto type_name_length        = type_function_name.find_last_of(">") - type_name_prefix_length;
+			constexpr auto type_name_length        = type_function_name.rfind(">") - type_name_prefix_length;
 		#elif defined(__GNUC__)
 			constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
 			constexpr auto type_name_prefix_length = type_function_name.find("= ") + 2;
-			constexpr auto type_name_length        = type_function_name.find_last_of("]") - type_name_prefix_length;
+			constexpr auto type_name_length        = type_function_name.rfind("]") - type_name_prefix_length;
 		#else
 			#error "[REFLECT]: Unsupported compiler."
 		#endif
