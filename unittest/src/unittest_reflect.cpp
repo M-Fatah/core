@@ -236,6 +236,10 @@ TEST_CASE("[CORE]: Reflect")
 		auto foo_i32_f32_name = name_of<Foo<i32, f32>>();
 		auto bar_i32_f32_vec3_name = name_of<Bar<i32, f32, Vector3>>();
 		auto bar_const_i32_const_f32_const_vec3_name = name_of<Bar<const i32, const f32, const Vector3>>();
+		auto bar_const_point_const_i32_const_f32_const_vec3_name = name_of<Bar<const Point<const i32>, const f32, const Vector3>>();
+
+		auto point_nested = name_of<const Point<const Point<const Point<const Point<Point<i32>>>>>>();
+		auto point_nested_ptr = name_of<const Point<const Point<const Point<const Point<Point<i32 *> *> *> *> *> *>();
 
 		CHECK(string_literal(point_i08_name) == "Point<i8>");
 		CHECK(string_literal(point_i16_name) == "Point<i16>");
@@ -261,6 +265,9 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(string_literal(foo_i32_f32_name) == "Foo<i32,f32>");
 		CHECK(string_literal(bar_i32_f32_vec3_name) == "Bar<i32,f32,Vector3>");
 		CHECK(string_literal(bar_const_i32_const_f32_const_vec3_name) == "Bar<const i32,const f32,const Vector3>");
+		CHECK(string_literal(bar_const_point_const_i32_const_f32_const_vec3_name) == "Bar<const Point<const i32>,const f32,const Vector3>");
+		CHECK(string_literal(point_nested) == "const Point<const Point<const Point<const Point<Point<i32>>>>>");
+		CHECK(string_literal(point_nested_ptr) == "const Point<const Point<const Point<const Point<Point<i32*>*>*>*>*>*");
 	}
 
 	SUBCASE("type_of<T> primitives")

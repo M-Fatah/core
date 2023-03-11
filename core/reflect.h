@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <string_view>
 #include <type_traits>
+#include <functional>
 
 /*
 	TODO:
@@ -155,19 +156,6 @@ name_of()
 				type_name.remove_prefix(6);
 				i += 6;
 			}
-			else if (type_name.ends_with(" const *"))
-			{
-				add_const = true;
-				add_pointer = true;
-				type_name.remove_suffix(8);
-				i += 8;
-			}
-			else if (type_name.ends_with(" const "))
-			{
-				add_const = true;
-				type_name.remove_suffix(7);
-				i += 7;
-			}
 
 			#if defined(_MSC_VER)
 				if (type_name.starts_with("enum "))
@@ -291,48 +279,93 @@ name_of()
 			}
 		};
 
-		constexpr auto get_type_name = [append_type_name_prettified](std::string_view type_name) -> const char * {
-			static char name[REFLECT_MAX_NAME_LENGTH] = {};
-
+		std::function<void(char *, u64 &, std::string_view)> get_name;
+		get_name = [&get_name, &append_type_name_prettified, &string_append](char *name, u64 &count, std::string_view type_name) constexpr {
 			u64 i = 0;
-			u64 count = 0;
-			if (type_name.ends_with('>') == false)
+			bool add_pointer = false;
+			if (type_name.ends_with(" const "))
 			{
-				append_type_name_prettified(name, type_name, count, i);
+				string_append(name, "const ", count);
+				type_name.remove_suffix(7);
+				i += 7;
+			}
+			else if (type_name.ends_with(" const *"))
+			{
+				string_append(name, "const ", count);
+				type_name.remove_suffix(8);
+				i += 8;
+				add_pointer = true;
+			}
+			else if (type_name.ends_with('*'))
+			{
+				type_name.remove_suffix(1);
+				i += 1;
+				add_pointer = true;
+			}
+
+			if (type_name.ends_with(' '))
+				type_name.remove_suffix(1);
+
+			bool is_template = type_name.ends_with('>');
+			if (is_template)
+			{
+				u64 open_angle_bracket_pos = type_name.find('<');
+				append_type_name_prettified(name, type_name.substr(0, open_angle_bracket_pos), count, i);
+				type_name.remove_prefix(open_angle_bracket_pos + 1);
+
+				name[count++] = '<';
+				u64 prev = 0;
+				u64 match = 1;
+				for (u64 c = 0; c < type_name.length(); ++c)
+				{
+					if (type_name.at(c) == '<')
+					{
+						++match;
+					}
+
+					if (type_name.at(c) == '>')
+					{
+						--match;
+						if (match <= 0)
+						{
+							get_name(name, count, type_name.substr(prev, c - prev));
+							name[count++] = '>';
+							prev = c + 1;
+						}
+					}
+
+					if (type_name.at(c) == ',')
+					{
+						get_name(name, count, type_name.substr(prev, c - prev));
+						name[count++] = ',';
+						prev = c + 1;
+					}
+				}
 			}
 			else
 			{
-				u64 length = type_name.find_first_of('<');
-				append_type_name_prettified(name, type_name.substr(0, length), count, i);
-				name[count++] = '<';
-				++i;
-				u64 prev_index = i;
-
-				while (i < type_name.length())
-				{
-					const char *ptr = type_name.data() + i;
-					while (*ptr != '<' && *ptr != ',' && *ptr != '>')
-						++ptr;
-
-					char c = *ptr;
-					length = (u64)(ptr - (type_name.data() + i));
-					append_type_name_prettified(name, {type_name.data() + prev_index, length}, count, i);
-					name[count++] = c;
-					++i;
-					prev_index = i;
-				}
+				append_type_name_prettified(name, type_name, count, i);
 			}
+
+			if (add_pointer)
+				name[count++] = '*';
+		};
+
+		auto get_type_name = [&get_name, &append_type_name_prettified](std::string_view type_name) -> const char * {
+			static char name[REFLECT_MAX_NAME_LENGTH] = {};
+			u64 count = 0;
+			get_name(name, count, type_name);
 			return name;
 		};
 
 		#if defined(_MSC_VER)
-			static constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
-			static constexpr auto type_name_prefix_length = type_function_name.find("name_of<") + 8;
-			static constexpr auto type_name_length        = type_function_name.find_last_of(">") - type_name_prefix_length;
-		#elif defined(__GNUC__) || defined(__clang__)
-			static constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
-			static constexpr auto type_name_prefix_length = type_function_name.find("= ") + 2;
-			static constexpr auto type_name_length        = type_function_name.find_last_of("]") - type_name_prefix_length;
+			constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
+			constexpr auto type_name_prefix_length = type_function_name.find("name_of<") + 8;
+			constexpr auto type_name_length        = type_function_name.find_last_of(">") - type_name_prefix_length;
+		#elif defined(__GNUC__)
+			constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
+			constexpr auto type_name_prefix_length = type_function_name.find("= ") + 2;
+			constexpr auto type_name_length        = type_function_name.find_last_of("]") - type_name_prefix_length;
 		#else
 			#error "[REFLECT]: Unsupported compiler."
 		#endif
