@@ -2,11 +2,15 @@
 #include <core/reflect.h>
 #include <core/platform/platform.h>
 
+#include <stdio.h>
 #include <inttypes.h>
 
 inline static void
 print(Value v)
 {
+	if (v.data == nullptr)
+		return;
+
 	switch (v.type->kind)
 	{
 		case TYPE_KIND_I8:
@@ -134,15 +138,45 @@ struct Foo
 	const char *c[2];
 	i32 *d;
 	Bar<f32> e;
+	Foo *f;
 };
 
-TYPE_OF(Foo, a, b, c, d, e)
+TYPE_OF(Foo, a, b, c, d, e, f)
+
+struct A
+{
+	struct B *b;
+};
+
+TYPE_OF(A, b)
+
+struct B
+{
+	struct C *c;
+};
+
+TYPE_OF(B, c)
+
+struct C
+{
+	A *a;
+};
+
+TYPE_OF(C, a)
 
 i32
 main(i32, char **)
 {
+	A a = {};
+	C c = {&a};
+	B b = {&c};
+	a   = {&b};
+	auto t = type_of<A>();
+	unused(t);
+
 	i32 d = 5;
-	Foo f = {'A', true, {"Hello", "World!"}, &d, {1.5f}};
+	Foo f2 = {'A', true, {"Hello", "World!"}, &d, {1.5f}, nullptr};
+	Foo f = {'A', true, {"Hello", "World!"}, &d, {1.5f}, &f2};
 	print(value_of(f));
 	return 0;
 }
