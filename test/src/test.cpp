@@ -129,6 +129,134 @@ print(Value v)
 	}
 }
 
+inline static void
+to_json(Value v, i32 indent = 0)
+{
+	constexpr auto print_tab = [](u64 count) {
+		for (u64 i = 0; i < count * 4; ++i)
+			printf(" ");
+	};
+
+	switch (v.type->kind)
+	{
+		case TYPE_KIND_I8:
+		{
+			printf("%" PRIi8, *(i8 *)v.data);
+			break;
+		}
+		case TYPE_KIND_I16:
+		{
+			printf("%" PRIi16, *(i16 *)v.data);
+			break;
+		}
+		case TYPE_KIND_I32:
+		{
+			printf("%" PRIi32, *(i32 *)v.data);
+			break;
+		}
+		case TYPE_KIND_I64:
+		{
+			printf("%" PRIi64, *(i64 *)v.data);
+			break;
+		}
+		case TYPE_KIND_U8:
+		{
+			printf("%" PRIu8, *(u8 *)v.data);
+			break;
+		}
+		case TYPE_KIND_U16:
+		{
+			printf("%" PRIu16, *(u16 *)v.data);
+			break;
+		}
+		case TYPE_KIND_U32:
+		{
+			printf("%" PRIu32, *(u32 *)v.data);
+			break;
+		}
+		case TYPE_KIND_U64:
+		{
+			printf("%" PRIu64, *(u64 *)v.data);
+			break;
+		}
+		case TYPE_KIND_F32:
+		{
+			printf("%g", *(f32 *)v.data);
+			break;
+		}
+		case TYPE_KIND_F64:
+		{
+			printf("%g", *(f64 *)v.data);
+			break;
+		}
+		case TYPE_KIND_BOOL:
+		{
+			printf("%s", *(bool *)v.data ? "true": "false");
+			break;
+		}
+		case TYPE_KIND_CHAR:
+		{
+			printf("%d", *(char *)v.data);
+			break;
+		}
+		case TYPE_KIND_STRUCT:
+		{
+			printf("{\n");
+			for (u64 i = 0; i < v.type->as_struct.field_count; ++i)
+			{
+				if (i != 0)
+					printf(",\n");
+				const auto *field = &v.type->as_struct.fields[i];
+				print_tab(indent + 1);
+				printf("\"%s\": ", field->name);
+				to_json({(char *)v.data + field->offset, field->type}, indent + 1);
+			}
+			printf("\n");
+			print_tab(indent);
+			printf("}");
+			break;
+		}
+		case TYPE_KIND_ARRAY:
+		{
+			printf("[");
+			for (u64 i = 0; i < v.type->as_array.element_count; ++i)
+			{
+				if (i != 0)
+					printf(", ");
+				const auto *element = v.type->as_array.element;
+				to_json({(char *)v.data + element->size * i, element}, indent + 1);
+			}
+			printf("]");
+			break;
+		}
+		case TYPE_KIND_POINTER:
+		{
+			const auto *pointee = v.type->as_pointer.pointee;
+			uptr *pointer = *(uptr **)(v.data);
+			if (v.type == type_of<const char *>() || v.type == type_of<char *>())
+			{
+				printf("\"%s\"", (const char *)pointer);
+			}
+			else if (pointer == nullptr)
+			{
+				printf("null");
+			}
+			else
+			{
+				to_json({pointer, pointee}, indent);
+			}
+			break;
+		}
+		default:
+		{
+			break;
+		}
+	}
+
+	if (indent == 0)
+		printf("\n");
+}
+
 struct A
 {
 	struct B *b;
@@ -174,9 +302,10 @@ TYPE_OF(Foo, a, b, c, d, e, f)
 i32
 main(i32, char **)
 {
-	print(value_of(type_of<Foo>()));
-	printf("\n");
-	auto v = type_of<void>();
-	unused(v);
+	i32 d = 7;
+	i32 dd = 13;
+	Foo f1 = {'A', true, {"Hello", "World"}, &d, {1.5f}, nullptr};
+	Foo f2 = {'B', false, {"FOO", "BOO"}, &dd, {7.5f}, &f1};
+	to_json(value_of(f2));
 	return 0;
 }
