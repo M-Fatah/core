@@ -314,6 +314,13 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(char_type->kind == TYPE_KIND_CHAR);
 		CHECK(char_type->size == sizeof(char));
 		CHECK(char_type->align == alignof(char));
+
+		const Type *void_type = type_of<void>();
+		CHECK(void_type != nullptr);
+		CHECK(string_literal(void_type->name) == "void");
+		CHECK(void_type->kind == TYPE_KIND_VOID);
+		CHECK(void_type->size == 0);
+		CHECK(void_type->align == 0);
 	}
 
 	SUBCASE("type_of<T> pointer")

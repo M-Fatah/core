@@ -63,6 +63,7 @@ enum TYPE_KIND
 	TYPE_KIND_F64,
 	TYPE_KIND_BOOL,
 	TYPE_KIND_CHAR,
+	TYPE_KIND_VOID,
 	TYPE_KIND_POINTER,
 	TYPE_KIND_ARRAY,
 	TYPE_KIND_ENUM,
@@ -356,6 +357,8 @@ kind_of()
 		return TYPE_KIND_BOOL;
 	else if constexpr (std::is_same_v<T, char>)
 		return TYPE_KIND_CHAR;
+	else if constexpr (std::is_same_v<T, void>)
+		return TYPE_KIND_VOID;
 	else if constexpr (std::is_pointer_v<T>)
 		return TYPE_KIND_POINTER;
 	else if constexpr (std::is_array_v<T>)
@@ -373,6 +376,10 @@ type_of(const T)
 	static_assert(sizeof(T) == 0, "There is no `inline static const Type * type_of(const T)` function overload defined for this type.");
 	return nullptr;
 }
+
+template <typename T>
+inline static constexpr const Type *
+type_of();
 
 #define TYPE_OF_FIELD16(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD15(__VA_ARGS__)
 #define TYPE_OF_FIELD15(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD14(__VA_ARGS__)
@@ -393,7 +400,7 @@ type_of(const T)
 
 #define TYPE_OF(T, ...)                                                                                       \
 inline static const Type *                                                                                    \
-type_of(const T&)                                                                                             \
+type_of(const T)                                                                                              \
 {                                                                                                             \
 	static const Type self = {                                                                                \
 		.name = name_of<T>(),                                                                                 \
@@ -428,15 +435,28 @@ TYPE_OF(f64)
 TYPE_OF(bool)
 TYPE_OF(char)
 
+template <>
+inline const Type *
+type_of<void>()
+{
+	static const Type self = {
+		.name = name_of<void>(),
+		.kind = kind_of<void>(),
+		.size = 0,
+		.align = 0,
+		.as_struct = {}
+	};
+	return &self;
+}
+
 template <typename T>
 requires (std::is_pointer_v<T>)
 inline static constexpr const Type *
 type_of(const T)
 {
-	using Pointee = std::remove_pointer_t<T>;
 	static const Type *pointee = nullptr;
-	if constexpr (!std::is_same_v<Pointee, void> && !std::is_abstract_v<Pointee>)
-		pointee = type_of(Pointee{});
+	if constexpr (!std::is_abstract_v<std::remove_pointer_t<T>>)
+		pointee = type_of<std::remove_pointer_t<T>>();
 	static const Type self = {
 		.name = name_of<T>(),
 		.kind = kind_of<T>(),

@@ -176,5 +176,7 @@ main(i32, char **)
 {
 	print(value_of(type_of<Foo>()));
 	printf("\n");
+	auto v = type_of<void>();
+	unused(v);
 	return 0;
 }
