@@ -115,33 +115,19 @@ print(Value v)
 			}
 			break;
 		}
+		case TYPE_KIND_ENUM:
+		{
+			for (u64 i = 0; i < v.type->as_enum.value_count; ++i)
+				if (const auto & value = v.type->as_enum.values[i]; value.index == *(i32 *)(v.data))
+					printf("%s(%" PRId32 ")", value.name, value.index);
+			break;
+		}
 		default:
 		{
 			break;
 		}
 	}
 }
-
-template <typename T>
-struct Bar
-{
-	T t;
-};
-
-template <typename T>
-TYPE_OF(Bar<T>, t)
-
-struct Foo
-{
-	char a;
-	bool b;
-	const char *c[2];
-	i32 *d;
-	Bar<f32> e;
-	Foo *f;
-};
-
-TYPE_OF(Foo, a, b, c, d, e, f)
 
 struct A
 {
@@ -164,19 +150,31 @@ struct C
 
 TYPE_OF(C, a)
 
+template <typename T>
+struct Bar
+{
+	T t;
+};
+
+template <typename T>
+TYPE_OF(Bar<T>, t)
+
+struct Foo
+{
+	char a;
+	bool b;
+	const char *c[2];
+	i32 *d;
+	Bar<f32> e;
+	Foo *f;
+};
+
+TYPE_OF(Foo, a, b, c, d, e, f)
+
 i32
 main(i32, char **)
 {
-	A a = {};
-	C c = {&a};
-	B b = {&c};
-	a   = {&b};
-	auto t = type_of<A>();
-	unused(t);
-
-	i32 d = 5;
-	Foo f2 = {'A', true, {"Hello", "World!"}, &d, {1.5f}, nullptr};
-	Foo f = {'A', true, {"Hello", "World!"}, &d, {1.5f}, &f2};
-	print(value_of(f));
+	print(value_of(type_of<Foo>()));
+	printf("\n");
 	return 0;
 }

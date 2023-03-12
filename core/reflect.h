@@ -40,7 +40,6 @@
 		- [ ] Put space after comma, before array `[]` and before pointer `*` names.
 		- [ ] Simplify.
 	- [ ] Try constexpr everything.
-	- [ ] Find a better way of handling recursion while keeping Type const.
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Cleanup.
 */
@@ -103,7 +102,7 @@ struct Type
 		struct
 		{
 			const Type_Enum_Value *values;
-			u64 element_count;
+			u64 value_count;
 		} as_enum;
 		struct
 		{
@@ -392,31 +391,28 @@ type_of(const T)
 #define TYPE_OF_FIELD02(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD01(__VA_ARGS__)
 #define TYPE_OF_FIELD01(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}
 
-#define TYPE_OF(T, ...)                                                                                             \
-inline static const Type *                                                                                          \
-type_of(const T)                                                                                                    \
-{                                                                                                                   \
-	static Type self = {                                                                                            \
-		.name = name_of<T>(),                                                                                       \
-		.kind = kind_of<T>(),                                                                                       \
-		.size = sizeof(T),                                                                                          \
-		.align = alignof(T),                                                                                        \
-		.as_struct = {}                                                                                             \
-	};                                                                                                              \
-	static bool init = false;                                                                                       \
-	if (init == true)                                                                                               \
-		return &self;                                                                                               \
-	__VA_OPT__(                                                                                                     \
-		if (init == false)                                                                                          \
-		{                                                                                                           \
-			init = true;                                                                                            \
-			using TYPE = T;                                                                                         \
-			TYPE t = {};                                                                                            \
-			static const Type_Field fields[OVERLOAD_ARG_N(__VA_ARGS__)] = { OVERLOAD(TYPE_OF_FIELD, __VA_ARGS__) }; \
-			self.as_struct = {fields, sizeof(fields) / sizeof(Type_Field)};                                         \
-		}                                                                                                           \
-	)                                                                                                               \
-	return &self;                                                                                                   \
+#define TYPE_OF(T, ...)                                                                                       \
+inline static const Type *                                                                                    \
+type_of(const T&)                                                                                             \
+{                                                                                                             \
+	static const Type self = {                                                                                \
+		.name = name_of<T>(),                                                                                 \
+		.kind = kind_of<T>(),                                                                                 \
+		.size = sizeof(T),                                                                                    \
+		.align = alignof(T),                                                                                  \
+		.as_struct = {}                                                                                       \
+	};                                                                                                        \
+	__VA_OPT__(                                                                                               \
+		static bool initialized = false;                                                                      \
+		if (initialized)                                                                                      \
+			return &self;                                                                                     \
+		initialized = true;                                                                                   \
+		using TYPE = T;                                                                                       \
+		TYPE t = {};                                                                                          \
+		static const Type_Field fields[OVERLOAD_ARG_N(__VA_ARGS__)] = {OVERLOAD(TYPE_OF_FIELD, __VA_ARGS__)}; \
+		((Type *)&self)->as_struct = {fields, sizeof(fields) / sizeof(Type_Field)};                           \
+	)                                                                                                         \
+	return &self;                                                                                             \
 }
 
 TYPE_OF(i8)
@@ -437,9 +433,10 @@ requires (std::is_pointer_v<T>)
 inline static constexpr const Type *
 type_of(const T)
 {
+	using Pointee = std::remove_pointer_t<T>;
 	static const Type *pointee = nullptr;
-	if constexpr (not std::is_same_v<std::remove_pointer_t<T>, void> && not std::is_abstract_v<std::remove_pointer_t<T>>)
-		pointee = type_of(std::remove_pointer_t<T>{});
+	if constexpr (!std::is_same_v<Pointee, void> && !std::is_abstract_v<Pointee>)
+		pointee = type_of(Pointee{});
 	static const Type self = {
 		.name = name_of<T>(),
 		.kind = kind_of<T>(),
@@ -459,10 +456,7 @@ type_of(const T(&)[N])
 		.kind = kind_of<T[N]>(),
 		.size = sizeof(T[N]),
 		.align = alignof(T[N]),
-		.as_array = {
-			type_of(T{}),
-			N
-		}
+		.as_array = {type_of(T{}), N}
 	};
 	return &self;
 }
@@ -484,26 +478,19 @@ type_of(const T(&)[N])
 #define TYPE_OF_ENUM_VALUE02(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE01(__VA_ARGS__)
 #define TYPE_OF_ENUM_VALUE01(VALUE, ...) {(i32)VALUE, #VALUE}
 
-#define TYPE_OF_ENUM(T, ...)                                                                   \
-inline static const Type *                                                                     \
-type_of(const T)                                                                               \
-{                                                                                              \
-	__VA_OPT__(                                                                                \
-		static const Type_Enum_Value values[] = { OVERLOAD(TYPE_OF_ENUM_VALUE, __VA_ARGS__) }; \
-	)                                                                                          \
-	static const Type self = {                                                                 \
-		.name = name_of<T>(),                                                                  \
-		.kind = kind_of<T>(),                                                                  \
-		.size = sizeof(T),                                                                     \
-		.align = alignof(T),                                                                   \
-		.as_enum = {                                                                           \
-			__VA_OPT__(                                                                        \
-				values,                                                                        \
-				sizeof(values) / sizeof(Type_Enum_Value)                                       \
-			)                                                                                  \
-		}                                                                                      \
-	};                                                                                         \
-	return &self;                                                                              \
+#define TYPE_OF_ENUM(T, ...)                                                                           \
+inline static const Type *                                                                             \
+type_of(const T)                                                                                       \
+{                                                                                                      \
+	__VA_OPT__(static const Type_Enum_Value values[] = { OVERLOAD(TYPE_OF_ENUM_VALUE, __VA_ARGS__) };) \
+	static const Type self = {                                                                         \
+		.name = name_of<T>(),                                                                          \
+		.kind = kind_of<T>(),                                                                          \
+		.size = sizeof(T),                                                                             \
+		.align = alignof(T),                                                                           \
+		.as_enum = {__VA_OPT__(values, sizeof(values) / sizeof(Type_Enum_Value))}                      \
+	};                                                                                                 \
+	return &self;                                                                                      \
 }
 
 template <typename T>
@@ -551,15 +538,21 @@ type_of(const T)
 
 	static Type_Enum_Value values[data.count] = {};
 	static char names[data.count][REFLECT_MAX_NAME_LENGTH] = {};
-	for (u64 i = 0, c = 0; i < REFLECT_MAX_ENUM_VALUE_COUNT; ++i)
+
+	static bool initialized = false;
+	if (initialized == false)
 	{
-		if (const auto &value = data.values[i]; value.name != "")
+		for (u64 i = 0, c = 0; i < REFLECT_MAX_ENUM_VALUE_COUNT; ++i)
 		{
-			values[c].index = value.index;
-			::memcpy(names[c], value.name.data(), value.name.length());
-			values[c].name = names[c];
-			++c;
+			if (const auto &value = data.values[i]; value.name != "")
+			{
+				values[c].index = value.index;
+				::memcpy(names[c], value.name.data(), value.name.length());
+				values[c].name = names[c];
+				++c;
+			}
 		}
+		initialized = true;
 	}
 
 	static const Type self = {
@@ -567,10 +560,7 @@ type_of(const T)
 		.kind = kind_of<T>(),
 		.size = sizeof(T),
 		.align = alignof(T),
-		.as_enum = {
-			.values = values,
-			.element_count = data.count
-		}
+		.as_enum = {values, data.count}
 	};
 	return &self;
 }
@@ -589,3 +579,6 @@ value_of(T &&type)
 	T t = type;
 	return {&type, type_of(t)};
 }
+
+TYPE_OF(Type_Field, name, offset, type)
+TYPE_OF(Type, name, kind, size, align, as_struct.fields, as_struct.field_count)

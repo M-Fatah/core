@@ -414,9 +414,9 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(reflect_enum_type->size == sizeof(REFLECT));
 		CHECK(reflect_enum_type->align == alignof(REFLECT));
 		CHECK(reflect_enum_type->as_enum.values != nullptr);
-		CHECK(reflect_enum_type->as_enum.element_count == 7);
+		CHECK(reflect_enum_type->as_enum.value_count == 7);
 
-		for (u64 i = 0; i < reflect_enum_type->as_enum.element_count; ++i)
+		for (u64 i = 0; i < reflect_enum_type->as_enum.value_count; ++i)
 		{
 			CHECK(reflect_enum_type->as_enum.values[i].index == i);
 			CHECK(reflect_enum_type->as_enum.values[i].name == string_from(memory::temp_allocator(), "REFLECT_ENUM_{}", i));
@@ -429,7 +429,7 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(unordered_enum_type->size == sizeof(UNORDERED_ENUM));
 		CHECK(unordered_enum_type->align == alignof(UNORDERED_ENUM));
 		CHECK(unordered_enum_type->as_enum.values != nullptr);
-		CHECK(unordered_enum_type->as_enum.element_count == 3);
+		CHECK(unordered_enum_type->as_enum.value_count == 3);
 		CHECK(unordered_enum_type->as_enum.values[0].index == 1);
 		CHECK(unordered_enum_type->as_enum.values[0].name == string_literal("UNORDERED_ENUM_ONE"));
 		CHECK(unordered_enum_type->as_enum.values[1].index == -1);
@@ -448,7 +448,7 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(enum_class_type->size == sizeof(ENUM_CLASS));
 		CHECK(enum_class_type->align == alignof(ENUM_CLASS));
 		CHECK(enum_class_type->as_enum.values != nullptr);
-		CHECK(enum_class_type->as_enum.element_count == 3);
+		CHECK(enum_class_type->as_enum.value_count == 3);
 		CHECK(enum_class_type->as_enum.values[0].index == -1);
 		CHECK(enum_class_type->as_enum.values[0].name == string_literal("ENUM_CLASS::NEG_ONE"));
 		CHECK(enum_class_type->as_enum.values[1].index == 0);
@@ -463,7 +463,7 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(enum_with_flags_type->size == sizeof(ENUM_WITH_FLAGS));
 		CHECK(enum_with_flags_type->align == alignof(ENUM_WITH_FLAGS));
 		CHECK(enum_with_flags_type->as_enum.values != nullptr);
-		CHECK(enum_with_flags_type->as_enum.element_count == 4);
+		CHECK(enum_with_flags_type->as_enum.value_count == 4);
 		CHECK(enum_with_flags_type->as_enum.values[0].index == 1);
 		CHECK(enum_with_flags_type->as_enum.values[0].name == string_literal("ONE"));
 		CHECK(enum_with_flags_type->as_enum.values[1].index == 2);
@@ -480,7 +480,7 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(enum_with_same_values_type->size == sizeof(ENUM_WITH_SAME_VALUES));
 		CHECK(enum_with_same_values_type->align == alignof(ENUM_WITH_SAME_VALUES));
 		CHECK(enum_with_same_values_type->as_enum.values != nullptr);
-		CHECK(enum_with_same_values_type->as_enum.element_count == 2);
+		CHECK(enum_with_same_values_type->as_enum.value_count == 2);
 		CHECK(enum_with_same_values_type->as_enum.values[0].index == 0);
 		CHECK(enum_with_same_values_type->as_enum.values[0].name == string_literal("ZERO"));
 		CHECK(enum_with_same_values_type->as_enum.values[1].index == 0);
