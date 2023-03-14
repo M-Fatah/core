@@ -398,28 +398,28 @@ type_of();
 #define TYPE_OF_FIELD02(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD01(__VA_ARGS__)
 #define TYPE_OF_FIELD01(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}
 
-#define TYPE_OF(T, ...)                                                                                       \
-inline static const Type *                                                                                    \
-type_of(const T)                                                                                              \
-{                                                                                                             \
-	static const Type self = {                                                                                \
-		.name = name_of<T>(),                                                                                 \
-		.kind = kind_of<T>(),                                                                                 \
-		.size = sizeof(T),                                                                                    \
-		.align = alignof(T),                                                                                  \
-		.as_struct = {}                                                                                       \
-	};                                                                                                        \
-	__VA_OPT__(                                                                                               \
-		static bool initialized = false;                                                                      \
-		if (initialized)                                                                                      \
-			return &self;                                                                                     \
-		initialized = true;                                                                                   \
-		using TYPE = T;                                                                                       \
-		TYPE t = {};                                                                                          \
-		static const Type_Field fields[OVERLOAD_ARG_N(__VA_ARGS__)] = {OVERLOAD(TYPE_OF_FIELD, __VA_ARGS__)}; \
-		((Type *)&self)->as_struct = {fields, sizeof(fields) / sizeof(Type_Field)};                           \
-	)                                                                                                         \
-	return &self;                                                                                             \
+#define TYPE_OF(T, ...)                                                             \
+inline static const Type *                                                          \
+type_of(const T)                                                                    \
+{                                                                                   \
+	static const Type self = {                                                      \
+		.name = name_of<T>(),                                                       \
+		.kind = kind_of<T>(),                                                       \
+		.size = sizeof(T),                                                          \
+		.align = alignof(T),                                                        \
+		.as_struct = {}                                                             \
+	};                                                                              \
+	__VA_OPT__(                                                                     \
+		static bool initialized = false;                                            \
+		if (initialized)                                                            \
+			return &self;                                                           \
+		initialized = true;                                                         \
+		using TYPE = T;                                                             \
+		TYPE t = {};                                                                \
+		static const Type_Field fields[] = {OVERLOAD(TYPE_OF_FIELD, __VA_ARGS__)};  \
+		((Type *)&self)->as_struct = {fields, sizeof(fields) / sizeof(Type_Field)}; \
+	)                                                                               \
+	return &self;                                                                   \
 }
 
 TYPE_OF(i8)
