@@ -3,9 +3,7 @@
 #include <stdint.h>
 #include <float.h>
 
-#define SINGLE_ARG(...) __VA_ARGS__
-
-#define CONCATENATE(A, B) A##B
+#define CONCATENATE(ARG1, ARG2) ARG1##ARG2
 
 #define IF(CONDITION) CONCATENATE(_IF_, CONDITION)
 #define _IF_0(TRUE, FALSE) FALSE

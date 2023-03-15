@@ -365,7 +365,7 @@ TYPE_OF_ENUM(HASH_TABLE_SLOT_FLAGS, HASH_TABLE_SLOT_FLAGS_EMPTY, HASH_TABLE_SLOT
 TYPE_OF(Hash_Table_Slot, entry_index, hash_value, flags)
 
 template <typename K, typename V>
-TYPE_OF(SINGLE_ARG(Hash_Table_Entry<K, V>), key, value)
+TYPE_OF((Hash_Table_Entry<K, V>), key, value)
 
 template <typename K, typename V>
-TYPE_OF(SINGLE_ARG(Hash_Table<K, V>), slots, entry_slot_indices, entries, count, capacity)
+TYPE_OF((Hash_Table<K, V>), slots, entry_slot_indices, entries, count, capacity)

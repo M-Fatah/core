@@ -99,7 +99,7 @@ struct Foo
 };
 
 template <typename T, typename R>
-TYPE_OF(SINGLE_ARG(Foo<T, R>), x, y)
+TYPE_OF((Foo<T, R>), x, y)
 
 template <typename T, typename R, typename E>
 struct Bar
@@ -110,7 +110,7 @@ struct Bar
 };
 
 template <typename T, typename R, typename E>
-TYPE_OF(SINGLE_ARG(Bar<T, R, E>), x, y, z)
+TYPE_OF((Bar<T, R, E>), x, y, z)
 
 TEST_CASE("[CORE]: Reflect")
 {

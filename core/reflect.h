@@ -42,8 +42,6 @@
 		- [ ] Figure out a way to use alias names like `String` instead of `Array<char>`?
 		- [ ] Put space after comma, before array `[]` and before pointer `*` names.
 		- [ ] Simplify.
-	- [x] Add field annotations.
-	- [ ] Get rid of SINGLE_ARG usage.
 	- [ ] Try constexpr everything.
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Cleanup.
@@ -405,15 +403,18 @@ type_of();
 #define _TYPE_OF_FIELD01(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME))
 #define _TYPE_OF_FIELD__(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME), "" __VA_ARGS__}
 
+#define _TYPE_OF_NAME(T) IF(HAS_PARENTHESIS(T))(_TYPE_OF_NAME_ T, _TYPE_OF_NAME_(T))
+#define _TYPE_OF_NAME_(...) __VA_ARGS__
+
 #define TYPE_OF(T, ...)                                                             \
 inline static const Type *                                                          \
-type_of(const T)                                                                    \
+type_of(const _TYPE_OF_NAME(T))                                                     \
 {                                                                                   \
 	static const Type self = {                                                      \
-		.name = name_of<T>(),                                                       \
-		.kind = kind_of<T>(),                                                       \
-		.size = sizeof(T),                                                          \
-		.align = alignof(T),                                                        \
+		.name = name_of<_TYPE_OF_NAME(T)>(),                                        \
+		.kind = kind_of<_TYPE_OF_NAME(T)>(),                                        \
+		.size = sizeof(_TYPE_OF_NAME(T)),                                           \
+		.align = alignof(_TYPE_OF_NAME(T)),                                         \
 		.as_struct = {}                                                             \
 	};                                                                              \
 	__VA_OPT__(                                                                     \
@@ -421,9 +422,9 @@ type_of(const T)                                                                
 		if (initialized)                                                            \
 			return &self;                                                           \
 		initialized = true;                                                         \
-		using TYPE = T;                                                             \
+		using TYPE = _TYPE_OF_NAME(T);                                              \
 		TYPE t = {};                                                                \
-		static const Type_Field fields[] = {OVERLOAD(_TYPE_OF_FIELD, __VA_ARGS__)};  \
+		static const Type_Field fields[] = {OVERLOAD(_TYPE_OF_FIELD, __VA_ARGS__)}; \
 		((Type *)&self)->as_struct = {fields, sizeof(fields) / sizeof(Type_Field)}; \
 	)                                                                               \
 	return &self;                                                                   \
