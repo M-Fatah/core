@@ -36,9 +36,13 @@
 		- [x] Names with const specifier.
 		- [x] Fix name_of<void>() on GCC.
 		- [x] Pointer names.
+		- [ ] Use local stack arrays and try to compute names compile times and store final names,
+				in a static std::array<char> in a specialized template struct.
+		- [ ] Test names with const T *ptr const.
 		- [ ] Figure out a way to use alias names like `String` instead of `Array<char>`?
 		- [ ] Put space after comma, before array `[]` and before pointer `*` names.
 		- [ ] Simplify.
+	- [x] Add field annotations.
 	- [ ] Try constexpr everything.
 	- [ ] Name as reflect/reflector/reflection?
 	- [ ] Cleanup.
@@ -81,6 +85,7 @@ struct Type_Field
 	const char *name;
 	u64 offset;
 	const struct Type *type;
+	const char *tag;
 };
 
 struct Type
@@ -381,22 +386,36 @@ template <typename T>
 inline static constexpr const Type *
 type_of();
 
-#define TYPE_OF_FIELD16(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD15(__VA_ARGS__)
-#define TYPE_OF_FIELD15(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD14(__VA_ARGS__)
-#define TYPE_OF_FIELD14(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD13(__VA_ARGS__)
-#define TYPE_OF_FIELD13(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD12(__VA_ARGS__)
-#define TYPE_OF_FIELD12(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD11(__VA_ARGS__)
-#define TYPE_OF_FIELD11(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD10(__VA_ARGS__)
-#define TYPE_OF_FIELD10(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD09(__VA_ARGS__)
-#define TYPE_OF_FIELD09(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD08(__VA_ARGS__)
-#define TYPE_OF_FIELD08(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD07(__VA_ARGS__)
-#define TYPE_OF_FIELD07(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD06(__VA_ARGS__)
-#define TYPE_OF_FIELD06(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD05(__VA_ARGS__)
-#define TYPE_OF_FIELD05(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD04(__VA_ARGS__)
-#define TYPE_OF_FIELD04(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD03(__VA_ARGS__)
-#define TYPE_OF_FIELD03(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD02(__VA_ARGS__)
-#define TYPE_OF_FIELD02(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}, TYPE_OF_FIELD01(__VA_ARGS__)
-#define TYPE_OF_FIELD01(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME)}
+#define TYPE_OF_FIELD16(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD15(__VA_ARGS__)
+#define TYPE_OF_FIELD15(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD14(__VA_ARGS__)
+#define TYPE_OF_FIELD14(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD13(__VA_ARGS__)
+#define TYPE_OF_FIELD13(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD12(__VA_ARGS__)
+#define TYPE_OF_FIELD12(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD11(__VA_ARGS__)
+#define TYPE_OF_FIELD11(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD10(__VA_ARGS__)
+#define TYPE_OF_FIELD10(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD09(__VA_ARGS__)
+#define TYPE_OF_FIELD09(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD08(__VA_ARGS__)
+#define TYPE_OF_FIELD08(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD07(__VA_ARGS__)
+#define TYPE_OF_FIELD07(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD06(__VA_ARGS__)
+#define TYPE_OF_FIELD06(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD05(__VA_ARGS__)
+#define TYPE_OF_FIELD05(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD04(__VA_ARGS__)
+#define TYPE_OF_FIELD04(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD03(__VA_ARGS__)
+#define TYPE_OF_FIELD03(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD02(__VA_ARGS__)
+#define TYPE_OF_FIELD02(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME), TYPE_OF_FIELD01(__VA_ARGS__)
+#define TYPE_OF_FIELD01(NAME, ...) IF(HAS_PARENTHESIS(NAME))(NAME)
+
+// TODO: Cleanup.
+#define TYPE_OF_FIELD(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME), "" __VA_ARGS__}
+
+#define IF(CONDITION) CONCATENATE(IF_, CONDITION)
+#define IF_0(NAME, ...) TYPE_OF_FIELD(NAME)
+#define IF_1(NAME, ...) TYPE_OF_FIELD NAME
+
+#define CHECK_N(x, n, ...) n
+#define REFLECT_CHECK(...) CHECK_N(__VA_ARGS__, 0)
+#define PROBE(x) x, 1
+
+#define HAS_PARENTHESIS(x) REFLECT_CHECK(IS_PAREN_PROBE x)
+#define IS_PAREN_PROBE(...) PROBE(~)
 
 #define TYPE_OF(T, ...)                                                             \
 inline static const Type *                                                          \

@@ -1,5 +1,6 @@
 #include <core/defines.h>
 #include <core/reflect.h>
+#include <core/containers/string.h>
 #include <core/platform/platform.h>
 
 #include <stdio.h>
@@ -204,12 +205,15 @@ to_json(Value v, i32 indent = 0)
 			printf("{\n");
 			for (u64 i = 0; i < v.type->as_struct.field_count; ++i)
 			{
-				if (i != 0)
-					printf(",\n");
 				const auto *field = &v.type->as_struct.fields[i];
-				print_tab(indent + 1);
-				printf("\"%s\": ", field->name);
-				to_json({(char *)v.data + field->offset, field->type}, indent + 1);
+				if (string_literal(field->tag) != "NoSerialize")
+				{
+					print_tab(indent + 1);
+					printf("\"%s\": ", field->name);
+					to_json({(char *)v.data + field->offset, field->type}, indent + 1);
+					if (i != (v.type->as_struct.field_count - 1))
+						printf(",\n");
+				}
 			}
 			printf("\n");
 			print_tab(indent);
@@ -297,7 +301,7 @@ struct Foo
 	Foo *f;
 };
 
-TYPE_OF(Foo, a, b, c, d, e, f)
+TYPE_OF(Foo, (a, "NoSerialize"), b, c, d, e, f)
 
 i32
 main(i32, char **)
@@ -306,6 +310,9 @@ main(i32, char **)
 	i32 dd = 13;
 	Foo f1 = {'A', true, {"Hello", "World"}, &d, {1.5f}, nullptr};
 	Foo f2 = {'B', false, {"FOO", "BOO"}, &dd, {7.5f}, &f1};
+
+	auto t2 = type_of(f2);
+	unused(t2);
 	to_json(value_of(f2));
 	return 0;
 }
