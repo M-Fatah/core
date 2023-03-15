@@ -7,6 +7,15 @@
 
 #define CONCATENATE(A, B) A##B
 
+#define IF(CONDITION) CONCATENATE(_IF_, CONDITION)
+#define _IF_0(TRUE, FALSE) FALSE
+#define _IF_1(TRUE, FALSE) TRUE
+
+#define HAS_PARENTHESIS(ARG) _HAS_PARENTHESIS_CHECK(_HAS_PARENTHESIS_PROBE ARG)
+#define _HAS_PARENTHESIS_CHECK(...) _HAS_PARENTHESIS_CHECK_N(__VA_ARGS__, 0)
+#define _HAS_PARENTHESIS_CHECK_N(ARG, N, ...) N
+#define _HAS_PARENTHESIS_PROBE(...) 0, 1
+
 // TODO: Rename to ARG_COUNT?
 #define OVERLOAD_ARG_N_(                               \
      _01, _02, _03, _04, _05, _06, _07, _08, _09, _10, \
