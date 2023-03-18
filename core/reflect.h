@@ -32,18 +32,18 @@
 			- [ ] Simplify OVERLOARD(TYPE_OF_ENUM_VALUE, __VA_ARGS__) and use FOR_EACH() macro?
 			- [ ] Simplify type_of(Enum).
 			- [ ] Add enum range?
-	- [ ] name_of<T>().
+		- [ ] Functions?
+	- [x] name_of<T>().
 		- [x] Names with const specifier.
 		- [x] Fix name_of<void>() on GCC.
 		- [x] Pointer names.
 		- [ ] Use local stack arrays and try to compute names compile times and store final names,
 				in a static std::array<char> in a specialized template struct.
-		- [ ] Test names with const T *ptr const.
 		- [ ] Figure out a way to use alias names like `String` instead of `Array<char>`?
 		- [ ] Put space after comma, before array `[]` and before pointer `*` names.
 		- [ ] Simplify.
 	- [ ] Try constexpr everything.
-	- [ ] Name as reflect/reflector/reflection?
+	- [ ] Name as reflect/reflection?
 	- [ ] Cleanup.
 */
 
@@ -227,6 +227,14 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 	};
 
 	bool add_pointer = false;
+	bool add_const   = false;
+	if (type_name.ends_with("* const"))
+	{
+		type_name.remove_suffix(7);
+		add_pointer = true;
+		add_const = true;
+	}
+
 	if (type_name.ends_with(" const "))
 	{
 		string_append(name, "const ", count);
@@ -289,6 +297,8 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 
 	if (add_pointer)
 		name[count++] = '*';
+	if (add_const)
+		string_append(name, " const", count);
 }
 
 template <typename T>
@@ -457,6 +467,20 @@ type_of<void>()
 	return &self;
 }
 
+template <>
+inline const Type *
+type_of<const void>()
+{
+	static const Type self = {
+		.name = name_of<void>(),
+		.kind = kind_of<void>(),
+		.size = 0,
+		.align = 0,
+		.as_struct = {}
+	};
+	return &self;
+}
+
 template <typename T>
 requires (std::is_pointer_v<T>)
 inline static constexpr const Type *
@@ -610,3 +634,4 @@ value_of(T &&type)
 
 TYPE_OF(Type_Field, name, offset, type)
 TYPE_OF(Type, name, kind, size, align, as_struct.fields, as_struct.field_count)
+TYPE_OF(Value, data, type)

@@ -107,7 +107,7 @@ print(Value v)
 			uptr *pointer = *(uptr **)(v.data);
 			if (v.type == type_of<const char *>() || v.type == type_of<char *>())
 			{
-				printf("%s", (const char *)pointer);
+				printf("\"%s\"", (const char *)pointer);
 			}
 			else
 			{
@@ -301,7 +301,17 @@ struct Foo
 	Foo *f;
 };
 
-TYPE_OF(Foo, (a, "NoSerialize"), b, c, d, e, f)
+TYPE_OF(Foo, (a, "NoSerialize"), (b), c, d, e, f);
+
+template <typename T, typename R>
+struct TWO
+{
+	T t;
+	R r;
+};
+
+template <typename T, typename R>
+TYPE_OF((TWO<T, R>), t, r)
 
 i32
 main(i32, char **)
@@ -314,5 +324,6 @@ main(i32, char **)
 	auto t2 = type_of(f2);
 	unused(t2);
 	to_json(value_of(f2));
+	to_json(value_of(TWO{1, 3.4f}));
 	return 0;
 }
