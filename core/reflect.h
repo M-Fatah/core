@@ -384,6 +384,13 @@ kind_of()
 }
 
 template <typename T>
+inline static constexpr TYPE_KIND
+kind_of(T&&)
+{
+	return kind_of<T>();
+}
+
+template <typename T>
 inline static constexpr const Type *
 type_of(const T)
 {

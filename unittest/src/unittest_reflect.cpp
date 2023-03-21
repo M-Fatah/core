@@ -274,6 +274,12 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(string_literal(point_nested_const_ptr_const) == "const Point<const Point<i32>* const>");
 	}
 
+	SUBCASE("kind_of<T>")
+	{
+		CHECK(kind_of<char>() == kind_of('A'));
+		CHECK(kind_of<bool>() == kind_of(true));
+	}
+
 	SUBCASE("type_of<T> primitives")
 	{
 		i32 i32_v = -1;
