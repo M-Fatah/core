@@ -7,6 +7,7 @@ set(HEADER_FILES
     hash.h
     json.h
     logger.h
+    reflect.h
     result.h
     utils.h
     containers/array.h

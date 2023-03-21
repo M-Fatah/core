@@ -3,11 +3,9 @@
 
 #include <core/platform/platform.h>
 
-int
-main(int argc, char **argv)
+i32
+main(i32 argc, char **argv)
 {
-	platform_set_current_directory();
-
 	doctest::Context context;
 
 	context.applyCommandLine(argc, argv);
@@ -15,7 +13,7 @@ main(int argc, char **argv)
 	// Don't break in the debugger when assertions fail.
 	context.setOption("no-breaks", true);
 
-	int res = context.run();
+	i32 res = context.run();
 	if (context.shouldExit())
 		return res;
 

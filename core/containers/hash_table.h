@@ -4,6 +4,7 @@
 #include "core/hash.h"
 #include "core/utils.h"
 #include "core/formatter.h"
+#include "core/reflect.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
 #include "core/serialization/serializer.h"
@@ -358,3 +359,13 @@ format(Formatter *formatter, const Hash_Table<K, V> &self)
 	}
 	format(formatter, " }}");
 }
+
+TYPE_OF_ENUM(HASH_TABLE_SLOT_FLAGS, HASH_TABLE_SLOT_FLAGS_EMPTY, HASH_TABLE_SLOT_FLAGS_USED, HASH_TABLE_SLOT_FLAGS_DELETED)
+
+TYPE_OF(Hash_Table_Slot, entry_index, hash_value, flags)
+
+template <typename K, typename V>
+TYPE_OF((Hash_Table_Entry<K, V>), key, value)
+
+template <typename K, typename V>
+TYPE_OF((Hash_Table<K, V>), slots, entry_slot_indices, entries, count, capacity)
