@@ -37,6 +37,7 @@
 		- [x] Names with const specifier.
 		- [x] Fix name_of<void>() on GCC.
 		- [x] Pointer names.
+		- [x] Reference names.
 		- [ ] Use local stack arrays and try to compute names compile times and store final names,
 				in a static std::array<char> in a specialized template struct.
 		- [ ] Figure out a way to use alias names like `String` instead of `Array<char>`?
@@ -135,10 +136,17 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 		if (type_name.starts_with(' '))
 			type_name.remove_prefix(1);
 
+		bool add_pointer = false;
 		if (type_name.starts_with("const "))
 		{
 			string_append(name, "const ", count);
 			type_name.remove_prefix(6);
+		}
+		else if (type_name.ends_with(" const *"))
+		{
+			string_append(name, "const ", count);
+			type_name.remove_suffix(8);
+			add_pointer = true;
 		}
 
 		#if defined(_MSC_VER)
@@ -224,15 +232,19 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 		for (char c : type_name)
 			if (c != ' ')
 				name[count++] = c;
+
+		if (add_pointer)
+			name[count++] = '*';
 	};
 
-	bool add_pointer = false;
-	bool add_const   = false;
+	bool add_const     = false;
+	bool add_pointer   = false;
+	bool add_reference = false;
 	if (type_name.ends_with("* const"))
 	{
 		type_name.remove_suffix(7);
-		add_pointer = true;
 		add_const = true;
+		add_pointer = true;
 	}
 
 	if (type_name.ends_with(" const "))
@@ -246,10 +258,21 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 		type_name.remove_suffix(8);
 		add_pointer = true;
 	}
+	else if (type_name.ends_with("const &"))
+	{
+		add_const = true;
+		add_reference = true;
+		type_name.remove_suffix(7);
+	}
 	else if (type_name.ends_with('*'))
 	{
 		type_name.remove_suffix(1);
 		add_pointer = true;
+	}
+	else if (type_name.ends_with('&'))
+	{
+		type_name.remove_suffix(1);
+		add_reference = true;
 	}
 
 	if (type_name.ends_with(' '))
@@ -299,6 +322,8 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 		name[count++] = '*';
 	if (add_const)
 		string_append(name, " const", count);
+	if (add_reference)
+		name[count++] = '&';
 }
 
 template <typename T>
@@ -452,7 +477,7 @@ type_of(const T)
 
 template <typename T, u64 N>
 inline static constexpr const Type *
-type_of(const T (&&)[N])
+type_of(const T (&)[N])
 {
 	static const Type self = {
 		.name = name_of<T[N]>(),

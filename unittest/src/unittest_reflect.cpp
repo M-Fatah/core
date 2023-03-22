@@ -152,6 +152,9 @@ TEST_CASE("[CORE]: Reflect")
 
 		auto const_void_name = name_of<const void>();
 
+		auto i08_ref_name = name_of<i8 &>();
+		auto const_i08_ref_name = name_of<const i8 &>();
+
 		CHECK(string_literal(i08_name) == "i8");
 		CHECK(string_literal(i16_name) == "i16");
 		CHECK(string_literal(i32_name) == "i32");
@@ -187,6 +190,9 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(string_literal(const_char_name) == "const char");
 
 		CHECK(string_literal(const_void_name) == "const void");
+
+		CHECK(string_literal(i08_ref_name) == "i8&");
+		CHECK(string_literal(const_i08_ref_name) == "const i8&");
 	}
 
 	SUBCASE("name_of<T> pointer")
@@ -196,6 +202,21 @@ TEST_CASE("[CORE]: Reflect")
 
 		auto const_vec3_ptr_name = name_of<const Vector3 *>();
 		CHECK(string_literal(const_vec3_ptr_name) == "const Vector3*");
+
+		auto vec3_ptr_ref_name = name_of<Vector3 * &>();
+		CHECK(string_literal(vec3_ptr_ref_name) == "Vector3*&");
+
+		auto vec3_ptr_const_ref_name = name_of<Vector3 * const &>();
+		CHECK(string_literal(vec3_ptr_const_ref_name) == "Vector3* const&");
+
+		auto const_vec3_ptr_ref_name = name_of<const Vector3 * &>();
+		CHECK(string_literal(const_vec3_ptr_ref_name) == "const Vector3*&");
+
+		auto const_vec3_ptr_const_ref_name = name_of<const Vector3 * const &>();
+		CHECK(string_literal(const_vec3_ptr_const_ref_name) == "const Vector3* const&");
+
+		auto const_point_ref_const_i32_ptr_const_ref_name = name_of<const Point<const i32 * const &> &>();
+		CHECK(string_literal(const_point_ref_const_i32_ptr_const_ref_name) == "const Point<const i32* const&>&");
 
 		auto const_point_const_i32_ptr_name = name_of<const Point<const i32 *>>();
 		CHECK(string_literal(const_point_const_i32_ptr_name) == "const Point<const i32*>");
