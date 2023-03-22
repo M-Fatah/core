@@ -347,39 +347,40 @@ template <typename T>
 inline static constexpr TYPE_KIND
 kind_of()
 {
-	if constexpr (std::is_same_v<T, i8>)
+	using Type = std::remove_cvref_t<T>;
+	if constexpr (std::is_same_v<Type, i8>)
 		return TYPE_KIND_I8;
-	else if constexpr (std::is_same_v<T, i16>)
+	else if constexpr (std::is_same_v<Type, i16>)
 		return TYPE_KIND_I16;
-	else if constexpr (std::is_same_v<T, i32>)
+	else if constexpr (std::is_same_v<Type, i32>)
 		return TYPE_KIND_I32;
-	else if constexpr (std::is_same_v<T, i64>)
+	else if constexpr (std::is_same_v<Type, i64>)
 		return TYPE_KIND_I64;
-	else if constexpr (std::is_same_v<T, u8>)
+	else if constexpr (std::is_same_v<Type, u8>)
 		return TYPE_KIND_U8;
-	else if constexpr (std::is_same_v<T, u16>)
+	else if constexpr (std::is_same_v<Type, u16>)
 		return TYPE_KIND_U16;
-	else if constexpr (std::is_same_v<T, u32>)
+	else if constexpr (std::is_same_v<Type, u32>)
 		return TYPE_KIND_U32;
-	else if constexpr (std::is_same_v<T, u64>)
+	else if constexpr (std::is_same_v<Type, u64>)
 		return TYPE_KIND_U64;
-	else if constexpr (std::is_same_v<T, f32>)
+	else if constexpr (std::is_same_v<Type, f32>)
 		return TYPE_KIND_F32;
-	else if constexpr (std::is_same_v<T, f64>)
+	else if constexpr (std::is_same_v<Type, f64>)
 		return TYPE_KIND_F64;
-	else if constexpr (std::is_same_v<T, bool>)
+	else if constexpr (std::is_same_v<Type, bool>)
 		return TYPE_KIND_BOOL;
-	else if constexpr (std::is_same_v<T, char>)
+	else if constexpr (std::is_same_v<Type, char>)
 		return TYPE_KIND_CHAR;
-	else if constexpr (std::is_void_v<T>)
+	else if constexpr (std::is_same_v<Type, void>)
 		return TYPE_KIND_VOID;
-	else if constexpr (std::is_pointer_v<T>)
+	else if constexpr (std::is_pointer_v<Type>)
 		return TYPE_KIND_POINTER;
-	else if constexpr (std::is_array_v<T>)
+	else if constexpr (std::is_array_v<Type>)
 		return TYPE_KIND_ARRAY;
-	else if constexpr (std::is_enum_v<T>)
+	else if constexpr (std::is_enum_v<Type>)
 		return TYPE_KIND_ENUM;
-	else if constexpr (std::is_compound_v<T>)
+	else if constexpr (std::is_compound_v<Type>)
 		return TYPE_KIND_STRUCT;
 }
 
@@ -451,7 +452,7 @@ type_of(const T)
 
 template <typename T, u64 N>
 inline static constexpr const Type *
-type_of(const T(&)[N])
+type_of(const T (&&)[N])
 {
 	static const Type self = {
 		.name = name_of<T[N]>(),

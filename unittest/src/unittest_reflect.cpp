@@ -276,8 +276,62 @@ TEST_CASE("[CORE]: Reflect")
 
 	SUBCASE("kind_of<T>")
 	{
-		CHECK(kind_of<char>() == kind_of('A'));
-		CHECK(kind_of<bool>() == kind_of(true));
+		CHECK(kind_of<i8>() == TYPE_KIND_I8);
+		CHECK(kind_of<const i8>() == TYPE_KIND_I8);
+		CHECK(kind_of<const i8 &>() == TYPE_KIND_I8);
+
+		CHECK(kind_of<i16>() == TYPE_KIND_I16);
+		CHECK(kind_of<const i16>() == TYPE_KIND_I16);
+		CHECK(kind_of<const i16 &>() == TYPE_KIND_I16);
+
+		CHECK(kind_of<i32>() == TYPE_KIND_I32);
+		CHECK(kind_of<const i32>() == TYPE_KIND_I32);
+		CHECK(kind_of<const i32 &>() == TYPE_KIND_I32);
+
+		CHECK(kind_of<i64>() == TYPE_KIND_I64);
+		CHECK(kind_of<const i64>() == TYPE_KIND_I64);
+		CHECK(kind_of<const i64 &>() == TYPE_KIND_I64);
+
+		CHECK(kind_of<u8>() == TYPE_KIND_U8);
+		CHECK(kind_of<const u8>() == TYPE_KIND_U8);
+		CHECK(kind_of<const u8 &>() == TYPE_KIND_U8);
+
+		CHECK(kind_of<u16>() == TYPE_KIND_U16);
+		CHECK(kind_of<const u16>() == TYPE_KIND_U16);
+		CHECK(kind_of<const u16 &>() == TYPE_KIND_U16);
+
+		CHECK(kind_of<u32>() == TYPE_KIND_U32);
+		CHECK(kind_of<const u32>() == TYPE_KIND_U32);
+		CHECK(kind_of<const u32 &>() == TYPE_KIND_U32);
+
+		CHECK(kind_of<u64>() == TYPE_KIND_U64);
+		CHECK(kind_of<const u64>() == TYPE_KIND_U64);
+		CHECK(kind_of<const u64 &>() == TYPE_KIND_U64);
+
+		CHECK(kind_of<bool>() == TYPE_KIND_BOOL);
+		CHECK(kind_of<const bool>() == TYPE_KIND_BOOL);
+		CHECK(kind_of<const bool &>() == TYPE_KIND_BOOL);
+
+		CHECK(kind_of<char>() == TYPE_KIND_CHAR);
+		CHECK(kind_of<const char>() == TYPE_KIND_CHAR);
+		CHECK(kind_of<const char &>() == TYPE_KIND_CHAR);
+
+		CHECK(kind_of<void>() == TYPE_KIND_VOID);
+		CHECK(kind_of<const void>() == TYPE_KIND_VOID);
+
+		CHECK(kind_of<char *>() == TYPE_KIND_POINTER);
+		CHECK(kind_of<char * const>() == TYPE_KIND_POINTER);
+		CHECK(kind_of<const char *>() == TYPE_KIND_POINTER);
+		CHECK(kind_of<const char * const>() == TYPE_KIND_POINTER);
+		CHECK(kind_of<char(*)[3]>() == TYPE_KIND_POINTER);
+
+		CHECK(kind_of<char [3]>() == TYPE_KIND_ARRAY);
+		CHECK(kind_of<const char [3]>() == TYPE_KIND_ARRAY);
+		CHECK(kind_of<char(&)[3]>() == TYPE_KIND_ARRAY);
+
+		CHECK(kind_of<EMPTY_ENUM>() == TYPE_KIND_ENUM);
+
+		CHECK(kind_of<Empty>() == TYPE_KIND_STRUCT);
 	}
 
 	SUBCASE("type_of<T> primitives")
