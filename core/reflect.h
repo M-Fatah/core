@@ -371,7 +371,7 @@ kind_of()
 		return TYPE_KIND_BOOL;
 	else if constexpr (std::is_same_v<T, char>)
 		return TYPE_KIND_CHAR;
-	else if constexpr (std::is_same_v<T, void>)
+	else if constexpr (std::is_void_v<T>)
 		return TYPE_KIND_VOID;
 	else if constexpr (std::is_pointer_v<T>)
 		return TYPE_KIND_POINTER;
