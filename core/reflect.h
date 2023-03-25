@@ -263,6 +263,12 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 		add_reference = true;
 		type_name.remove_suffix(7);
 	}
+	else if (type_name.ends_with(" const&"))
+	{
+		add_const = true;
+		add_reference = true;
+		type_name.remove_suffix(7);
+	}
 	else if (type_name.ends_with('*'))
 	{
 		type_name.remove_suffix(1);
