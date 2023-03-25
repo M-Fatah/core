@@ -437,7 +437,7 @@ type_of(const T)
 	static const Type self = {
 		.name = name_of<T>(),
 		.kind = kind_of<T>(),
-		.size  = sizeof(T),
+		.size = sizeof(T),
 		.align = alignof(T),
 		.as_struct = {}
 	};
@@ -452,7 +452,7 @@ type_of()
 	static const Type self = {
 		.name = name_of<T>(),
 		.kind = kind_of<T>(),
-		.size  = 0,
+		.size = 0,
 		.align = 0,
 		.as_struct = {}
 	};
