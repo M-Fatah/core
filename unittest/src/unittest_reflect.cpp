@@ -152,6 +152,9 @@ TEST_CASE("[CORE]: Reflect")
 
 		auto const_void_name = name_of<const void>();
 
+		auto i08_ref_name = name_of<i8 &>();
+		auto const_i08_ref_name = name_of<const i8 &>();
+
 		CHECK(string_literal(i08_name) == "i8");
 		CHECK(string_literal(i16_name) == "i16");
 		CHECK(string_literal(i32_name) == "i32");
@@ -187,6 +190,9 @@ TEST_CASE("[CORE]: Reflect")
 		CHECK(string_literal(const_char_name) == "const char");
 
 		CHECK(string_literal(const_void_name) == "const void");
+
+		CHECK(string_literal(i08_ref_name) == "i8&");
+		CHECK(string_literal(const_i08_ref_name) == "const i8&");
 	}
 
 	SUBCASE("name_of<T> pointer")
@@ -196,6 +202,21 @@ TEST_CASE("[CORE]: Reflect")
 
 		auto const_vec3_ptr_name = name_of<const Vector3 *>();
 		CHECK(string_literal(const_vec3_ptr_name) == "const Vector3*");
+
+		auto vec3_ptr_ref_name = name_of<Vector3 * &>();
+		CHECK(string_literal(vec3_ptr_ref_name) == "Vector3*&");
+
+		auto vec3_ptr_const_ref_name = name_of<Vector3 * const &>();
+		CHECK(string_literal(vec3_ptr_const_ref_name) == "Vector3* const&");
+
+		auto const_vec3_ptr_ref_name = name_of<const Vector3 * &>();
+		CHECK(string_literal(const_vec3_ptr_ref_name) == "const Vector3*&");
+
+		auto const_vec3_ptr_const_ref_name = name_of<const Vector3 * const &>();
+		CHECK(string_literal(const_vec3_ptr_const_ref_name) == "const Vector3* const&");
+
+		auto const_point_ref_const_i32_ptr_const_ref_name = name_of<const Point<const i32 * const &> &>();
+		CHECK(string_literal(const_point_ref_const_i32_ptr_const_ref_name) == "const Point<const i32* const&>&");
 
 		auto const_point_const_i32_ptr_name = name_of<const Point<const i32 *>>();
 		CHECK(string_literal(const_point_const_i32_ptr_name) == "const Point<const i32*>");
@@ -276,8 +297,62 @@ TEST_CASE("[CORE]: Reflect")
 
 	SUBCASE("kind_of<T>")
 	{
-		CHECK(kind_of<char>() == kind_of('A'));
-		CHECK(kind_of<bool>() == kind_of(true));
+		CHECK(kind_of<i8>() == TYPE_KIND_I8);
+		CHECK(kind_of<const i8>() == TYPE_KIND_I8);
+		CHECK(kind_of<const i8 &>() == TYPE_KIND_I8);
+
+		CHECK(kind_of<i16>() == TYPE_KIND_I16);
+		CHECK(kind_of<const i16>() == TYPE_KIND_I16);
+		CHECK(kind_of<const i16 &>() == TYPE_KIND_I16);
+
+		CHECK(kind_of<i32>() == TYPE_KIND_I32);
+		CHECK(kind_of<const i32>() == TYPE_KIND_I32);
+		CHECK(kind_of<const i32 &>() == TYPE_KIND_I32);
+
+		CHECK(kind_of<i64>() == TYPE_KIND_I64);
+		CHECK(kind_of<const i64>() == TYPE_KIND_I64);
+		CHECK(kind_of<const i64 &>() == TYPE_KIND_I64);
+
+		CHECK(kind_of<u8>() == TYPE_KIND_U8);
+		CHECK(kind_of<const u8>() == TYPE_KIND_U8);
+		CHECK(kind_of<const u8 &>() == TYPE_KIND_U8);
+
+		CHECK(kind_of<u16>() == TYPE_KIND_U16);
+		CHECK(kind_of<const u16>() == TYPE_KIND_U16);
+		CHECK(kind_of<const u16 &>() == TYPE_KIND_U16);
+
+		CHECK(kind_of<u32>() == TYPE_KIND_U32);
+		CHECK(kind_of<const u32>() == TYPE_KIND_U32);
+		CHECK(kind_of<const u32 &>() == TYPE_KIND_U32);
+
+		CHECK(kind_of<u64>() == TYPE_KIND_U64);
+		CHECK(kind_of<const u64>() == TYPE_KIND_U64);
+		CHECK(kind_of<const u64 &>() == TYPE_KIND_U64);
+
+		CHECK(kind_of<bool>() == TYPE_KIND_BOOL);
+		CHECK(kind_of<const bool>() == TYPE_KIND_BOOL);
+		CHECK(kind_of<const bool &>() == TYPE_KIND_BOOL);
+
+		CHECK(kind_of<char>() == TYPE_KIND_CHAR);
+		CHECK(kind_of<const char>() == TYPE_KIND_CHAR);
+		CHECK(kind_of<const char &>() == TYPE_KIND_CHAR);
+
+		CHECK(kind_of<void>() == TYPE_KIND_VOID);
+		CHECK(kind_of<const void>() == TYPE_KIND_VOID);
+
+		CHECK(kind_of<char *>() == TYPE_KIND_POINTER);
+		CHECK(kind_of<char * const>() == TYPE_KIND_POINTER);
+		CHECK(kind_of<const char *>() == TYPE_KIND_POINTER);
+		CHECK(kind_of<const char * const>() == TYPE_KIND_POINTER);
+		CHECK(kind_of<char(*)[3]>() == TYPE_KIND_POINTER);
+
+		CHECK(kind_of<char [3]>() == TYPE_KIND_ARRAY);
+		CHECK(kind_of<const char [3]>() == TYPE_KIND_ARRAY);
+		CHECK(kind_of<char(&)[3]>() == TYPE_KIND_ARRAY);
+
+		CHECK(kind_of<EMPTY_ENUM>() == TYPE_KIND_ENUM);
+
+		CHECK(kind_of<Empty>() == TYPE_KIND_STRUCT);
 	}
 
 	SUBCASE("type_of<T> primitives")

@@ -3,11 +3,9 @@
 #include "core/defines.h"
 
 #include <array>
-#include <string.h>
 #include <stddef.h>
 #include <string_view>
 #include <type_traits>
-#include <functional>
 
 /*
 	TODO:
@@ -37,6 +35,7 @@
 		- [x] Names with const specifier.
 		- [x] Fix name_of<void>() on GCC.
 		- [x] Pointer names.
+		- [x] Reference names.
 		- [ ] Use local stack arrays and try to compute names compile times and store final names,
 				in a static std::array<char> in a specialized template struct.
 		- [ ] Figure out a way to use alias names like `String` instead of `Array<char>`?
@@ -44,6 +43,7 @@
 		- [ ] Simplify.
 	- [ ] Try constexpr everything.
 	- [ ] Name as reflect/reflection?
+	- [ ] Get rid of std includes.
 	- [ ] Cleanup.
 */
 
@@ -135,10 +135,17 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 		if (type_name.starts_with(' '))
 			type_name.remove_prefix(1);
 
+		bool add_pointer = false;
 		if (type_name.starts_with("const "))
 		{
 			string_append(name, "const ", count);
 			type_name.remove_prefix(6);
+		}
+		else if (type_name.ends_with(" const *"))
+		{
+			string_append(name, "const ", count);
+			type_name.remove_suffix(8);
+			add_pointer = true;
 		}
 
 		#if defined(_MSC_VER)
@@ -224,15 +231,19 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 		for (char c : type_name)
 			if (c != ' ')
 				name[count++] = c;
+
+		if (add_pointer)
+			name[count++] = '*';
 	};
 
-	bool add_pointer = false;
-	bool add_const   = false;
+	bool add_const     = false;
+	bool add_pointer   = false;
+	bool add_reference = false;
 	if (type_name.ends_with("* const"))
 	{
 		type_name.remove_suffix(7);
-		add_pointer = true;
 		add_const = true;
+		add_pointer = true;
 	}
 
 	if (type_name.ends_with(" const "))
@@ -246,10 +257,27 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 		type_name.remove_suffix(8);
 		add_pointer = true;
 	}
+	else if (type_name.ends_with("const &"))
+	{
+		add_const = true;
+		add_reference = true;
+		type_name.remove_suffix(7);
+	}
+	else if (type_name.ends_with(" const&"))
+	{
+		add_const = true;
+		add_reference = true;
+		type_name.remove_suffix(7);
+	}
 	else if (type_name.ends_with('*'))
 	{
 		type_name.remove_suffix(1);
 		add_pointer = true;
+	}
+	else if (type_name.ends_with('&'))
+	{
+		type_name.remove_suffix(1);
+		add_reference = true;
 	}
 
 	if (type_name.ends_with(' '))
@@ -299,6 +327,8 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 		name[count++] = '*';
 	if (add_const)
 		string_append(name, " const", count);
+	if (add_reference)
+		name[count++] = '&';
 }
 
 template <typename T>
@@ -347,45 +377,46 @@ template <typename T>
 inline static constexpr TYPE_KIND
 kind_of()
 {
-	if constexpr (std::is_same_v<T, i8>)
+	using Type = std::remove_cvref_t<T>;
+	if constexpr (std::is_same_v<Type, i8>)
 		return TYPE_KIND_I8;
-	else if constexpr (std::is_same_v<T, i16>)
+	else if constexpr (std::is_same_v<Type, i16>)
 		return TYPE_KIND_I16;
-	else if constexpr (std::is_same_v<T, i32>)
+	else if constexpr (std::is_same_v<Type, i32>)
 		return TYPE_KIND_I32;
-	else if constexpr (std::is_same_v<T, i64>)
+	else if constexpr (std::is_same_v<Type, i64>)
 		return TYPE_KIND_I64;
-	else if constexpr (std::is_same_v<T, u8>)
+	else if constexpr (std::is_same_v<Type, u8>)
 		return TYPE_KIND_U8;
-	else if constexpr (std::is_same_v<T, u16>)
+	else if constexpr (std::is_same_v<Type, u16>)
 		return TYPE_KIND_U16;
-	else if constexpr (std::is_same_v<T, u32>)
+	else if constexpr (std::is_same_v<Type, u32>)
 		return TYPE_KIND_U32;
-	else if constexpr (std::is_same_v<T, u64>)
+	else if constexpr (std::is_same_v<Type, u64>)
 		return TYPE_KIND_U64;
-	else if constexpr (std::is_same_v<T, f32>)
+	else if constexpr (std::is_same_v<Type, f32>)
 		return TYPE_KIND_F32;
-	else if constexpr (std::is_same_v<T, f64>)
+	else if constexpr (std::is_same_v<Type, f64>)
 		return TYPE_KIND_F64;
-	else if constexpr (std::is_same_v<T, bool>)
+	else if constexpr (std::is_same_v<Type, bool>)
 		return TYPE_KIND_BOOL;
-	else if constexpr (std::is_same_v<T, char>)
+	else if constexpr (std::is_same_v<Type, char>)
 		return TYPE_KIND_CHAR;
-	else if constexpr (std::is_same_v<T, void>)
+	else if constexpr (std::is_same_v<Type, void>)
 		return TYPE_KIND_VOID;
-	else if constexpr (std::is_pointer_v<T>)
+	else if constexpr (std::is_pointer_v<Type>)
 		return TYPE_KIND_POINTER;
-	else if constexpr (std::is_array_v<T>)
+	else if constexpr (std::is_array_v<Type>)
 		return TYPE_KIND_ARRAY;
-	else if constexpr (std::is_enum_v<T>)
+	else if constexpr (std::is_enum_v<Type>)
 		return TYPE_KIND_ENUM;
-	else if constexpr (std::is_compound_v<T>)
+	else if constexpr (std::is_compound_v<Type>)
 		return TYPE_KIND_STRUCT;
 }
 
 template <typename T>
 inline static constexpr TYPE_KIND
-kind_of(T&&)
+kind_of(T &&)
 {
 	return kind_of<T>();
 }
@@ -399,88 +430,28 @@ type_of(const T)
 }
 
 template <typename T>
+requires (std::is_fundamental_v<T> && !std::is_void_v<T>)
 inline static constexpr const Type *
-type_of();
-
-#define _TYPE_OF_FIELD16(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD15(__VA_ARGS__)
-#define _TYPE_OF_FIELD15(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD14(__VA_ARGS__)
-#define _TYPE_OF_FIELD14(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD13(__VA_ARGS__)
-#define _TYPE_OF_FIELD13(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD12(__VA_ARGS__)
-#define _TYPE_OF_FIELD12(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD11(__VA_ARGS__)
-#define _TYPE_OF_FIELD11(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD10(__VA_ARGS__)
-#define _TYPE_OF_FIELD10(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD09(__VA_ARGS__)
-#define _TYPE_OF_FIELD09(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD08(__VA_ARGS__)
-#define _TYPE_OF_FIELD08(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD07(__VA_ARGS__)
-#define _TYPE_OF_FIELD07(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD06(__VA_ARGS__)
-#define _TYPE_OF_FIELD06(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD05(__VA_ARGS__)
-#define _TYPE_OF_FIELD05(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD04(__VA_ARGS__)
-#define _TYPE_OF_FIELD04(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD03(__VA_ARGS__)
-#define _TYPE_OF_FIELD03(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD02(__VA_ARGS__)
-#define _TYPE_OF_FIELD02(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD01(__VA_ARGS__)
-#define _TYPE_OF_FIELD01(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME))
-#define _TYPE_OF_FIELD__(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME), "" __VA_ARGS__}
-
-#define _TYPE_OF_NAME(T) IF(HAS_PARENTHESIS(T))(_TYPE_OF_NAME_ T, _TYPE_OF_NAME_(T))
-#define _TYPE_OF_NAME_(...) __VA_ARGS__
-
-#define TYPE_OF(T, ...)                                                             \
-inline static const Type *                                                          \
-type_of(const _TYPE_OF_NAME(T))                                                     \
-{                                                                                   \
-	static const Type self = {                                                      \
-		.name = name_of<_TYPE_OF_NAME(T)>(),                                        \
-		.kind = kind_of<_TYPE_OF_NAME(T)>(),                                        \
-		.size = sizeof(_TYPE_OF_NAME(T)),                                           \
-		.align = alignof(_TYPE_OF_NAME(T)),                                         \
-		.as_struct = {}                                                             \
-	};                                                                              \
-	__VA_OPT__(                                                                     \
-		static bool initialized = false;                                            \
-		if (initialized)                                                            \
-			return &self;                                                           \
-		initialized = true;                                                         \
-		using TYPE = _TYPE_OF_NAME(T);                                              \
-		TYPE t = {};                                                                \
-		static const Type_Field fields[] = {OVERLOAD(_TYPE_OF_FIELD, __VA_ARGS__)}; \
-		((Type *)&self)->as_struct = {fields, sizeof(fields) / sizeof(Type_Field)}; \
-	)                                                                               \
-	return &self;                                                                   \
-}
-
-TYPE_OF(i8)
-TYPE_OF(i16)
-TYPE_OF(i32)
-TYPE_OF(i64)
-TYPE_OF(u8)
-TYPE_OF(u16)
-TYPE_OF(u32)
-TYPE_OF(u64)
-TYPE_OF(f32)
-TYPE_OF(f64)
-TYPE_OF(bool)
-TYPE_OF(char)
-
-template <>
-inline const Type *
-type_of<void>()
+type_of(const T)
 {
 	static const Type self = {
-		.name = name_of<void>(),
-		.kind = kind_of<void>(),
-		.size = 0,
-		.align = 0,
+		.name = name_of<T>(),
+		.kind = kind_of<T>(),
+		.size = sizeof(T),
+		.align = alignof(T),
 		.as_struct = {}
 	};
 	return &self;
 }
 
-template <>
-inline const Type *
-type_of<const void>()
+template <typename T>
+requires (std::is_void_v<T>)
+inline static constexpr const Type *
+type_of()
 {
 	static const Type self = {
-		.name = name_of<void>(),
-		.kind = kind_of<void>(),
+		.name = name_of<T>(),
+		.kind = kind_of<T>(),
 		.size = 0,
 		.align = 0,
 		.as_struct = {}
@@ -493,9 +464,12 @@ requires (std::is_pointer_v<T>)
 inline static constexpr const Type *
 type_of(const T)
 {
+	using Pointee = std::remove_pointer_t<T>;
 	static const Type *pointee = nullptr;
-	if constexpr (!std::is_abstract_v<std::remove_pointer_t<T>>)
-		pointee = type_of<std::remove_pointer_t<T>>();
+	if constexpr (std::is_void_v<Pointee>)
+		pointee = type_of<Pointee>();
+	else if constexpr (!std::is_abstract_v<Pointee>)
+		pointee = type_of(Pointee{});
 	static const Type self = {
 		.name = name_of<T>(),
 		.kind = kind_of<T>(),
@@ -508,7 +482,7 @@ type_of(const T)
 
 template <typename T, u64 N>
 inline static constexpr const Type *
-type_of(const T(&)[N])
+type_of(const T (&)[N])
 {
 	static const Type self = {
 		.name = name_of<T[N]>(),
@@ -595,6 +569,11 @@ type_of(const T)
 		};
 	}(std::make_integer_sequence<i32, REFLECT_MAX_ENUM_VALUE_COUNT>());
 
+	constexpr auto copy = [](char *dst, const char *src, u64 count) {
+		for (u64 i = 0; i < count; ++i)
+			dst[i] = src[i];
+	};
+
 	static Type_Enum_Value values[data.count] = {};
 	static char names[data.count][REFLECT_MAX_NAME_LENGTH] = {};
 
@@ -606,7 +585,7 @@ type_of(const T)
 			if (const auto &value = data.values[i]; value.name != "")
 			{
 				values[c].index = value.index;
-				::memcpy(names[c], value.name.data(), value.name.length());
+				copy(names[c], value.name.data(), value.name.length());
 				values[c].name = names[c];
 				++c;
 			}
@@ -622,6 +601,51 @@ type_of(const T)
 		.as_enum = {values, data.count}
 	};
 	return &self;
+}
+
+#define _TYPE_OF_FIELD16(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD15(__VA_ARGS__)
+#define _TYPE_OF_FIELD15(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD14(__VA_ARGS__)
+#define _TYPE_OF_FIELD14(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD13(__VA_ARGS__)
+#define _TYPE_OF_FIELD13(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD12(__VA_ARGS__)
+#define _TYPE_OF_FIELD12(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD11(__VA_ARGS__)
+#define _TYPE_OF_FIELD11(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD10(__VA_ARGS__)
+#define _TYPE_OF_FIELD10(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD09(__VA_ARGS__)
+#define _TYPE_OF_FIELD09(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD08(__VA_ARGS__)
+#define _TYPE_OF_FIELD08(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD07(__VA_ARGS__)
+#define _TYPE_OF_FIELD07(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD06(__VA_ARGS__)
+#define _TYPE_OF_FIELD06(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD05(__VA_ARGS__)
+#define _TYPE_OF_FIELD05(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD04(__VA_ARGS__)
+#define _TYPE_OF_FIELD04(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD03(__VA_ARGS__)
+#define _TYPE_OF_FIELD03(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD02(__VA_ARGS__)
+#define _TYPE_OF_FIELD02(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD01(__VA_ARGS__)
+#define _TYPE_OF_FIELD01(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME))
+#define _TYPE_OF_FIELD__(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME), "" __VA_ARGS__}
+
+#define _TYPE_OF_NAME(T) IF(HAS_PARENTHESIS(T))(_TYPE_OF_NAME_ T, _TYPE_OF_NAME_(T))
+#define _TYPE_OF_NAME_(...) __VA_ARGS__
+
+#define TYPE_OF(T, ...)                                                             \
+inline static const Type *                                                          \
+type_of(const _TYPE_OF_NAME(T))                                                     \
+{                                                                                   \
+	static const Type self = {                                                      \
+		.name = name_of<_TYPE_OF_NAME(T)>(),                                        \
+		.kind = kind_of<_TYPE_OF_NAME(T)>(),                                        \
+		.size = sizeof(_TYPE_OF_NAME(T)),                                           \
+		.align = alignof(_TYPE_OF_NAME(T)),                                         \
+		.as_struct = {}                                                             \
+	};                                                                              \
+	__VA_OPT__(                                                                     \
+		static bool initialized = false;                                            \
+		if (initialized)                                                            \
+			return &self;                                                           \
+		initialized = true;                                                         \
+		using TYPE = _TYPE_OF_NAME(T);                                              \
+		TYPE t = {};                                                                \
+		static const Type_Field fields[] = {OVERLOAD(_TYPE_OF_FIELD, __VA_ARGS__)}; \
+		((Type *)&self)->as_struct = {fields, sizeof(fields) / sizeof(Type_Field)}; \
+	)                                                                               \
+	return &self;                                                                   \
 }
 
 template <typename T>
