@@ -3,11 +3,9 @@
 #include "core/defines.h"
 
 #include <array>
-#include <string.h>
 #include <stddef.h>
 #include <string_view>
 #include <type_traits>
-#include <functional>
 
 /*
 	TODO:
@@ -45,6 +43,7 @@
 		- [ ] Simplify.
 	- [ ] Try constexpr everything.
 	- [ ] Name as reflect/reflection?
+	- [ ] Get rid of std includes.
 	- [ ] Cleanup.
 */
 
@@ -564,6 +563,11 @@ type_of(const T)
 		};
 	}(std::make_integer_sequence<i32, REFLECT_MAX_ENUM_VALUE_COUNT>());
 
+	constexpr auto copy = [](char *dst, const char *src, u64 count) {
+		for (u64 i = 0; i < count; ++i)
+			dst[i] = src[i];
+	};
+
 	static Type_Enum_Value values[data.count] = {};
 	static char names[data.count][REFLECT_MAX_NAME_LENGTH] = {};
 
@@ -575,7 +579,7 @@ type_of(const T)
 			if (const auto &value = data.values[i]; value.name != "")
 			{
 				values[c].index = value.index;
-				::memcpy(names[c], value.name.data(), value.name.length());
+				copy(names[c], value.name.data(), value.name.length());
 				values[c].name = names[c];
 				++c;
 			}
