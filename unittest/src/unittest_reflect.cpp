@@ -77,10 +77,15 @@ class Foo_Class
 {
 public:
 	T x, y;
+private:
+	T z;
+
+	template <typename R>
+	TYPE_OF_MEMBER(Foo_Class<R>)
 };
 
 template <typename T>
-TYPE_OF(Foo_Class<T>, x, y);
+TYPE_OF(Foo_Class<T>, x, y, z)
 
 template <typename T>
 struct Point
@@ -676,6 +681,14 @@ TEST_CASE("[CORE]: Reflect")
 		Foo_Class<i32> foo_class;
 		auto foo_class_i32_type = type_of<Foo_Class<i32>>();
 		CHECK(foo_class_i32_type == type_of(foo_class));
+		CHECK(foo_class_i32_type->as_struct.field_count == 3);
+		CHECK(foo_class_i32_type->as_struct.fields[2].name == string_literal("z"));
+		CHECK(foo_class_i32_type->as_struct.fields[2].offset == 8);
+		CHECK(foo_class_i32_type->as_struct.fields[2].tag == string_literal(""));
+		CHECK(foo_class_i32_type->as_struct.fields[2].type->name == string_literal("i32"));
+		CHECK(foo_class_i32_type->as_struct.fields[2].type->kind == TYPE_KIND_I32);
+		CHECK(foo_class_i32_type->as_struct.fields[2].type->size == sizeof(i32));
+		CHECK(foo_class_i32_type->as_struct.fields[2].type->align == alignof(i32));
 	}
 
 	SUBCASE("type_of<T> containers")

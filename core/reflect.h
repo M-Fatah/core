@@ -16,9 +16,10 @@
 		- [x] Arrays.
 		- [x] Structs and Classes.
 			- [x] Empty structs and classes.
+			- [x] Handle private member fields?
+				- [ ] Simplify the API.
 			- [ ] Abstract structs/classes?
 			- [ ] Simplify OVERLOARD(TYPE_OF_FIELD, __VA_ARGS__) and use FOR_EACH() macro?
-			- [ ] Handle private variables inside classes by overloading member functions?
 		- [x] Enums.
 			- [x] Enum class?
 			- [x] Macro helper.
@@ -647,6 +648,8 @@ type_of(const _TYPE_OF_NAME(T))                                                 
 	)                                                                               \
 	return &self;                                                                   \
 }
+
+#define TYPE_OF_MEMBER(T) friend const Type * type_of(const T);
 
 template <typename T>
 inline static constexpr const Type *
