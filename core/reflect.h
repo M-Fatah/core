@@ -17,6 +17,7 @@
 		- [x] Structs and Classes.
 			- [x] Empty structs and classes.
 			- [x] Handle private member fields?
+				- [ ] Simplify the API.
 			- [ ] Abstract structs/classes?
 			- [ ] Simplify OVERLOARD(TYPE_OF_FIELD, __VA_ARGS__) and use FOR_EACH() macro?
 		- [x] Enums.
