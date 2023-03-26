@@ -30,7 +30,7 @@ set(GLOBAL_COMPILE_DEFINITIONS
 if(MSVC)
     set(GLOBAL_COMPILE_OPTIONS -W4 -WX -std:c++20 -Zc:preprocessor -wd5105)
 else()
-    set(GLOBAL_COMPILE_OPTIONS -Wall -Wextra -pedantic -Werror -std=c++2b)
+    set(GLOBAL_COMPILE_OPTIONS -Wall -Wextra -pedantic -Werror -std=c++2b -Wno-invalid-offsetof)
 endif()
 
 add_subdirectory(core)
