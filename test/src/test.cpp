@@ -313,6 +313,19 @@ struct TWO
 template <typename T, typename R>
 TYPE_OF((TWO<T, R>), t, r)
 
+struct P
+{
+	P() {}
+	P(f32 _x, f32 _y, f32 _z, f32 _w) : x(_x), y(_y), z(_z), w(_w) {}
+
+private:
+	f32 x, y, z, w;
+
+	TYPE_OF_MEMBER(P)
+};
+
+TYPE_OF(P, x, y, z, w)
+
 i32
 main(i32, char **)
 {
@@ -325,5 +338,9 @@ main(i32, char **)
 	unused(t2);
 	to_json(value_of(f2));
 	to_json(value_of(TWO{1, 3.4f}));
+
+	P p(1.5f, 2.5f, 3.5f, 4.5f);
+	to_json(value_of(p));
+
 	return 0;
 }

@@ -649,7 +649,9 @@ type_of(const _TYPE_OF_NAME(T))                                                 
 	return &self;                                                                   \
 }
 
-#define TYPE_OF_MEMBER(T) friend const Type * type_of(const T);
+#define TYPE_OF_MEMBER(T)         \
+friend inline static const Type * \
+type_of(const T);
 
 template <typename T>
 inline static constexpr const Type *
