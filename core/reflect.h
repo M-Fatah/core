@@ -626,7 +626,7 @@ type_of(const T)
 #define _TYPE_OF_NAME_(...) __VA_ARGS__
 
 #define TYPE_OF(T, ...)                                                             \
-inline static const Type *                                                          \
+inline const Type *                                                                 \
 type_of(const _TYPE_OF_NAME(T))                                                     \
 {                                                                                   \
 	static const Type self = {                                                      \
@@ -649,9 +649,9 @@ type_of(const _TYPE_OF_NAME(T))                                                 
 	return &self;                                                                   \
 }
 
-#define TYPE_OF_MEMBER(T)         \
-friend inline static const Type * \
-type_of(const T);
+#define TYPE_OF_MEMBER(T)        \
+friend inline const Type *       \
+type_of(const _TYPE_OF_NAME(T));
 
 template <typename T>
 inline static constexpr const Type *
