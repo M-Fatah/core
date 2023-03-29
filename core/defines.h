@@ -15,7 +15,8 @@
 #define _HAS_PARENTHESIS_PROBE(...) 0, 1
 
 // TODO: Rename to ARG_COUNT?
-#define OVERLOAD_ARG_N_(                               \
+// TODO: Simplify and properly name.
+#define _COUNT_OF_N(                                   \
      _01, _02, _03, _04, _05, _06, _07, _08, _09, _10, \
      _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, \
      _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, \
@@ -23,7 +24,7 @@
      _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, \
      _51, _52, _53, _54, _55, _56, _57, _58, _59, _60, \
      _61, _62, _63, _64, N,...) N
-#define OVERLOAD_RSEQ_N_()                             \
+#define _COUNT_OF_RSEQ_N_()                            \
      64, 63, 62, 61, 60,                               \
      59, 58, 57, 56, 55, 54, 53, 52, 51, 50,           \
      49, 48, 47, 46, 45, 44, 43, 42, 41, 40,           \
@@ -31,10 +32,27 @@
      29, 28, 27, 26, 25, 24, 23, 22, 21, 20,           \
      19, 18, 17, 16, 15, 14, 13, 12, 11, 10,           \
      09, 08, 07, 06, 05, 04, 03, 02, 01, 00
-#define OVERLOAD_RSEQ_N(...)    OVERLOAD_ARG_N_(__VA_ARGS__)
-#define OVERLOAD_ARG_N(...)     OVERLOAD_RSEQ_N(__VA_ARGS__, OVERLOAD_RSEQ_N_())
-#define OVERLOAD_(NAME, NUMBER) CONCATENATE(NAME, NUMBER)
-#define OVERLOAD(NAME, ...)     OVERLOAD_(NAME, OVERLOAD_ARG_N(__VA_ARGS__))(__VA_ARGS__)
+#define _COUNT_OF_RSEQ_N(...)   _COUNT_OF_N(__VA_ARGS__)
+#define COUNT_OF(...)           _COUNT_OF_RSEQ_N(__VA_ARGS__, _COUNT_OF_RSEQ_N_())
+#define _FOR_EACH(NAME, NUMBER) CONCATENATE(NAME, NUMBER)
+#define FOR_EACH(ACTION, ...)   _FOR_EACH(FOR_EACH, COUNT_OF(__VA_ARGS__))(ACTION, __VA_ARGS__)
+
+#define FOR_EACH16(ACTION, ARG, ...) ACTION(ARG), FOR_EACH15(ACTION, __VA_ARGS__)
+#define FOR_EACH15(ACTION, ARG, ...) ACTION(ARG), FOR_EACH14(ACTION, __VA_ARGS__)
+#define FOR_EACH14(ACTION, ARG, ...) ACTION(ARG), FOR_EACH13(ACTION, __VA_ARGS__)
+#define FOR_EACH13(ACTION, ARG, ...) ACTION(ARG), FOR_EACH12(ACTION, __VA_ARGS__)
+#define FOR_EACH12(ACTION, ARG, ...) ACTION(ARG), FOR_EACH11(ACTION, __VA_ARGS__)
+#define FOR_EACH11(ACTION, ARG, ...) ACTION(ARG), FOR_EACH10(ACTION, __VA_ARGS__)
+#define FOR_EACH10(ACTION, ARG, ...) ACTION(ARG), FOR_EACH09(ACTION, __VA_ARGS__)
+#define FOR_EACH09(ACTION, ARG, ...) ACTION(ARG), FOR_EACH08(ACTION, __VA_ARGS__)
+#define FOR_EACH08(ACTION, ARG, ...) ACTION(ARG), FOR_EACH07(ACTION, __VA_ARGS__)
+#define FOR_EACH07(ACTION, ARG, ...) ACTION(ARG), FOR_EACH06(ACTION, __VA_ARGS__)
+#define FOR_EACH06(ACTION, ARG, ...) ACTION(ARG), FOR_EACH05(ACTION, __VA_ARGS__)
+#define FOR_EACH05(ACTION, ARG, ...) ACTION(ARG), FOR_EACH04(ACTION, __VA_ARGS__)
+#define FOR_EACH04(ACTION, ARG, ...) ACTION(ARG), FOR_EACH03(ACTION, __VA_ARGS__)
+#define FOR_EACH03(ACTION, ARG, ...) ACTION(ARG), FOR_EACH02(ACTION, __VA_ARGS__)
+#define FOR_EACH02(ACTION, ARG, ...) ACTION(ARG), FOR_EACH01(ACTION, __VA_ARGS__)
+#define FOR_EACH01(ACTION, ARG, ...) ACTION(ARG)
 
 #define I8_MIN  INT8_MIN
 #define I8_MAX  INT8_MAX

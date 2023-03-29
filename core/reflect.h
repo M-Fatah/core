@@ -19,7 +19,6 @@
 			- [x] Handle private member fields?
 				- [ ] Simplify the API.
 			- [ ] Abstract structs/classes?
-			- [ ] Simplify OVERLOARD(TYPE_OF_FIELD, __VA_ARGS__) and use FOR_EACH() macro?
 		- [x] Enums.
 			- [x] Enum class?
 			- [x] Macro helper.
@@ -28,7 +27,6 @@
 					- [x] Preserve the order of enum values?
 				- [x] Enums with the same value?
 				- [x] Enums with negative values?
-			- [ ] Simplify OVERLOARD(TYPE_OF_ENUM_VALUE, __VA_ARGS__) and use FOR_EACH() macro?
 			- [ ] Simplify type_of(Enum).
 			- [ ] Add enum range?
 		- [ ] Functions?
@@ -495,36 +493,21 @@ type_of(const T (&)[N])
 	return &self;
 }
 
-#define TYPE_OF_ENUM_VALUE16(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE15(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE15(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE14(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE14(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE13(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE13(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE12(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE12(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE11(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE11(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE10(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE10(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE09(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE09(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE08(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE08(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE07(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE07(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE06(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE06(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE05(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE05(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE04(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE04(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE03(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE03(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE02(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE02(VALUE, ...) {(i32)VALUE, #VALUE}, TYPE_OF_ENUM_VALUE01(__VA_ARGS__)
-#define TYPE_OF_ENUM_VALUE01(VALUE, ...) {(i32)VALUE, #VALUE}
+#define _TYPE_OF_ENUM(VALUE) {(i32)VALUE, #VALUE}
 
-#define TYPE_OF_ENUM(T, ...)                                                                           \
-inline static const Type *                                                                             \
-type_of(const T)                                                                                       \
-{                                                                                                      \
-	__VA_OPT__(static const Type_Enum_Value values[] = { OVERLOAD(TYPE_OF_ENUM_VALUE, __VA_ARGS__) };) \
-	static const Type self = {                                                                         \
-		.name = name_of<T>(),                                                                          \
-		.kind = kind_of<T>(),                                                                          \
-		.size = sizeof(T),                                                                             \
-		.align = alignof(T),                                                                           \
-		.as_enum = {__VA_OPT__(values, sizeof(values) / sizeof(Type_Enum_Value))}                      \
-	};                                                                                                 \
-	return &self;                                                                                      \
+#define TYPE_OF_ENUM(T, ...)                                                                    \
+inline static const Type *                                                                      \
+type_of(const T)                                                                                \
+{                                                                                               \
+	__VA_OPT__(static const Type_Enum_Value values[] = {FOR_EACH(_TYPE_OF_ENUM, __VA_ARGS__)};) \
+	static const Type self = {                                                                  \
+		.name = name_of<T>(),                                                                   \
+		.kind = kind_of<T>(),                                                                   \
+		.size = sizeof(T),                                                                      \
+		.align = alignof(T),                                                                    \
+		.as_enum = {__VA_OPT__(values, sizeof(values) / sizeof(Type_Enum_Value))}               \
+	};                                                                                          \
+	return &self;                                                                               \
 }
 
 template <typename T>
@@ -604,36 +587,21 @@ type_of(const T)
 	return &self;
 }
 
-#define _TYPE_OF_FIELD16(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD15(__VA_ARGS__)
-#define _TYPE_OF_FIELD15(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD14(__VA_ARGS__)
-#define _TYPE_OF_FIELD14(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD13(__VA_ARGS__)
-#define _TYPE_OF_FIELD13(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD12(__VA_ARGS__)
-#define _TYPE_OF_FIELD12(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD11(__VA_ARGS__)
-#define _TYPE_OF_FIELD11(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD10(__VA_ARGS__)
-#define _TYPE_OF_FIELD10(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD09(__VA_ARGS__)
-#define _TYPE_OF_FIELD09(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD08(__VA_ARGS__)
-#define _TYPE_OF_FIELD08(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD07(__VA_ARGS__)
-#define _TYPE_OF_FIELD07(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD06(__VA_ARGS__)
-#define _TYPE_OF_FIELD06(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD05(__VA_ARGS__)
-#define _TYPE_OF_FIELD05(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD04(__VA_ARGS__)
-#define _TYPE_OF_FIELD04(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD03(__VA_ARGS__)
-#define _TYPE_OF_FIELD03(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD02(__VA_ARGS__)
-#define _TYPE_OF_FIELD02(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME)), _TYPE_OF_FIELD01(__VA_ARGS__)
-#define _TYPE_OF_FIELD01(NAME, ...) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_FIELD__ NAME, _TYPE_OF_FIELD__(NAME))
-#define _TYPE_OF_FIELD__(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME), "" __VA_ARGS__}
+#define _TYPE_OF(NAME) IF(HAS_PARENTHESIS(NAME))(_TYPE_OF_HELPER NAME, _TYPE_OF_HELPER(NAME))
+#define _TYPE_OF_HELPER(NAME, ...) {#NAME, offsetof(TYPE, NAME), type_of(t.NAME), "" __VA_ARGS__}
 
-#define _TYPE_OF_NAME(T) IF(HAS_PARENTHESIS(T))(_TYPE_OF_NAME_ T, _TYPE_OF_NAME_(T))
-#define _TYPE_OF_NAME_(...) __VA_ARGS__
+#define _NAME_OF(T) IF(HAS_PARENTHESIS(T))(_NAME_OF_HELPER T, _NAME_OF_HELPER(T))
+#define _NAME_OF_HELPER(...) __VA_ARGS__
 
 #define TYPE_OF(T, ...)                                                             \
 inline const Type *                                                                 \
-type_of(const _TYPE_OF_NAME(T))                                                     \
+type_of(const _NAME_OF(T))                                                          \
 {                                                                                   \
 	static const Type self = {                                                      \
-		.name = name_of<_TYPE_OF_NAME(T)>(),                                        \
-		.kind = kind_of<_TYPE_OF_NAME(T)>(),                                        \
-		.size = sizeof(_TYPE_OF_NAME(T)),                                           \
-		.align = alignof(_TYPE_OF_NAME(T)),                                         \
+		.name = name_of<_NAME_OF(T)>(),                                             \
+		.kind = kind_of<_NAME_OF(T)>(),                                             \
+		.size = sizeof(_NAME_OF(T)),                                                \
+		.align = alignof(_NAME_OF(T)),                                              \
 		.as_struct = {}                                                             \
 	};                                                                              \
 	__VA_OPT__(                                                                     \
@@ -641,9 +609,9 @@ type_of(const _TYPE_OF_NAME(T))                                                 
 		if (initialized)                                                            \
 			return &self;                                                           \
 		initialized = true;                                                         \
-		using TYPE = _TYPE_OF_NAME(T);                                              \
+		using TYPE = _NAME_OF(T);                                                   \
 		TYPE t = {};                                                                \
-		static const Type_Field fields[] = {OVERLOAD(_TYPE_OF_FIELD, __VA_ARGS__)}; \
+		static const Type_Field fields[] = {FOR_EACH(_TYPE_OF, __VA_ARGS__)};       \
 		((Type *)&self)->as_struct = {fields, sizeof(fields) / sizeof(Type_Field)}; \
 	)                                                                               \
 	return &self;                                                                   \
@@ -651,7 +619,7 @@ type_of(const _TYPE_OF_NAME(T))                                                 
 
 #define TYPE_OF_MEMBER(T)        \
 friend inline const Type *       \
-type_of(const _TYPE_OF_NAME(T));
+type_of(const _NAME_OF(T));
 
 template <typename T>
 inline static constexpr const Type *
