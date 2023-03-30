@@ -424,7 +424,7 @@ template <typename T>
 inline static constexpr const Type *
 type_of(const T)
 {
-	static_assert(sizeof(T) == 0, "There is no `inline static const Type * type_of(const T)` function overload defined for this type.");
+	static_assert(sizeof(T) == 0, "There is no `const Type * type_of(const T)` function overload defined for this type.");
 	return nullptr;
 }
 
@@ -532,7 +532,7 @@ type_of(const T)
 			constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
 			constexpr auto type_name_prefix_length = type_function_name.find("()<") + 3;
 			constexpr auto type_name_length        = type_function_name.find(">", type_name_prefix_length) - type_name_prefix_length;
-		#elif defined(__GNUC__) || defined(__clang__)
+		#elif defined(__GNUC__)
 			constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
 			constexpr auto type_name_prefix_length = type_function_name.find("= ") + 2;
 			constexpr auto type_name_length        = type_function_name.find("]", type_name_prefix_length) - type_name_prefix_length;
