@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/defines.h"
+#include "core/export.h"
 
 #include <functional>
 #include <type_traits>
@@ -15,16 +16,16 @@
 
 struct Formatter;
 
-Formatter *
+CORE_API Formatter *
 formatter();
 
-bool
+CORE_API bool
 formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count);
 
-void
+CORE_API void
 formatter_parse_next(Formatter *self, std::function<void()> &&callback);
 
-const char *
+CORE_API const char *
 formatter_parse_end(Formatter *self);
 
 template <typename T>
@@ -36,7 +37,7 @@ format(Formatter *, T)
 }
 
 #define FORMAT(T)                \
-const char *                     \
+CORE_API const char *            \
 format(Formatter *self, T data);
 
 FORMAT(i8)
