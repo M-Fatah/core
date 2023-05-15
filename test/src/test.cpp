@@ -350,7 +350,5 @@ main(i32, char **)
 	to_json(value_of(p));
 	to_json(value_of(type_of(p)));
 
-	memory::allocate(16);
-
 	return 0;
 }
