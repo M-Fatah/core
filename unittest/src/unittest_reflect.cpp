@@ -117,6 +117,13 @@ struct Bar
 template <typename T, typename R, typename E>
 TYPE_OF((Bar<T, R, E>), x, y, z)
 
+struct A
+{
+
+};
+
+TYPE_OF(A)
+
 TEST_CASE("[CORE]: Reflect")
 {
 	SUBCASE("name_of<T> primitives")

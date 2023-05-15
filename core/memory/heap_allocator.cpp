@@ -4,6 +4,7 @@
 #include "core/platform/platform.h"
 
 #include <stdlib.h>
+#include <inttypes.h>
 #if DEBUG
 #include <mutex>
 #endif
@@ -49,24 +50,28 @@ namespace memory
 		u64 total_leak_count = 0;
 		u64 total_leak_size  = 0;
 
-		LOG_WARNING("memory leak detected:");
-		LOG_WARNING("==================================================================");
+		// TODO: Use logger.
+		::printf("memory leak detected:\n");
+		::printf("==================================================================\n");
 
 		Heap_Allocator_Node *node = self->ctx->head;
 		while (node)
 		{
-			LOG_WARNING("size: {} byte{}", node->size, node->size > 1 ? "s" : "");
+			// TODO: Use logger.
+			::printf("size: %" PRIu64 "byte%s\n", node->size, node->size > 1 ? "s" : "");
 
 			platform_callstack_log(node->callstack, node->callstack_frame_count);
 
-			LOG_WARNING("==================================================================");
+			// TODO: Use logger.
+			::printf("==================================================================\n");
 
 			++total_leak_count;
 			total_leak_size += node->size;
 			node = node->prev;
 		}
 
-		LOG_WARNING("total count: {}, total size: {} byte{}", total_leak_count, total_leak_size, total_leak_size > 1 ? "s" : "");
+		// TODO: Use logger.
+		::printf("total count: %" PRIu64 ", total size: %" PRIu64 "byte%s\n", total_leak_count, total_leak_size, total_leak_size > 1 ? "s" : "");
 
 		::delete self->ctx;
 #endif
@@ -78,6 +83,7 @@ namespace memory
 #if DEBUG
 		Heap_Allocator *self = this;
 
+		// TODO:
 		Heap_Allocator_Node *node = (Heap_Allocator_Node *)::malloc(sizeof(Heap_Allocator_Node) + size);
 		if (node == nullptr)
 			LOG_FATAL("[HEAP_ALLOCATOR]: Could not allocate memory with given size {}.", size);
@@ -104,6 +110,7 @@ namespace memory
 		return nullptr;
 #else
 		void *data = ::malloc(size);
+		// TODO:
 		if (data == nullptr)
 			LOG_FATAL("[HEAP_ALLOCATOR]: Could not allocate memory with given size {}.", size);
 		return data;
