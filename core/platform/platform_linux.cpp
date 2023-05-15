@@ -1,6 +1,8 @@
 #include "core/platform/platform.h"
 
 #include "core/assert.h"
+#include "core/defer.h"
+#include "core/memory/memory.h"
 
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -17,6 +19,7 @@
 #include <X11/XKBlib.h>
 #include <pthread.h>
 #include <atomic>
+#include <inttypes.h>
 
 static char current_executable_directory[PATH_MAX] = {};
 
