@@ -3,7 +3,6 @@
 #include "core/defer.h"
 #include "core/assert.h"
 #include "core/formatter.h"
-#include "core/logger.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
 
@@ -14,6 +13,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <atomic>
+#include <inttypes.h>
 
 // TODO: Remove.
 inline static void
@@ -726,8 +726,9 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 f
 	symbol_info->MaxNameLen   = MAX_NAME_LENGTH;
 	symbol_info->SizeOfStruct = sizeof(SYMBOL_INFO);
 
-	LOG_WARNING("callstack:");
-	for(u64 i = 0; i < frame_count; ++i)
+	// TODO: Use logger.
+	::printf("callstack:\n");
+	for (u64 i = 0; i < frame_count; ++i)
 	{
 		bool symbol_found = false;
 		bool line_found   = false;
@@ -746,8 +747,9 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 f
 			}
 		}
 
-		LOG_WARNING(
-			"\t[{}]: {}, {}:{}",
+		// TODO: Use logger.
+		::printf(
+			"\t[%" PRIu64 "]: %s, %s:%" PRIu32 "\n",
 			frame_count - i - 1,
 			symbol_found ? symbol_info->Name : "<SYMBOL NOT FOUND>",
 			line_found   ? line.FileName     : "<FILE NOT FOUND>",

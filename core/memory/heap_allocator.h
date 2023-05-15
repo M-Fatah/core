@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/export.h"
+#include "core/defines.h"
 #include "core/memory/memory.h"
 
 namespace memory

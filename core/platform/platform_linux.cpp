@@ -1,7 +1,6 @@
 #include "core/platform/platform.h"
 
 #include "core/assert.h"
-#include "core/logger.h"
 
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -788,9 +787,10 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 f
 	char** symbols = ::backtrace_symbols(callstack, frame_count);
 	if (symbols)
 	{
-		LOG_WARNING("callstack:");
+		// TODO: Use logger.
+		::printf("callstack:\n");
 		for (u32 i = 0; i < frame_count; ++i)
-			LOG_WARNING("\t[{}]: {}", frame_count - i - 1, symbols[i]);
+			::printf("\t[%" PRIu32 "]: %s\n", frame_count - i - 1, symbols[i]);
 
 		::free(symbols);
 	}

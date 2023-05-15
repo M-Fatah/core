@@ -251,6 +251,13 @@ to_json(Value v, i32 indent = 0)
 			}
 			break;
 		}
+		case TYPE_KIND_ENUM:
+		{
+			for (u64 i = 0; i < v.type->as_enum.value_count; ++i)
+				if (const auto & value = v.type->as_enum.values[i]; value.index == *(i32 *)(v.data))
+					printf("\"%s\"", value.name);
+			break;
+		}
 		default:
 		{
 			break;
@@ -341,6 +348,9 @@ main(i32, char **)
 
 	P p(1.5f, 2.5f, 3.5f, 4.5f);
 	to_json(value_of(p));
+	to_json(value_of(type_of(p)));
+
+	memory::allocate(16);
 
 	return 0;
 }
