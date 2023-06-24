@@ -31,6 +31,13 @@ hash(const T &)
 
 template <typename T>
 inline static u64
+hash(T *key)
+{
+	return u64(key);
+};
+
+template <typename T>
+inline static u64
 hash(const T *key)
 {
 	return u64(key);
