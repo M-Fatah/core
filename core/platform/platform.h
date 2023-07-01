@@ -250,7 +250,7 @@ CORE_API bool
 platform_window_poll(Platform_Window *self);
 
 CORE_API void
-platform_window_get_native_handles(Platform_Window *self, void **native_handle, void **native_display);
+platform_window_get_native_handles(Platform_Window *self, void **native_handle, void **native_connection);
 
 CORE_API void
 platform_window_set_title(Platform_Window *self, const char *title);
