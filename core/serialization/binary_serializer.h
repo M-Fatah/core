@@ -4,13 +4,13 @@
 #include "core/result.h"
 #include "core/containers/string.h"
 
-#define SERIALIZE(T)           \
-void                           \
-serialize(T data) override;
+#define SERIALIZE(T)                             \
+void                                             \
+serialize(const char *name, T data) override;
 
-#define DESERIALIZE(T)         \
-void                           \
-deserialize(T &data) override;
+#define DESERIALIZE(T)                           \
+void                                             \
+deserialize(const char *name, T &data) override;
 
 struct Binary_Serializer : Serializer
 {
@@ -68,18 +68,20 @@ binary_serializer_from_file(const String &filepath, memory::Allocator *allocator
 CORE_API void
 binary_serializer_deinit(Binary_Serializer *self);
 
+// TODO:
 template <typename T>
 inline static void
 binary_serializer_serialize(Binary_Serializer *self, const T &data)
 {
-	serialize(self, data);
+	serialize(self, "", data);
 }
 
+// TODO:
 template <typename T>
 inline static void
 binary_serializer_deserialize(Binary_Serializer *self, T &data)
 {
-	deserialize(self, data);
+	deserialize(self, "", data);
 }
 
 CORE_API void
