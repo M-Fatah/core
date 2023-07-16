@@ -11,8 +11,9 @@ set(HEADER_FILES
     result.h
     utils.h
     containers/array.h
-    containers/string.h
     containers/hash_table.h
+    containers/stack_array.h
+    containers/string.h
     memory/memory.h
     memory/heap_allocator.h
     memory/arena_allocator.h
