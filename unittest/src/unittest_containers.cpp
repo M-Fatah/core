@@ -1,7 +1,8 @@
 #include <core/defer.h>
 #include <core/containers/array.h>
-#include <core/containers/string.h>
 #include <core/containers/hash_table.h>
+#include <core/containers/stack_array.h>
+#include <core/containers/string.h>
 
 #include <doctest/doctest.h>
 
@@ -178,6 +179,31 @@ TEST_CASE("[CONTAINERS]: Array")
 
 		array_push(v, array_from<i32>({1, 2, 3}));
 		array_push(v, array_from<i32>({4, 5, 6}));
+	}
+}
+
+TEST_CASE("[CONTAINERS]: Stack_Array")
+{
+	SUBCASE("init")
+	{
+		{
+			Stack_Array<i32, 4> array{};
+			CHECK(array.count == 0);
+		}
+
+		{
+			Stack_Array array{{1, 2, 3}};
+			for (u64 i = 0; i < array.count; ++i)
+				CHECK(array[i] == i + 1);
+			CHECK(array.count == 3);
+		}
+
+		{
+			Stack_Array<i32, 3> array{{1, 2, 3}};
+			for (u64 i = 0; i < array.count; ++i)
+				CHECK(array[i] == i + 1);
+			CHECK(array.count == 3);
+		}
 	}
 }
 
