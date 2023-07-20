@@ -5,11 +5,6 @@
 
 #include <initializer_list>
 
-/*
-	TODO:
-	- [ ] Support designated initialization.
-*/
-
 template <typename T, u64 N>
 struct Stack_Array
 {
@@ -18,10 +13,11 @@ struct Stack_Array
 
 	Stack_Array() : data(), count(0) {}
 
-	Stack_Array(const T (&values)[N])
+	template <u64 COUNT>
+	Stack_Array(const T (&values)[COUNT])
 	{
-		::memcpy(data, values, sizeof(T) * N);
-		count = N;
+		::memcpy(data, values, sizeof(T) * COUNT);
+		count = COUNT;
 	}
 
 	T &
