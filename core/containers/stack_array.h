@@ -13,11 +13,17 @@ struct Stack_Array
 
 	Stack_Array() : data(), count(0) {}
 
-	template <u64 COUNT>
-	Stack_Array(const T (&values)[COUNT])
+	Stack_Array(const T (&values)[N])
 	{
-		::memcpy(data, values, sizeof(T) * COUNT);
-		count = COUNT;
+		::memcpy(data, values, sizeof(T) * N);
+		count = N;
+	}
+
+	template <u64 NN>
+	Stack_Array(const T (&values)[NN])
+	{
+		::memcpy(data, values, sizeof(T) * NN);
+		count = NN;
 	}
 
 	T &
