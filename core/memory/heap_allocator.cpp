@@ -169,11 +169,4 @@ namespace memory
 	{
 		self->deallocate(data);
 	}
-
-	Allocator *
-	heap_allocator()
-	{
-		static Heap_Allocator self;
-		return &self;
-	}
 }

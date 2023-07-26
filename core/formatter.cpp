@@ -123,7 +123,7 @@ _formatter_clear(Formatter *self)
 Formatter::Formatter()
 {
 	Formatter *self = this;
-	self->buffer = string_with_capacity(FORMATTER_BUFFER_INITIAL_CAPACITY);
+	self->buffer = string_with_capacity(FORMATTER_BUFFER_INITIAL_CAPACITY, memory::temp_allocator());
 	_formatter_clear(self);
 }
 

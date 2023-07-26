@@ -2,6 +2,9 @@
 
 #include "core/logger.h"
 
+// TODO: Remove and use logger.
+#include <inttypes.h>
+
 namespace memory
 {
 	struct Arena_Allocator_Node
@@ -13,19 +16,22 @@ namespace memory
 
 	struct Arena_Allocator_Context
 	{
+		Allocator *allocator;
 		u64 used_size;
 		u64 peak_size;
 		Arena_Allocator_Node *head;
 	};
 
-	Arena_Allocator::Arena_Allocator(u64 initial_capacity)
+	Arena_Allocator::Arena_Allocator(u64 initial_capacity, Allocator *allocator)
 	{
 		Arena_Allocator *self = this;
-		self->ctx = memory::allocate_zeroed<Arena_Allocator_Context>();
+		self->ctx = memory::allocate_zeroed<Arena_Allocator_Context>(allocator);
 		if (self->ctx == nullptr)
 			LOG_FATAL("[ARENA_ALLOCATOR]: Could not allocate memory for initialization.");
 
-		self->ctx->head = (Arena_Allocator_Node *)memory::allocate(sizeof(Arena_Allocator_Node) + initial_capacity);
+		self->ctx->allocator = allocator;
+
+		self->ctx->head = (Arena_Allocator_Node *)memory::allocate(allocator, sizeof(Arena_Allocator_Node) + initial_capacity);
 		if (self->ctx->head == nullptr)
 			LOG_FATAL("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", sizeof(Arena_Allocator_Node) + initial_capacity);
 
@@ -39,21 +45,21 @@ namespace memory
 	Arena_Allocator::~Arena_Allocator()
 	{
 		Arena_Allocator *self = this;
-		LOG_DEBUG(
-			"[ARENA_ALLOCATOR]: {} bytes used at exit, {} bytes peak size.",
-			self->ctx->used_size,
-			self->ctx->peak_size
-		);
+
+	#if DEBUG
+		// TODO: Use logger.
+		::printf("[ARENA_ALLOCATOR]: %" PRIu64 " bytes used at exit, %" PRIu64 " bytes peak size.\n", self->ctx->used_size, self->ctx->peak_size);
+	#endif
 
 		auto node = self->ctx->head;
 		while (node)
 		{
 			auto next = node->next;
-			memory::deallocate(node);
+			memory::deallocate(self->ctx->allocator, node);
 			node = next;
 		}
 
-		memory::deallocate(self->ctx);
+		memory::deallocate(self->ctx->allocator, self->ctx);
 	}
 
 	void *
@@ -72,7 +78,7 @@ namespace memory
 		else
 		{
 			auto capacity = size > self->ctx->head->capacity ? size : self->ctx->head->capacity;
-			auto node = (Arena_Allocator_Node *)memory::allocate(sizeof(Arena_Allocator_Node) + capacity);
+			auto node = (Arena_Allocator_Node *)memory::allocate(self->ctx->allocator, sizeof(Arena_Allocator_Node) + capacity);
 			if (node == nullptr)
 				LOG_FATAL("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", size);
 			node->capacity  = capacity;
@@ -102,11 +108,11 @@ namespace memory
 			while (node)
 			{
 				auto next = node->next;
-				memory::deallocate(node);
+				memory::deallocate(self->ctx->allocator, node);
 				node = next;
 			}
 
-			self->ctx->head = (Arena_Allocator_Node *)memory::allocate(sizeof(Arena_Allocator_Node) + self->ctx->peak_size);
+			self->ctx->head = (Arena_Allocator_Node *)memory::allocate(self->ctx->allocator, sizeof(Arena_Allocator_Node) + self->ctx->peak_size);
 			if (self->ctx->head == nullptr)
 				LOG_FATAL("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", sizeof(Arena_Allocator_Node) + self->ctx->peak_size);
 			self->ctx->head->capacity = self->ctx->peak_size;
@@ -119,15 +125,15 @@ namespace memory
 	}
 
 	Arena_Allocator *
-	arena_allocator_init(u64 initial_capacity)
+	arena_allocator_init(u64 initial_capacity, Allocator *allocator)
 	{
-		return allocate_and_call_constructor<Arena_Allocator>(initial_capacity);
+		return allocate_and_call_constructor<Arena_Allocator>(allocator, initial_capacity, allocator);
 	}
 
 	void
 	arena_allocator_deinit(Arena_Allocator *self)
 	{
-		deallocate_and_call_destructor(self);
+		deallocate_and_call_destructor(self->ctx->allocator, self);
 	}
 
 	void *
@@ -158,12 +164,5 @@ namespace memory
 	arena_allocator_get_peak_size(Arena_Allocator *self)
 	{
 		return self->ctx->peak_size;
-	}
-
-	Allocator *
-	temp_allocator()
-	{
-		static thread_local Arena_Allocator self;
-		return &self;
 	}
 }

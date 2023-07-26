@@ -12,7 +12,7 @@ namespace memory
 	{
 		struct Arena_Allocator_Context *ctx;
 
-		Arena_Allocator(u64 initial_capacity = ARENA_ALLOCATOR_INITIAL_CAPACITY);
+		Arena_Allocator(u64 initial_capacity = ARENA_ALLOCATOR_INITIAL_CAPACITY, Allocator *allocator = heap_allocator());
 
 		~Arena_Allocator() override;
 
@@ -27,7 +27,7 @@ namespace memory
 	};
 
 	CORE_API Arena_Allocator *
-	arena_allocator_init(u64 initial_capacity = ARENA_ALLOCATOR_INITIAL_CAPACITY);
+	arena_allocator_init(u64 initial_capacity = ARENA_ALLOCATOR_INITIAL_CAPACITY, Allocator *allocator = heap_allocator());
 
 	CORE_API void
 	arena_allocator_deinit(Arena_Allocator *self);
