@@ -3,6 +3,7 @@
 #include "core/logger.h"
 
 // TODO: Remove and use logger.
+#include <stdio.h>
 #include <inttypes.h>
 
 namespace memory
