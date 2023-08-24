@@ -16,7 +16,11 @@ struct Binary_Serializer_Context
 inline static u8 *
 _binary_serializer_allocate(Binary_Serializer *self, u64 size)
 {
-	if (self->ctx->serialization_offset + size >= self->ctx->buffer.count)
+	if (self->ctx->serialization_offset + size >= self->ctx->buffer.capacity)
+	{
+		array_reserve(self->ctx->buffer, size);
+	}
+	else if (self->ctx->serialization_offset + size >= self->ctx->buffer.count)
 	{
 		auto added_capacity = size;
 		if (self->ctx->buffer.count + size >= self->ctx->buffer.capacity)
