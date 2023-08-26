@@ -13,6 +13,7 @@ struct Binary_Serializer_Context
 	u64 deserialization_offset;
 };
 
+// TODO: Visit later.
 inline static u8 *
 _binary_serializer_allocate(Binary_Serializer *self, u64 size)
 {
@@ -22,10 +23,7 @@ _binary_serializer_allocate(Binary_Serializer *self, u64 size)
 	}
 	else if (self->ctx->serialization_offset + size >= self->ctx->buffer.count)
 	{
-		auto added_capacity = size;
-		if (self->ctx->buffer.count + size >= self->ctx->buffer.capacity)
-			added_capacity = self->ctx->buffer.capacity;
-		array_reserve(self->ctx->buffer, added_capacity);
+		array_reserve(self->ctx->buffer, self->ctx->buffer.capacity / 2);
 	}
 	return self->ctx->buffer.data + self->ctx->serialization_offset;
 }
