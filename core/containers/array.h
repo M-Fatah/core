@@ -320,4 +320,4 @@ format(Formatter *formatter, const Array<T> &self)
 }
 
 template <typename T>
-TYPE_OF(Array<T>, data, count, capacity, allocator)
+TYPE_OF(Array<T>, data, count, (capacity, "NoSerialize"), (allocator, "NoSerialize"))

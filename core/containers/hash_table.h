@@ -368,4 +368,4 @@ template <typename K, typename V>
 TYPE_OF((Hash_Table_Entry<K, V>), key, value)
 
 template <typename K, typename V>
-TYPE_OF((Hash_Table<K, V>), slots, entry_slot_indices, entries, count, capacity)
+TYPE_OF((Hash_Table<K, V>), (slots, "NoSerialize"), (entry_slot_indices, "NoSerialize"), entries, count, (capacity, "NoSerialize"))
