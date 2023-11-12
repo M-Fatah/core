@@ -12,6 +12,7 @@ endif()
 option(CORE_BUILD_UNITTEST "Enable building unittest." ${CORE_IS_MAIN_PROJECT})
 option(CORE_INSTALL        "Enable installing core."   ${CORE_IS_MAIN_PROJECT})
 option(CORE_BUILD_UNITY    "Enable unity build."       OFF)
+option(CORE_BUILD_STATIC   "Enable static build."      OFF)
 
 set(CMAKE_PDB_OUTPUT_DIRECTORY     "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
