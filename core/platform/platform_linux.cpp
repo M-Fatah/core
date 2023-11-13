@@ -632,11 +632,18 @@ platform_set_current_directory()
 	::strcpy(current_executable_directory, module_path_absolute);
 }
 
+bool
+platform_file_exists(const char *filepath)
+{
+	struct stat file_stat = {};
+	return ::stat(filepath, &file_stat) == 0;
+}
+
 u64
 platform_file_size(const char *filepath)
 {
-	struct stat file_stat;
-	if(::stat(filepath, &file_stat) == 0)
+	struct stat file_stat = {};
+	if (::stat(filepath, &file_stat) == 0)
 		return file_stat.st_size;
 	return 0;
 }
@@ -645,7 +652,7 @@ u64
 platform_file_read(const char *filepath, Platform_Memory mem)
 {
 	i32 file_handle = ::open(filepath, O_RDONLY, S_IRWXU);
-	if(file_handle == -1)
+	if (file_handle == -1)
 		return 0;
 
 	i64 bytes_read = ::read(file_handle, mem.ptr, mem.size);
@@ -660,7 +667,7 @@ u64
 platform_file_write(const char *filepath, Platform_Memory mem)
 {
 	i32 file_handle = ::open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
-	if(file_handle == -1)
+	if (file_handle == -1)
 		return 0;
 
 	i64 bytes_written = ::write(file_handle, mem.ptr, mem.size);
