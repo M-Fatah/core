@@ -264,6 +264,8 @@ platform_window_close(Platform_Window *self);
 CORE_API void
 platform_set_current_directory();
 
+CORE_API bool
+platform_file_exists(const char *filepath);
 
 CORE_API u64
 platform_file_size(const char *filepath);

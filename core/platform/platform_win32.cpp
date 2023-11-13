@@ -533,6 +533,12 @@ platform_set_current_directory()
 	ASSERT(result, "[PLATFORM]: Failed to set current directory.");
 }
 
+bool
+platform_file_exists(const char *filepath)
+{
+	DWORD attributes = ::GetFileAttributes(filepath);
+	return attributes != INVALID_FILE_ATTRIBUTES;
+}
 
 u64
 platform_file_size(const char *filepath)
