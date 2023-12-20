@@ -1,354 +1,174 @@
 #include <core/defines.h>
+#include <core/logger.h>
 #include <core/reflect.h>
 #include <core/containers/string.h>
+#include <core/containers/hash_table.h>
 #include <core/platform/platform.h>
 
-#include <stdio.h>
-#include <inttypes.h>
+#include "serialization.cpp"
 
+/*
+	TODO:
+	- [x] Serialize binary blobs.
+		- [-] Use annotation tags.
+		- [x] Define Blob struct for the user to use it.
+	- [x] Array of arrays.
+	- [x] Array elements.
+	- [ ] Overload for custom serialization.
+*/
+
+template <typename S, typename T>
 inline static void
-print(Value v)
+to(S &serializer, Array<T> &data)
 {
-	if (v.data == nullptr)
-		return;
-
-	switch (v.type->kind)
-	{
-		case TYPE_KIND_I8:
-		{
-			printf("%" PRIi8, *(i8 *)v.data);
-			break;
-		}
-		case TYPE_KIND_I16:
-		{
-			printf("%" PRIi16, *(i16 *)v.data);
-			break;
-		}
-		case TYPE_KIND_I32:
-		{
-			printf("%" PRIi32, *(i32 *)v.data);
-			break;
-		}
-		case TYPE_KIND_I64:
-		{
-			printf("%" PRIi64, *(i64 *)v.data);
-			break;
-		}
-		case TYPE_KIND_U8:
-		{
-			printf("%" PRIu8, *(u8 *)v.data);
-			break;
-		}
-		case TYPE_KIND_U16:
-		{
-			printf("%" PRIu16, *(u16 *)v.data);
-			break;
-		}
-		case TYPE_KIND_U32:
-		{
-			printf("%" PRIu32, *(u32 *)v.data);
-			break;
-		}
-		case TYPE_KIND_U64:
-		{
-			printf("%" PRIu64, *(u64 *)v.data);
-			break;
-		}
-		case TYPE_KIND_F32:
-		{
-			printf("%g", *(f32 *)v.data);
-			break;
-		}
-		case TYPE_KIND_F64:
-		{
-			printf("%g", *(f64 *)v.data);
-			break;
-		}
-		case TYPE_KIND_BOOL:
-		{
-			printf("%s", *(bool *)v.data ? "true": "false");
-			break;
-		}
-		case TYPE_KIND_CHAR:
-		{
-			printf("'%c'", *(char *)v.data);
-			break;
-		}
-		case TYPE_KIND_STRUCT:
-		{
-			printf("%s { ", v.type->name);
-			for (u64 i = 0; i < v.type->as_struct.field_count; ++i)
-			{
-				if (i != 0)
-					printf(", ");
-				const auto *field = &v.type->as_struct.fields[i];
-				printf("%s = ", field->name);
-				print({(char *)v.data + field->offset, field->type});
-			}
-			printf(" }");
-			break;
-		}
-		case TYPE_KIND_ARRAY:
-		{
-			printf("[ ");
-			for (u64 i = 0; i < v.type->as_array.element_count; ++i)
-			{
-				if (i != 0)
-					printf(", ");
-				const auto *element = v.type->as_array.element;
-				print({(char *)v.data + element->size * i, element});
-			}
-			printf(" ]");
-			break;
-		}
-		case TYPE_KIND_POINTER:
-		{
-			const auto *pointee = v.type->as_pointer.pointee;
-			uptr *pointer = *(uptr **)(v.data);
-			if (v.type == type_of<const char *>() || v.type == type_of<char *>())
-			{
-				printf("\"%s\"", (const char *)pointer);
-			}
-			else
-			{
-				printf("%p: ", (void *)pointer);
-				print({pointer, pointee});
-			}
-			break;
-		}
-		case TYPE_KIND_ENUM:
-		{
-			for (u64 i = 0; i < v.type->as_enum.value_count; ++i)
-				if (const auto & value = v.type->as_enum.values[i]; value.index == *(i32 *)(v.data))
-					printf("%s(%" PRId32 ")", value.name, value.index);
-			break;
-		}
-		default:
-		{
-			break;
-		}
-	}
+	to(serializer, {
+		{"count", data.count},
+		{"data", data.data, data.count}
+	});
 }
 
+template <typename S, typename K, typename V>
 inline static void
-to_json(Value v, i32 indent = 0)
+to(S &serializer, Hash_Table_Entry<K, V> &data)
 {
-	constexpr auto print_tab = [](u64 count) {
-		for (u64 i = 0; i < count * 4; ++i)
-			printf(" ");
-	};
-
-	switch (v.type->kind)
-	{
-		case TYPE_KIND_I8:
-		{
-			printf("%" PRIi8, *(i8 *)v.data);
-			break;
-		}
-		case TYPE_KIND_I16:
-		{
-			printf("%" PRIi16, *(i16 *)v.data);
-			break;
-		}
-		case TYPE_KIND_I32:
-		{
-			printf("%" PRIi32, *(i32 *)v.data);
-			break;
-		}
-		case TYPE_KIND_I64:
-		{
-			printf("%" PRIi64, *(i64 *)v.data);
-			break;
-		}
-		case TYPE_KIND_U8:
-		{
-			printf("%" PRIu8, *(u8 *)v.data);
-			break;
-		}
-		case TYPE_KIND_U16:
-		{
-			printf("%" PRIu16, *(u16 *)v.data);
-			break;
-		}
-		case TYPE_KIND_U32:
-		{
-			printf("%" PRIu32, *(u32 *)v.data);
-			break;
-		}
-		case TYPE_KIND_U64:
-		{
-			printf("%" PRIu64, *(u64 *)v.data);
-			break;
-		}
-		case TYPE_KIND_F32:
-		{
-			printf("%g", *(f32 *)v.data);
-			break;
-		}
-		case TYPE_KIND_F64:
-		{
-			printf("%g", *(f64 *)v.data);
-			break;
-		}
-		case TYPE_KIND_BOOL:
-		{
-			printf("%s", *(bool *)v.data ? "true": "false");
-			break;
-		}
-		case TYPE_KIND_CHAR:
-		{
-			printf("%d", *(char *)v.data);
-			break;
-		}
-		case TYPE_KIND_STRUCT:
-		{
-			printf("{\n");
-			for (u64 i = 0; i < v.type->as_struct.field_count; ++i)
-			{
-				const auto *field = &v.type->as_struct.fields[i];
-				if (string_literal(field->tag) != "NoSerialize")
-				{
-					print_tab(indent + 1);
-					printf("\"%s\": ", field->name);
-					to_json({(char *)v.data + field->offset, field->type}, indent + 1);
-					if (i != (v.type->as_struct.field_count - 1))
-						printf(",\n");
-				}
-			}
-			printf("\n");
-			print_tab(indent);
-			printf("}");
-			break;
-		}
-		case TYPE_KIND_ARRAY:
-		{
-			printf("[");
-			for (u64 i = 0; i < v.type->as_array.element_count; ++i)
-			{
-				if (i != 0)
-					printf(", ");
-				const auto *element = v.type->as_array.element;
-				to_json({(char *)v.data + element->size * i, element}, indent + 1);
-			}
-			printf("]");
-			break;
-		}
-		case TYPE_KIND_POINTER:
-		{
-			const auto *pointee = v.type->as_pointer.pointee;
-			uptr *pointer = *(uptr **)(v.data);
-			if (v.type == type_of<const char *>() || v.type == type_of<char *>())
-			{
-				printf("\"%s\"", (const char *)pointer);
-			}
-			else if (pointer == nullptr)
-			{
-				printf("null");
-			}
-			else
-			{
-				to_json({pointer, pointee}, indent);
-			}
-			break;
-		}
-		case TYPE_KIND_ENUM:
-		{
-			for (u64 i = 0; i < v.type->as_enum.value_count; ++i)
-				if (const auto & value = v.type->as_enum.values[i]; value.index == *(i32 *)(v.data))
-					printf("\"%s\"", value.name);
-			break;
-		}
-		default:
-		{
-			break;
-		}
-	}
-
-	if (indent == 0)
-		printf("\n");
+	to(serializer, {
+		{"key", data.key},
+		{"value", data.value}
+	});
 }
 
-struct A
+template <typename S, typename K, typename V>
+inline static void
+to(S &serializer, Hash_Table<K, V> &data)
 {
-	struct B *b;
-};
+	to(serializer, {
+		{"count", data.count},
+		{"entries", data.entries}
+	});
+}
 
-TYPE_OF(A, b)
-
-struct B
+template <typename S>
+inline static void
+to(S &serializer, String &data)
 {
-	struct C *c;
-};
+	to(serializer, data.data);
+}
 
-TYPE_OF(B, c)
-
-struct C
-{
-	A *a;
-};
-
-TYPE_OF(C, a)
-
-template <typename T>
-struct Bar
-{
-	T t;
-};
-
-template <typename T>
-TYPE_OF(Bar<T>, t)
-
-struct Foo
+struct Foo1
 {
 	char a;
 	bool b;
 	const char *c[2];
 	i32 *d;
-	Bar<f32> e;
-	Foo *f;
+	Blob e;
+	Array<i32> f;
+	String g;
+	Array<Array<i32>> h;
+	Hash_Table<i32, String> i;
 };
 
-TYPE_OF(Foo, (a, "NoSerialize"), (b), c, d, e, f);
+TYPE_OF(Foo1, a, b, c, d, e, f, g, h, i);
 
-template <typename T, typename R>
-struct TWO
+struct Foo2
 {
-	T t;
-	R r;
+	char a;
+	bool b;
+	const char *c[2];
+	i32 *d;
+	Blob e;
+	Array<i32> f;
+	String g;
+	Array<Array<i32>> h;
+	Hash_Table<i32, String> i;
 };
 
-template <typename T, typename R>
-TYPE_OF((TWO<T, R>), t, r)
-
-struct P
+template <typename S>
+inline static void
+to(S &serializer, Foo2 &data)
 {
-	P() {}
-	P(f32 _x, f32 _y, f32 _z, f32 _w) : x(_x), y(_y), z(_z), w(_w) {}
-
-private:
-	f32 x, y, z, w;
-
-	TYPE_OF_MEMBER(P)
-};
-
-TYPE_OF(P, x, y, z, w)
+	to(serializer, {
+		{"a", data.a},
+		{"b", data.b},
+		{"c", data.c},
+		{"d", data.d},
+		{"e", data.e},
+		{"f", data.f},
+		{"g", data.g},
+		{"h", data.h},
+		{"i", data.i}
+	});
+}
 
 i32
-main(i32, char **)
+main()
 {
+	char a = 'A';
+	bool b = true;
+
 	i32 d = 7;
-	i32 dd = 13;
-	Foo f1 = {'A', true, {"Hello", "World"}, &d, {1.5f}, nullptr};
-	Foo f2 = {'B', false, {"FOO", "BOO"}, &dd, {7.5f}, &f1};
+	Array<i32> f = array_from({1, 2, 3}, memory::temp_allocator());
+	String g = string_literal("Shit");
+	Array<Array<i32>> h = array_from({f}, memory::temp_allocator());
+	Hash_Table<i32, String> i = hash_table_from<i32, String>({{1, string_literal("1")}}, memory::temp_allocator());
 
-	auto t2 = type_of(f2);
-	unused(t2);
-	to_json(value_of(f2));
-	to_json(value_of(TWO{1, 3.4f}));
+#if 0
+	{
+		Foo1 f1 = {a, b, {"Hello", "World"}, &d, {(u8 *)&d, 1}, f, g, h, i};
+		print(value_of(f1));
+		::printf("\n");
+	}
+#else
+	{
+		Foo1 f1 = {a, b, {"Hello", "World"}, &d, {(u8 *)&d, 1}, f, g, h, i};
+		Foo2 f2 = {a, b, {"Hello", "World"}, &d, {(u8 *)&d, 1}, f, g, h, i};
 
-	P p(1.5f, 2.5f, 3.5f, 4.5f);
-	to_json(value_of(p));
-	to_json(value_of(type_of(p)));
+		i32 array1[] = {1, 2, 3};
+		Array<i32> array2 = array_from<i32>({1, 2, 3}, memory::temp_allocator());
+
+		// NOTE: Binary.
+		{
+			Bin_Serializer bin = {};
+
+			// Struct.
+			// to(bin, {"a", a});
+			// to(bin, {"b", b});
+			// to(bin, a);
+			// to(bin, b);
+
+			// Array.
+			// to(bin, {"array1", array1}); // Generic (using reflection).
+			// to(bin, {"array2", array2}); // Custom overload.
+
+			// Struct.
+			// to(bin, f1);                 // TODO: Find a way to prevent this usage. // NOTE: Current workaround is to auto generate a name.
+			// to(bin, f2);                 // TODO: Find a way to prevent this usage. // NOTE: Current workaround is to auto generate a name.
+			// to(bin, f);                  // TODO: Find a way to prevent this usage. // NOTE: Current workaround is to auto generate a name.
+			// to(bin, g);                  // TODO: Find a way to prevent this usage. // NOTE: Current workaround is to auto generate a name.
+			// to(bin, h);                  // TODO: Find a way to prevent this usage. // NOTE: Current workaround is to auto generate a name.
+			// to(bin, i);                  // TODO: Find a way to prevent this usage. // NOTE: Current workaround is to auto generate a name.
+			to(bin, {"f1", f1});         // Generic (using reflection).
+			to(bin, {"f2", f2});         // Custom overload.
+
+			::printf("%s\n", bin.buffer.data);
+		}
+
+		// NOTE: JSON.
+		{
+			// ::printf("JSON:\n");
+			// Jsn_Serializer jsn = {};
+			// to(jsn, f1);
+			// to(jsn, {"f1", f1});
+			// to(jsn, i);
+			// to(jsn, {"i", i});
+		}
+
+		[[maybe_unused]] int x = 0;
+	}
+#endif
+
+
+	// Jsn_Serializer jsn = {};
+	// to(jsn, {"f1", f1});
 
 	return 0;
 }
