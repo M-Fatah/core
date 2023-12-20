@@ -617,8 +617,8 @@ type_of(const _NAME_OF(T))                                                      
 	return &self;                                                                   \
 }
 
-#define TYPE_OF_MEMBER(T)        \
-friend inline const Type *       \
+#define TYPE_OF_MEMBER(T)   \
+friend inline const Type *  \
 type_of(const _NAME_OF(T));
 
 template <typename T>
