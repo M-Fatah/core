@@ -18,14 +18,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
         build-variant: [Debug, Release]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
 
       # TODO: Install GCC without using a script.
+      # TODO: Move it inside Linux dependencies.
       - name: Installing GCC
         if: matrix.os == 'ubuntu-latest'
         uses: egor-tensin/setup-gcc@v1
