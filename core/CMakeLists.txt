@@ -59,6 +59,12 @@ elseif(UNIX AND NOT APPLE)
         dl
         pthread
     )
+elseif(APPLE)
+    list(APPEND SOURCE_FILES
+        platform/platform_macos.mm
+    )
+    list(APPEND LIBS
+    )
 endif()
 
 set(BUILD_TYPE SHARED)

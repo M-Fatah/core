@@ -47,7 +47,7 @@
 */
 
 inline static constexpr const u64 REFLECT_MAX_NAME_LENGTH      = 128;
-inline static constexpr const i32 REFLECT_MIN_ENUM_VALUE       = -32;
+inline static constexpr const i32 REFLECT_MIN_ENUM_VALUE       =  0;  // TODO:
 inline static constexpr const i32 REFLECT_MAX_ENUM_VALUE       =  32;
 inline static constexpr const i32 REFLECT_MAX_ENUM_VALUE_COUNT = REFLECT_MAX_ENUM_VALUE - REFLECT_MIN_ENUM_VALUE;
 
@@ -474,7 +474,7 @@ type_of(const T)
 		.kind = kind_of<T>(),
 		.size = sizeof(T),
 		.align = alignof(T),
-		.as_pointer = pointee
+		.as_pointer = {pointee}
 	};
 	return &self;
 }
@@ -510,23 +510,23 @@ type_of(const T)                                                                
 	return &self;                                                                               \
 }
 
-template <typename T>
-requires (std::is_enum_v<T>)
-inline static constexpr const Type *
-type_of(const T)
+struct Enum_Value
 {
-	struct Enum_Value
-	{
-		i32 index;
-		std::string_view name;
-	};
+	i32 index;
+	std::string_view name;
+};
 
-	struct Enum
-	{
-		std::array<Enum_Value, REFLECT_MAX_ENUM_VALUE_COUNT> values;
-		u64 count;
-	};
+struct Enum
+{
+	std::array<Enum_Value, REFLECT_MAX_ENUM_VALUE_COUNT> values;
+	u64 count;
+};
 
+template <typename T, i32... I>
+constexpr inline static Enum
+get_enum(std::integer_sequence<i32, I...>)
+{
+	// TODO: Remove -Wno-enum-constexpr-conversion.
 	constexpr auto get_enum_value = []<T V>() -> Enum_Value {
 		#if defined(_MSC_VER)
 			constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
@@ -546,12 +546,58 @@ type_of(const T)
 		return {(i32)V, {type_function_name.data() + type_name_prefix_length, type_name_length}};
 	};
 
-	constexpr auto data = [get_enum_value]<i32... I>(std::integer_sequence<i32, I...>) -> Enum {
-		return {
-			{ get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>()...},
-			((get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>().name != "") + ...)
-		};
-	}(std::make_integer_sequence<i32, REFLECT_MAX_ENUM_VALUE_COUNT>());
+return {
+		{ get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>()...},
+		((get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>().name != "") + ...)
+	};
+}
+
+template <typename T>
+requires (std::is_enum_v<T>)
+inline static constexpr const Type *
+type_of(const T)
+{
+	// struct Enum_Value
+	// {
+	// 	i32 index;
+	// 	std::string_view name;
+	// };
+
+	// struct Enum
+	// {
+	// 	std::array<Enum_Value, REFLECT_MAX_ENUM_VALUE_COUNT> values;
+	// 	u64 count;
+	// };
+
+	// constexpr auto get_enum_value = []<T V>() -> Enum_Value {
+	// 	#if defined(_MSC_VER)
+	// 		constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
+	// 		constexpr auto type_name_prefix_length = type_function_name.find("()<") + 3;
+	// 		constexpr auto type_name_length        = type_function_name.find(">", type_name_prefix_length) - type_name_prefix_length;
+	// 	#elif defined(__GNUC__)
+	// 		constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
+	// 		constexpr auto type_name_prefix_length = type_function_name.find("= ") + 2;
+	// 		constexpr auto type_name_length        = type_function_name.find("]", type_name_prefix_length) - type_name_prefix_length;
+	// 	#else
+	// 		#error "[REFLECT]: Unsupported compiler."
+	// 	#endif
+
+	// 	char c = type_function_name.at(type_name_prefix_length);
+	// 	if ((c >= '0' && c <= '9') || c == '(' || c == ')')
+	// 		return {};
+	// 	return {(i32)V, {type_function_name.data() + type_name_prefix_length, type_name_length}};
+	// };
+
+	// TODO: constexpr? fuck clang.
+	// TODO: Move to a function and use constexpr.
+	// auto data = [get_enum_value]<i32... I>(std::integer_sequence<i32, I...>) -> Enum {
+	// 	return {
+	// 		{ get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>()...},
+	// 		((get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>().name != "") + ...)
+	// 	};
+	// }(std::make_integer_sequence<i32, REFLECT_MAX_ENUM_VALUE_COUNT>());
+
+	constexpr auto data = get_enum<T>(std::make_integer_sequence<i32, REFLECT_MAX_ENUM_VALUE_COUNT>());
 
 	constexpr auto copy = [](char *dst, const char *src, u64 count) {
 		for (u64 i = 0; i < count; ++i)
@@ -635,6 +681,10 @@ value_of(T &&type)
 	T t = type;
 	return {&type, type_of(t)};
 }
+
+// TODO: ?
+inline const Type *
+type_of(const Type);
 
 TYPE_OF(Type_Field, name, offset, type)
 TYPE_OF(Type, name, kind, size, align, as_struct.fields, as_struct.field_count)
