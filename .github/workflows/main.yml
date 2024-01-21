@@ -39,6 +39,12 @@ jobs:
             sudo apt update
             sudo apt-get install -y libx11-dev libxkbcommon-x11-dev libx11-xcb-dev
 
+      - name: Installing MacOS dependencies
+        if: matrix.os == 'macos-latest'
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
       - name: Configuring
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{matrix.build-variant}} -DCORE_BUILD_UNITY=OFF # TODO: Re-enable unity build.
 
