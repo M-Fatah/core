@@ -43,7 +43,7 @@ jobs:
         if: matrix.os == 'macos-latest'
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: 15.2
+          xcode-version: latest-stable
 
       - name: Configuring
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{matrix.build-variant}} -DCORE_BUILD_UNITY=OFF # TODO: Re-enable unity build.
