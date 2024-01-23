@@ -354,5 +354,14 @@ main(i32, char **)
 
 	print(value_of(1));
 
+
+	auto window = platform_window_init(800, 600, "Test");
+	while(platform_window_poll(&window))
+	{
+
+	}
+
+	platform_window_deinit(&window);
+
 	return 0;
 }

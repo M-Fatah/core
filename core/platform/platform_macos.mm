@@ -332,12 +332,176 @@ struct Platform_Window_Context
 
 };
 
+@class ContentView;
+
+@interface ContentView : NSView <NSTextInputClient> {
+    NSWindow* window;
+    NSTrackingArea* trackingArea;
+    NSMutableAttributedString* markedText;
+}
+
+- (instancetype)initWithWindow:(NSWindow*)initWindow;
+
+@end // ContentView
+
+@implementation ContentView
+
+- (instancetype)initWithWindow:(NSWindow*)initWindow {
+    self = [super init];
+    if (self != nil) {
+        window = initWindow;
+    }
+
+    return self;
+}
+
+- (BOOL)canBecomeKeyView {
+    return YES;
+}
+
+- (BOOL)acceptsFirstResponder {
+    return YES;
+}
+
+- (BOOL)wantsUpdateLayer {
+    return YES;
+}
+
+- (BOOL)acceptsFirstMouse:(NSEvent *)event {
+    return YES;
+}
+
+- (void)mouseDown:(NSEvent *)event {
+    // input_process_button(BUTTON_LEFT, true);
+}
+
+- (void)mouseDragged:(NSEvent *)event {
+    // Equivalent to moving the mouse for now
+    [self mouseMoved:event];
+}
+
+- (void)mouseUp:(NSEvent *)event {
+    // input_process_button(BUTTON_LEFT, false);
+}
+
+- (void)mouseMoved:(NSEvent *)event {
+    // const NSPoint pos = [event locationInWindow];
+
+    // // Need to invert Y on macOS, since origin is bottom-left.
+    // // Also need to scale the mouse position by the device pixel ratio so screen lookups are correct.
+    // NSSize window_size = state_ptr->handle.layer.drawableSize;
+    // i16 x = pos.x * state_ptr->handle.layer.contentsScale;
+    // i16 y = window_size.height - (pos.y * state_ptr->handle.layer.contentsScale);
+    // input_process_mouse_move(x, y);
+}
+
+- (void)rightMouseDown:(NSEvent *)event {
+    // input_process_button(BUTTON_RIGHT, true);
+}
+
+- (void)rightMouseDragged:(NSEvent *)event  {
+    // Equivalent to moving the mouse for now
+    [self mouseMoved:event];
+}
+
+- (void)rightMouseUp:(NSEvent *)event {
+    // input_process_button(BUTTON_RIGHT, false);
+}
+
+- (void)otherMouseDown:(NSEvent *)event {
+    // Interpreted as middle click
+    // input_process_button(BUTTON_MIDDLE, true);
+}
+
+- (void)otherMouseDragged:(NSEvent *)event {
+    // Equivalent to moving the mouse for now
+    [self mouseMoved:event];
+}
+
+- (void)otherMouseUp:(NSEvent *)event {
+    // Interpreted as middle click
+    // input_process_button(BUTTON_MIDDLE, false);
+}
+
+// Handle modifier keys since they are only registered via modifier flags being set/unset.
+- (void) flagsChanged:(NSEvent *) event {
+    // handle_modifier_keys([event keyCode], [event modifierFlags]);
+}
+
+- (void)keyDown:(NSEvent *)event {
+    // keys key = translate_keycode((u32)[event keyCode]);
+
+    // input_process_key(key, true);
+
+    // [self interpretKeyEvents:@[event]];
+}
+
+- (void)keyUp:(NSEvent *)event {
+    // keys key = translate_keycode((u32)[event keyCode]);
+
+    // input_process_key(key, false);
+}
+
+- (void)scrollWheel:(NSEvent *)event {
+    // input_process_mouse_wheel((i8)[event scrollingDeltaY]);
+}
+
+- (void)insertText:(id)string replacementRange:(NSRange)replacementRange {}
+
+- (void)setMarkedText:(id)string selectedRange:(NSRange)selectedRange replacementRange:(NSRange)replacementRange {}
+
+- (void)unmarkText {}
+
+// Defines a constant for empty ranges in NSTextInputClient
+static const NSRange kEmptyRange = { NSNotFound, 0 };
+
+- (NSRange)selectedRange {return kEmptyRange;}
+
+- (NSRange)markedRange {return kEmptyRange;}
+
+- (BOOL)hasMarkedText {return false;}
+
+- (nullable NSAttributedString *)attributedSubstringForProposedRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange {return nil;}
+
+- (NSArray<NSAttributedStringKey> *)validAttributesForMarkedText {return [NSArray array];}
+
+- (NSRect)firstRectForCharacterRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange {return NSMakeRect(0, 0, 0, 0);}
+
+- (NSUInteger)characterIndexForPoint:(NSPoint)point {return 0;}
+
+@end // ContentView
+
 Platform_Window
 platform_window_init(u32 width, u32 height, const char *title)
 {
 
 	Platform_Window_Context *ctx = memory::allocate_zeroed<Platform_Window_Context>();
 
+	NSRect rect = NSMakeRect(0, 0, width, height);
+	NSWindow *window = [[NSWindow alloc] initWithContentRect:rect
+                    styleMask:NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
+                    backing:NSBackingStoreBuffered
+                    defer:NO];
+	[window setBackgroundColor:[NSColor blueColor]];
+	[window makeKeyAndOrderFront:window];
+	[window display];
+
+	ContentView *content_view = [[ContentView alloc] initWithWindow:window];
+    [content_view setWantsLayer:YES];
+
+    [window setLevel:NSNormalWindowLevel];
+    [window setContentView:content_view];
+    [window makeFirstResponder:content_view];
+    [window setTitle:@(title)];
+    // [window setDelegate:wnd_delegate];
+    [window setAcceptsMouseMovedEvents:YES];
+    [window setRestorable:NO];
+
+	 if (![[NSRunningApplication currentApplication] isFinishedLaunching])
+        [NSApp run];
+
+    // Making the app a proper UI app since we're unbundled
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 
 
 	unused(title);
