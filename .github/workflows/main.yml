@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-14]
+        os: [windows-latest, ubuntu-latest, macos-13]
         build-variant: [Debug, Release]
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
             sudo apt-get install -y libx11-dev libxkbcommon-x11-dev libx11-xcb-dev
 
       - name: Installing MacOS dependencies
-        if: matrix.os == 'macos-14'
+        if: matrix.os == 'macos-13'
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: "15.2"
