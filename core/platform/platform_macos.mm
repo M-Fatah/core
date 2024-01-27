@@ -35,130 +35,129 @@ _string_concat(const char *a, const char *b, char *result)
 		*result++ = *b++;
 }
 
-// inline static PLATFORM_KEY
-// _platform_key_from_xcb_button(/* TODO: */)
-// {
-// 	// switch (button)
-// 	// {
-// 	// 	case XCB_BUTTON_INDEX_1: return PLATFORM_KEY_MOUSE_LEFT;
-// 	// 	case XCB_BUTTON_INDEX_2: return PLATFORM_KEY_MOUSE_MIDDLE;
-// 	// 	case XCB_BUTTON_INDEX_3: return PLATFORM_KEY_MOUSE_RIGHT;
-// 	// 	case XCB_BUTTON_INDEX_4: return PLATFORM_KEY_MOUSE_WHEEL_UP;
-// 	// 	case XCB_BUTTON_INDEX_5: return PLATFORM_KEY_MOUSE_WHEEL_DOWN;
-// 	// }
-// 	return PLATFORM_KEY_COUNT;
-// }
+inline static PLATFORM_KEY
+_platform_key_from_button_number(i32 button_number)
+{
+	switch (button_number)
+	{
+		case 0: return PLATFORM_KEY_MOUSE_LEFT;
+		case 1: return PLATFORM_KEY_MOUSE_RIGHT;
+		case 2: return PLATFORM_KEY_MOUSE_MIDDLE;
+	}
+	return PLATFORM_KEY_COUNT;
+}
 
-// inline static PLATFORM_KEY
-// _platform_key_from_key_sym(i32 key)
-// {
-// 	switch (key)
-// 	{
-// 		// TODO:
-// 		// case kVK_ANSI_Quote:
-// 		// case kVK_ANSI_KeypadDecimal:
-// 		// case kVK_ANSI_KeypadMultiply:
-// 		// case kVK_ANSI_KeypadPlus:
-// 		// case kVK_ANSI_KeypadClear:
-// 		// case kVK_ANSI_KeypadDivide:
-// 		// case kVK_ANSI_KeypadEnter:
-// 		// case kVK_ANSI_KeypadMinus:
-// 		// case kVK_ANSI_KeypadEquals:
-// 		// case kVK_Command:
-// 		// case kVK_RightCommand:
-// 		// case kVK_CapsLock:
-// 		case kVK_ANSI_A:            return PLATFORM_KEY_A;
-// 		case kVK_ANSI_B:            return PLATFORM_KEY_B;
-// 		case kVK_ANSI_C:            return PLATFORM_KEY_C;
-// 		case kVK_ANSI_D:            return PLATFORM_KEY_D;
-// 		case kVK_ANSI_E:            return PLATFORM_KEY_E;
-// 		case kVK_ANSI_F:            return PLATFORM_KEY_F;
-// 		case kVK_ANSI_G:            return PLATFORM_KEY_G;
-// 		case kVK_ANSI_H:            return PLATFORM_KEY_H;
-// 		case kVK_ANSI_I:            return PLATFORM_KEY_I;
-// 		case kVK_ANSI_J:            return PLATFORM_KEY_J;
-// 		case kVK_ANSI_K:            return PLATFORM_KEY_K;
-// 		case kVK_ANSI_L:            return PLATFORM_KEY_L;
-// 		case kVK_ANSI_M:            return PLATFORM_KEY_M;
-// 		case kVK_ANSI_N:            return PLATFORM_KEY_N;
-// 		case kVK_ANSI_O:            return PLATFORM_KEY_O;
-// 		case kVK_ANSI_P:            return PLATFORM_KEY_P;
-// 		case kVK_ANSI_Q:            return PLATFORM_KEY_Q;
-// 		case kVK_ANSI_R:            return PLATFORM_KEY_R;
-// 		case kVK_ANSI_S:            return PLATFORM_KEY_S;
-// 		case kVK_ANSI_T:            return PLATFORM_KEY_T;
-// 		case kVK_ANSI_U:            return PLATFORM_KEY_U;
-// 		case kVK_ANSI_V:            return PLATFORM_KEY_V;
-// 		case kVK_ANSI_W:            return PLATFORM_KEY_W;
-// 		case kVK_ANSI_X:            return PLATFORM_KEY_X;
-// 		case kVK_ANSI_Y:            return PLATFORM_KEY_Y;
-// 		case kVK_ANSI_Z:            return PLATFORM_KEY_Z;
-// 		case kVK_ANSI_0:            return PLATFORM_KEY_NUM_0;
-// 		case kVK_ANSI_1:            return PLATFORM_KEY_NUM_1;
-// 		case kVK_ANSI_2:            return PLATFORM_KEY_NUM_2;
-// 		case kVK_ANSI_3:            return PLATFORM_KEY_NUM_3;
-// 		case kVK_ANSI_4:            return PLATFORM_KEY_NUM_4;
-// 		case kVK_ANSI_5:            return PLATFORM_KEY_NUM_5;
-// 		case kVK_ANSI_6:            return PLATFORM_KEY_NUM_6;
-// 		case kVK_ANSI_7:            return PLATFORM_KEY_NUM_7;
-// 		case kVK_ANSI_8:            return PLATFORM_KEY_NUM_8;
-// 		case kVK_ANSI_9:            return PLATFORM_KEY_NUM_9;
-// 		case kVK_ANSI_Keypad0:      return PLATFORM_KEY_NUMPAD_0;
-// 		case kVK_ANSI_Keypad1:      return PLATFORM_KEY_NUMPAD_1;
-// 		case kVK_ANSI_Keypad2:      return PLATFORM_KEY_NUMPAD_2;
-// 		case kVK_ANSI_Keypad3:      return PLATFORM_KEY_NUMPAD_3;
-// 		case kVK_ANSI_Keypad4:      return PLATFORM_KEY_NUMPAD_4;
-// 		case kVK_ANSI_Keypad5:      return PLATFORM_KEY_NUMPAD_5;
-// 		case kVK_ANSI_Keypad6:      return PLATFORM_KEY_NUMPAD_6;
-// 		case kVK_ANSI_Keypad7:      return PLATFORM_KEY_NUMPAD_7;
-// 		case kVK_ANSI_Keypad8:      return PLATFORM_KEY_NUMPAD_8;
-// 		case kVK_ANSI_Keypad9:      return PLATFORM_KEY_NUMPAD_9;
-// 		case kVK_F1:                return PLATFORM_KEY_F1;
-// 		case kVK_F2:                return PLATFORM_KEY_F2;
-// 		case kVK_F3:                return PLATFORM_KEY_F3;
-// 		case kVK_F4:                return PLATFORM_KEY_F4;
-// 		case kVK_F5:                return PLATFORM_KEY_F5;
-// 		case kVK_F6:                return PLATFORM_KEY_F6;
-// 		case kVK_F7:                return PLATFORM_KEY_F7;
-// 		case kVK_F8:                return PLATFORM_KEY_F8;
-// 		case kVK_F9:                return PLATFORM_KEY_F9;
-// 		case kVK_F10:               return PLATFORM_KEY_F10;
-// 		case kVK_F11:               return PLATFORM_KEY_F11;
-// 		case kVK_F12:               return PLATFORM_KEY_F12;
-// 		case kVK_UpArrow:           return PLATFORM_KEY_ARROW_UP;
-// 		case kVK_DownArrow:         return PLATFORM_KEY_ARROW_DOWN;
-// 		case kVK_LeftArrow:         return PLATFORM_KEY_ARROW_LEFT;
-// 		case kVK_RightArrow:        return PLATFORM_KEY_ARROW_RIGHT;
-// 		case kVK_Shift:             return PLATFORM_KEY_SHIFT_LEFT;
-// 		case kVK_RightShift:        return PLATFORM_KEY_SHIFT_RIGHT;
-// 		case kVK_Control:           return PLATFORM_KEY_CONTROL_LEFT;
-// 		case kVK_RightControl:      return PLATFORM_KEY_CONTROL_RIGHT;
-// 		case kVK_Option:            return PLATFORM_KEY_ALT_LEFT;
-// 		case kVK_RightOption:       return PLATFORM_KEY_ALT_RIGHT;
-// 		case kVK_Delete:            return PLATFORM_KEY_BACKSPACE;
-// 		case kVK_Tab:               return PLATFORM_KEY_TAB;
-// 		case kVK_Return:            return PLATFORM_KEY_ENTER;
-// 		case kVK_Escape:            return PLATFORM_KEY_ESCAPE;
-// 		case kVK_ForwardDelete:     return PLATFORM_KEY_DELETE;
-// 		case kVK_Help:              return PLATFORM_KEY_INSERT;
-// 		case kVK_Home:              return PLATFORM_KEY_HOME;
-// 		case kVK_End:               return PLATFORM_KEY_END;
-// 		case kVK_PageUp:            return PLATFORM_KEY_PAGE_UP;
-// 		case kVK_PageDown:          return PLATFORM_KEY_PAGE_DOWN;
-// 		case kVK_ANSI_Slash:        return PLATFORM_KEY_SLASH;
-// 		case kVK_ANSI_Backslash:    return PLATFORM_KEY_BACKSLASH;
-// 		case kVK_ANSI_LeftBracket:  return PLATFORM_KEY_BRACKET_LEFT;
-// 		case kVK_ANSI_RightBracket: return PLATFORM_KEY_BRACKET_RIGHT;
-// 		case kVK_ANSI_Grave:        return PLATFORM_KEY_BACKQUOTE;
-// 		case kVK_ANSI_Period:       return PLATFORM_KEY_PERIOD;
-// 		case kVK_ANSI_Minus:        return PLATFORM_KEY_MINUS;
-// 		case kVK_ANSI_Equal:        return PLATFORM_KEY_EQUAL;
-// 		case kVK_ANSI_Comma:        return PLATFORM_KEY_COMMA;
-// 		case kVK_ANSI_Semicolon:    return PLATFORM_KEY_SEMICOLON;
-// 		case kVK_Space:             return PLATFORM_KEY_SPACE;
-// 	}
-// 	return PLATFORM_KEY_COUNT;
-// }
+inline static PLATFORM_KEY
+_platform_key_from_key_code(i32 key_code)
+{
+	switch (key_code)
+	{
+		// TODO:
+		// case kVK_ANSI_Quote:
+		// case kVK_ANSI_KeypadDecimal:
+		// case kVK_ANSI_KeypadMultiply:
+		// case kVK_ANSI_KeypadPlus:
+		// case kVK_ANSI_KeypadClear:
+		// case kVK_ANSI_KeypadDivide:
+		// case kVK_ANSI_KeypadEnter:
+		// case kVK_ANSI_KeypadMinus:
+		// case kVK_ANSI_KeypadEquals:
+		// case kVK_Command:
+		// case kVK_RightCommand:
+		// case kVK_CapsLock:
+		case kVK_ANSI_A:            return PLATFORM_KEY_A;
+		case kVK_ANSI_B:            return PLATFORM_KEY_B;
+		case kVK_ANSI_C:            return PLATFORM_KEY_C;
+		case kVK_ANSI_D:            return PLATFORM_KEY_D;
+		case kVK_ANSI_E:            return PLATFORM_KEY_E;
+		case kVK_ANSI_F:            return PLATFORM_KEY_F;
+		case kVK_ANSI_G:            return PLATFORM_KEY_G;
+		case kVK_ANSI_H:            return PLATFORM_KEY_H;
+		case kVK_ANSI_I:            return PLATFORM_KEY_I;
+		case kVK_ANSI_J:            return PLATFORM_KEY_J;
+		case kVK_ANSI_K:            return PLATFORM_KEY_K;
+		case kVK_ANSI_L:            return PLATFORM_KEY_L;
+		case kVK_ANSI_M:            return PLATFORM_KEY_M;
+		case kVK_ANSI_N:            return PLATFORM_KEY_N;
+		case kVK_ANSI_O:            return PLATFORM_KEY_O;
+		case kVK_ANSI_P:            return PLATFORM_KEY_P;
+		case kVK_ANSI_Q:            return PLATFORM_KEY_Q;
+		case kVK_ANSI_R:            return PLATFORM_KEY_R;
+		case kVK_ANSI_S:            return PLATFORM_KEY_S;
+		case kVK_ANSI_T:            return PLATFORM_KEY_T;
+		case kVK_ANSI_U:            return PLATFORM_KEY_U;
+		case kVK_ANSI_V:            return PLATFORM_KEY_V;
+		case kVK_ANSI_W:            return PLATFORM_KEY_W;
+		case kVK_ANSI_X:            return PLATFORM_KEY_X;
+		case kVK_ANSI_Y:            return PLATFORM_KEY_Y;
+		case kVK_ANSI_Z:            return PLATFORM_KEY_Z;
+		case kVK_ANSI_0:            return PLATFORM_KEY_NUM_0;
+		case kVK_ANSI_1:            return PLATFORM_KEY_NUM_1;
+		case kVK_ANSI_2:            return PLATFORM_KEY_NUM_2;
+		case kVK_ANSI_3:            return PLATFORM_KEY_NUM_3;
+		case kVK_ANSI_4:            return PLATFORM_KEY_NUM_4;
+		case kVK_ANSI_5:            return PLATFORM_KEY_NUM_5;
+		case kVK_ANSI_6:            return PLATFORM_KEY_NUM_6;
+		case kVK_ANSI_7:            return PLATFORM_KEY_NUM_7;
+		case kVK_ANSI_8:            return PLATFORM_KEY_NUM_8;
+		case kVK_ANSI_9:            return PLATFORM_KEY_NUM_9;
+		case kVK_ANSI_Keypad0:      return PLATFORM_KEY_NUMPAD_0;
+		case kVK_ANSI_Keypad1:      return PLATFORM_KEY_NUMPAD_1;
+		case kVK_ANSI_Keypad2:      return PLATFORM_KEY_NUMPAD_2;
+		case kVK_ANSI_Keypad3:      return PLATFORM_KEY_NUMPAD_3;
+		case kVK_ANSI_Keypad4:      return PLATFORM_KEY_NUMPAD_4;
+		case kVK_ANSI_Keypad5:      return PLATFORM_KEY_NUMPAD_5;
+		case kVK_ANSI_Keypad6:      return PLATFORM_KEY_NUMPAD_6;
+		case kVK_ANSI_Keypad7:      return PLATFORM_KEY_NUMPAD_7;
+		case kVK_ANSI_Keypad8:      return PLATFORM_KEY_NUMPAD_8;
+		case kVK_ANSI_Keypad9:      return PLATFORM_KEY_NUMPAD_9;
+		case kVK_F1:                return PLATFORM_KEY_F1;
+		case kVK_F2:                return PLATFORM_KEY_F2;
+		case kVK_F3:                return PLATFORM_KEY_F3;
+		case kVK_F4:                return PLATFORM_KEY_F4;
+		case kVK_F5:                return PLATFORM_KEY_F5;
+		case kVK_F6:                return PLATFORM_KEY_F6;
+		case kVK_F7:                return PLATFORM_KEY_F7;
+		case kVK_F8:                return PLATFORM_KEY_F8;
+		case kVK_F9:                return PLATFORM_KEY_F9;
+		case kVK_F10:               return PLATFORM_KEY_F10;
+		case kVK_F11:               return PLATFORM_KEY_F11;
+		case kVK_F12:               return PLATFORM_KEY_F12;
+		case kVK_UpArrow:           return PLATFORM_KEY_ARROW_UP;
+		case kVK_DownArrow:         return PLATFORM_KEY_ARROW_DOWN;
+		case kVK_LeftArrow:         return PLATFORM_KEY_ARROW_LEFT;
+		case kVK_RightArrow:        return PLATFORM_KEY_ARROW_RIGHT;
+		case kVK_Shift:             return PLATFORM_KEY_SHIFT_LEFT;
+		case kVK_RightShift:        return PLATFORM_KEY_SHIFT_RIGHT;
+		case kVK_Control:           return PLATFORM_KEY_CONTROL_LEFT;
+		case kVK_RightControl:      return PLATFORM_KEY_CONTROL_RIGHT;
+		case kVK_Option:            return PLATFORM_KEY_ALT_LEFT;
+		case kVK_RightOption:       return PLATFORM_KEY_ALT_RIGHT;
+		case kVK_Delete:            return PLATFORM_KEY_BACKSPACE;
+		case kVK_Tab:               return PLATFORM_KEY_TAB;
+		case kVK_Return:            return PLATFORM_KEY_ENTER;
+		case kVK_Escape:            return PLATFORM_KEY_ESCAPE;
+		case kVK_ForwardDelete:     return PLATFORM_KEY_DELETE;
+		case kVK_Help:              return PLATFORM_KEY_INSERT;
+		case kVK_Home:              return PLATFORM_KEY_HOME;
+		case kVK_End:               return PLATFORM_KEY_END;
+		case kVK_PageUp:            return PLATFORM_KEY_PAGE_UP;
+		case kVK_PageDown:          return PLATFORM_KEY_PAGE_DOWN;
+		case kVK_ANSI_Slash:        return PLATFORM_KEY_SLASH;
+		case kVK_ANSI_Backslash:    return PLATFORM_KEY_BACKSLASH;
+		case kVK_ANSI_LeftBracket:  return PLATFORM_KEY_BRACKET_LEFT;
+		case kVK_ANSI_RightBracket: return PLATFORM_KEY_BRACKET_RIGHT;
+		case kVK_ANSI_Grave:        return PLATFORM_KEY_BACKQUOTE;
+		case kVK_ANSI_Period:       return PLATFORM_KEY_PERIOD;
+		case kVK_ANSI_Minus:        return PLATFORM_KEY_MINUS;
+		case kVK_ANSI_Equal:        return PLATFORM_KEY_EQUAL;
+		case kVK_ANSI_Comma:        return PLATFORM_KEY_COMMA;
+		case kVK_ANSI_Semicolon:    return PLATFORM_KEY_SEMICOLON;
+		case kVK_Space:             return PLATFORM_KEY_SPACE;
+	}
+	return PLATFORM_KEY_COUNT;
+}
+
 @class Content_View;
 @class Window_Delegate;
 
@@ -212,79 +211,9 @@ canBecomeKeyView
 	return YES;
 }
 
-- (void)mouseDown:(NSEvent *)event {
-	// input_process_button(BUTTON_LEFT, true);
-}
-
-- (void)mouseDragged:(NSEvent *)event {
-	// Equivalent to moving the mouse for now
-	[self mouseMoved:event];
-}
-
-- (void)mouseUp:(NSEvent *)event {
-	// input_process_button(BUTTON_LEFT, false);
-}
-
-- (void)mouseMoved:(NSEvent *)event {
-	// const NSPoint pos = [event locationInWindow];
-
-	// // Need to invert Y on macOS, since origin is bottom-left.
-	// // Also need to scale the mouse position by the device pixel ratio so screen lookups are correct.
-	// NSSize window_size = state_ptr->handle.layer.drawableSize;
-	// i16 x = pos.x * state_ptr->handle.layer.contentsScale;
-	// i16 y = window_size.height - (pos.y * state_ptr->handle.layer.contentsScale);
-	// input_process_mouse_move(x, y);
-}
-
-- (void)rightMouseDown:(NSEvent *)event {
-	// input_process_button(BUTTON_RIGHT, true);
-}
-
-- (void)rightMouseDragged:(NSEvent *)event  {
-	// Equivalent to moving the mouse for now
-	[self mouseMoved:event];
-}
-
-- (void)rightMouseUp:(NSEvent *)event {
-	// input_process_button(BUTTON_RIGHT, false);
-}
-
-- (void)otherMouseDown:(NSEvent *)event {
-	// Interpreted as middle click
-	// input_process_button(BUTTON_MIDDLE, true);
-}
-
-- (void)otherMouseDragged:(NSEvent *)event {
-	// Equivalent to moving the mouse for now
-	[self mouseMoved:event];
-}
-
-- (void)otherMouseUp:(NSEvent *)event {
-	// Interpreted as middle click
-	// input_process_button(BUTTON_MIDDLE, false);
-}
-
 // Handle modifier keys since they are only registered via modifier flags being set/unset.
 - (void) flagsChanged:(NSEvent *) event {
 	// handle_modifier_keys([event keyCode], [event modifierFlags]);
-}
-
-- (void)keyDown:(NSEvent *)event {
-	// keys key = translate_keycode((u32)[event keyCode]);
-
-	// input_process_key(key, true);
-
-	// [self interpretKeyEvents:@[event]];
-}
-
-- (void)keyUp:(NSEvent *)event {
-	// keys key = translate_keycode((u32)[event keyCode]);
-
-	// input_process_key(key, false);
-}
-
-- (void)scrollWheel:(NSEvent *)event {
-	// input_process_mouse_wheel((i8)[event scrollingDeltaY]);
 }
 
 - (void)insertText:(id)string replacementRange:(NSRange)replacementRange {}
@@ -615,6 +544,8 @@ platform_window_deinit(Platform_Window *self)
 	memory::deallocate(ctx);
 }
 
+#include "core/logger.h"
+
 bool
 platform_window_poll(Platform_Window *self)
 {
@@ -633,118 +564,90 @@ platform_window_poll(Platform_Window *self)
 	{
 		while (NSEvent *event = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES])
 		{
-			[NSApp sendEvent:event];
+			switch (event.type)
+			{
+				case NSLeftMouseDown:
+				case NSRightMouseDown:
+				case NSOtherMouseDown:
+				{
+					PLATFORM_KEY key = _platform_key_from_button_number(event.buttonNumber);
+					LOG_INFO("{}", (i32)event.buttonNumber);
+					if (key != PLATFORM_KEY_COUNT)
+					{
+						self->input.keys[key].pressed = true;
+						self->input.keys[key].down    = true;
+						self->input.keys[key].press_count++;
+						LOG_INFO("Mouse {} down.", (i32)key);
+					}
+					break;
+				}
+				case NSLeftMouseUp:
+				case NSRightMouseUp:
+				case NSOtherMouseUp:
+				{
+					PLATFORM_KEY key = _platform_key_from_button_number(event.buttonNumber);
+					if (key != PLATFORM_KEY_COUNT)
+					{
+						self->input.keys[key].released = true;
+						self->input.keys[key].down     = false;
+						self->input.keys[key].release_count++;
+						LOG_INFO("Mouse {} up.", (i32)key);
+					}
+					break;
+				}
+				case NSScrollWheel:
+				{
+					self->input.mouse_wheel += (event.scrollingDeltaY >= 0.0f) ? 1.0f : -1.0f;
+					break;
+				}
+				case NSMouseMoved:
+				{
+					const NSPoint mouse_location = event.locationInWindow;
+					LOG_INFO("{}:{}", mouse_location.x, mouse_location.y);
+					// if (window_mouse_x >= 0 && (u32)window_mouse_x < self->width && window_mouse_y >= 0 && (u32)window_mouse_y < self->height)
+					// {
+					// 	if (window_mouse_x != self->input.mouse_x || window_mouse_y != self->input.mouse_y)
+					// 	{
+					// 		// NOTE: We want mouse coords to start bottom-left.
+					// 		u32 mouse_point_y_inverted = (self->height - 1) - window_mouse_y;
+					// 		self->input.mouse_dx = window_mouse_x - self->input.mouse_x;
+					// 		self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
+					// 		self->input.mouse_x  = window_mouse_x;
+					// 		self->input.mouse_y  = mouse_point_y_inverted;
+					// 	}
+					// }
+					break;
+				}
+				case NSKeyDown:
+				{
+					PLATFORM_KEY key = _platform_key_from_key_code(event.keyCode);
+					if (key != PLATFORM_KEY_COUNT)
+					{
+						self->input.keys[key].pressed  = true;
+						self->input.keys[key].down     = true;
+						self->input.keys[key].press_count++;
+					}
+					break;
+				}
+				case NSKeyUp:
+				{
+					PLATFORM_KEY key = _platform_key_from_key_code(event.keyCode);
+					if (key != PLATFORM_KEY_COUNT)
+					{
+						self->input.keys[key].released = true;
+						self->input.keys[key].down     = false;
+						self->input.keys[key].release_count++;
+					}
+					break;
+				}
+				default:
+				{
+					[NSApp sendEvent:event];
+					break;
+				}
+			}
 		}
 	}
-
-	// while (xcb_generic_event_t *xcb_event = ::xcb_poll_for_event(ctx->connection))
-	// {
-	// 	switch (xcb_event->response_type & ~0x80)
-	// 	{
-	// 		case XCB_CLIENT_MESSAGE:
-	// 		{
-	// 			xcb_client_message_event_t *xcb_client_message = (xcb_client_message_event_t *)xcb_event;
-	// 			if (xcb_client_message->data.data32[0] == ctx->wm_delete_window_atom)
-	// 				return false;
-	// 			break;
-	// 		}
-	// 		case XCB_BUTTON_PRESS:
-	// 		{
-	// 			xcb_button_press_event_t *xcb_mouse_press_event = (xcb_button_press_event_t *)xcb_event;
-
-	// 			PLATFORM_KEY key = _platform_key_from_xcb_button(xcb_mouse_press_event->detail);
-	// 			if (key != PLATFORM_KEY_COUNT)
-	// 			{
-	// 				self->input.keys[key].pressed = true;
-	// 				self->input.keys[key].down    = true;
-	// 				self->input.keys[key].press_count++;
-	// 				if (key == PLATFORM_KEY_MOUSE_WHEEL_UP)
-	// 					self->input.mouse_wheel += 1.0f;
-	// 				else if (key == PLATFORM_KEY_MOUSE_WHEEL_DOWN)
-	// 					self->input.mouse_wheel -= 1.0f;
-	// 			}
-	// 			break;
-	// 		}
-	// 		case XCB_BUTTON_RELEASE:
-	// 		{
-	// 			xcb_button_release_event_t *xcb_mouse_release_event = (xcb_button_release_event_t *)xcb_event;
-
-	// 			PLATFORM_KEY key = _platform_key_from_xcb_button(xcb_mouse_release_event->detail);
-	// 			if (key != PLATFORM_KEY_COUNT)
-	// 			{
-	// 				self->input.keys[key].released = true;
-	// 				self->input.keys[key].down     = false;
-	// 				self->input.keys[key].release_count++;
-	// 			}
-	// 			break;
-	// 		}
-	// 		case XCB_KEY_PRESS:
-	// 		{
-	// 			xcb_key_press_event_t *xcb_key_press_event = (xcb_key_press_event_t *)xcb_event;
-	// 			KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_press_event->detail, 0, 0);
-
-	// 			PLATFORM_KEY key = _platform_key_from_key_sym(key_sym);
-	// 			if (key != PLATFORM_KEY_COUNT)
-	// 			{
-	// 				self->input.keys[key].pressed  = true;
-	// 				self->input.keys[key].down     = true;
-	// 				self->input.keys[key].press_count++;
-	// 			}
-	// 			break;
-	// 		}
-	// 		case XCB_KEY_RELEASE:
-	// 		{
-	// 			xcb_key_release_event_t *xcb_key_release_event = (xcb_key_release_event_t *)xcb_event;
-	// 			KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_release_event->detail, 0, 0);
-
-	// 			PLATFORM_KEY key = _platform_key_from_key_sym(key_sym);
-	// 			if (key != PLATFORM_KEY_COUNT)
-	// 			{
-	// 				self->input.keys[key].released = true;
-	// 				self->input.keys[key].down     = false;
-	// 				self->input.keys[key].release_count++;
-	// 			}
-	// 			break;
-	// 		}
-	// 		case XCB_CONFIGURE_NOTIFY:
-	// 		{
-	// 			xcb_configure_notify_event_t *xcb_configure_notify_event = (xcb_configure_notify_event_t *)xcb_event;
-	// 			if (self->width != (u32)xcb_configure_notify_event->width || self->height != (u32)xcb_configure_notify_event->height)
-	// 			{
-	// 				self->width  = xcb_configure_notify_event->width;
-	// 				self->height = xcb_configure_notify_event->height;
-	// 			}
-	// 			break;
-	// 		}
-	// 		default:
-	// 			break;
-	// 	}
-
-	// 	::free(xcb_event);
-	// }
-
-	// {
-	// 	// NOTE: Mouse movement.
-	// 	xcb_query_pointer_cookie_t xcb_query_pointer_cookie = ::xcb_query_pointer_unchecked(ctx->connection, ctx->window);
-	// 	xcb_query_pointer_reply_t *xcb_query_pointer_reply  = ::xcb_query_pointer_reply(ctx->connection, xcb_query_pointer_cookie, nullptr);
-
-	// 	i32 window_mouse_x = xcb_query_pointer_reply->win_x;
-	// 	i32 window_mouse_y = xcb_query_pointer_reply->win_y;
-	// 	if (window_mouse_x >= 0 && (u32)window_mouse_x < self->width && window_mouse_y >= 0 && (u32)window_mouse_y < self->height)
-	// 	{
-	// 		if (window_mouse_x != self->input.mouse_x || window_mouse_y != self->input.mouse_y)
-	// 		{
-	// 			// NOTE: We want mouse coords to start bottom-left.
-	// 			u32 mouse_point_y_inverted = (self->height - 1) - window_mouse_y;
-	// 			self->input.mouse_dx = window_mouse_x - self->input.mouse_x;
-	// 			self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
-	// 			self->input.mouse_x  = window_mouse_x;
-	// 			self->input.mouse_y  = mouse_point_y_inverted;
-	// 		}
-	// 	}
-
-	// 	::free(xcb_query_pointer_reply);
-	// }
 
 	return !ctx->should_quit;
 }
