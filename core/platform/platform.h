@@ -164,7 +164,7 @@ typedef struct Platform_Input
 
 typedef struct Platform_Window
 {
-	void *handle;
+	void *handle; // TODO: Rename to context.
 	u32 width, height;
 	Platform_Input input;
 } Platform_Window;

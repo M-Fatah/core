@@ -20,6 +20,7 @@
 
 #include <Foundation/Foundation.h>
 #include <Cocoa/Cocoa.h>
+#include <Carbon/Carbon.h>
 
 static char current_executable_directory[PATH_MAX] = {};
 
@@ -49,103 +50,332 @@ _string_concat(const char *a, const char *b, char *result)
 // }
 
 // inline static PLATFORM_KEY
-// _platform_key_from_key_sym(/* TODO: */)
+// _platform_key_from_key_sym(i32 key)
 // {
-	// switch (key)
-	// {
-		// case XK_a:            return PLATFORM_KEY_A;
-		// case XK_b:            return PLATFORM_KEY_B;
-		// case XK_c:            return PLATFORM_KEY_C;
-		// case XK_d:            return PLATFORM_KEY_D;
-		// case XK_e:            return PLATFORM_KEY_E;
-		// case XK_f:            return PLATFORM_KEY_F;
-		// case XK_g:            return PLATFORM_KEY_G;
-		// case XK_h:            return PLATFORM_KEY_H;
-		// case XK_i:            return PLATFORM_KEY_I;
-		// case XK_j:            return PLATFORM_KEY_J;
-		// case XK_k:            return PLATFORM_KEY_K;
-		// case XK_l:            return PLATFORM_KEY_L;
-		// case XK_m:            return PLATFORM_KEY_M;
-		// case XK_n:            return PLATFORM_KEY_N;
-		// case XK_o:            return PLATFORM_KEY_O;
-		// case XK_p:            return PLATFORM_KEY_P;
-		// case XK_q:            return PLATFORM_KEY_Q;
-		// case XK_r:            return PLATFORM_KEY_R;
-		// case XK_s:            return PLATFORM_KEY_S;
-		// case XK_t:            return PLATFORM_KEY_T;
-		// case XK_u:            return PLATFORM_KEY_U;
-		// case XK_v:            return PLATFORM_KEY_V;
-		// case XK_w:            return PLATFORM_KEY_W;
-		// case XK_x:            return PLATFORM_KEY_X;
-		// case XK_y:            return PLATFORM_KEY_Y;
-		// case XK_z:            return PLATFORM_KEY_Z;
-		// case XK_0:            return PLATFORM_KEY_NUM_0;
-		// case XK_1:            return PLATFORM_KEY_NUM_1;
-		// case XK_2:            return PLATFORM_KEY_NUM_2;
-		// case XK_3:            return PLATFORM_KEY_NUM_3;
-		// case XK_4:            return PLATFORM_KEY_NUM_4;
-		// case XK_5:            return PLATFORM_KEY_NUM_5;
-		// case XK_6:            return PLATFORM_KEY_NUM_6;
-		// case XK_7:            return PLATFORM_KEY_NUM_7;
-		// case XK_8:            return PLATFORM_KEY_NUM_8;
-		// case XK_9:            return PLATFORM_KEY_NUM_9;
-		// case XK_KP_0:         return PLATFORM_KEY_NUMPAD_0;
-		// case XK_KP_1:         return PLATFORM_KEY_NUMPAD_1;
-		// case XK_KP_2:         return PLATFORM_KEY_NUMPAD_2;
-		// case XK_KP_3:         return PLATFORM_KEY_NUMPAD_3;
-		// case XK_KP_4:         return PLATFORM_KEY_NUMPAD_4;
-		// case XK_KP_5:         return PLATFORM_KEY_NUMPAD_5;
-		// case XK_KP_6:         return PLATFORM_KEY_NUMPAD_6;
-		// case XK_KP_7:         return PLATFORM_KEY_NUMPAD_7;
-		// case XK_KP_8:         return PLATFORM_KEY_NUMPAD_8;
-		// case XK_KP_9:         return PLATFORM_KEY_NUMPAD_9;
-		// case XK_F1:           return PLATFORM_KEY_F1;
-		// case XK_F2:           return PLATFORM_KEY_F2;
-		// case XK_F3:           return PLATFORM_KEY_F3;
-		// case XK_F4:           return PLATFORM_KEY_F4;
-		// case XK_F5:           return PLATFORM_KEY_F5;
-		// case XK_F6:           return PLATFORM_KEY_F6;
-		// case XK_F7:           return PLATFORM_KEY_F7;
-		// case XK_F8:           return PLATFORM_KEY_F8;
-		// case XK_F9:           return PLATFORM_KEY_F9;
-		// case XK_F10:          return PLATFORM_KEY_F10;
-		// case XK_F11:          return PLATFORM_KEY_F11;
-		// case XK_F12:          return PLATFORM_KEY_F12;
-		// case XK_Up:           return PLATFORM_KEY_ARROW_UP;
-		// case XK_Down:         return PLATFORM_KEY_ARROW_DOWN;
-		// case XK_Left:         return PLATFORM_KEY_ARROW_LEFT;
-		// case XK_Right:        return PLATFORM_KEY_ARROW_RIGHT;
-		// case XK_Shift_L:      return PLATFORM_KEY_SHIFT_LEFT;
-		// case XK_Shift_R:      return PLATFORM_KEY_SHIFT_RIGHT;
-		// case XK_Control_L:    return PLATFORM_KEY_CONTROL_LEFT;
-		// case XK_Control_R:    return PLATFORM_KEY_CONTROL_RIGHT;
-		// case XK_Alt_L:        return PLATFORM_KEY_ALT_LEFT;
-		// case XK_Alt_R:        return PLATFORM_KEY_ALT_RIGHT;
-		// case XK_BackSpace:    return PLATFORM_KEY_BACKSPACE;
-		// case XK_Tab:          return PLATFORM_KEY_TAB;
-		// case XK_Return:       return PLATFORM_KEY_ENTER;
-		// case XK_Escape:       return PLATFORM_KEY_ESCAPE;
-		// case XK_Delete:       return PLATFORM_KEY_DELETE;
-		// case XK_Insert:       return PLATFORM_KEY_INSERT;
-		// case XK_Home:         return PLATFORM_KEY_HOME;
-		// case XK_End:          return PLATFORM_KEY_END;
-		// case XK_Page_Up:      return PLATFORM_KEY_PAGE_UP;
-		// case XK_Page_Down:    return PLATFORM_KEY_PAGE_DOWN;
-		// case XK_slash:        return PLATFORM_KEY_SLASH;
-		// case XK_backslash:    return PLATFORM_KEY_BACKSLASH;
-		// case XK_bracketleft:  return PLATFORM_KEY_BRACKET_LEFT;
-		// case XK_bracketright: return PLATFORM_KEY_BRACKET_RIGHT;
-		// case XK_grave:        return PLATFORM_KEY_BACKQUOTE;
-		// case XK_period:       return PLATFORM_KEY_PERIOD;
-		// case XK_minus:        return PLATFORM_KEY_MINUS;
-		// case XK_equal:        return PLATFORM_KEY_EQUAL;
-		// case XK_comma:        return PLATFORM_KEY_COMMA;
-		// case XK_semicolon:    return PLATFORM_KEY_SEMICOLON;
-		// case XK_space:        return PLATFORM_KEY_SPACE;
-	// }
+// 	switch (key)
+// 	{
+// 		// TODO:
+// 		// case kVK_ANSI_Quote:
+// 		// case kVK_ANSI_KeypadDecimal:
+// 		// case kVK_ANSI_KeypadMultiply:
+// 		// case kVK_ANSI_KeypadPlus:
+// 		// case kVK_ANSI_KeypadClear:
+// 		// case kVK_ANSI_KeypadDivide:
+// 		// case kVK_ANSI_KeypadEnter:
+// 		// case kVK_ANSI_KeypadMinus:
+// 		// case kVK_ANSI_KeypadEquals:
+// 		// case kVK_Command:
+// 		// case kVK_RightCommand:
+// 		// case kVK_CapsLock:
+// 		case kVK_ANSI_A:            return PLATFORM_KEY_A;
+// 		case kVK_ANSI_B:            return PLATFORM_KEY_B;
+// 		case kVK_ANSI_C:            return PLATFORM_KEY_C;
+// 		case kVK_ANSI_D:            return PLATFORM_KEY_D;
+// 		case kVK_ANSI_E:            return PLATFORM_KEY_E;
+// 		case kVK_ANSI_F:            return PLATFORM_KEY_F;
+// 		case kVK_ANSI_G:            return PLATFORM_KEY_G;
+// 		case kVK_ANSI_H:            return PLATFORM_KEY_H;
+// 		case kVK_ANSI_I:            return PLATFORM_KEY_I;
+// 		case kVK_ANSI_J:            return PLATFORM_KEY_J;
+// 		case kVK_ANSI_K:            return PLATFORM_KEY_K;
+// 		case kVK_ANSI_L:            return PLATFORM_KEY_L;
+// 		case kVK_ANSI_M:            return PLATFORM_KEY_M;
+// 		case kVK_ANSI_N:            return PLATFORM_KEY_N;
+// 		case kVK_ANSI_O:            return PLATFORM_KEY_O;
+// 		case kVK_ANSI_P:            return PLATFORM_KEY_P;
+// 		case kVK_ANSI_Q:            return PLATFORM_KEY_Q;
+// 		case kVK_ANSI_R:            return PLATFORM_KEY_R;
+// 		case kVK_ANSI_S:            return PLATFORM_KEY_S;
+// 		case kVK_ANSI_T:            return PLATFORM_KEY_T;
+// 		case kVK_ANSI_U:            return PLATFORM_KEY_U;
+// 		case kVK_ANSI_V:            return PLATFORM_KEY_V;
+// 		case kVK_ANSI_W:            return PLATFORM_KEY_W;
+// 		case kVK_ANSI_X:            return PLATFORM_KEY_X;
+// 		case kVK_ANSI_Y:            return PLATFORM_KEY_Y;
+// 		case kVK_ANSI_Z:            return PLATFORM_KEY_Z;
+// 		case kVK_ANSI_0:            return PLATFORM_KEY_NUM_0;
+// 		case kVK_ANSI_1:            return PLATFORM_KEY_NUM_1;
+// 		case kVK_ANSI_2:            return PLATFORM_KEY_NUM_2;
+// 		case kVK_ANSI_3:            return PLATFORM_KEY_NUM_3;
+// 		case kVK_ANSI_4:            return PLATFORM_KEY_NUM_4;
+// 		case kVK_ANSI_5:            return PLATFORM_KEY_NUM_5;
+// 		case kVK_ANSI_6:            return PLATFORM_KEY_NUM_6;
+// 		case kVK_ANSI_7:            return PLATFORM_KEY_NUM_7;
+// 		case kVK_ANSI_8:            return PLATFORM_KEY_NUM_8;
+// 		case kVK_ANSI_9:            return PLATFORM_KEY_NUM_9;
+// 		case kVK_ANSI_Keypad0:      return PLATFORM_KEY_NUMPAD_0;
+// 		case kVK_ANSI_Keypad1:      return PLATFORM_KEY_NUMPAD_1;
+// 		case kVK_ANSI_Keypad2:      return PLATFORM_KEY_NUMPAD_2;
+// 		case kVK_ANSI_Keypad3:      return PLATFORM_KEY_NUMPAD_3;
+// 		case kVK_ANSI_Keypad4:      return PLATFORM_KEY_NUMPAD_4;
+// 		case kVK_ANSI_Keypad5:      return PLATFORM_KEY_NUMPAD_5;
+// 		case kVK_ANSI_Keypad6:      return PLATFORM_KEY_NUMPAD_6;
+// 		case kVK_ANSI_Keypad7:      return PLATFORM_KEY_NUMPAD_7;
+// 		case kVK_ANSI_Keypad8:      return PLATFORM_KEY_NUMPAD_8;
+// 		case kVK_ANSI_Keypad9:      return PLATFORM_KEY_NUMPAD_9;
+// 		case kVK_F1:                return PLATFORM_KEY_F1;
+// 		case kVK_F2:                return PLATFORM_KEY_F2;
+// 		case kVK_F3:                return PLATFORM_KEY_F3;
+// 		case kVK_F4:                return PLATFORM_KEY_F4;
+// 		case kVK_F5:                return PLATFORM_KEY_F5;
+// 		case kVK_F6:                return PLATFORM_KEY_F6;
+// 		case kVK_F7:                return PLATFORM_KEY_F7;
+// 		case kVK_F8:                return PLATFORM_KEY_F8;
+// 		case kVK_F9:                return PLATFORM_KEY_F9;
+// 		case kVK_F10:               return PLATFORM_KEY_F10;
+// 		case kVK_F11:               return PLATFORM_KEY_F11;
+// 		case kVK_F12:               return PLATFORM_KEY_F12;
+// 		case kVK_UpArrow:           return PLATFORM_KEY_ARROW_UP;
+// 		case kVK_DownArrow:         return PLATFORM_KEY_ARROW_DOWN;
+// 		case kVK_LeftArrow:         return PLATFORM_KEY_ARROW_LEFT;
+// 		case kVK_RightArrow:        return PLATFORM_KEY_ARROW_RIGHT;
+// 		case kVK_Shift:             return PLATFORM_KEY_SHIFT_LEFT;
+// 		case kVK_RightShift:        return PLATFORM_KEY_SHIFT_RIGHT;
+// 		case kVK_Control:           return PLATFORM_KEY_CONTROL_LEFT;
+// 		case kVK_RightControl:      return PLATFORM_KEY_CONTROL_RIGHT;
+// 		case kVK_Option:            return PLATFORM_KEY_ALT_LEFT;
+// 		case kVK_RightOption:       return PLATFORM_KEY_ALT_RIGHT;
+// 		case kVK_Delete:            return PLATFORM_KEY_BACKSPACE;
+// 		case kVK_Tab:               return PLATFORM_KEY_TAB;
+// 		case kVK_Return:            return PLATFORM_KEY_ENTER;
+// 		case kVK_Escape:            return PLATFORM_KEY_ESCAPE;
+// 		case kVK_ForwardDelete:     return PLATFORM_KEY_DELETE;
+// 		case kVK_Help:              return PLATFORM_KEY_INSERT;
+// 		case kVK_Home:              return PLATFORM_KEY_HOME;
+// 		case kVK_End:               return PLATFORM_KEY_END;
+// 		case kVK_PageUp:            return PLATFORM_KEY_PAGE_UP;
+// 		case kVK_PageDown:          return PLATFORM_KEY_PAGE_DOWN;
+// 		case kVK_ANSI_Slash:        return PLATFORM_KEY_SLASH;
+// 		case kVK_ANSI_Backslash:    return PLATFORM_KEY_BACKSLASH;
+// 		case kVK_ANSI_LeftBracket:  return PLATFORM_KEY_BRACKET_LEFT;
+// 		case kVK_ANSI_RightBracket: return PLATFORM_KEY_BRACKET_RIGHT;
+// 		case kVK_ANSI_Grave:        return PLATFORM_KEY_BACKQUOTE;
+// 		case kVK_ANSI_Period:       return PLATFORM_KEY_PERIOD;
+// 		case kVK_ANSI_Minus:        return PLATFORM_KEY_MINUS;
+// 		case kVK_ANSI_Equal:        return PLATFORM_KEY_EQUAL;
+// 		case kVK_ANSI_Comma:        return PLATFORM_KEY_COMMA;
+// 		case kVK_ANSI_Semicolon:    return PLATFORM_KEY_SEMICOLON;
+// 		case kVK_Space:             return PLATFORM_KEY_SPACE;
+// 	}
 // 	return PLATFORM_KEY_COUNT;
 // }
+@class Content_View;
+@class Window_Delegate;
 
+struct Platform_Window_Context
+{
+	NSWindow *window;
+	Content_View *content_view;
+	Window_Delegate *window_delegate;
+	bool should_quit;
+};
+
+@interface Content_View : NSView<NSTextInputClient>
+{
+	NSWindow *window;
+	// NSTrackingArea* trackingArea;
+	// NSMutableAttributedString* markedText;
+}
+
+- (instancetype)init:(NSWindow *)window;
+
+@end
+
+@implementation Content_View
+
+- (instancetype)
+init:(NSWindow *)iwindow
+{
+	self = [super init];
+	if (self != nil)
+	{
+		window = iwindow;
+	}
+	return self;
+}
+
+- (BOOL)
+canBecomeKeyView
+{
+	return YES;
+}
+
+- (BOOL)acceptsFirstResponder {
+	return YES;
+}
+
+- (BOOL)wantsUpdateLayer {
+	return YES;
+}
+
+- (BOOL)acceptsFirstMouse:(NSEvent *)event {
+	return YES;
+}
+
+- (void)mouseDown:(NSEvent *)event {
+	// input_process_button(BUTTON_LEFT, true);
+}
+
+- (void)mouseDragged:(NSEvent *)event {
+	// Equivalent to moving the mouse for now
+	[self mouseMoved:event];
+}
+
+- (void)mouseUp:(NSEvent *)event {
+	// input_process_button(BUTTON_LEFT, false);
+}
+
+- (void)mouseMoved:(NSEvent *)event {
+	// const NSPoint pos = [event locationInWindow];
+
+	// // Need to invert Y on macOS, since origin is bottom-left.
+	// // Also need to scale the mouse position by the device pixel ratio so screen lookups are correct.
+	// NSSize window_size = state_ptr->handle.layer.drawableSize;
+	// i16 x = pos.x * state_ptr->handle.layer.contentsScale;
+	// i16 y = window_size.height - (pos.y * state_ptr->handle.layer.contentsScale);
+	// input_process_mouse_move(x, y);
+}
+
+- (void)rightMouseDown:(NSEvent *)event {
+	// input_process_button(BUTTON_RIGHT, true);
+}
+
+- (void)rightMouseDragged:(NSEvent *)event  {
+	// Equivalent to moving the mouse for now
+	[self mouseMoved:event];
+}
+
+- (void)rightMouseUp:(NSEvent *)event {
+	// input_process_button(BUTTON_RIGHT, false);
+}
+
+- (void)otherMouseDown:(NSEvent *)event {
+	// Interpreted as middle click
+	// input_process_button(BUTTON_MIDDLE, true);
+}
+
+- (void)otherMouseDragged:(NSEvent *)event {
+	// Equivalent to moving the mouse for now
+	[self mouseMoved:event];
+}
+
+- (void)otherMouseUp:(NSEvent *)event {
+	// Interpreted as middle click
+	// input_process_button(BUTTON_MIDDLE, false);
+}
+
+// Handle modifier keys since they are only registered via modifier flags being set/unset.
+- (void) flagsChanged:(NSEvent *) event {
+	// handle_modifier_keys([event keyCode], [event modifierFlags]);
+}
+
+- (void)keyDown:(NSEvent *)event {
+	// keys key = translate_keycode((u32)[event keyCode]);
+
+	// input_process_key(key, true);
+
+	// [self interpretKeyEvents:@[event]];
+}
+
+- (void)keyUp:(NSEvent *)event {
+	// keys key = translate_keycode((u32)[event keyCode]);
+
+	// input_process_key(key, false);
+}
+
+- (void)scrollWheel:(NSEvent *)event {
+	// input_process_mouse_wheel((i8)[event scrollingDeltaY]);
+}
+
+- (void)insertText:(id)string replacementRange:(NSRange)replacementRange {}
+
+- (void)setMarkedText:(id)string selectedRange:(NSRange)selectedRange replacementRange:(NSRange)replacementRange {}
+
+- (void)unmarkText {}
+
+- (NSRange)
+selectedRange
+{
+	return {NSNotFound, 0};
+}
+
+- (NSRange)
+markedRange
+{
+	return {NSNotFound, 0};
+}
+
+- (BOOL)
+hasMarkedText
+{
+	return false;
+}
+
+- (nullable NSAttributedString *)attributedSubstringForProposedRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange {return nil;}
+
+- (NSArray<NSAttributedStringKey> *)validAttributesForMarkedText {return [NSArray array];}
+
+- (NSRect)firstRectForCharacterRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange {return NSMakeRect(0, 0, 0, 0);}
+
+- (NSUInteger)characterIndexForPoint:(NSPoint)point {return 0;}
+
+@end
+
+@interface Window_Delegate : NSObject<NSWindowDelegate>
+{
+	Platform_Window_Context *ctx;
+}
+
+- (instancetype)init:(Platform_Window_Context *)ictx;
+
+@end
+
+@implementation Window_Delegate
+
+- (instancetype)init:(Platform_Window_Context *)ictx
+{
+	self = [super init];
+	if (self != nil)
+	{
+		ctx = ictx;
+	}
+	return self;
+}
+
+- (BOOL)windowShouldClose:(id)sender
+{
+	ctx->should_quit = true;
+	return YES;
+}
+
+- (void)windowDidResize:(NSNotification *)notification
+{
+
+}
+
+- (void)windowDidMove:(NSNotification *)notification
+{
+
+}
+
+- (void)windowDidMiniaturize:(NSNotification *)notification
+{
+
+}
+
+- (void)windowDidDeminiaturize:(NSNotification *)notification
+{
+
+}
+
+- (void)windowDidBecomeKey:(NSNotification *)notification
+{
+
+}
+
+@end
+
+// API.
 Platform_Api
 platform_api_init(const char *filepath)
 {
@@ -327,184 +557,37 @@ platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_
 	self->task = task;
 }
 
-struct Platform_Window_Context
-{
-
-};
-
-@class ContentView;
-
-@interface ContentView : NSView <NSTextInputClient> {
-    NSWindow* window;
-    NSTrackingArea* trackingArea;
-    NSMutableAttributedString* markedText;
-}
-
-- (instancetype)initWithWindow:(NSWindow*)initWindow;
-
-@end // ContentView
-
-@implementation ContentView
-
-- (instancetype)initWithWindow:(NSWindow*)initWindow {
-    self = [super init];
-    if (self != nil) {
-        window = initWindow;
-    }
-
-    return self;
-}
-
-- (BOOL)canBecomeKeyView {
-    return YES;
-}
-
-- (BOOL)acceptsFirstResponder {
-    return YES;
-}
-
-- (BOOL)wantsUpdateLayer {
-    return YES;
-}
-
-- (BOOL)acceptsFirstMouse:(NSEvent *)event {
-    return YES;
-}
-
-- (void)mouseDown:(NSEvent *)event {
-    // input_process_button(BUTTON_LEFT, true);
-}
-
-- (void)mouseDragged:(NSEvent *)event {
-    // Equivalent to moving the mouse for now
-    [self mouseMoved:event];
-}
-
-- (void)mouseUp:(NSEvent *)event {
-    // input_process_button(BUTTON_LEFT, false);
-}
-
-- (void)mouseMoved:(NSEvent *)event {
-    // const NSPoint pos = [event locationInWindow];
-
-    // // Need to invert Y on macOS, since origin is bottom-left.
-    // // Also need to scale the mouse position by the device pixel ratio so screen lookups are correct.
-    // NSSize window_size = state_ptr->handle.layer.drawableSize;
-    // i16 x = pos.x * state_ptr->handle.layer.contentsScale;
-    // i16 y = window_size.height - (pos.y * state_ptr->handle.layer.contentsScale);
-    // input_process_mouse_move(x, y);
-}
-
-- (void)rightMouseDown:(NSEvent *)event {
-    // input_process_button(BUTTON_RIGHT, true);
-}
-
-- (void)rightMouseDragged:(NSEvent *)event  {
-    // Equivalent to moving the mouse for now
-    [self mouseMoved:event];
-}
-
-- (void)rightMouseUp:(NSEvent *)event {
-    // input_process_button(BUTTON_RIGHT, false);
-}
-
-- (void)otherMouseDown:(NSEvent *)event {
-    // Interpreted as middle click
-    // input_process_button(BUTTON_MIDDLE, true);
-}
-
-- (void)otherMouseDragged:(NSEvent *)event {
-    // Equivalent to moving the mouse for now
-    [self mouseMoved:event];
-}
-
-- (void)otherMouseUp:(NSEvent *)event {
-    // Interpreted as middle click
-    // input_process_button(BUTTON_MIDDLE, false);
-}
-
-// Handle modifier keys since they are only registered via modifier flags being set/unset.
-- (void) flagsChanged:(NSEvent *) event {
-    // handle_modifier_keys([event keyCode], [event modifierFlags]);
-}
-
-- (void)keyDown:(NSEvent *)event {
-    // keys key = translate_keycode((u32)[event keyCode]);
-
-    // input_process_key(key, true);
-
-    // [self interpretKeyEvents:@[event]];
-}
-
-- (void)keyUp:(NSEvent *)event {
-    // keys key = translate_keycode((u32)[event keyCode]);
-
-    // input_process_key(key, false);
-}
-
-- (void)scrollWheel:(NSEvent *)event {
-    // input_process_mouse_wheel((i8)[event scrollingDeltaY]);
-}
-
-- (void)insertText:(id)string replacementRange:(NSRange)replacementRange {}
-
-- (void)setMarkedText:(id)string selectedRange:(NSRange)selectedRange replacementRange:(NSRange)replacementRange {}
-
-- (void)unmarkText {}
-
-// Defines a constant for empty ranges in NSTextInputClient
-static const NSRange kEmptyRange = { NSNotFound, 0 };
-
-- (NSRange)selectedRange {return kEmptyRange;}
-
-- (NSRange)markedRange {return kEmptyRange;}
-
-- (BOOL)hasMarkedText {return false;}
-
-- (nullable NSAttributedString *)attributedSubstringForProposedRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange {return nil;}
-
-- (NSArray<NSAttributedStringKey> *)validAttributesForMarkedText {return [NSArray array];}
-
-- (NSRect)firstRectForCharacterRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange {return NSMakeRect(0, 0, 0, 0);}
-
-- (NSUInteger)characterIndexForPoint:(NSPoint)point {return 0;}
-
-@end // ContentView
-
 Platform_Window
 platform_window_init(u32 width, u32 height, const char *title)
 {
-
 	Platform_Window_Context *ctx = memory::allocate_zeroed<Platform_Window_Context>();
 
 	NSRect rect = NSMakeRect(0, 0, width, height);
 	NSWindow *window = [[NSWindow alloc] initWithContentRect:rect
-                    styleMask:NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
-                    backing:NSBackingStoreBuffered
-                    defer:NO];
-	[window setBackgroundColor:[NSColor blueColor]];
+						styleMask:NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
+						backing:NSBackingStoreBuffered
+						defer:NO];
 	[window makeKeyAndOrderFront:window];
-	[window display];
 
-	ContentView *content_view = [[ContentView alloc] initWithWindow:window];
-    [content_view setWantsLayer:YES];
+	Content_View *content_view = [[Content_View alloc] init:window];
+	[content_view setWantsLayer:YES];
 
-    [window setLevel:NSNormalWindowLevel];
-    [window setContentView:content_view];
-    [window makeFirstResponder:content_view];
-    [window setTitle:@(title)];
-    // [window setDelegate:wnd_delegate];
-    [window setAcceptsMouseMovedEvents:YES];
-    [window setRestorable:NO];
+	Window_Delegate *window_delegate = [[Window_Delegate alloc] init:ctx];
 
-	 if (![[NSRunningApplication currentApplication] isFinishedLaunching])
-        [NSApp run];
+	[window setLevel:NSNormalWindowLevel];
+	[window setContentView:content_view];
+	[window makeFirstResponder:content_view];
+	[window setTitle:@(title)];
+	[window setDelegate:window_delegate];
+	[window setAcceptsMouseMovedEvents:YES];
+	[window setRestorable:NO];
 
-    // Making the app a proper UI app since we're unbundled
-    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+	[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+	[NSApp activateIgnoringOtherApps:YES];
 
-
-	unused(title);
+	ctx->window          = window;
+	ctx->content_view    = content_view;
+	ctx->window_delegate = window_delegate;
 
 	return Platform_Window {
 		.handle = ctx,
@@ -519,6 +602,16 @@ platform_window_deinit(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 
+	@autoreleasepool {
+		[ctx->window orderOut:nil];
+		[ctx->window setDelegate:nil];
+		[ctx->content_view release];
+		[ctx->window close];
+		[ctx->window_delegate release];
+		// [ctx->app_delegate release];
+		[NSApp setDelegate:nil];
+	}
+
 	memory::deallocate(ctx);
 }
 
@@ -526,8 +619,6 @@ bool
 platform_window_poll(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
-
-	unused(ctx);
 
 	for (i32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{
@@ -537,6 +628,14 @@ platform_window_poll(Platform_Window *self)
 		self->input.keys[i].release_count = 0;
 	}
 	self->input.mouse_wheel = 0.0f;
+
+	@autoreleasepool
+	{
+		while (NSEvent *event = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES])
+		{
+			[NSApp sendEvent:event];
+		}
+	}
 
 	// while (xcb_generic_event_t *xcb_event = ::xcb_poll_for_event(ctx->connection))
 	// {
@@ -647,7 +746,7 @@ platform_window_poll(Platform_Window *self)
 	// 	::free(xcb_query_pointer_reply);
 	// }
 
-	return true;
+	return !ctx->should_quit;
 }
 
 // TODO: Rename native_connection?
