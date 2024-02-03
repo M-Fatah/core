@@ -2,6 +2,7 @@
 
 #include "core/assert.h"
 #include "core/defer.h"
+#include "core/logger.h"
 #include "core/memory/memory.h"
 
 #include <dlfcn.h>
@@ -282,6 +283,11 @@ hasMarkedText
 
 }
 
+- (NSSize)windowWillResize:(NSWindow *)sender toSize:(NSSize)size
+{
+	return size;
+}
+
 - (void)windowDidMove:(NSNotification *)notification
 {
 
@@ -544,8 +550,6 @@ platform_window_deinit(Platform_Window *self)
 	memory::deallocate(ctx);
 }
 
-#include "core/logger.h"
-
 bool
 platform_window_poll(Platform_Window *self)
 {
@@ -591,7 +595,6 @@ platform_window_poll(Platform_Window *self)
 						self->input.keys[key].released = true;
 						self->input.keys[key].down     = false;
 						self->input.keys[key].release_count++;
-						LOG_INFO("Mouse {} up.", (i32)key);
 					}
 					break;
 				}
@@ -602,20 +605,6 @@ platform_window_poll(Platform_Window *self)
 				}
 				case NSMouseMoved:
 				{
-					const NSPoint mouse_location = event.locationInWindow;
-					LOG_INFO("{}:{}", mouse_location.x, mouse_location.y);
-					// if (window_mouse_x >= 0 && (u32)window_mouse_x < self->width && window_mouse_y >= 0 && (u32)window_mouse_y < self->height)
-					// {
-					// 	if (window_mouse_x != self->input.mouse_x || window_mouse_y != self->input.mouse_y)
-					// 	{
-					// 		// NOTE: We want mouse coords to start bottom-left.
-					// 		u32 mouse_point_y_inverted = (self->height - 1) - window_mouse_y;
-					// 		self->input.mouse_dx = window_mouse_x - self->input.mouse_x;
-					// 		self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
-					// 		self->input.mouse_x  = window_mouse_x;
-					// 		self->input.mouse_y  = mouse_point_y_inverted;
-					// 	}
-					// }
 					break;
 				}
 				case NSKeyDown:
@@ -642,11 +631,19 @@ platform_window_poll(Platform_Window *self)
 				}
 				default:
 				{
-					[NSApp sendEvent:event];
 					break;
 				}
 			}
+
+			[NSApp sendEvent:event];
 		}
+
+		// NOTE: Mouse movement.
+		NSPoint mouse_position = [ctx->content_view convertPoint:[ctx->window convertScreenToBase:[NSEvent mouseLocation]] fromView:nil];
+		self->input.mouse_dx = mouse_position.x - self->input.mouse_x;
+		self->input.mouse_dy = mouse_position.y - self->input.mouse_y;
+		self->input.mouse_x  = mouse_position.x;
+		self->input.mouse_y  = mouse_position.y;
 	}
 
 	return !ctx->should_quit;
