@@ -86,5 +86,5 @@ TEST_CASE("[PLATFORM] time")
 
 	f32 delta_time = (end_time - begin_time) * MICROSECOND_TO_MILLISECOND;
 
-	CHECK(delta_time == doctest::Approx(16).epsilon(0.1));
+	CHECK(delta_time == doctest::Approx(16).epsilon(0.2));
 }

@@ -200,21 +200,24 @@ canBecomeKeyView
 	return YES;
 }
 
-- (BOOL)acceptsFirstResponder {
+- (BOOL)acceptsFirstResponder
+{
 	return YES;
 }
 
-- (BOOL)wantsUpdateLayer {
+- (BOOL)wantsUpdateLayer
+{
 	return YES;
 }
 
-- (BOOL)acceptsFirstMouse:(NSEvent *)event {
+- (BOOL)acceptsFirstMouse:(NSEvent *)event
+{
 	return YES;
 }
 
 // Handle modifier keys since they are only registered via modifier flags being set/unset.
-- (void) flagsChanged:(NSEvent *) event {
-	// handle_modifier_keys([event keyCode], [event modifierFlags]);
+- (void) flagsChanged:(NSEvent *) event
+{
 }
 
 - (void)insertText:(id)string replacementRange:(NSRange)replacementRange {}
@@ -800,12 +803,6 @@ platform_file_delete(const char *filepath)
 	return ::unlink(filepath) == 0;
 }
 
-/*
-	TODO:
-	[ ] Make sure zenity is installed on the user's system.
-	[ ] Filters on Linux does not match how its used on Windows atm.
-	[ ] Also file filter works only for a single filter for now.
-*/
 bool
 platform_file_dialog_open(char *path, u32 path_length, const char *filters)
 {
@@ -843,7 +840,7 @@ platform_sleep(u32 milliseconds)
 	struct timespec ts;
 	ts.tv_sec = milliseconds / 1000;
 	ts.tv_nsec = (milliseconds % 1000) * 1000 * 1000;
-	nanosleep(&ts, 0);
+	::nanosleep(&ts, 0);
 }
 
 u32
@@ -861,7 +858,7 @@ void
 platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 frame_count)
 {
 #if DEBUG
-	char** symbols = ::backtrace_symbols(callstack, frame_count);
+	char **symbols = ::backtrace_symbols(callstack, frame_count);
 	if (symbols)
 	{
 		// TODO: Use logger.

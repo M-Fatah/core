@@ -186,6 +186,11 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 			string_append(name, "i64", count);
 			type_name.remove_prefix(8);
 		}
+		else if (type_name.starts_with("long long"))
+		{
+			string_append(name, "i64", count);
+			type_name.remove_prefix(9);
+		}
 		else if (type_name.starts_with("unsigned char"))
 		{
 			string_append(name, "u8", count);
@@ -216,6 +221,11 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 			string_append(name, "u64", count);
 			type_name.remove_prefix(17);
 		}
+		else if (type_name.starts_with("unsigned long long"))
+		{
+			string_append(name, "u64", count);
+			type_name.remove_prefix(18);
+		}
 		else if (type_name.starts_with("float"))
 		{
 			string_append(name, "f32", count);
@@ -241,6 +251,12 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 	if (type_name.ends_with("* const"))
 	{
 		type_name.remove_suffix(7);
+		add_const = true;
+		add_pointer = true;
+	}
+	else if (type_name.ends_with("*const"))
+	{
+		type_name.remove_suffix(6);
 		add_const = true;
 		add_pointer = true;
 	}
