@@ -844,8 +844,9 @@ platform_sleep(u32 milliseconds)
 }
 
 u32
-platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] u32 frame_count)
+platform_callstack_capture(void **callstack, u32 frame_count)
 {
+	unused(callstack, frame_count);
 #if DEBUG
 	::memset(callstack, 0, frame_count * sizeof(callstack));
 	return ::backtrace(callstack, frame_count);
@@ -855,8 +856,9 @@ platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] u
 }
 
 void
-platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 frame_count)
+platform_callstack_log(void **callstack, u32 frame_count)
 {
+	unused(callstack, frame_count);
 #if DEBUG
 	char **symbols = ::backtrace_symbols(callstack, frame_count);
 	if (symbols)
