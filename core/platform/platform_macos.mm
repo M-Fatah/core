@@ -670,7 +670,8 @@ void
 platform_window_set_title(Platform_Window *self, const char *title)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
-	unused(ctx, title);
+
+	[ctx->window setTitle:@(title)];
 }
 
 void

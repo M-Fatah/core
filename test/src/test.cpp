@@ -360,6 +360,9 @@ main(i32, char **)
 	{
 		if (window.input.keys[PLATFORM_KEY_C].pressed)
 			platform_window_close(&window);
+
+		if (window.input.keys[PLATFORM_KEY_T].pressed)
+			platform_window_set_title(&window, "Test with T");
 	}
 
 	platform_window_deinit(&window);
