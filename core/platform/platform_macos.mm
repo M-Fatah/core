@@ -638,6 +638,11 @@ platform_window_poll(Platform_Window *self)
 			[NSApp sendEvent:event];
 		}
 
+		// NOTE: Window size.
+		NSSize window_size = ctx->content_view.frame.size;
+		self->width  = window_size.width;
+		self->height = window_size.height;
+
 		// NOTE: Mouse movement.
 		NSPoint mouse_position = [ctx->content_view convertPoint:[ctx->window convertScreenToBase:[NSEvent mouseLocation]] fromView:nil];
 		self->input.mouse_dx = mouse_position.x - self->input.mouse_x;
@@ -668,12 +673,12 @@ platform_window_set_title(Platform_Window *self, const char *title)
 	unused(ctx, title);
 }
 
-// TODO: Do we need this?
 void
 platform_window_close(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
-	unused(ctx);
+
+	[ctx->window performClose:ctx->window];
 }
 
 void

@@ -355,10 +355,11 @@ main(i32, char **)
 	print(value_of(1));
 
 
-	auto window = platform_window_init(800, 600, "Test");
-	while(platform_window_poll(&window))
+	Platform_Window window = platform_window_init(800, 600, "Test");
+	while (platform_window_poll(&window))
 	{
-
+		if (window.input.keys[PLATFORM_KEY_C].pressed)
+			platform_window_close(&window);
 	}
 
 	platform_window_deinit(&window);
