@@ -320,7 +320,7 @@ platform_api_init(const char *filepath)
 	Platform_Api self = {};
 
 	char src_relative_path[128] = {};
-	_string_concat(filepath, ".so", src_relative_path);
+	_string_concat(filepath, ".dylib", src_relative_path);
 
 	char dst_relative_path[128] = {};
 	_string_concat(src_relative_path, ".tmp", dst_relative_path);
@@ -384,7 +384,7 @@ platform_api_load(Platform_Api *self)
 
 	platform_file_delete(dst_absolute_path);
 
-	platform_sleep(100);
+	// platform_sleep(100);
 
 	bool copy_result = platform_file_copy(self->filepath, dst_absolute_path);
 
@@ -409,7 +409,7 @@ Platform_Allocator
 platform_allocator_init(u64 size_in_bytes)
 {
 	Platform_Allocator self = {};
-	self.ptr = (u8 *)::mmap(0, size_in_bytes, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+	self.ptr = (u8 *)::mmap(0, size_in_bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if(self.ptr)
 		self.size = size_in_bytes;
 	return self;
@@ -606,10 +606,6 @@ platform_window_poll(Platform_Window *self)
 					self->input.mouse_wheel += (event.scrollingDeltaY >= 0.0f) ? 1.0f : -1.0f;
 					break;
 				}
-				case NSMouseMoved:
-				{
-					break;
-				}
 				case NSKeyDown:
 				{
 					PLATFORM_KEY key = _platform_key_from_key_code(event.keyCode);
@@ -662,6 +658,10 @@ void
 platform_window_get_native_handles(Platform_Window *self, void **native_handle, void **native_connection)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+
+	if (native_handle)
+		*native_handle = ctx->window;
+
 	unused(ctx, native_handle, native_connection);
 	// if (native_handle)
 	// 	*native_handle = &ctx->window;
@@ -685,6 +685,7 @@ platform_window_close(Platform_Window *self)
 	[ctx->window performClose:ctx->window];
 }
 
+// TODO: Fix, these paths are not correct?
 void
 platform_set_current_directory()
 {
