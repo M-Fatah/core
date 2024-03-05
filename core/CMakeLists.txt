@@ -62,13 +62,11 @@ elseif(UNIX AND NOT APPLE)
 elseif(APPLE)
     # TODO: Figure out how to use lib names directly.
     find_library(COCOA Cocoa REQUIRED)
-    find_library(QUARTZ_CORE QuartzCore REQUIRED)
     list(APPEND SOURCE_FILES
         platform/platform_macos.mm
     )
     list(APPEND LIBS
         ${COCOA}
-        ${QUARTZ_CORE}
     )
 endif()
 

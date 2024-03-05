@@ -19,10 +19,8 @@
 #include <atomic>
 #include <inttypes.h>
 
-#include <Foundation/Foundation.h>
 #include <Cocoa/Cocoa.h>
 #include <Carbon/Carbon.h>
-#include <QuartzCore/CAMetalLayer.h>
 
 static char current_executable_directory[PATH_MAX] = {};
 
@@ -166,7 +164,6 @@ _platform_key_from_key_code(i32 key_code)
 struct Platform_Window_Context
 {
 	NSWindow *window;
-	CAMetalLayer *metal_layer; // TODO: Should this be here and not created in mist_gfx_metal.cpp?
 	Content_View *content_view;
 	Window_Delegate *window_delegate;
 	bool should_quit;
@@ -513,12 +510,8 @@ platform_window_init(u32 width, u32 height, const char *title)
 							defer:NO];
 		[window makeKeyAndOrderFront:window];
 
-		CAMetalLayer *metal_layer = [CAMetalLayer layer];
-		metal_layer.opaque = YES;
-
 		Content_View *content_view = [[Content_View alloc] init:window];
 		[content_view setWantsLayer:YES];
-		[content_view setLayer:metal_layer];
 
 		Window_Delegate *window_delegate = [[Window_Delegate alloc] init:ctx];
 
@@ -534,7 +527,6 @@ platform_window_init(u32 width, u32 height, const char *title)
 		[NSApp activateIgnoringOtherApps:YES];
 
 		ctx->window          = window;
-		ctx->metal_layer     = metal_layer;
 		ctx->content_view    = content_view;
 		ctx->window_delegate = window_delegate;
 	}
