@@ -33,7 +33,7 @@ if(MSVC)
     set(GLOBAL_COMPILE_OPTIONS -W4 -WX -std:c++20 -Zc:preprocessor -wd5105)
 else()
     # TODO: -Wno-deprecated-declarations is due to doctest.h sprintf() function.
-    set(GLOBAL_COMPILE_OPTIONS -Wall -Wextra -pedantic -Werror -std=c++2b -Wno-invalid-offsetof -Wno-nested-anon-types -Wno-c++11-narrowing -Wno-gnu-zero-variadic-macro-arguments -Wno-deprecated-declarations -Wno-enum-constexpr-conversion -Wno-unknown-warning-option
+    set(GLOBAL_COMPILE_OPTIONS -Wall -Wextra -pedantic -Werror -std=c++2b -fno-exceptions -Wno-invalid-offsetof -Wno-nested-anon-types -Wno-c++11-narrowing -Wno-gnu-zero-variadic-macro-arguments -Wno-deprecated-declarations -Wno-enum-constexpr-conversion -Wno-unknown-warning-option
     )
 endif()
 

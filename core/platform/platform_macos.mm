@@ -22,6 +22,7 @@
 #include <Foundation/Foundation.h>
 #include <Cocoa/Cocoa.h>
 #include <Carbon/Carbon.h>
+#include <QuartzCore/CAMetalLayer.h>
 
 static char current_executable_directory[PATH_MAX] = {};
 
@@ -165,6 +166,7 @@ _platform_key_from_key_code(i32 key_code)
 struct Platform_Window_Context
 {
 	NSWindow *window;
+	CAMetalLayer *metal_layer; // TODO: Should this be here and not created in mist_gfx_metal.cpp?
 	Content_View *content_view;
 	Window_Delegate *window_delegate;
 	bool should_quit;
@@ -410,7 +412,7 @@ platform_allocator_init(u64 size_in_bytes)
 {
 	Platform_Allocator self = {};
 	self.ptr = (u8 *)::mmap(0, size_in_bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if(self.ptr)
+	if (self.ptr)
 		self.size = size_in_bytes;
 	return self;
 }
@@ -482,6 +484,7 @@ platform_thread_deinit(Platform_Thread *self)
 {
 	self->is_running = false;
 	::pthread_join(self->handle, nullptr);
+
 	memory::deallocate(self);
 }
 
@@ -495,37 +498,46 @@ platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_
 	self->task = task;
 }
 
+// TODO: Error checking.
+// Return early with error message if failed to create objects.
 Platform_Window
 platform_window_init(u32 width, u32 height, const char *title)
 {
 	Platform_Window_Context *ctx = memory::allocate_zeroed<Platform_Window_Context>();
 
-	NSRect rect = NSMakeRect(0, 0, width, height);
-	NSWindow *window = [[NSWindow alloc] initWithContentRect:rect
-						styleMask:NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
-						backing:NSBackingStoreBuffered
-						defer:NO];
-	[window makeKeyAndOrderFront:window];
+	@autoreleasepool {
+		NSRect rect = NSMakeRect(0, 0, width, height);
+		NSWindow *window = [[NSWindow alloc] initWithContentRect:rect
+							styleMask:NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
+							backing:NSBackingStoreBuffered
+							defer:NO];
+		[window makeKeyAndOrderFront:window];
 
-	Content_View *content_view = [[Content_View alloc] init:window];
-	[content_view setWantsLayer:YES];
+		CAMetalLayer *metal_layer = [CAMetalLayer layer];
+		metal_layer.opaque = YES;
 
-	Window_Delegate *window_delegate = [[Window_Delegate alloc] init:ctx];
+		Content_View *content_view = [[Content_View alloc] init:window];
+		[content_view setWantsLayer:YES];
+		[content_view setLayer:metal_layer];
 
-	[window setLevel:NSNormalWindowLevel];
-	[window setContentView:content_view];
-	[window makeFirstResponder:content_view];
-	[window setTitle:@(title)];
-	[window setDelegate:window_delegate];
-	[window setAcceptsMouseMovedEvents:YES];
-	[window setRestorable:NO];
+		Window_Delegate *window_delegate = [[Window_Delegate alloc] init:ctx];
 
-	[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-	[NSApp activateIgnoringOtherApps:YES];
+		[window setLevel:NSNormalWindowLevel];
+		[window setContentView:content_view];
+		[window makeFirstResponder:content_view];
+		[window setTitle:@(title)];
+		[window setDelegate:window_delegate];
+		[window setAcceptsMouseMovedEvents:YES];
+		[window setRestorable:NO];
 
-	ctx->window          = window;
-	ctx->content_view    = content_view;
-	ctx->window_delegate = window_delegate;
+		[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+		[NSApp activateIgnoringOtherApps:YES];
+
+		ctx->window          = window;
+		ctx->metal_layer     = metal_layer;
+		ctx->content_view    = content_view;
+		ctx->window_delegate = window_delegate;
+	}
 
 	return Platform_Window {
 		.handle = ctx,
@@ -578,13 +590,11 @@ platform_window_poll(Platform_Window *self)
 				case NSOtherMouseDown:
 				{
 					PLATFORM_KEY key = _platform_key_from_button_number(event.buttonNumber);
-					LOG_INFO("{}", (i32)event.buttonNumber);
 					if (key != PLATFORM_KEY_COUNT)
 					{
 						self->input.keys[key].pressed = true;
 						self->input.keys[key].down    = true;
 						self->input.keys[key].press_count++;
-						LOG_INFO("Mouse {} down.", (i32)key);
 					}
 					break;
 				}
