@@ -21,6 +21,13 @@
 
 #include <Cocoa/Cocoa.h>
 #include <Carbon/Carbon.h>
+#include <mach-o/dyld.h>
+
+/*
+	TODO:
+	- [ ] Cleanup includes.
+	- [ ] Can we use .cpp instead of .mm?
+*/
 
 static char current_executable_directory[PATH_MAX] = {};
 
@@ -664,11 +671,7 @@ platform_window_get_native_handles(Platform_Window *self, void **native_handle, 
 	if (native_handle)
 		*native_handle = ctx->window;
 
-	unused(ctx, native_handle, native_connection);
-	// if (native_handle)
-	// 	*native_handle = &ctx->window;
-	// if (native_connection)
-	// 	*native_connection = ctx->connection;
+	unused(native_connection);
 }
 
 void
@@ -687,17 +690,17 @@ platform_window_close(Platform_Window *self)
 	[ctx->window performClose:ctx->window];
 }
 
-// TODO: Fix, these paths are not correct?
 void
 platform_set_current_directory()
 {
 	char module_path_relative[PATH_MAX + 1];
-	::memset(module_path_relative, 0, sizeof(module_path_relative));
+	u32 module_path_relative_size = sizeof(module_path_relative);
+	::memset(module_path_relative, 0, module_path_relative_size);
 
 	char module_path_absolute[PATH_MAX + 1];
 	::memset(module_path_absolute, 0, sizeof(module_path_absolute));
 
-	[[maybe_unused]] i64 module_path_relative_length = ::readlink("/proc/self/exe", module_path_relative, sizeof(module_path_relative));
+	[[maybe_unused]] i64 module_path_relative_length = ::_NSGetExecutablePath(module_path_relative, &module_path_relative_size);
 	ASSERT(module_path_relative_length != -1 && module_path_relative_length < (i64)sizeof(module_path_relative), "[PLATFORM]: Failed to get relative path of the current executable.");
 
 	[[maybe_unused]] char *path_absolute = ::realpath(module_path_relative, module_path_absolute);
