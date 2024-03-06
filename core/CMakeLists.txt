@@ -59,6 +59,15 @@ elseif(UNIX AND NOT APPLE)
         dl
         pthread
     )
+elseif(APPLE)
+    # TODO: Figure out how to use lib names directly.
+    find_library(COCOA Cocoa REQUIRED)
+    list(APPEND SOURCE_FILES
+        platform/platform_macos.mm
+    )
+    list(APPEND LIBS
+        ${COCOA}
+    )
 endif()
 
 set(BUILD_TYPE SHARED)

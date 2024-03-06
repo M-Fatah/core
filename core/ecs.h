@@ -129,7 +129,7 @@ namespace ecs
 		const T *
 		read(Entity e)
 		{
-			auto [_, v] = *hash_table_find(component_tables, typeid(T).hash_code());
+			const auto [_, v] = *hash_table_find(component_tables, (u64)typeid(T).hash_code());
 			return (const T *)v->read(e);
 		}
 
@@ -137,7 +137,7 @@ namespace ecs
 		T *
 		write(Entity e)
 		{
-			auto [_, v] = *hash_table_find(component_tables, typeid(T).hash_code());
+			auto [_, v] = *hash_table_find(component_tables, (u64)typeid(T).hash_code());
 			return (T *)v->write(e);
 		}
 
@@ -145,7 +145,7 @@ namespace ecs
 		void
 		remove(Entity e)
 		{
-			auto [_, v] = *hash_table_find(component_tables, typeid(T).hash_code());
+			auto [_, v] = *hash_table_find(component_tables, (u64)typeid(T).hash_code());
 			v->remove(e);
 		}
 
@@ -153,13 +153,13 @@ namespace ecs
 		Array<Entity>
 		list()
 		{
-			Array<Entity> entities[sizeof...(TArgs)] = { hash_table_find(component_tables, typeid(TArgs).hash_code())->value->entities()... };
+			Array<Entity> entities[sizeof...(TArgs)] = { hash_table_find(component_tables, (u64)typeid(TArgs).hash_code())->value->entities()... };
 			u64 min_idx = u64(-1);
 			for (u64 i = 0; i < sizeof...(TArgs); ++i)
 				if (entities[i].count < min_idx)
 					min_idx = i;
 
-			IComponent_Table *tables[sizeof...(TArgs)] = { hash_table_find(component_tables, typeid(TArgs).hash_code())->value... };
+			IComponent_Table *tables[sizeof...(TArgs)] = { hash_table_find(component_tables, (u64)typeid(TArgs).hash_code())->value... };
 			Array<Entity> res = array_copy(entities[min_idx], memory::temp_allocator());
 			for (auto table : tables)
 				array_remove_if(res, [table](Entity e) { return table->read(e) == nullptr; });
@@ -205,7 +205,7 @@ namespace ecs
 	inline static void
 	ecs_add_table(ECS &self)
 	{
-		hash_table_insert(self.component_tables, typeid(T).hash_code(), (IComponent_Table *)memory::allocate_and_call_constructor<Component_Table<T>>());
+		hash_table_insert(self.component_tables, (u64)typeid(T).hash_code(), (IComponent_Table *)memory::allocate_and_call_constructor<Component_Table<T>>());
 	}
 
 	template <Component_Type T>
