@@ -6,28 +6,21 @@
 #include "core/memory/memory.h"
 
 #include <dlfcn.h>
-#include <fcntl.h>
-#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 #include <execinfo.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <pthread.h>
 #include <atomic>
 #include <inttypes.h>
 
+#include <Foundation/Foundation.h>
+#include <AppKit/AppKit.h>
 #include <Cocoa/Cocoa.h>
 #include <Carbon/Carbon.h>
 #include <mach-o/dyld.h>
-
-/*
-	TODO:
-	- [ ] Cleanup includes.
-	- [ ] Can we use .cpp instead of .mm?
-*/
+#include <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 static char current_executable_directory[PATH_MAX] = {};
 
@@ -179,16 +172,13 @@ struct Platform_Window_Context
 @interface Content_View : NSView<NSTextInputClient>
 {
 	NSWindow *window;
-	// NSTrackingArea* trackingArea;
-	// NSMutableAttributedString* markedText;
 }
 
-- (instancetype)init:(NSWindow *)window;
-
+- (instancetype)
+init:(NSWindow *)window;
 @end
 
 @implementation Content_View
-
 - (instancetype)
 init:(NSWindow *)iwindow
 {
@@ -206,31 +196,125 @@ canBecomeKeyView
 	return YES;
 }
 
-- (BOOL)acceptsFirstResponder
+- (BOOL)
+acceptsFirstResponder
 {
 	return YES;
 }
 
-- (BOOL)wantsUpdateLayer
+- (BOOL)
+wantsUpdateLayer
 {
 	return YES;
 }
 
-- (BOOL)acceptsFirstMouse:(NSEvent *)event
+- (BOOL)
+acceptsFirstMouse:(NSEvent *)event
 {
 	return YES;
 }
 
-// Handle modifier keys since they are only registered via modifier flags being set/unset.
-- (void) flagsChanged:(NSEvent *) event
+- (void)
+mouseDown:(NSEvent *)event
 {
+
 }
 
-- (void)insertText:(id)string replacementRange:(NSRange)replacementRange {}
+- (void)
+rightMouseDown:(NSEvent *)event
+{
 
-- (void)setMarkedText:(id)string selectedRange:(NSRange)selectedRange replacementRange:(NSRange)replacementRange {}
+}
 
-- (void)unmarkText {}
+- (void)
+otherMouseDown:(NSEvent *)event
+{
+
+}
+
+- (void)
+mouseUp:(NSEvent *)event
+{
+
+}
+
+- (void)
+rightMouseUp:(NSEvent *)event
+{
+
+}
+
+- (void)
+otherMouseUp:(NSEvent *)event
+{
+
+}
+
+- (void)
+scrollWheel:(NSEvent *)event
+{
+
+}
+
+- (void)
+mouseMoved:(NSEvent *)event
+{
+
+}
+
+- (void)
+mouseDragged:(NSEvent *)event
+{
+
+}
+
+- (void)
+rightMouseDragged:(NSEvent *)event
+{
+
+}
+
+- (void)
+otherMouseDragged:(NSEvent *)event
+{
+
+}
+
+- (void)
+keyDown:(NSEvent *)event
+{
+
+}
+
+- (void)
+keyUp:(NSEvent *)event
+{
+
+}
+
+- (void)
+flagsChanged:(NSEvent *)event
+{
+
+}
+
+- (void)
+insertText:(id)string replacementRange:(NSRange)replacementRange
+{
+
+}
+
+- (void)
+setMarkedText:(id)string selectedRange:(NSRange)selectedRange replacementRange:(NSRange)replacementRange
+{
+
+}
+
+- (void)
+unmarkText
+{
+
+}
 
 - (NSRange)
 selectedRange
@@ -250,14 +334,29 @@ hasMarkedText
 	return false;
 }
 
-- (nullable NSAttributedString *)attributedSubstringForProposedRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange {return nil;}
+- (nullable NSAttributedString *)
+attributedSubstringForProposedRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange
+{
+	return nil;
+}
 
-- (NSArray<NSAttributedStringKey> *)validAttributesForMarkedText {return [NSArray array];}
+- (NSArray<NSAttributedStringKey> *)
+validAttributesForMarkedText
+{
+	return [NSArray array];
+}
 
-- (NSRect)firstRectForCharacterRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange {return NSMakeRect(0, 0, 0, 0);}
+- (NSRect)
+firstRectForCharacterRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange
+{
+	return NSMakeRect(0, 0, 0, 0);
+}
 
-- (NSUInteger)characterIndexForPoint:(NSPoint)point {return 0;}
-
+- (NSUInteger)
+characterIndexForPoint:(NSPoint)point
+{
+	return 0;
+}
 @end
 
 @interface Window_Delegate : NSObject<NSWindowDelegate>
@@ -266,11 +365,9 @@ hasMarkedText
 }
 
 - (instancetype)init:(Platform_Window_Context *)ictx;
-
 @end
 
 @implementation Window_Delegate
-
 - (instancetype)init:(Platform_Window_Context *)ictx
 {
 	self = [super init];
@@ -316,7 +413,6 @@ hasMarkedText
 {
 
 }
-
 @end
 
 // API.
@@ -425,7 +521,7 @@ void
 platform_allocator_deinit(Platform_Allocator *self)
 {
 	[[maybe_unused]] i32 result = ::munmap(self->ptr, self->size);
-	ASSERT(result == 0, "[PLATFORM]: Failed to free virtual memory.");
+	ASSERT(result == 0, "[PLATFORM][MACOS]: Failed to free virtual memory.");
 }
 
 Platform_Memory
@@ -502,25 +598,28 @@ platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_
 	self->task = task;
 }
 
-// TODO: Error checking.
-// Return early with error message if failed to create objects.
+// TODO: Return early with error message if failed to create objects.
 Platform_Window
 platform_window_init(u32 width, u32 height, const char *title)
 {
 	Platform_Window_Context *ctx = memory::allocate_zeroed<Platform_Window_Context>();
 
-	@autoreleasepool {
+	@autoreleasepool
+	{
 		NSRect rect = NSMakeRect(0, 0, width, height);
 		NSWindow *window = [[NSWindow alloc] initWithContentRect:rect
 							styleMask:NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
 							backing:NSBackingStoreBuffered
 							defer:NO];
 		[window makeKeyAndOrderFront:window];
+		ASSERT(window, "[PLATFORM][MACOS]: Failed to create window.");
 
 		Content_View *content_view = [[Content_View alloc] init:window];
+		ASSERT(content_view, "[PLATFORM][MACOS]: Failed to create content view.");
 		[content_view setWantsLayer:YES];
 
 		Window_Delegate *window_delegate = [[Window_Delegate alloc] init:ctx];
+		ASSERT(window_delegate, "[PLATFORM][MACOS]: Failed to create window delegate.");
 
 		[window setLevel:NSNormalWindowLevel];
 		[window setContentView:content_view];
@@ -551,13 +650,13 @@ platform_window_deinit(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 
-	@autoreleasepool {
+	@autoreleasepool
+	{
 		[ctx->window orderOut:nil];
 		[ctx->window setDelegate:nil];
 		[ctx->content_view release];
 		[ctx->window close];
 		[ctx->window_delegate release];
-		// [ctx->app_delegate release];
 		[NSApp setDelegate:nil];
 	}
 
@@ -670,8 +769,8 @@ platform_window_get_native_handles(Platform_Window *self, void **native_handle, 
 
 	if (native_handle)
 		*native_handle = ctx->window;
-
-	unused(native_connection);
+	if (native_connection)
+		*native_connection = ctx->content_view;
 }
 
 void
@@ -813,7 +912,28 @@ bool
 platform_file_dialog_open(char *path, u32 path_length, const char *filters)
 {
 	::memset(path, 0, path_length);
-	unused(filters);
+
+	@autoreleasepool
+	{
+		NSApplication *application = [NSApplication sharedApplication];
+		[application setActivationPolicy:NSApplicationActivationPolicyAccessory];
+
+		// TODO: Fix filters.
+		NSOpenPanel *open_panel = [NSOpenPanel openPanel];
+		open_panel.allowsMultipleSelection = false;
+		open_panel.canChooseDirectories    = false;
+		open_panel.canChooseFiles          = true;
+		open_panel.allowedContentTypes     = [UTType typesWithTag:@(filters) tagClass:UTTagClassFilenameExtension conformingToType:nil];
+
+		if ([open_panel runModal] == NSModalResponseOK)
+		{
+			NSURL *url = [[open_panel URLs] objectAtIndex:0];
+			ASSERT(url.path.length <= path_length, "[PLATFORM][MACOS]: Open file dialog selected path is longer than passed path length.");
+			::snprintf(path, path_length, "%s", [url.path cStringUsingEncoding:(NSASCIIStringEncoding)]);
+			return true;
+		}
+	}
+
 	return false;
 }
 
@@ -821,7 +941,26 @@ bool
 platform_file_dialog_save(char *path, u32 path_length, const char *filters)
 {
 	::memset(path, 0, path_length);
-	unused(filters);
+
+	@autoreleasepool
+	{
+		NSApplication *application = [NSApplication sharedApplication];
+		[application setActivationPolicy:NSApplicationActivationPolicyAccessory];
+
+		// TODO: Fix filters.
+		NSSavePanel *save_panel = [NSSavePanel savePanel];
+		save_panel.canCreateDirectories = true;
+		save_panel.allowedContentTypes  = [UTType typesWithTag:@(filters) tagClass:UTTagClassFilenameExtension conformingToType:nil];
+
+		if ([save_panel runModal] == NSModalResponseOK)
+		{
+			NSURL *url = [save_panel URL];
+			ASSERT(url.path.length <= path_length, "[PLATFORM][MACOS]: Save file dialog selected path is longer than passed path length.");
+			::snprintf(path, path_length, "%s", [url.path cStringUsingEncoding:(NSASCIIStringEncoding)]);
+			return true;
+		}
+	}
+
 	return false;
 }
 
