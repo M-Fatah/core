@@ -5,54 +5,8 @@
 #include <core/containers/hash_table.h>
 #include <core/platform/platform.h>
 
+#include "bin_serializer.h"
 #include "serialization.cpp"
-
-/*
-	TODO:
-	- [x] Serialize binary blobs.
-		- [-] Use annotation tags.
-		- [x] Define Blob struct for the user to use it.
-	- [x] Array of arrays.
-	- [x] Array elements.
-	- [ ] Overload for custom serialization.
-*/
-
-template <typename S, typename T>
-inline static void
-to(S &serializer, Array<T> &data)
-{
-	to(serializer, {
-		{"count", data.count},
-		{"data", data.data, data.count}
-	});
-}
-
-template <typename S, typename K, typename V>
-inline static void
-to(S &serializer, Hash_Table_Entry<K, V> &data)
-{
-	to(serializer, {
-		{"key", data.key},
-		{"value", data.value}
-	});
-}
-
-template <typename S, typename K, typename V>
-inline static void
-to(S &serializer, Hash_Table<K, V> &data)
-{
-	to(serializer, {
-		{"count", data.count},
-		{"entries", data.entries}
-	});
-}
-
-template <typename S>
-inline static void
-to(S &serializer, String &data)
-{
-	to(serializer, data.data);
-}
 
 struct Foo1
 {
@@ -97,7 +51,18 @@ to(S &serializer, Foo2 &data)
 		{"h", data.h},
 		{"i", data.i}
 	});
+	// to(serializer, data.a);
+	// to(serializer, data.b);
+	// to(serializer, data.c);
+	// to(serializer, data.d);
+	// to(serializer, data.e);
+	// to(serializer, data.f);
+	// to(serializer, data.g);
+	// to(serializer, data.h);
+	// to(serializer, data.i);
 }
+
+// TYPE_OF(memory::Allocator)
 
 i32
 main()
@@ -127,7 +92,8 @@ main()
 
 		// NOTE: Binary.
 		{
-			Bin_Serializer bin = {};
+			Bin_Serializer bin = bin_serializer_init();
+			DEFER(bin_serializer_deinit(bin));
 
 			// Struct.
 			// to(bin, {"a", a});
@@ -146,8 +112,12 @@ main()
 			// to(bin, g);                  // TODO: Find a way to prevent this usage. // NOTE: Current workaround is to auto generate a name.
 			// to(bin, h);                  // TODO: Find a way to prevent this usage. // NOTE: Current workaround is to auto generate a name.
 			// to(bin, i);                  // TODO: Find a way to prevent this usage. // NOTE: Current workaround is to auto generate a name.
-			to(bin, {"f1", f1});         // Generic (using reflection).
-			to(bin, {"f2", f2});         // Custom overload.
+			// to(bin, {"f1", f1});         // Generic (using reflection).
+			// to(bin, {"f2", f2});         // Custom overload.
+
+			to(bin, {"c", f2.c});
+			// to(bin, f2.c);
+			// to(bin, f2.c);
 
 			::printf("%s\n", bin.buffer.data);
 		}
@@ -163,6 +133,9 @@ main()
 		}
 
 		[[maybe_unused]] int x = 0;
+
+		// auto t = type_of<memory::Allocator>();
+		// unused(t);
 	}
 #endif
 

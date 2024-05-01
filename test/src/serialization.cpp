@@ -11,8 +11,31 @@
 		- [x] Array variant.
 		- [x] String variant.
 		- [x] Structure variant.
-	- [ ] Find a better way to inject auto generated names.
+	- [ ] Return error on read/write failures.
 	- [ ] Serialize member variable names and compare them when deserializing?
+	- [ ] Support Array/String/Hash_Table in reflection.
+		- Could use instantiation_of<> or specialization_of<> to deduct those types.
+	- [ ] Auto generate names.
+		- [ ] Auto generate names for:
+			to(serializer, data);
+		- [ ] Auto generate names for:
+			template <typename S>
+			inline static void
+			to(S &serializer, data)
+			{
+				to(serializer, data.a);
+				to(serializer, data.b);
+				to(serializer, data.c);
+				to(serializer, data.d);
+				to(serializer, data.e);
+				to(serializer, data.f);
+				to(serializer, data.g);
+				to(serializer, data.h);
+				to(serializer, data.i);
+			}
+			This will need some sort of stack based structure to store generated name nesting + count of variables + a boolean if we should generate a name or not.
+	- [ ] Cleanup implementation.
+	- [ ] Cleanup API.
 */
 
 struct Blob
@@ -206,144 +229,6 @@ print(Value v)
 }
 
 inline static void
-to_binary(String &buffer, Value v)
-{
-	if (v.data == nullptr || v.type == type_of<memory::Allocator *>())
-		return;
-
-	if (v.type == type_of<String>())
-	{
-		String string = *(String *)v.data;
-		string_append(buffer, "\"{}\"", string);
-		return;
-	}
-
-	// TODO: Use decltype on Value2<T> and then get ::Type.
-
-	switch (v.type->kind)
-	{
-		case TYPE_KIND_I8:
-		{
-			string_append(buffer, "{}", *(i8 *)v.data);
-			break;
-		}
-		case TYPE_KIND_I16:
-		{
-			string_append(buffer, "{}", *(i16 *)v.data);
-			break;
-		}
-		case TYPE_KIND_I32:
-		{
-			string_append(buffer, "{}", *(i32 *)v.data);
-			break;
-		}
-		case TYPE_KIND_I64:
-		{
-			string_append(buffer, "{}", *(i64 *)v.data);
-			break;
-		}
-		case TYPE_KIND_U8:
-		{
-			string_append(buffer, "{}", *(u8 *)v.data);
-			break;
-		}
-		case TYPE_KIND_U16:
-		{
-			string_append(buffer, "{}", *(u16 *)v.data);
-			break;
-		}
-		case TYPE_KIND_U32:
-		{
-			string_append(buffer, "{}", *(u32 *)v.data);
-			break;
-		}
-		case TYPE_KIND_U64:
-		{
-			string_append(buffer, "{}", *(u64 *)v.data);
-			break;
-		}
-		case TYPE_KIND_F32:
-		{
-			string_append(buffer, "{}", *(f32 *)v.data);
-			break;
-		}
-		case TYPE_KIND_F64:
-		{
-			string_append(buffer, "{}", *(f64 *)v.data);
-			break;
-		}
-		case TYPE_KIND_BOOL:
-		{
-			// TODO: Should store 0 or 1.
-			string_append(buffer, "{}", *(bool *)v.data ? "true": "false");
-			break;
-		}
-		case TYPE_KIND_CHAR:
-		{
-			string_append(buffer, *(char *)v.data);
-			break;
-		}
-		case TYPE_KIND_STRUCT:
-		{
-			u64 count = 0;
-			string_append(buffer, '{');
-			for (u64 i = 0; i < v.type->as_struct.field_count; ++i)
-			{
-				const auto *field = &v.type->as_struct.fields[i];
-				if (field->tag != string_literal("NoSerialize"))
-				{
-					if (count != 0)
-						string_append(buffer, ", ");
-					string_append(buffer, "\"{}\":", field->name);
-					to_binary(buffer, {(char *)v.data + field->offset, field->type});
-					++count;
-				}
-			}
-			string_append(buffer, '}');
-			break;
-		}
-		case TYPE_KIND_ARRAY:
-		{
-			string_append(buffer, '[');
-			for (u64 i = 0; i < v.type->as_array.element_count; ++i)
-			{
-				if (i != 0)
-					string_append(buffer, ", ");
-				const auto *element = v.type->as_array.element;
-				to_binary(buffer, {(char *)v.data + element->size * i, element});
-			}
-			string_append(buffer, ']');
-			break;
-		}
-		case TYPE_KIND_POINTER:
-		{
-			const auto *pointee = v.type->as_pointer.pointee;
-			uptr *pointer = *(uptr **)(v.data);
-			if (v.type == type_of<const char *>() || v.type == type_of<char *>())
-			{
-				string_append(buffer, "\"{}\"", (const char *)pointer);
-			}
-			else
-			{
-				to_binary(buffer, {pointer, pointee});
-			}
-			break;
-		}
-		case TYPE_KIND_ENUM:
-		{
-			for (u64 i = 0; i < v.type->as_enum.value_count; ++i)
-				if (const auto & value = v.type->as_enum.values[i]; value.index == *(i32 *)(v.data))
-					string_append(buffer, "{}({})", value.name, value.index);
-			break;
-		}
-		default:
-		{
-			break;
-		}
-	}
-}
-
-inline static void
 to_json(Value v)
 {
 	if (v.data == nullptr || v.type == type_of<memory::Allocator *>())
@@ -524,137 +409,6 @@ to_json(Value v)
 	}
 }
 
-template <typename S>
-struct Serialization_Pair
-{
-	const char *name;
-	void *data;
-	u64 count;
-	void (*to)(S &serializer, const char *name, void *&data, u64 count);
-	void (*from)(S &serializer, const char *name, void *&data, u64 count);
-
-	template <typename T>
-	Serialization_Pair(const char *name, T &data, u64 count = 0)
-	{
-		Serialization_Pair &self = *this;
-		self.name = name;
-		self.data = &data;
-		self.count = count;
-		self.to = +[](S &serializer, const char *, void *&data, u64 count) {
-			if (count == 0)
-			{
-				// T *d = (std::remove_pointer_t<T> *)data;
-				T &d = *(T *&)data;
-				::to(serializer, d);
-				return;
-			}
-
-			// TODO: Add remove const.
-
-			// const Type *t = type_of<T>();
-			// const Type *tt = type_of<T *>();
-			// const Type *ttt = type_of<std::remove_pointer_t<T>>();
-			// unused(t, tt, ttt);
-			// T *d = (T)data;
-
-			// TODO: This solves arrays, strings, and binary blobs.
-			auto *d = *(std::remove_pointer_t<T> **)data;
-			::to(serializer, d, count);
-		};
-		self.from = +[](S &serializer, const char *, void *&data, u64 count) {
-			if (count == 0)
-			{
-				// T *d = (std::remove_pointer_t<T> *)data;
-				T &d = *(T *&)data;
-				::from(serializer, d);
-				return;
-			}
-
-			// TODO: Add remove const.
-
-			// TODO: This solves arrays, strings, and binary blobs.
-			// auto *d = *(std::remove_pointer_t<T> **)data;
-			// ::from(serializer, d, count);
-		};
-	}
-};
-
-//////////////////////////////////////////
-//  BINARY
-//////////////////////////////////////////
-struct Bin_Serializer
-{
-	// TODO: Add allocator.
-	String buffer;
-	bool has_name;
-	i32 count;
-};
-
-template <typename T>
-inline static void
-to(Bin_Serializer &serializer, const T &data)
-{
-	if (serializer.buffer.allocator == nullptr)
-	{
-		serializer.buffer = string_init();
-	}
-
-	if (!serializer.has_name)
-		string_append(serializer.buffer, "\"value{}\":", serializer.count++);
-
-	to_binary(serializer.buffer, value_of(data));
-}
-
-template <typename T>
-inline static void
-to(Bin_Serializer &serializer, T *data, u64 count)
-{
-	if (serializer.buffer.allocator == nullptr)
-	{
-		serializer.buffer = string_init();
-	}
-
-	if (!serializer.has_name)
-		string_append(serializer.buffer, "\"value{}\":", serializer.count++);
-
-	for (u64 i = 0; i < count; ++i)
-		to(serializer, data[i]);
-}
-
-inline static void
-to(Bin_Serializer &serializer, const char *data)
-{
-	if (serializer.buffer.allocator == nullptr)
-	{
-		serializer.buffer = string_init();
-	}
-
-	if (!serializer.has_name)
-		string_append(serializer.buffer, "\"value{}\":", serializer.count++);
-
-	to_binary(serializer.buffer, value_of(data));
-}
-
-template <typename T>
-inline static void
-from(Bin_Serializer &, T &)
-{
-	// TODO:
-}
-
-template <typename T>
-inline static void
-from(Bin_Serializer &, T *, u64)
-{
-	// TODO:
-}
-
-inline static void
-from(Bin_Serializer &, const char *)
-{
-	// TODO:
-}
-
 //////////////////////////////////////////
 //  JSON
 //////////////////////////////////////////
@@ -704,16 +458,7 @@ template <typename S>
 inline static void
 to(S &serializer, Serialization_Pair<S> pair)
 {
-	if (serializer.buffer.allocator == nullptr)
-	{
-		serializer.buffer = string_init();
-	}
-
-	// TODO:
-	serializer.has_name = true;
-	string_append(serializer.buffer, "\"{}\":", pair.name);
 	pair.to(serializer, pair.name, pair.data, pair.count);
-	serializer.has_name = false;
 }
 
 // TODO: Add name variant of this function?
@@ -721,26 +466,8 @@ template <typename S>
 inline static void
 to(S &serializer, std::initializer_list<Serialization_Pair<S>> pairs)
 {
-	if (serializer.buffer.allocator == nullptr)
-	{
-		serializer.buffer = string_init();
-	}
-
-	if (!serializer.has_name)
-	{
-		string_append(serializer.buffer, "\"value{}\":", serializer.count++);
-		serializer.has_name = true;
-	}
-
 	for (const Serialization_Pair<S> &pair : pairs)
-	{
-		serializer.has_name = true;
-		string_append(serializer.buffer, "\"{}\":", pair.name);
-		pair.to(serializer, pair.name, (void *&)pair.data, pair.count);
-		serializer.has_name = false;
-	}
-
-	serializer.has_name = false;
+		to<S>(serializer, pair);
 }
 
 template <typename S>
@@ -754,9 +481,6 @@ template <typename S>
 inline static void
 from(S &serializer, std::initializer_list<Serialization_Pair<S>> pairs)
 {
-	// TODO: Add name?
 	for (const Serialization_Pair<S> &pair : pairs)
-	{
 		pair.from(serializer, pair.name, (void *&)pair.data);
-	}
 }
