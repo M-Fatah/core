@@ -368,7 +368,8 @@ characterIndexForPoint:(NSPoint)point
 @end
 
 @implementation Window_Delegate
-- (instancetype)init:(Platform_Window_Context *)ictx
+- (instancetype)
+init:(Platform_Window_Context *)ictx
 {
 	self = [super init];
 	if (self != nil)
@@ -378,38 +379,45 @@ characterIndexForPoint:(NSPoint)point
 	return self;
 }
 
-- (BOOL)windowShouldClose:(id)sender
+- (BOOL)
+windowShouldClose:(id)sender
 {
 	ctx->should_quit = true;
 	return YES;
 }
 
-- (void)windowDidResize:(NSNotification *)notification
+- (void)
+windowDidResize:(NSNotification *)notification
 {
 
 }
 
-- (NSSize)windowWillResize:(NSWindow *)sender toSize:(NSSize)size
+- (NSSize)
+windowWillResize:(NSWindow *)sender toSize:(NSSize)size
 {
 	return size;
 }
 
-- (void)windowDidMove:(NSNotification *)notification
+- (void)
+windowDidMove:(NSNotification *)notification
 {
 
 }
 
-- (void)windowDidMiniaturize:(NSNotification *)notification
+- (void)
+windowDidMiniaturize:(NSNotification *)notification
 {
 
 }
 
-- (void)windowDidDeminiaturize:(NSNotification *)notification
+- (void)
+windowDidDeminiaturize:(NSNotification *)notification
 {
 
 }
 
-- (void)windowDidBecomeKey:(NSNotification *)notification
+- (void)
+windowDidBecomeKey:(NSNotification *)notification
 {
 
 }
