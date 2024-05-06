@@ -39,7 +39,7 @@ array_push(vertices, Vertex{{1.0f, 2.0f, 3.0f}, {0.0f, 0.0f, 1.0f}});
 ## **Platforms:**
 - Windows.
 - Linux.
-- Mac (later).
+- Mac.
 
 ## **Prerequisites:**
 #### **Windows:**
@@ -56,6 +56,3 @@ cmake -B build
 cmake --build build --config Debug -j
 ```
 Output is in `build/bin/${CONFIG}/` directory.
-
-## **Inspirations:**
-- [MN](https://github.com/MoustaphaSaad/mn).

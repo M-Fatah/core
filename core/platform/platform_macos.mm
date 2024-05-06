@@ -24,6 +24,17 @@
 
 static char current_executable_directory[PATH_MAX] = {};
 
+@class Content_View;
+@class Window_Delegate;
+
+struct Platform_Window_Context
+{
+	NSWindow *window;
+	Content_View *content_view;
+	Window_Delegate *window_delegate;
+	bool should_quit;
+};
+
 // TODO: Remove from here.
 inline static void
 _string_concat(const char *a, const char *b, char *result)
@@ -158,17 +169,6 @@ _platform_key_from_key_code(i32 key_code)
 	return PLATFORM_KEY_COUNT;
 }
 
-@class Content_View;
-@class Window_Delegate;
-
-struct Platform_Window_Context
-{
-	NSWindow *window;
-	Content_View *content_view;
-	Window_Delegate *window_delegate;
-	bool should_quit;
-};
-
 @interface Content_View : NSView<NSTextInputClient>
 {
 	NSWindow *window;
@@ -212,90 +212,6 @@ wantsUpdateLayer
 acceptsFirstMouse:(NSEvent *)event
 {
 	return YES;
-}
-
-- (void)
-mouseDown:(NSEvent *)event
-{
-
-}
-
-- (void)
-rightMouseDown:(NSEvent *)event
-{
-
-}
-
-- (void)
-otherMouseDown:(NSEvent *)event
-{
-
-}
-
-- (void)
-mouseUp:(NSEvent *)event
-{
-
-}
-
-- (void)
-rightMouseUp:(NSEvent *)event
-{
-
-}
-
-- (void)
-otherMouseUp:(NSEvent *)event
-{
-
-}
-
-- (void)
-scrollWheel:(NSEvent *)event
-{
-
-}
-
-- (void)
-mouseMoved:(NSEvent *)event
-{
-
-}
-
-- (void)
-mouseDragged:(NSEvent *)event
-{
-
-}
-
-- (void)
-rightMouseDragged:(NSEvent *)event
-{
-
-}
-
-- (void)
-otherMouseDragged:(NSEvent *)event
-{
-
-}
-
-- (void)
-keyDown:(NSEvent *)event
-{
-
-}
-
-- (void)
-keyUp:(NSEvent *)event
-{
-
-}
-
-- (void)
-flagsChanged:(NSEvent *)event
-{
-
 }
 
 - (void)
