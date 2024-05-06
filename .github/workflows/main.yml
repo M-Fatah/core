@@ -16,24 +16,22 @@ jobs:
   build:
     runs-on: ${{matrix.os}}
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
         build-variant: [Debug, Release]
     steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: 'true'
+      - uses: actions/checkout@v4
 
       # TODO: Install GCC without using a script.
-      - name: Installing GCC
-        if: matrix.os == 'ubuntu-latest'
+      - if: matrix.os == 'ubuntu-latest'
+        name: Installing GCC
         uses: egor-tensin/setup-gcc@v1
         with:
           version: 12
 
-      - name: Installing Linux dependencies
-        if: matrix.os == 'ubuntu-latest'
+      - if: matrix.os == 'ubuntu-latest'
+        name: Installing Linux dependencies
         run: |
             sudo apt update
             sudo apt-get install -y libx11-dev libxkbcommon-x11-dev libx11-xcb-dev

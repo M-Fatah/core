@@ -186,6 +186,11 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 			string_append(name, "i64", count);
 			type_name.remove_prefix(8);
 		}
+		else if (type_name.starts_with("long long"))
+		{
+			string_append(name, "i64", count);
+			type_name.remove_prefix(9);
+		}
 		else if (type_name.starts_with("unsigned char"))
 		{
 			string_append(name, "u8", count);
@@ -216,6 +221,11 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 			string_append(name, "u64", count);
 			type_name.remove_prefix(17);
 		}
+		else if (type_name.starts_with("unsigned long long"))
+		{
+			string_append(name, "u64", count);
+			type_name.remove_prefix(18);
+		}
 		else if (type_name.starts_with("float"))
 		{
 			string_append(name, "f32", count);
@@ -241,6 +251,12 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 	if (type_name.ends_with("* const"))
 	{
 		type_name.remove_suffix(7);
+		add_const = true;
+		add_pointer = true;
+	}
+	else if (type_name.ends_with("*const"))
+	{
+		type_name.remove_suffix(6);
 		add_const = true;
 		add_pointer = true;
 	}
@@ -356,11 +372,11 @@ name_of()
 			return name;
 		};
 
-		#if defined(_MSC_VER)
+		#if defined(_MSC_VER) // TODO: PLATFORM_WIN32.
 			constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
 			constexpr auto type_name_prefix_length = type_function_name.find("name_of<") + 8;
 			constexpr auto type_name_length        = type_function_name.rfind(">") - type_name_prefix_length;
-		#elif defined(__GNUC__)
+		#elif defined(__GNUC__) // PLATFORM_LINUX/MACOS.
 			constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
 			constexpr auto type_name_prefix_length = type_function_name.find("= ") + 2;
 			constexpr auto type_name_length        = type_function_name.rfind("]") - type_name_prefix_length;
@@ -474,7 +490,7 @@ type_of(const T)
 		.kind = kind_of<T>(),
 		.size = sizeof(T),
 		.align = alignof(T),
-		.as_pointer = pointee
+		.as_pointer = {pointee}
 	};
 	return &self;
 }
@@ -510,29 +526,29 @@ type_of(const T)                                                                
 	return &self;                                                                               \
 }
 
-template <typename T>
-requires (std::is_enum_v<T>)
-inline static constexpr const Type *
-type_of(const T)
+struct Enum_Value
 {
-	struct Enum_Value
-	{
-		i32 index;
-		std::string_view name;
-	};
+	i32 index;
+	std::string_view name;
+};
 
-	struct Enum
-	{
-		std::array<Enum_Value, REFLECT_MAX_ENUM_VALUE_COUNT> values;
-		u64 count;
-	};
+struct Enum
+{
+	std::array<Enum_Value, REFLECT_MAX_ENUM_VALUE_COUNT> values;
+	u64 count;
+};
 
+template <typename T, i32... I>
+constexpr inline static Enum
+get_enum(std::integer_sequence<i32, I...>)
+{
+	// TODO: Remove -Wno-enum-constexpr-conversion.
 	constexpr auto get_enum_value = []<T V>() -> Enum_Value {
-		#if defined(_MSC_VER)
+		#if defined(_MSC_VER) // TODO: PLATFORM_WIN32.
 			constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
 			constexpr auto type_name_prefix_length = type_function_name.find("()<") + 3;
 			constexpr auto type_name_length        = type_function_name.find(">", type_name_prefix_length) - type_name_prefix_length;
-		#elif defined(__GNUC__)
+		#elif defined(__GNUC__) // PLATFORM_LINUX/MACOS.
 			constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
 			constexpr auto type_name_prefix_length = type_function_name.find("= ") + 2;
 			constexpr auto type_name_length        = type_function_name.find("]", type_name_prefix_length) - type_name_prefix_length;
@@ -546,12 +562,18 @@ type_of(const T)
 		return {(i32)V, {type_function_name.data() + type_name_prefix_length, type_name_length}};
 	};
 
-	constexpr auto data = [get_enum_value]<i32... I>(std::integer_sequence<i32, I...>) -> Enum {
-		return {
-			{ get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>()...},
-			((get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>().name != "") + ...)
-		};
-	}(std::make_integer_sequence<i32, REFLECT_MAX_ENUM_VALUE_COUNT>());
+	return Enum {
+		{ get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>()...},
+		((get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>().name != "") + ...)
+	};
+}
+
+template <typename T>
+requires (std::is_enum_v<T>)
+inline static constexpr const Type *
+type_of(const T)
+{
+	constexpr auto data = get_enum<T>(std::make_integer_sequence<i32, REFLECT_MAX_ENUM_VALUE_COUNT>());
 
 	constexpr auto copy = [](char *dst, const char *src, u64 count) {
 		for (u64 i = 0; i < count; ++i)
@@ -636,6 +658,7 @@ value_of(T &&type)
 	return {&type, type_of(t)};
 }
 
+inline const Type * type_of(const Type);
 TYPE_OF(Type_Field, name, offset, type)
 TYPE_OF(Type, name, kind, size, align, as_struct.fields, as_struct.field_count)
 TYPE_OF(Value, data, type)

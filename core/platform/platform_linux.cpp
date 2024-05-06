@@ -586,7 +586,6 @@ platform_window_set_title(Platform_Window *self, const char *title)
 	::xcb_change_property(ctx->connection, XCB_PROP_MODE_REPLACE, ctx->window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, ::strlen(title), title);
 }
 
-// TODO: Do we need this?
 void
 platform_window_close(Platform_Window *self)
 {

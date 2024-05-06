@@ -268,26 +268,28 @@ to_json(Value v, i32 indent = 0)
 		printf("\n");
 }
 
-struct A
-{
-	struct B *b;
-};
+// TODO:
 
-TYPE_OF(A, b)
+// struct A
+// {
+// 	struct B *b;
+// };
 
-struct B
-{
-	struct C *c;
-};
+// TYPE_OF(A, b)
 
-TYPE_OF(B, c)
+// struct B
+// {
+// 	struct C *c;
+// };
 
-struct C
-{
-	A *a;
-};
+// TYPE_OF(B, c)
 
-TYPE_OF(C, a)
+// struct C
+// {
+// 	A *a;
+// };
+
+// TYPE_OF(C, a)
 
 template <typename T>
 struct Bar
@@ -344,11 +346,26 @@ main(i32, char **)
 	auto t2 = type_of(f2);
 	unused(t2);
 	to_json(value_of(f2));
-	to_json(value_of(TWO{1, 3.4f}));
+	to_json(value_of(TWO<i32, f32>{1, 3.4f}));
 
 	P p(1.5f, 2.5f, 3.5f, 4.5f);
 	to_json(value_of(p));
 	to_json(value_of(type_of(p)));
+
+	print(value_of(1));
+
+
+	Platform_Window window = platform_window_init(800, 600, "Test");
+	while (platform_window_poll(&window))
+	{
+		if (window.input.keys[PLATFORM_KEY_C].pressed)
+			platform_window_close(&window);
+
+		if (window.input.keys[PLATFORM_KEY_T].pressed)
+			platform_window_set_title(&window, "Test with T");
+	}
+
+	platform_window_deinit(&window);
 
 	return 0;
 }

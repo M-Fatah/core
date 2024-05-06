@@ -59,6 +59,14 @@ elseif(UNIX AND NOT APPLE)
         dl
         pthread
     )
+elseif(APPLE)
+    list(APPEND SOURCE_FILES
+        platform/platform_macos.mm
+    )
+    list(APPEND LIBS
+        "-framework Cocoa"
+        "-framework UniformTypeIdentifiers"
+    )
 endif()
 
 set(BUILD_TYPE SHARED)
