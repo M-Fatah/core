@@ -21,6 +21,7 @@ set(HEADER_FILES
     platform/platform.h
     serialization/serializer.h
     serialization/binary_serializer.h
+    serialization/json_serializer.h
 )
 
 set(SOURCE_FILES
@@ -34,6 +35,7 @@ set(SOURCE_FILES
     memory/arena_allocator.cpp
     memory/pool_allocator.cpp
     serialization/binary_serializer.cpp
+    serialization/json_serializer.cpp
 )
 
 set(LIBS

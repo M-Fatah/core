@@ -166,6 +166,7 @@ array_remove(Array<T> &self, u64 index)
 	--self.count;
 }
 
+// TODO: Better name.
 template <typename T, typename P>
 inline static void
 array_remove_if(Array<T> &self, P &&predicate)
@@ -178,6 +179,16 @@ array_remove_if(Array<T> &self, P &&predicate)
 			--i;
 		}
 	}
+}
+
+// TODO: Better name.
+template <typename T>
+inline static void
+array_remove_ordered(Array<T> &self, u64 index)
+{
+	ASSERT(index < self.count, "[ARRAY]: Access out of range.");
+	::memmove(self.data + index, self.data + index + 1, (self.count - index - 1) * sizeof(T));
+	--self.count;
 }
 
 template <typename T>
@@ -285,24 +296,28 @@ destroy(Array<T> &self)
 	array_deinit(self);
 }
 
+// TODO:
 template <typename T>
 inline static void
-serialize(Serializer *serializer, const Array<T> &self)
+serialize(Serializer *serializer, const char *name, const Array<T> &self)
 {
-	serialize(serializer, self.count);
+	serializer->begin(SERIALIZER_BEGIN_STATE_ARRAY, name);
+	serialize(serializer, "count", self.count);
 	for (u64 i = 0; i < self.count; ++i)
-		serialize(serializer, self[i]);
+		serialize(serializer, "", self[i]);
+	serializer->end();
 }
 
+// TODO:
 template <typename T>
 inline static void
-deserialize(Serializer *serializer, Array<T> &self)
+deserialize(Serializer *serializer, const char *, Array<T> &self)
 {
 	u64 count = 0;
-	deserialize(serializer, count);
+	deserialize(serializer, "count", count);
 	array_resize(self, count);
 	for (u64 i = 0; i < count; ++i)
-		deserialize(serializer, self[i]);
+		deserialize(serializer, "", self[i]);
 }
 
 template <typename T>

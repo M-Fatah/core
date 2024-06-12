@@ -6,6 +6,7 @@
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
 #include <core/serialization/binary_serializer.h>
+#include <core/serialization/json_serializer.h>
 #include <core/platform/platform.h>
 
 #include <doctest/doctest.h>
@@ -132,6 +133,9 @@ TEST_CASE("[CORE]: Formatter")
 	auto buffer = format("{}/{}/{}/{}/{}/{}", "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6});
 	CHECK(string_literal(buffer) == "Hello/A/true/1.5/3/{4, 5, 6}");
 
+	buffer = format("{{0}}");
+	CHECK(string_literal(buffer) == "{0}");
+
 	buffer = format("{}/{}", true, false);
 	CHECK(string_literal(buffer) == "true/false");
 
@@ -209,7 +213,7 @@ TEST_CASE("[CORE]: Formatter")
 	CHECK(string_literal(buffer) == "123{}4");
 
 	buffer = format("A", "B");
-	CHECK(string_literal(buffer) == "A");
+	CHECK(string_literal(buffer) == "");
 
 	buffer = format("{}A", "B");
 	CHECK(string_literal(buffer) == "BA");
@@ -322,7 +326,10 @@ R"""({
 		false
 	],
 	"sub_object": {
-		"name": "sub_object"
+		"name": "sub_object",
+		"sub_sub_object": {
+			"greetings": "Hello"
+		}
 	}
 })""";
 
@@ -367,31 +374,37 @@ game_deinit(Game &self)
 }
 
 inline static void
-serialize(Serializer *self, const Game &data)
+serialize(Serializer *self, const char *name, const Game &data)
 {
-	serialize(self, data.a);
-	serialize(self, data.b);
-	serialize(self, data.c);
-	serialize(self, data.d);
-	serialize(self, data.e);
-	serialize(self, data.f);
-	serialize(self, data.g);
+	self->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
+	serialize(self, "a", data.a);
+	serialize(self, "b", data.b);
+	serialize(self, "c", data.c);
+	serialize(self, "d", data.d);
+	serialize(self, "e", data.e);
+	serialize(self, "f", data.f);
+	serialize(self, "g", data.g);
+	self->end();
 }
 
 inline static void
-deserialize(Serializer *self, Game &data)
+deserialize(Serializer *self, const char *name, Game &data)
 {
-	deserialize(self, data.a);
-	deserialize(self, data.b);
-	deserialize(self, data.c);
-	deserialize(self, data.d);
-	deserialize(self, data.e);
-	deserialize(self, data.f);
-	deserialize(self, data.g);
+	self->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
+	deserialize(self, "a", data.a);
+	deserialize(self, "b", data.b);
+	deserialize(self, "c", data.c);
+	deserialize(self, "d", data.d);
+	deserialize(self, "e", data.e);
+	deserialize(self, "f", data.f);
+	deserialize(self, "g", data.g);
+	self->end();
 }
 
 TEST_CASE("[CORE]: Binary_Serializer")
 {
+	constexpr const char *FILENAME = "serialize_binary_test.bin";
+
 	Binary_Serializer *serializer = binary_serializer_init();
 	DEFER(binary_serializer_deinit(serializer));
 
@@ -441,14 +454,14 @@ TEST_CASE("[CORE]: Binary_Serializer")
 	}
 
 	{
-		auto write_error = binary_serializer_to_file(serializer, "serialize_test.core");
+		auto write_error = binary_serializer_to_file(serializer, FILENAME);
 		binary_serializer_clear(serializer);
 
 		CHECK(write_error == false);
 	}
 
 	{
-		auto [deserializer, read_error] = binary_serializer_from_file("serialize_test.core");
+		auto [deserializer, read_error] = binary_serializer_from_file(FILENAME);
 		DEFER(binary_serializer_deinit(deserializer));
 
 		CHECK(read_error == false);
@@ -475,5 +488,122 @@ TEST_CASE("[CORE]: Binary_Serializer")
 		}
 	}
 
-	CHECK(platform_file_delete("serialize_test.core"));
+	CHECK(platform_file_delete(FILENAME));
+}
+
+// TODO:
+struct Serialization_Test_Data_Nested
+{
+	f32 number0;
+	f32 number1;
+	bool boolean;
+	String string;
+	Array<f32> array;
+};
+
+struct Serialization_Test_Data
+{
+	i32 x;
+	i32 y;
+	i32 z;
+	Serialization_Test_Data_Nested nested;
+	String outer_string;
+	Array<String> outer_array;
+};
+
+inline static void
+serialize(Serializer *serializer, const char *name, const Serialization_Test_Data_Nested &data)
+{
+	serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
+	serialize(serializer, "number0", data.number0);
+	serialize(serializer, "number1", data.number1);
+	serialize(serializer, "boolean", data.boolean);
+	serialize(serializer, "string", data.string);
+	serialize(serializer, "array", data.array);
+	serializer->end();
+}
+
+inline static void
+deserialize(Serializer *serializer, const char *name, Serialization_Test_Data_Nested &data)
+{
+	serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
+	deserialize(serializer, "number0", data.number0);
+	deserialize(serializer, "number1", data.number1);
+	deserialize(serializer, "boolean", data.boolean);
+	deserialize(serializer, "string", data.string);
+	deserialize(serializer, "array", data.array);
+	serializer->end();
+}
+
+inline static void
+serialize(Serializer *serializer, const char *name, const Serialization_Test_Data &data)
+{
+	serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
+	serialize(serializer, "x", data.x);
+	serialize(serializer, "y", data.y);
+	serialize(serializer, "z", data.z);
+	serialize(serializer, "nested", data.nested);
+	serialize(serializer, "outer_string", data.outer_string);
+	serialize(serializer, "outer_array", data.outer_array);
+	serializer->end();
+}
+
+inline static void
+deserialize(Serializer *serializer, const char *name, Serialization_Test_Data &data)
+{
+	serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, name);
+	deserialize(serializer, "x", data.x);
+	deserialize(serializer, "y", data.y);
+	deserialize(serializer, "z", data.z);
+	deserialize(serializer, "nested", data.nested);
+	deserialize(serializer, "outer_string", data.outer_string);
+	deserialize(serializer, "outer_array", data.outer_array);
+	serializer->end();
+}
+
+// TODO:
+TEST_CASE("[CORE]: JSON_Serializer")
+{
+	constexpr const char *FILENAME = "serialize_json_test.json";
+
+	JSON_Serializer *serializer = json_serializer_init();
+	DEFER(json_serializer_deinit(serializer));
+
+	Serialization_Test_Data data = {};
+	data.x = 1;
+	data.y = 1;
+	data.z = 1;
+	data.nested = {4, 5, true, string_from("Hello", memory::temp_allocator()), array_from<f32>({1.5f, 2.5f, 3.5f}, memory::temp_allocator())};
+	data.outer_string = string_from("HELLO2", memory::temp_allocator());
+	data.outer_array  = array_init<String>(memory::temp_allocator());
+
+	array_push(data.outer_array, string_from("This", memory::temp_allocator()));
+	array_push(data.outer_array, string_from("is", memory::temp_allocator()));
+	array_push(data.outer_array, string_from("a", memory::temp_allocator()));
+	array_push(data.outer_array, string_from("string", memory::temp_allocator()));
+	array_push(data.outer_array, string_from("array", memory::temp_allocator()));
+
+	Game original_game = game_init();
+	DEFER(game_deinit(original_game));
+	{
+		original_game.a = 31;
+		original_game.b = 37;
+		original_game.c = 1.5f;
+		original_game.d = 'A';
+		array_push(original_game.e, 0.5f);
+		array_push(original_game.e, 1.5f);
+		array_push(original_game.e, 2.5f);
+		string_append(original_game.f, "Hello1");
+		hash_table_insert(original_game.g, string_literal("1"), 1.0f);
+		hash_table_insert(original_game.g, string_literal("2"), 2.0f);
+		hash_table_insert(original_game.g, string_literal("3"), 3.0f);
+	}
+
+	json_serializer_serialize(serializer, "original_game", original_game);
+	json_serializer_serialize(serializer, "Data", data);
+	json_serializer_to_file(serializer, FILENAME);
+
+	// TODO:
+	i32 x = 0;
+	unused(x);
 }

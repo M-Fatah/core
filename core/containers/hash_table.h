@@ -193,6 +193,13 @@ hash_table_find(const Hash_Table<K, V> &self, const K &key)
 }
 
 template <typename K, typename V>
+inline static Hash_Table_Entry<const K, V> *
+hash_table_find(Hash_Table<K, V> &self, const K &key)
+{
+	return (Hash_Table_Entry<const K, V> *)hash_table_find((const Hash_Table<K, V> &)self, key);
+}
+
+template <typename K, typename V>
 inline static bool
 hash_table_remove(Hash_Table<K, V> &self, const K &key)
 {
@@ -316,30 +323,36 @@ destroy(Hash_Table<K, V> &self)
 	hash_table_deinit(self);
 }
 
+// TODO:
 template <typename K, typename V>
 inline static void
-serialize(Serializer *serializer, const Hash_Table<K, V> &self)
+serialize(Serializer *serializer, const char *name, const Hash_Table<K, V> &self)
 {
-	serialize(serializer, self.count);
-	for (const auto &entry: self)
+	serializer->begin(SERIALIZER_BEGIN_STATE_ARRAY, name);
+	serialize(serializer, "count", self.count);
+	for (const auto &entry : self)
 	{
-		serialize(serializer, entry.key);
-		serialize(serializer, entry.value);
+		serializer->begin(SERIALIZER_BEGIN_STATE_OBJECT, "");
+		serialize(serializer, "key", entry.key);
+		serialize(serializer, "value", entry.value);
+		serializer->end();
 	}
+	serializer->end();
 }
 
+// TODO:
 template <typename K, typename V>
 inline static void
-deserialize(Serializer *serializer, Hash_Table<K, V> &self)
+deserialize(Serializer *serializer, const char *, Hash_Table<K, V> &self)
 {
 	u64 count = 0;
-	deserialize(serializer, count);
+	deserialize(serializer, "count", count);
 	for (u64 i = 0; i < count; ++i)
 	{
 		K key = {};
 		V value = {};
-		deserialize(serializer, key);
-		deserialize(serializer, value);
+		deserialize(serializer, "key", key);
+		deserialize(serializer, "value", value);
 		hash_table_insert(self, key, value);
 	}
 }

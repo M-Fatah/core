@@ -256,9 +256,9 @@ formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 		return false;
 	}
 
-	if (self->current_processing_depth_index == 0 && per_depth.field_count != 0)
+	if (self->current_processing_depth_index == 0)
 	{
-		if (per_depth.field_count != per_depth.arg_count && (largest_field_index + 1) != per_depth.arg_count)
+		if (per_depth.field_count != 0 && per_depth.field_count != per_depth.arg_count && (largest_field_index + 1) != per_depth.arg_count)
 		{
 			++self->current_processing_depth_index;
 			LOG_ERROR("[FORMATTER]: Mismatch between replacement field count '{}' and argument count '{}'!", per_depth.field_count, per_depth.arg_count);
@@ -266,11 +266,17 @@ formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 			return false;
 		}
 
-		if ((largest_field_index + 1) > per_depth.arg_count)
+		if (per_depth.field_count != 0 && (largest_field_index + 1) > per_depth.arg_count)
 		{
 			++self->current_processing_depth_index;
 			LOG_ERROR("[FORMATTER]: Replacement field index '{}' cannot be greater than the argument count '{}'!", largest_field_index, per_depth.arg_count);
 			--self->current_processing_depth_index;
+			return false;
+		}
+
+		if (per_depth.field_count == 0 && per_depth.arg_count > 0)
+		{
+			LOG_ERROR("[FORMATTER]: No replacement fields found to format passed arguments.");
 			return false;
 		}
 	}
