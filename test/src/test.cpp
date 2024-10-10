@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <inttypes.h>
 
+#include "serializer.cpp"
+
+
 inline static void
 print(Value v)
 {
@@ -338,34 +341,44 @@ TYPE_OF(P, x, y, z, w)
 i32
 main(i32, char **)
 {
-	i32 d = 7;
-	i32 dd = 13;
-	Foo f1 = {'A', true, {"Hello", "World"}, &d, {1.5f}, nullptr};
-	Foo f2 = {'B', false, {"FOO", "BOO"}, &dd, {7.5f}, &f1};
+	// i32 d = 7;
+	// i32 dd = 13;
+	// Foo f1 = {'A', true, {"Hello", "World"}, &d, {1.5f}, nullptr};
+	// Foo f2 = {'B', false, {"FOO", "BOO"}, &dd, {7.5f}, &f1};
 
-	auto t2 = type_of(f2);
-	unused(t2);
-	to_json(value_of(f2));
-	to_json(value_of(TWO<i32, f32>{1, 3.4f}));
+	// auto t2 = type_of(f2);
+	// unused(t2);
+	// to_json(value_of(f2));
+	// to_json(value_of(TWO<i32, f32>{1, 3.4f}));
 
-	P p(1.5f, 2.5f, 3.5f, 4.5f);
-	to_json(value_of(p));
-	to_json(value_of(type_of(p)));
+	// P p(1.5f, 2.5f, 3.5f, 4.5f);
+	// to_json(value_of(p));
+	// to_json(value_of(type_of(p)));
 
-	print(value_of(1));
+	// print(value_of(1));
 
 
-	Platform_Window window = platform_window_init(800, 600, "Test");
-	while (platform_window_poll(&window))
-	{
-		if (window.input.keys[PLATFORM_KEY_C].pressed)
-			platform_window_close(&window);
+	// Platform_Window window = platform_window_init(800, 600, "Test");
+	// while (platform_window_poll(&window))
+	// {
+	// 	if (window.input.keys[PLATFORM_KEY_C].pressed)
+	// 		platform_window_close(&window);
 
-		if (window.input.keys[PLATFORM_KEY_T].pressed)
-			platform_window_set_title(&window, "Test with T");
-	}
+	// 	if (window.input.keys[PLATFORM_KEY_T].pressed)
+	// 		platform_window_set_title(&window, "Test with T");
+	// }
 
-	platform_window_deinit(&window);
+	// platform_window_deinit(&window);
+
+	binary_serialization_test_fundamentals();
+	binary_serialization_test_arrays();
+	binary_serialization_test_strings();
+	binary_serialization_test_hash_tables();
+	binary_serialization_test_structs();
+
+	json_serialization_test_structs();
+
+	[[maybe_unused]] i32 t = 0;
 
 	return 0;
 }
