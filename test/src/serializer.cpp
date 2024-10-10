@@ -20,7 +20,7 @@
 
 	JSON_Serializer:
 		- [x] Hash tables.
-		- [ ] Nested structs.
+		- [x] Nested structs.
 */
 template <typename S>
 struct Serialization_Pair
@@ -183,21 +183,18 @@ serialize(Bin_Serializer &self, std::initializer_list<Serialization_Pair<Bin_Ser
 }
 
 /////////////////////////////////////////////////////////////////////
-inline static void
-_serializer_pull(Bin_Serializer &self, u8 *data, u64 data_size)
-{
-	ASSERT(self.d_offset + data_size <= self.buffer.count, "[SERIALIZER][BINARY]: Trying to deserialize beyond buffer capacity.");
-	for (u64 i = 0; i < data_size; ++i)
-		data[i] = self.buffer[i + self.d_offset];
-	self.d_offset += data_size;
-}
-
 template <typename T>
 requires (std::is_arithmetic_v<T>)
 inline static void
 deserialize(Bin_Serializer &self, T &data)
 {
-	_serializer_pull(self, (u8 *)&data, sizeof(data));
+	u8 *d = (u8 *)&data;
+	u64 data_size = sizeof(data);
+
+	ASSERT(self.d_offset + data_size <= self.buffer.count, "[SERIALIZER][BINARY]: Trying to deserialize beyond buffer capacity.");
+	for (u64 i = 0; i < data_size; ++i)
+		d[i] = self.buffer[i + self.d_offset];
+	self.d_offset += data_size;
 }
 
 template <typename T, u64 N>
@@ -295,29 +292,18 @@ jsn_serializer_deinit(Jsn_Serializer &self)
 }
 
 /////////////////////////////////////////////////////////////////////
-inline static void
-_jsn_serializer_push(Jsn_Serializer &self, const u8 *data, u64 data_size)
-{
-	ASSERT(self.is_valid, "[SERIALIZER][BINARY]: Missing serialization name."); // TODO:
-	for (u64 i = 0; i < data_size; ++i)
-		array_push(self.buffer, data[i]);
-	// self.s_offset += data_size;
-}
-
 template <typename T>
 requires (std::is_arithmetic_v<T> && !std::is_same_v<T, bool>)
 inline static void
 serialize(Jsn_Serializer &self, const T &data)
 {
 	string_append(self.buffer, std::to_string(data).c_str());
-	// _jsn_serializer_push(self, (const u8 *)&data, sizeof(data));
 }
 
 inline static void
 serialize(Jsn_Serializer &self, const bool data)
 {
 	string_append(self.buffer, data ? "true" : "false");
-	// _jsn_serializer_push(self, (const u8 *)&data, sizeof(data));
 }
 
 template <typename T, u64 N>
@@ -325,7 +311,6 @@ inline static void
 serialize(Jsn_Serializer &self, const T (&data)[N])
 {
 	string_append(self.buffer, "[");
-	// serialize(self, N);
 	for (u64 i = 0; i < N; ++i)
 	{
 		if (i > 0)
@@ -339,7 +324,6 @@ template <typename T>
 inline static void
 serialize(Jsn_Serializer &self, const Array<T> &data)
 {
-	// serialize(self, data.count);
 	string_append(self.buffer, "[");
 	for (u64 i = 0; i < data.count; ++i)
 	{
@@ -354,9 +338,6 @@ inline static void
 serialize(Jsn_Serializer &self, const String &data)
 {
 	string_append(self.buffer, "\"{}\"", data);
-	// serialize(self, data.count);
-	// for (u64 i = 0; i < data.count; ++i)
-	// 	serialize(self, data[i]);
 }
 
 template <typename K, typename V>
@@ -364,7 +345,6 @@ inline static void
 serialize(Jsn_Serializer &self, const Hash_Table<K, V> &data)
 {
 	string_append(self.buffer, "[");
-	// serialize(self, data.count);
 	i32 i = 0;
 	for (const Hash_Table_Entry<const K, V> &entry : data)
 	{
@@ -388,7 +368,6 @@ serialize(Jsn_Serializer &self, Serialization_Pair<Jsn_Serializer> pair)
 		string_append(self.buffer, ", ");
 	string_append(self.buffer, "\"{}\": ", pair.name);
 	pair.to(self, pair.name, pair.data, pair.count);
-	// string_append(self.buffer, " }}");
 	self.is_valid = false;
 }
 
@@ -409,15 +388,6 @@ serialize(Jsn_Serializer &self, std::initializer_list<Serialization_Pair<Jsn_Ser
 }
 
 /////////////////////////////////////////////////////////////////////
-// inline static void
-// _jsn_serializer_pull(Jsn_Serializer &self, u8 *data, u64 data_size)
-// {
-// 	ASSERT(self.d_offset + data_size <= self.buffer.count, "[SERIALIZER][BINARY]: Trying to deserialize beyond buffer capacity.");
-// 	for (u64 i = 0; i < data_size; ++i)
-// 		data[i] = self.buffer[i + self.d_offset];
-// 	self.d_offset += data_size;
-// }
-
 // TODO: Get rid of templates and do overload myself.
 template <typename T>
 requires (std::is_arithmetic_v<T> && !std::is_same_v<T, bool>)
@@ -425,9 +395,7 @@ inline static void
 deserialize(Jsn_Serializer &self, T &data)
 {
 	ASSERT(array_last(self.values).kind == JSON_VALUE_KIND_NUMBER, "[SERIALIZER][JSON]: JSON value is not a number!");
-	T* d = (T *)&data; // TODO: WTF.
-	f64 n = array_last(self.values).as_number;
-	*(std::remove_const_t<T>*)d = (std::remove_const_t<T>)n; // TODO: KOSOM CPP.
+	*(std::remove_const_t<T> *)&data = (std::remove_const_t<T>)array_last(self.values).as_number;
 }
 
 inline static void
@@ -749,16 +717,14 @@ binary_serialization_test_structs()
 		.h = hash_table_from<i32, String>({{1, string_literal("one")}, {2, string_literal("two")}, {3, string_literal("three")}})
 	};
 
-	// serialize(bin, t1);
-
 	Test t2 = {};
 	t2.f = array_init<i32>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
 	t2.g = string_init(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
 	t2.h = hash_table_init<i32, String>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
 
+	// serialize(bin, t1);
 	// deserialize(bin, t2);
 
-	// serialize(bin, t1);
 	serialize(bin, {"t1", t1});
 
 	deserialize(bin, {"t1", t2});
@@ -797,14 +763,7 @@ json_serialization_test_structs()
 		.h = hash_table_from<i32, String>({{1, string_literal("one")}, {2, string_literal("two")}, {3, string_literal("three")}})
 	};
 
-	// serialize(jsn, t1);
-
-
-	// deserialize(jsn, t2);
-
-	// serialize(jsn, t1);
 	serialize(jsn, {"t1", t1});
-
 
 	Test2 t21 = {
 		.a = 1,
@@ -812,7 +771,6 @@ json_serialization_test_structs()
 	};
 
 	serialize(jsn, {"t21", t21});
-
 
 	// TODO: Just for ba3basa.
 	String ttt = string_from(memory::temp_allocator(), "{{ {} }}", jsn.buffer);
