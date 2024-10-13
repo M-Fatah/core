@@ -9,19 +9,22 @@
 
 /*
 	TODO:
+	- [x] Fundamental types.
+	- [x] Pointers.
+	- [x] Arrays.
+	- [x] Strings.
+	- [x] Hash tables.
+	- [x] Structs.
+		- [x] Nested structed.
 	- [ ] Allocator.
 	- [ ] Versioning.
 	- [ ] Arena backing memory.
 	- [ ] VirtualAlloc?
-	- [ ] Pointers.
 	- [ ] Collapse serialization and deserialization into one function.
 	- [ ] Either we assert that the user should use serialized pairs, or generate names for omitted types.
 	- [ ] What happens if the user serializes multiple entries with the same name in jsn and name dependent serializers.
-
-	JSON_Serializer:
-		- [x] Hash tables.
-		- [x] Nested structs.
 */
+
 template <typename S>
 struct Serialization_Pair
 {
@@ -127,6 +130,14 @@ serialize(Bin_Serializer &self, const T &data)
 	_bin_serializer_push(self, (const u8 *)&data, sizeof(data));
 }
 
+template <typename T>
+requires (std::is_pointer_v<T>)
+inline static void
+serialize(Bin_Serializer& self, const T &data)
+{
+	serialize(self, *data);
+}
+
 template <typename T, u64 N>
 inline static void
 serialize(Bin_Serializer &self, const T (&data)[N])
@@ -195,6 +206,14 @@ deserialize(Bin_Serializer &self, T &data)
 	for (u64 i = 0; i < data_size; ++i)
 		d[i] = self.buffer[i + self.d_offset];
 	self.d_offset += data_size;
+}
+
+template <typename T>
+requires (std::is_pointer_v<T>)
+inline static void
+deserialize(Bin_Serializer& self, const T &data)
+{
+	deserialize(self, *data);
 }
 
 template <typename T, u64 N>
@@ -306,6 +325,14 @@ serialize(Jsn_Serializer &self, const bool data)
 	string_append(self.buffer, data ? "true" : "false");
 }
 
+template <typename T>
+requires (std::is_pointer_v<T>)
+inline static void
+serialize(Jsn_Serializer& self, const T &data)
+{
+	serialize(self, *data);
+}
+
 template <typename T, u64 N>
 inline static void
 serialize(Jsn_Serializer &self, const T (&data)[N])
@@ -403,6 +430,14 @@ deserialize(Jsn_Serializer &self, bool &data)
 {
 	ASSERT(array_last(self.values).kind == JSON_VALUE_KIND_BOOL, "[SERIALIZER][JSON]: JSON value is not bool!");
 	data = array_last(self.values).as_bool;
+}
+
+template <typename T>
+requires (std::is_pointer_v<T>)
+inline static void
+deserialize(Jsn_Serializer& self, const T &data)
+{
+	deserialize(self, *data);
 }
 
 template <typename T, u64 N>
@@ -640,6 +675,7 @@ struct Test
 	Array<i32> f;
 	String g;
 	Hash_Table<i32, String> h;
+	i32 *i;
 };
 
 template <typename S>
@@ -654,7 +690,8 @@ serialize(S &self, Test &data) // TODO: Removing const here solves all the compi
 		{"e", data.e},
 		{"f", data.f},
 		{"g", data.g},
-		{"h", data.h}
+		{"h", data.h},
+		{"i", data.i}
 	});
 }
 
@@ -670,7 +707,8 @@ deserialize(S &self, Test &data)
 		{"e", data.e},
 		{"f", data.f},
 		{"g", data.g},
-		{"h", data.h}
+		{"h", data.h},
+		{"i", data.i}
 	});
 }
 
@@ -706,6 +744,8 @@ binary_serialization_test_structs()
 	Bin_Serializer bin = bin_serializer_init();
 	DEFER(bin_serializer_deinit(bin));
 
+	i32 i = 5;
+
 	Test t1 = {
 		.a = 1,
 		.b = 1.5f,
@@ -714,14 +754,16 @@ binary_serialization_test_structs()
 		.e = true,
 		.f = array_from<i32>({1, 2, 3}, memory::temp_allocator()),
 		.g = string_from(memory::temp_allocator(), "bitch"),
-		.h = hash_table_from<i32, String>({{1, string_literal("one")}, {2, string_literal("two")}, {3, string_literal("three")}})
+		.h = hash_table_from<i32, String>({{1, string_literal("one")}, {2, string_literal("two")}, {3, string_literal("three")}}),
+		.i = &i
 	};
 
+	i32 ii = 0;
 	Test t2 = {};
 	t2.f = array_init<i32>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
 	t2.g = string_init(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
 	t2.h = hash_table_init<i32, String>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
-
+	t2.i = &ii;
 	// serialize(bin, t1);
 	// deserialize(bin, t2);
 
@@ -740,10 +782,11 @@ binary_serialization_test_structs()
 	t22.b.f = array_init<i32>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
 	t22.b.g = string_init(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
 	t22.b.h = hash_table_init<i32, String>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
+	t22.b.i = &ii;
 
 	deserialize(bin, {"t21", t22});
 
-	[[maybe_unused]] i32 i = 0;
+	[[maybe_unused]] i32 xxx = 0;
 }
 
 inline static void
@@ -751,6 +794,8 @@ json_serialization_test_structs()
 {
 	Jsn_Serializer jsn = jsn_serializer_init();
 	DEFER(jsn_serializer_deinit(jsn));
+
+	i32 i = 5;
 
 	Test t1 = {
 		.a = 1,
@@ -760,7 +805,8 @@ json_serialization_test_structs()
 		.e = true,
 		.f = array_from<i32>({1, 2, 3}, memory::temp_allocator()),
 		.g = string_from(memory::temp_allocator(), "bitch"),
-		.h = hash_table_from<i32, String>({{1, string_literal("one")}, {2, string_literal("two")}, {3, string_literal("three")}})
+		.h = hash_table_from<i32, String>({{1, string_literal("one")}, {2, string_literal("two")}, {3, string_literal("three")}}),
+		.i = &i
 	};
 
 	serialize(jsn, {"t1", t1});
@@ -778,18 +824,21 @@ json_serialization_test_structs()
 	string_append(jsn.buffer, ttt);
 	::printf("%s", jsn.buffer.data);
 
+	i32 ii = 0;
 	Test t2 = {};
 	t2.f = array_init<i32>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
 	t2.g = string_init(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
 	t2.h = hash_table_init<i32, String>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
+	t2.i = &i; // TODO: Should we init first or let serializer do it for us?
 
 	Test2 t22 = {};
 	t22.b.f = array_init<i32>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
 	t22.b.g = string_init(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
 	t22.b.h = hash_table_init<i32, String>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
+	t22.b.i = &ii; // TODO: Should we init first or let serializer do it for us?
 
 	deserialize(jsn, {"t1", t2});
 	deserialize(jsn, {"t21", t22});
 
-	[[maybe_unused]] i32 i = 0;
+	[[maybe_unused]] i32 xxx = 0;
 }
