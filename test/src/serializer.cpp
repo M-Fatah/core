@@ -30,56 +30,20 @@ struct Serialization_Pair
 {
 	const char *name;
 	void *data;
-	u64 count;
-	void (*to)(S &serializer, const char *name, void *data, u64 count);
-	void (*from)(S &serializer, const char *name, void *data, u64 count);
+	void (*to)(S &serializer, const char *name, void *data);
+	void (*from)(S &serializer, const char *name, void *data);
 
 	template <typename T>
-	Serialization_Pair(const char *name, T &data, u64 count = 0)
+	Serialization_Pair(const char *name, T &data)
 	{
 		Serialization_Pair &self = *this;
 		self.name = name;
 		self.data = (void *)&data;
-		self.count = count;
-		self.to = +[](S &serializer, const char *, void *data, u64) {
-			// if (count == 0)
-			// {
-			// 	// T *d = (std::remove_pointer_t<T> *)data;
-			// 	T &d = *(T *&)data;
-			// 	::to(serializer, d);
-			// 	return;
-			// }
-
-			// TODO: Add remove const.
-
-			// const Type *t = type_of<T>();
-			// const Type *tt = type_of<T *>();
-			// const Type *ttt = type_of<std::remove_pointer_t<T>>();
-			// unused(t, tt, ttt);
-			// T *d = (T)data;
-
-			// TODO: This solves arrays, strings, and binary blobs.
-			// auto *d = *(std::remove_pointer_t<T> **)data;
-			// serialize(serializer, d);
-
+		self.to = +[](S &serializer, const char *, void *data) {
 			T &d = *(T *)data;
 			serialize(serializer, d);
 		};
-		self.from = +[](S &serializer, const char *, void *data, u64) {
-			// if (count == 0)
-			// {
-			// 	// T *d = (std::remove_pointer_t<T> *)data;
-			// 	T &d = *(T *&)data;
-			// 	::from(serializer, d);
-			// 	return;
-			// }
-
-			// TODO: Add remove const.
-
-			// TODO: This solves arrays, strings, and binary blobs.
-			// ::from(serializer, d, count);
-			// auto *d = *(std::remove_pointer_t<T> **)data;
-			// deserialize(serializer, d);
+		self.from = +[](S &serializer, const char *, void *data) {
 			T &d = *(T *)data;
 			deserialize(serializer, d);
 		};
@@ -180,7 +144,7 @@ inline static void
 serialize(Bin_Serializer &self, Serialization_Pair<Bin_Serializer> pair)
 {
 	self.is_valid = true;
-	pair.to(self, pair.name, pair.data, pair.count);
+	pair.to(self, pair.name, pair.data);
 	self.is_valid = false;
 }
 
@@ -189,7 +153,7 @@ serialize(Bin_Serializer &self, std::initializer_list<Serialization_Pair<Bin_Ser
 {
 	self.is_valid = true;
 	for (const Serialization_Pair<Bin_Serializer> &pair : pairs)
-		pair.to(self, pair.name, (void *&)pair.data, pair.count);
+		pair.to(self, pair.name, (void *&)pair.data);
 	self.is_valid = false;
 }
 
@@ -269,14 +233,14 @@ deserialize(Bin_Serializer &self, Hash_Table<K, V> &data)
 inline static void
 deserialize(Bin_Serializer &self, Serialization_Pair<Bin_Serializer> pair)
 {
-	pair.from(self, pair.name, pair.data, pair.count);
+	pair.from(self, pair.name, pair.data);
 }
 
 inline static void
 deserialize(Bin_Serializer &self, std::initializer_list<Serialization_Pair<Bin_Serializer>> pairs)
 {
 	for (const Serialization_Pair<Bin_Serializer> &pair : pairs)
-		pair.from(self, pair.name, (void *&)pair.data, pair.count);
+		pair.from(self, pair.name, (void *&)pair.data);
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -394,7 +358,7 @@ serialize(Jsn_Serializer &self, Serialization_Pair<Jsn_Serializer> pair)
 	if (self.buffer.count > 0)
 		string_append(self.buffer, ", ");
 	string_append(self.buffer, "\"{}\": ", pair.name);
-	pair.to(self, pair.name, pair.data, pair.count);
+	pair.to(self, pair.name, pair.data);
 	self.is_valid = false;
 }
 
@@ -408,7 +372,7 @@ serialize(Jsn_Serializer &self, std::initializer_list<Serialization_Pair<Jsn_Ser
 		if (i > 0)
 			string_append(self.buffer, ", ");
 		string_append(self.buffer, "\"{}\": ", pair.name);
-		pair.to(self, pair.name, (void *&)pair.data, pair.count);
+		pair.to(self, pair.name, (void *&)pair.data);
 		++i;
 	}
 	string_append(self.buffer, "}}");
@@ -523,7 +487,7 @@ deserialize(Jsn_Serializer &self, Serialization_Pair<Jsn_Serializer> pair)
 	ASSERT(json_entry, "[SERIALIZER][JSON]: Could not find JSON value with provided name.");
 
 	array_push(self.values, json_entry->value);
-	pair.from(self, pair.name, pair.data, pair.count);
+	pair.from(self, pair.name, pair.data);
 	array_pop(self.values);
 }
 
@@ -536,7 +500,7 @@ deserialize(Jsn_Serializer &self, std::initializer_list<Serialization_Pair<Jsn_S
 		ASSERT(json_entry, "[SERIALIZER][JSON]: Could not find JSON value with provided name.");
 
 		array_push(self.values, json_entry->value);
-		pair.from(self, pair.name, pair.data, pair.count);
+		pair.from(self, pair.name, pair.data);
 		array_pop(self.values);
 	}
 }
