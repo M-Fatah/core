@@ -95,7 +95,7 @@ serialize(Bin_Serializer &self, const T &data)
 }
 
 template <typename T>
-requires (std::is_pointer_v<T>)
+requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static void
 serialize(Bin_Serializer& self, const T &data)
 {
@@ -173,7 +173,7 @@ deserialize(Bin_Serializer &self, T &data)
 }
 
 template <typename T>
-requires (std::is_pointer_v<T>)
+requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static void
 deserialize(Bin_Serializer& self, const T &data)
 {
@@ -290,7 +290,7 @@ serialize(Jsn_Serializer &self, const bool data)
 }
 
 template <typename T>
-requires (std::is_pointer_v<T>)
+requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static void
 serialize(Jsn_Serializer& self, const T &data)
 {
@@ -397,7 +397,7 @@ deserialize(Jsn_Serializer &self, bool &data)
 }
 
 template <typename T>
-requires (std::is_pointer_v<T>)
+requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static void
 deserialize(Jsn_Serializer& self, const T &data)
 {
