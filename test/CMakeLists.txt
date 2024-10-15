@@ -1,4 +1,6 @@
 set(HEADER_FILES
+    src/bin_serializer.h
+    src/jsn_serializer.h
 )
 
 set(SOURCE_FILES
