@@ -18,15 +18,16 @@
 		- [x] Nested structed.
 	- [ ] Blobs.
 		- [ ] Need to be serialized as base64 string in json serializer.
-	- [ ] Allocator.
+	- [x] Allocator.
 		- [x] Binary serializer.
-		- [ ] Json serializer.
+		- [x] Json serializer.
 	- [ ] Versioning.
 	- [ ] Arena backing memory.
 	- [ ] VirtualAlloc?
 	- [ ] Collapse serialization and deserialization into one function.
 	- [ ] Either we assert that the user should use serialized pairs, or generate names for omitted types.
 	- [ ] What happens if the user serializes multiple entries with the same name in jsn and name dependent serializers.
+	- [ ] Unit tests.
 */
 
 
@@ -304,20 +305,10 @@ json_serialization_test_structs()
 	string_append(jsn.buffer, ttt);
 	::printf("%s", jsn.buffer.data);
 
-	i32 ii = 0;
 	Test t2 = {};
-	t2.f = array_init<i32>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
-	t2.g = string_init(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
-	t2.h = hash_table_init<i32, String>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
-	t2.i = &i; // TODO: Should we init first or let serializer do it for us?
+	deserialize(jsn, {"t1", t2});
 
 	Test2 t22 = {};
-	t22.b.f = array_init<i32>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
-	t22.b.g = string_init(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
-	t22.b.h = hash_table_init<i32, String>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
-	t22.b.i = &ii; // TODO: Should we init first or let serializer do it for us?
-
-	deserialize(jsn, {"t1", t2});
 	deserialize(jsn, {"t21", t22});
 
 	[[maybe_unused]] i32 xxx = 0;

@@ -11,6 +11,7 @@
 
 struct Jsn_Serializer
 {
+	memory::Allocator *allocator;
 	String buffer;
 	JSON_Value value;
 	Array<JSON_Value> values;
@@ -20,12 +21,13 @@ struct Jsn_Serializer
 };
 
 inline static Jsn_Serializer
-jsn_serializer_init()
+jsn_serializer_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	return Jsn_Serializer {
-		.buffer = string_init(),
+		.allocator = allocator,
+		.buffer = string_init(allocator),
 		.value = {},
-		.values = array_init<JSON_Value>(),
+		.values = array_init<JSON_Value>(allocator),
 		.is_valid = false
 	};
 }
@@ -188,8 +190,10 @@ deserialize(Jsn_Serializer &self, bool &data)
 template <typename T>
 requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static void
-deserialize(Jsn_Serializer& self, const T &data)
+deserialize(Jsn_Serializer& self, T &data)
 {
+	if (data == nullptr)
+		data = memory::allocate<std::remove_pointer_t<T>>(self.allocator);
 	deserialize(self, *data);
 }
 
@@ -212,6 +216,12 @@ template <typename T>
 inline static void
 deserialize(Jsn_Serializer &self, Array<T> &data)
 {
+	if (self.allocator != data.allocator || data.allocator == nullptr)
+	{
+		destroy(data);
+		data = array_init<T>(self.allocator);
+	}
+
 	ASSERT(array_last(self.values).kind == JSON_VALUE_KIND_ARRAY, "[SERIALIZER][JSON]: JSON value is not an array!");
 	Array<JSON_Value> array_values = array_last(self.values).as_array;
 	array_resize(data, array_values.count);
@@ -226,6 +236,12 @@ deserialize(Jsn_Serializer &self, Array<T> &data)
 inline static void
 deserialize(Jsn_Serializer &self, String &data)
 {
+	if (self.allocator != data.allocator || data.allocator == nullptr)
+	{
+		string_deinit(data);
+		data = string_init(self.allocator);
+	}
+
 	ASSERT(array_last(self.values).kind == JSON_VALUE_KIND_STRING, "[SERIALIZER][JSON]: JSON value is not a string!");
 	String str = array_last(self.values).as_string;
 	string_clear(data);
@@ -236,11 +252,18 @@ template <typename K, typename V>
 inline static void
 deserialize(Jsn_Serializer &self, Hash_Table<K, V> &data)
 {
+	// TODO: Should we add allocator in hash table?
+	if (self.allocator != data.entries.allocator || data.entries.allocator == nullptr)
+	{
+		destroy(data);
+		data = hash_table_init<K, V>(self.allocator);
+	}
+
 	ASSERT(array_last(self.values).kind == JSON_VALUE_KIND_ARRAY, "[SERIALIZER][JSON]: JSON value is not an array!");
 	Array<JSON_Value> array_values = array_last(self.values).as_array;
 
 	hash_table_clear(data);
-	hash_table_resize(data, array_values.count);
+	hash_table_resize(data, array_values.count); // TODO: Should we remove this?
 	for (u64 i = 0; i < array_values.count; ++i)
 	{
 		JSON_Value json_value = array_values[i];
@@ -268,7 +291,7 @@ deserialize(Jsn_Serializer &self, Jsn_Serialization_Pair pair)
 	// TODO: Print error.
 	// TODO: Clear messages.
 	// TODO: Better naming.
-	auto [value, error] = json_value_from_string(self.buffer);
+	auto [value, error] = json_value_from_string(self.buffer, self.allocator);
 	self.value = value;
 	ASSERT(!error, "[SERIALIZER][JSON]: Could not parse JSON string.");
 

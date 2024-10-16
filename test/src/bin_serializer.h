@@ -155,7 +155,7 @@ deserialize(Bin_Serializer &self, String &data)
 {
 	if (self.allocator != data.allocator || data.allocator == nullptr)
 	{
-		destroy(data);
+		string_deinit(data);
 		data = string_init(self.allocator);
 	}
 
@@ -170,6 +170,7 @@ template <typename K, typename V>
 inline static void
 deserialize(Bin_Serializer &self, Hash_Table<K, V> &data)
 {
+	// TODO: Should we add allocator in hash table?
 	if (self.allocator != data.entries.allocator || data.entries.allocator == nullptr)
 	{
 		destroy(data);
