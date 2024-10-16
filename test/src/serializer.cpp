@@ -19,6 +19,8 @@
 	- [ ] Blobs.
 		- [ ] Need to be serialized as base64 string in json serializer.
 	- [ ] Allocator.
+		- [x] Binary serializer.
+		- [ ] Json serializer.
 	- [ ] Versioning.
 	- [ ] Arena backing memory.
 	- [ ] VirtualAlloc?
@@ -245,12 +247,7 @@ binary_serialization_test_structs()
 		.i = &i
 	};
 
-	i32 ii = 0;
 	Test t2 = {};
-	t2.f = array_init<i32>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
-	t2.g = string_init(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
-	t2.h = hash_table_init<i32, String>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
-	t2.i = &ii;
 	// serialize(bin, t1);
 	// deserialize(bin, t2);
 
@@ -266,10 +263,6 @@ binary_serialization_test_structs()
 	serialize(bin, {"t21", t21});
 
 	Test2 t22 = {};
-	t22.b.f = array_init<i32>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
-	t22.b.g = string_init(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
-	t22.b.h = hash_table_init<i32, String>(memory::temp_allocator()); // TODO: Should we init first or let serializer do it for us?
-	t22.b.i = &ii;
 
 	deserialize(bin, {"t21", t22});
 

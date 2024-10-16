@@ -9,6 +9,7 @@
 
 struct Bin_Serializer
 {
+	memory::Allocator *allocator;
 	Array<u8> buffer;
 	u64 s_offset;
 	u64 d_offset;
@@ -16,10 +17,11 @@ struct Bin_Serializer
 };
 
 inline static Bin_Serializer
-bin_serializer_init()
+bin_serializer_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	return Bin_Serializer {
-		.buffer = array_init<u8>(),
+		.allocator = allocator,
+		.buffer = array_init<u8>(allocator),
 		.s_offset = 0,
 		.d_offset = 0,
 		.is_valid = false
@@ -113,8 +115,10 @@ deserialize(Bin_Serializer &self, T &data)
 template <typename T>
 requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static void
-deserialize(Bin_Serializer& self, const T &data)
+deserialize(Bin_Serializer& self, T &data)
 {
+	if (data == nullptr)
+		data = memory::allocate<std::remove_pointer_t<T>>(self.allocator);
 	deserialize(self, *data);
 }
 
@@ -133,6 +137,12 @@ template <typename T>
 inline static void
 deserialize(Bin_Serializer &self, Array<T> &data)
 {
+	if (self.allocator != data.allocator || data.allocator == nullptr)
+	{
+		destroy(data);
+		data = array_init<T>(self.allocator);
+	}
+
 	u64 count = 0;
 	deserialize(self, count);
 	array_resize(data, count);
@@ -143,6 +153,12 @@ deserialize(Bin_Serializer &self, Array<T> &data)
 inline static void
 deserialize(Bin_Serializer &self, String &data)
 {
+	if (self.allocator != data.allocator || data.allocator == nullptr)
+	{
+		destroy(data);
+		data = string_init(self.allocator);
+	}
+
 	u64 count = 0;
 	deserialize(self, count);
 	string_resize(data, count);
@@ -154,10 +170,16 @@ template <typename K, typename V>
 inline static void
 deserialize(Bin_Serializer &self, Hash_Table<K, V> &data)
 {
+	if (self.allocator != data.entries.allocator || data.entries.allocator == nullptr)
+	{
+		destroy(data);
+		data = hash_table_init<K, V>(self.allocator);
+	}
+
 	u64 count = 0;
 	deserialize(self, count);
 	hash_table_clear(data);
-	hash_table_resize(data, count);
+	hash_table_resize(data, count); // TODO: Should we remove this?
 	for (u64 i = 0; i < count; ++i)
 	{
 		K key   = {};
