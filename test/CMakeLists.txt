@@ -1,4 +1,6 @@
 set(HEADER_FILES
+    src/bin_serializer.h
+    src/jsn_serializer.h
 )
 
 set(SOURCE_FILES
@@ -12,6 +14,7 @@ set(LIBS
 add_executable(test ${HEADER_FILES} ${SOURCE_FILES})
 target_link_libraries(test ${LIBS})
 target_compile_options(test PRIVATE ${GLOBAL_COMPILE_OPTIONS})
+target_compile_definitions(test PRIVATE ${GLOBAL_COMPILE_DEFINITIONS})
 set_target_properties(test
     PROPERTIES
         UNITY_BUILD_BATCH_SIZE 8
