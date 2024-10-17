@@ -1,9 +1,3 @@
-#include <core/defines.h>
-#include <core/json.h>
-#include <core/containers/array.h>
-#include <core/containers/string.h>
-#include <core/containers/hash_table.h>
-
 #include "bin_serializer.h"
 #include "jsn_serializer.h"
 
@@ -13,6 +7,7 @@
 	- [x] Pointers.
 	- [x] Arrays.
 	- [x] Strings.
+		- [ ] C strings.
 	- [x] Hash tables.
 	- [x] Structs.
 		- [x] Nested structed.
@@ -28,6 +23,9 @@
 	- [ ] Either we assert that the user should use serialized pairs, or generate names for omitted types.
 	- [ ] What happens if the user serializes multiple entries with the same name in jsn and name dependent serializers.
 	- [ ] Unit tests.
+
+	- JSON serializer:
+		- [ ] Should use JSON_Value instead of string buffer?
 */
 
 
@@ -299,10 +297,6 @@ json_serialization_test_structs()
 
 	serialize(jsn, {"t21", t21});
 
-	// TODO: Just for ba3basa.
-	String ttt = string_from(memory::temp_allocator(), "{{ {} }}", jsn.buffer);
-	string_clear(jsn.buffer);
-	string_append(jsn.buffer, ttt);
 	::printf("%s", jsn.buffer.data);
 
 	Test t2 = {};

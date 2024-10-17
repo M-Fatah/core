@@ -15,8 +15,6 @@ struct Jsn_Serializer
 	String buffer;
 	JSON_Value value;
 	Array<JSON_Value> values;
-	// u64 s_offset;
-	// u64 d_offset;
 	bool is_valid;
 };
 
@@ -146,10 +144,21 @@ inline static void
 serialize(Jsn_Serializer &self, Jsn_Serialization_Pair pair)
 {
 	self.is_valid = true;
+
 	if (self.buffer.count > 0)
+	{
+		self.buffer.count--;
 		string_append(self.buffer, ", ");
+	}
+	else
+	{
+		string_append(self.buffer, "{{");
+	}
+
 	string_append(self.buffer, "\"{}\": ", pair.name);
 	pair.to(self, pair.name, pair.data);
+	string_append(self.buffer, "}}");
+
 	self.is_valid = false;
 }
 
