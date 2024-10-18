@@ -66,28 +66,28 @@ template <typename T, u64 N>
 inline static void
 serialize(Jsn_Serializer &self, const T (&data)[N])
 {
-	string_append(self.buffer, "[");
+	string_append(self.buffer, '[');
 	for (u64 i = 0; i < N; ++i)
 	{
 		if (i > 0)
-			string_append(self.buffer, ", ");
+			string_append(self.buffer, ',');
 		serialize(self, data[i]);
 	}
-	string_append(self.buffer, "]");
+	string_append(self.buffer, ']');
 }
 
 template <typename T>
 inline static void
 serialize(Jsn_Serializer &self, const Array<T> &data)
 {
-	string_append(self.buffer, "[");
+	string_append(self.buffer, '[');
 	for (u64 i = 0; i < data.count; ++i)
 	{
 		if (i > 0)
-			string_append(self.buffer, ", ");
+			string_append(self.buffer, ',');
 		serialize(self, data[i]);
 	}
-	string_append(self.buffer, "]");
+	string_append(self.buffer, ']');
 }
 
 inline static void
@@ -100,20 +100,20 @@ template <typename K, typename V>
 inline static void
 serialize(Jsn_Serializer &self, const Hash_Table<K, V> &data)
 {
-	string_append(self.buffer, "[");
+	string_append(self.buffer, '[');
 	i32 i = 0;
 	for (const Hash_Table_Entry<const K, V> &entry : data)
 	{
 		if (i > 0)
-			string_append(self.buffer, ", ");
-		string_append(self.buffer, "{{ \"key\": ");
+			string_append(self.buffer, ',');
+		string_append(self.buffer, "{{\"key\":");
 		serialize(self, entry.key);
-		string_append(self.buffer, ", \"value\": ");
+		string_append(self.buffer, ",\"value\":");
 		serialize(self, entry.value);
-		string_append(self.buffer, "}}");
+		string_append(self.buffer, '}');
 		++i;
 	}
-	string_append(self.buffer, "]");
+	string_append(self.buffer, ']');
 }
 
 struct Jsn_Serialization_Pair
@@ -145,19 +145,19 @@ serialize(Jsn_Serializer &self, Jsn_Serialization_Pair pair)
 {
 	self.is_valid = true;
 
-	if (self.buffer.count > 0)
+	if (!string_is_empty(self.buffer))
 	{
 		self.buffer.count--;
-		string_append(self.buffer, ", ");
+		string_append(self.buffer, ',');
 	}
 	else
 	{
-		string_append(self.buffer, "{{");
+		string_append(self.buffer, '{');
 	}
 
-	string_append(self.buffer, "\"{}\": ", pair.name);
+	string_append(self.buffer, "\"{}\":", pair.name);
 	pair.to(self, pair.name, pair.data);
-	string_append(self.buffer, "}}");
+	string_append(self.buffer, '}');
 
 	self.is_valid = false;
 }
@@ -165,17 +165,17 @@ serialize(Jsn_Serializer &self, Jsn_Serialization_Pair pair)
 inline static void
 serialize(Jsn_Serializer &self, std::initializer_list <Jsn_Serialization_Pair> pairs)
 {
-	string_append(self.buffer, "{{");
+	string_append(self.buffer, '{');
 	i32 i = 0;
 	for (const Jsn_Serialization_Pair &pair : pairs)
 	{
 		if (i > 0)
-			string_append(self.buffer, ", ");
-		string_append(self.buffer, "\"{}\": ", pair.name);
+			string_append(self.buffer, ',');
+		string_append(self.buffer, "\"{}\":", pair.name);
 		pair.to(self, pair.name, (void *&)pair.data);
 		++i;
 	}
-	string_append(self.buffer, "}}");
+	string_append(self.buffer, '}');
 }
 
 /////////////////////////////////////////////////////////////////////
