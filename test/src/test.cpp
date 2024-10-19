@@ -6,8 +6,6 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#include "serializer.cpp"
-
 // inline static void
 // print(Value v)
 // {
