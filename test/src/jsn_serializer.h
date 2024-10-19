@@ -2,6 +2,7 @@
 
 #include <core/defines.h>
 #include <core/json.h>
+#include <core/logger.h>
 #include <core/containers/array.h>
 #include <core/containers/string.h>
 #include <core/containers/hash_table.h>
@@ -16,6 +17,30 @@ struct Jsn_Serializer
 	JSON_Value value;
 	Array<JSON_Value> values;
 	bool is_valid;
+};
+
+struct Jsn_Serialization_Pair
+{
+	const char *name;
+	void *data;
+	void (*to)(Jsn_Serializer &serializer, const char *name, void *data);
+	void (*from)(Jsn_Serializer &serializer, const char *name, void *data);
+
+	template <typename T>
+	Jsn_Serialization_Pair(const char *name, T &data)
+	{
+		Jsn_Serialization_Pair &self = *this;
+		self.name = name;
+		self.data = (void *)&data;
+		self.to = +[](Jsn_Serializer &serializer, const char *, void *data) {
+			T &d = *(T *)data;
+			serialize(serializer, d);
+		};
+		self.from = +[](Jsn_Serializer &serializer, const char *, void *data) {
+			T &d = *(T *)data;
+			deserialize(serializer, d);
+		};
+	}
 };
 
 inline static Jsn_Serializer
@@ -63,6 +88,7 @@ serialize(Jsn_Serializer& self, const T &data)
 }
 
 template <typename T, u64 N>
+requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>) // TODO: Test char arrays. For some reason, this gets invoked by C string calls.
 inline static void
 serialize(Jsn_Serializer &self, const T (&data)[N])
 {
@@ -96,6 +122,12 @@ serialize(Jsn_Serializer &self, const String &data)
 	string_append(self.buffer, "\"{}\"", data);
 }
 
+inline static void
+serialize(Jsn_Serializer &self, const char *&data)
+{
+	serialize(self, string_literal(data));
+}
+
 template <typename K, typename V>
 inline static void
 serialize(Jsn_Serializer &self, const Hash_Table<K, V> &data)
@@ -115,30 +147,6 @@ serialize(Jsn_Serializer &self, const Hash_Table<K, V> &data)
 	}
 	string_append(self.buffer, ']');
 }
-
-struct Jsn_Serialization_Pair
-{
-	const char *name;
-	void *data;
-	void (*to)(Jsn_Serializer &serializer, const char *name, void *data);
-	void (*from)(Jsn_Serializer &serializer, const char *name, void *data);
-
-	template <typename T>
-	Jsn_Serialization_Pair(const char *name, T &data)
-	{
-		Jsn_Serialization_Pair &self = *this;
-		self.name = name;
-		self.data = (void *)&data;
-		self.to = +[](Jsn_Serializer &serializer, const char *, void *data) {
-			T &d = *(T *)data;
-			serialize(serializer, d);
-		};
-		self.from = +[](Jsn_Serializer &serializer, const char *, void *data) {
-			T &d = *(T *)data;
-			deserialize(serializer, d);
-		};
-	}
-};
 
 inline static void
 serialize(Jsn_Serializer &self, Jsn_Serialization_Pair pair)
@@ -172,7 +180,7 @@ serialize(Jsn_Serializer &self, std::initializer_list <Jsn_Serialization_Pair> p
 		if (i > 0)
 			string_append(self.buffer, ',');
 		string_append(self.buffer, "\"{}\":", pair.name);
-		pair.to(self, pair.name, (void *&)pair.data);
+		pair.to(self, pair.name, pair.data);
 		++i;
 	}
 	string_append(self.buffer, '}');
@@ -207,6 +215,7 @@ deserialize(Jsn_Serializer& self, T &data)
 }
 
 template <typename T, u64 N>
+requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>) // TODO: Test char arrays. For some reason, this gets invoked by C string calls.
 inline static void
 deserialize(Jsn_Serializer &self, T (&data)[N])
 {
@@ -257,6 +266,15 @@ deserialize(Jsn_Serializer &self, String &data)
 	string_append(data, str);
 }
 
+inline static void
+deserialize(Jsn_Serializer &self, const char *&data)
+{
+	String out = {};
+	deserialize(self, out);
+	data = out.data;
+	out = {};
+}
+
 template <typename K, typename V>
 inline static void
 deserialize(Jsn_Serializer &self, Hash_Table<K, V> &data)
@@ -300,6 +318,8 @@ deserialize(Jsn_Serializer &self, Jsn_Serialization_Pair pair)
 	// TODO: Print error.
 	// TODO: Clear messages.
 	// TODO: Better naming.
+	json_value_deinit(self.value);
+
 	auto [value, error] = json_value_from_string(self.buffer, self.allocator);
 	self.value = value;
 	ASSERT(!error, "[SERIALIZER][JSON]: Could not parse JSON string.");
