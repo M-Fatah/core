@@ -1,6 +1,5 @@
-// TODO:
-#include "../../test/src/bin_serializer.h"
-#include "../../test/src/jsn_serializer.h"
+#include <core/serialization/binary_serializer.h>
+#include <core/serialization/json_serializer.h>
 
 #include <doctest/doctest.h>
 

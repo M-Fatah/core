@@ -7,7 +7,6 @@
 #include "core/reflect.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
-#include "core/serialization/serializer.h"
 
 #include <initializer_list>
 
@@ -314,34 +313,6 @@ destroy(Hash_Table<K, V> &self)
 		}
 	}
 	hash_table_deinit(self);
-}
-
-template <typename K, typename V>
-inline static void
-serialize(Serializer *serializer, const Hash_Table<K, V> &self)
-{
-	serialize(serializer, self.count);
-	for (const auto &entry: self)
-	{
-		serialize(serializer, entry.key);
-		serialize(serializer, entry.value);
-	}
-}
-
-template <typename K, typename V>
-inline static void
-deserialize(Serializer *serializer, Hash_Table<K, V> &self)
-{
-	u64 count = 0;
-	deserialize(serializer, count);
-	for (u64 i = 0; i < count; ++i)
-	{
-		K key = {};
-		V value = {};
-		deserialize(serializer, key);
-		deserialize(serializer, value);
-		hash_table_insert(self, key, value);
-	}
 }
 
 template <typename K, typename V>

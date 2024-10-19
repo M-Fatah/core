@@ -7,7 +7,6 @@
 #include "core/formatter.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
-#include "core/serialization/serializer.h"
 
 using String = Array<char>;
 
@@ -774,24 +773,6 @@ inline static u64
 hash(const String &self)
 {
 	return hash_fnv_x32(self.data, self.count);
-}
-
-inline static void
-serialize(Serializer *serializer, const String &self)
-{
-	serialize(serializer, self.count);
-	for (u64 i = 0; i < self.count; ++i)
-		serialize(serializer, self[i]);
-}
-
-inline static void
-deserialize(Serializer *serializer, String &self)
-{
-	u64 count = 0;
-	deserialize(serializer, count);
-	string_resize(self, count);
-	for (u64 i = 0; i < count; ++i)
-		deserialize(serializer, self[i]);
 }
 
 inline static void
