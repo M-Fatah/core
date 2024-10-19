@@ -13,6 +13,7 @@ struct Game
 	Array<f32> e;
 	String f;
 	Hash_Table<String, f32> g;
+	i32 *h;
 };
 
 inline static Game
@@ -22,6 +23,7 @@ game_init(memory::Allocator *allocator = memory::heap_allocator())
 	self.e = array_init<f32>(allocator);
 	self.f = string_init(allocator);
 	self.g = hash_table_init<String, f32>(allocator);
+	self.h = memory::allocate<i32>(allocator);
 	return self;
 }
 
@@ -31,6 +33,7 @@ game_deinit(Game &self)
 	array_deinit(self.e);
 	string_deinit(self.f);
 	destroy(self.g);
+	memory::deallocate(self.h);
 	self = {};
 }
 
@@ -45,7 +48,8 @@ serialize(T &self, Game &data)
 		{"d", data.d},
 		{"e", data.e},
 		{"f", data.f},
-		{"g", data.g}
+		{"g", data.g},
+		{"h", data.h}
 	});
 }
 
@@ -60,7 +64,8 @@ deserialize(T &self, Game &data)
 		{"d", data.d},
 		{"e", data.e},
 		{"f", data.f},
-		{"g", data.g}
+		{"g", data.g},
+		{"h", data.h}
 	});
 }
 
@@ -218,11 +223,11 @@ TEST_CASE("[CORE]: Binary_Serializer")
 		}
 	}
 
-	Game original_game = game_init();
-	DEFER(game_deinit(original_game));
-
+	SUBCASE("Structs")
 	{
-		// Set some arbitrary values.
+		Game original_game = game_init();
+		DEFER(game_deinit(original_game));
+
 		{
 			original_game.a = 31;
 			original_game.b = 37;
@@ -235,13 +240,13 @@ TEST_CASE("[CORE]: Binary_Serializer")
 			hash_table_insert(original_game.g, string_literal("1"), 1.0f);
 			hash_table_insert(original_game.g, string_literal("2"), 2.0f);
 			hash_table_insert(original_game.g, string_literal("3"), 3.0f);
-		}
+			*original_game.h = 5;
 
-		serialize(serializer, original_game);
+			serialize(serializer, original_game);
 
-		{
 			Game new_game = {};
 			DEFER(game_deinit(new_game));
+
 			deserialize(serializer, new_game);
 
 			CHECK(new_game.a == original_game.a);
@@ -260,6 +265,8 @@ TEST_CASE("[CORE]: Binary_Serializer")
 				CHECK(new_key == original_key);
 				CHECK(new_value == original_value);
 			}
+
+			CHECK(*original_game.h == *new_game.h);
 		}
 	}
 
@@ -323,12 +330,13 @@ TEST_CASE("[CORE]: JSON_Serializer")
 			hash_table_insert(original_game.g, string_literal("1"), 1.0f);
 			hash_table_insert(original_game.g, string_literal("2"), 2.0f);
 			hash_table_insert(original_game.g, string_literal("3"), 3.0f);
+			*original_game.h = 5;
 		}
 
 		serialize(serializer, {"original_game", original_game});
 
 		{
-			const char *expected_json_string = R"""({"original_game":{"a":31,"b":37,"c":1.500000,"d":65,"e":[0.500000,1.500000,2.500000],"f":"Hello1","g":[{"key":"1","value":1.000000},{"key":"2","value":2.000000},{"key":"3","value":3.000000}]}})""";
+			const char *expected_json_string = R"""({"original_game":{"a":31,"b":37,"c":1.500000,"d":65,"e":[0.500000,1.500000,2.500000],"f":"Hello1","g":[{"key":"1","value":1.000000},{"key":"2","value":2.000000},{"key":"3","value":3.000000}],"h":5}})""";
 			CHECK(serializer.buffer == expected_json_string);
 		}
 
@@ -353,6 +361,8 @@ TEST_CASE("[CORE]: JSON_Serializer")
 				CHECK(new_key == original_key);
 				CHECK(new_value == original_value);
 			}
+
+			CHECK(*original_game.h == *new_game.h);
 		}
 	}
 }
