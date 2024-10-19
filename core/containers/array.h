@@ -13,10 +13,10 @@
 template <typename T>
 struct Array
 {
+	memory::Allocator *allocator; // TODO: This was moved from down to here.
 	T *data;
 	u64 count;
 	u64 capacity;
-	memory::Allocator *allocator;
 
 	T &
 	operator[](u64 index)
