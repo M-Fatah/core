@@ -104,8 +104,8 @@ destroy(T &)
 	static_assert(sizeof(T) == 0, "There is no `void destroy(T &)` function overload defined for this type.");
 }
 
-template <typename T, u32 N>
-inline static u32
+template <typename T, u64 N>
+inline static u64
 count_of(const T (&)[N])
 {
 	return N;

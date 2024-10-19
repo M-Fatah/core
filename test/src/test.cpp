@@ -369,15 +369,5 @@ main(i32, char **)
 
 	// platform_window_deinit(&window);
 
-	binary_serialization_test_fundamentals();
-	binary_serialization_test_arrays();
-	binary_serialization_test_strings();
-	binary_serialization_test_hash_tables();
-	binary_serialization_test_structs();
-
-	json_serialization_test_structs();
-
-	[[maybe_unused]] i32 t = 0;
-
 	return 0;
 }

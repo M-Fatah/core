@@ -42,11 +42,10 @@ inline static void
 serialize(Bin_Serializer &self, const T &data)
 {
 	// ASSERT(self.is_valid, "[SERIALIZER][BINARY]: Missing serialization name."); // TODO:
-	// TODO: memcpy.
-	const u8 *d = (const u8 *)&data;
-	for (u64 i = 0; i < sizeof(data); ++i)
-		array_push(self.buffer, d[i]);
-	self.s_offset += sizeof(data);
+	array_reserve(self.buffer, sizeof(data));
+	::memcpy(self.buffer.data + self.s_offset, &data, sizeof(T));
+	self.buffer.count += sizeof(T);
+	self.s_offset += sizeof(T);
 }
 
 template <typename T>
@@ -226,16 +225,16 @@ serialize(Bin_Serializer &self, Serialization_Pair pair)
 inline static void
 serialize(Bin_Serializer &self, std::initializer_list<Serialization_Pair> pairs)
 {
-	self.is_valid = true;
 	for (const Serialization_Pair &pair : pairs)
 		pair.to(self, pair.name, (void *&)pair.data);
-	self.is_valid = false;
 }
 
 inline static void
 deserialize(Bin_Serializer &self, Serialization_Pair pair)
 {
+	self.is_valid = true;
 	pair.from(self, pair.name, pair.data);
+	self.is_valid = false;
 }
 
 inline static void

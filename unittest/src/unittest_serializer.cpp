@@ -69,6 +69,155 @@ TEST_CASE("[CORE]: Binary_Serializer")
 	Bin_Serializer serializer = bin_serializer_init();
 	DEFER(bin_serializer_deinit(serializer));
 
+	SUBCASE("Fundamental types")
+	{
+		i8   a1 = 1;
+		i16  b1 = 2;
+		i32  c1 = 3;
+		i64  d1 = 4;
+		u8   e1 = 5;
+		u16  f1 = 6;
+		u32  g1 = 7;
+		u64  h1 = 8;
+		f32  i1 = 9;
+		f64  j1 = 10;
+		char k1 = 'A';
+		bool l1 = true;
+
+		serialize(serializer, {"a1", a1});
+		serialize(serializer, {"b1", b1});
+		serialize(serializer, {"c1", c1});
+		serialize(serializer, {"d1", d1});
+		serialize(serializer, {"e1", e1});
+		serialize(serializer, {"f1", f1});
+		serialize(serializer, {"g1", g1});
+		serialize(serializer, {"h1", h1});
+		serialize(serializer, {"i1", i1});
+		serialize(serializer, {"j1", j1});
+		serialize(serializer, {"k1", k1});
+		serialize(serializer, {"l1", l1});
+
+		i8   a2 = 0;
+		i16  b2 = 0;
+		i32  c2 = 0;
+		i64  d2 = 0;
+		u8   e2 = 0;
+		u16  f2 = 0;
+		u32  g2 = 0;
+		u64  h2 = 0;
+		f32  i2 = 0;
+		f64  j2 = 0;
+		char k2 = 0;
+		bool l2 = 0;
+
+		deserialize(serializer, {"a2", a2});
+		deserialize(serializer, {"b2", b2});
+		deserialize(serializer, {"c2", c2});
+		deserialize(serializer, {"d2", d2});
+		deserialize(serializer, {"e2", e2});
+		deserialize(serializer, {"f2", f2});
+		deserialize(serializer, {"g2", g2});
+		deserialize(serializer, {"h2", h2});
+		deserialize(serializer, {"i2", i2});
+		deserialize(serializer, {"j2", j2});
+		deserialize(serializer, {"k2", k2});
+		deserialize(serializer, {"l2", l2});
+
+		CHECK(a1 == a2);
+		CHECK(b1 == b2);
+		CHECK(c1 == c2);
+		CHECK(d1 == d2);
+		CHECK(e1 == e2);
+		CHECK(f1 == f2);
+		CHECK(g1 == g2);
+		CHECK(h1 == h2);
+		CHECK(i1 == i2);
+		CHECK(j1 == j2);
+		CHECK(k1 == k2);
+		CHECK(l1 == l2);
+	}
+
+	SUBCASE("Pointers")
+	{
+		i32 i1 = 5;
+		i32 *a1 = &i1;
+
+		serialize(serializer, {"a1", a1});
+
+		i32 i2 = 0;
+		i32 *a2 = &i2;
+
+		deserialize(serializer, {"a1", a2});
+
+		CHECK(*a1 == *a2);
+	}
+
+	SUBCASE("Arrays")
+	{
+
+		i32 a1[3]    = {1, 2, 3};
+		Array<i8> b1 = array_from<i8>({1, 2, 3, 4, 5});
+		DEFER(array_deinit(b1));
+
+		serialize(serializer, a1);
+		serialize(serializer, b1);
+
+		i32 a2[3]    = {};
+		Array<i8> b2 = {};
+		DEFER(array_deinit(b2));
+
+		deserialize(serializer, a2);
+		deserialize(serializer, b2);
+
+		for (u64 i = 0; i < count_of(a1); ++i)
+		{
+			CHECK(a1[i] == a2[i]);
+			CHECK(b1[i] == b2[i]);
+		}
+	}
+
+	SUBCASE("Strings")
+	{
+		// TODO: C string.
+		String a1 = string_from("Hello, World!");
+		DEFER(string_deinit(a1));
+
+		serialize(serializer, a1);
+
+		String a2 = {};
+		DEFER(string_deinit(a2));
+
+		deserialize(serializer, a2);
+
+		CHECK(a1 == a2);
+	}
+
+	SUBCASE("Hash tables")
+	{
+		Hash_Table<i32, String> a1 = hash_table_from<i32, String>({
+			{1, string_literal("A")},
+			{2, string_literal("B")},
+			{3, string_literal("C")},
+		});
+		DEFER(hash_table_deinit(a1));
+
+		serialize(serializer, a1);
+
+		Hash_Table<i32, String> a2 = {};
+		DEFER(destroy(a2));
+
+		deserialize(serializer, a2);
+
+		CHECK(a1.count    == a2.count);
+		CHECK(a1.capacity == a2.capacity);
+
+		for (u64 i = 0; i < a1.entries.count; ++i)
+		{
+			CHECK(a1.entries[i].key   == a2.entries[i].key);
+			CHECK(a1.entries[i].value == a2.entries[i].value);
+		}
+	}
+
 	Game original_game = game_init();
 	DEFER(game_deinit(original_game));
 
