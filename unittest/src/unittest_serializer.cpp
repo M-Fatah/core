@@ -242,12 +242,12 @@ TEST_CASE("[CORE]: Binary_Serializer")
 			hash_table_insert(original_game.g, string_literal("3"), 3.0f);
 			*original_game.h = 5;
 
-			serialize(serializer, original_game);
+			serialize(serializer, {"original_game", original_game});
 
 			Game new_game = {};
 			DEFER(game_deinit(new_game));
 
-			deserialize(serializer, new_game);
+			deserialize(serializer, {"original_game", new_game});
 
 			CHECK(new_game.a == original_game.a);
 			CHECK(new_game.b == original_game.b);
