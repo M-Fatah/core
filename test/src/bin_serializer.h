@@ -13,7 +13,7 @@
 	- [x] Pointers.
 	- [x] Arrays.
 	- [x] Strings.
-		- [ ] C strings.
+		- [x] C strings.
 	- [x] Hash tables.
 	- [x] Structs.
 		- [x] Nested structed.
@@ -47,6 +47,30 @@ struct Bin_Serializer
 	u64 s_offset;
 	u64 d_offset;
 	bool is_valid;
+};
+
+struct Bin_Serialization_Pair
+{
+	const char *name;
+	void *data;
+	void (*to)(Bin_Serializer &serializer, const char *name, void *data);
+	void (*from)(Bin_Serializer &serializer, const char *name, void *data);
+
+	template <typename T>
+	Bin_Serialization_Pair(const char *name, T &data)
+	{
+		Bin_Serialization_Pair &self = *this;
+		self.name = name;
+		self.data = (void *)&data;
+		self.to = +[](Bin_Serializer &serializer, const char *, void *data) {
+			T &d = *(T *)data;
+			serialize(serializer, d);
+		};
+		self.from = +[](Bin_Serializer &serializer, const char *, void *data) {
+			T &d = *(T *)data;
+			deserialize(serializer, d);
+		};
+	}
 };
 
 inline static Bin_Serializer
@@ -236,32 +260,8 @@ deserialize(Bin_Serializer &self, Hash_Table<K, V> &data)
 	}
 }
 
-struct Serialization_Pair
-{
-	const char *name;
-	void *data;
-	void (*to)(Bin_Serializer &serializer, const char *name, void *data);
-	void (*from)(Bin_Serializer &serializer, const char *name, void *data);
-
-	template <typename T>
-	Serialization_Pair(const char *name, T &data)
-	{
-		Serialization_Pair &self = *this;
-		self.name = name;
-		self.data = (void *)&data;
-		self.to = +[](Bin_Serializer &serializer, const char *, void *data) {
-			T &d = *(T *)data;
-			serialize(serializer, d);
-		};
-		self.from = +[](Bin_Serializer &serializer, const char *, void *data) {
-			T &d = *(T *)data;
-			deserialize(serializer, d);
-		};
-	}
-};
-
 inline static void
-serialize(Bin_Serializer &self, Serialization_Pair pair)
+serialize(Bin_Serializer &self, Bin_Serialization_Pair pair)
 {
 	self.is_valid = true;
 	pair.to(self, pair.name, pair.data);
@@ -269,14 +269,14 @@ serialize(Bin_Serializer &self, Serialization_Pair pair)
 }
 
 inline static void
-serialize(Bin_Serializer &self, std::initializer_list<Serialization_Pair> pairs)
+serialize(Bin_Serializer &self, std::initializer_list<Bin_Serialization_Pair> pairs)
 {
-	for (const Serialization_Pair &pair : pairs)
-		pair.to(self, pair.name, (void *&)pair.data);
+	for (const Bin_Serialization_Pair &pair : pairs)
+		pair.to(self, pair.name, pair.data);
 }
 
 inline static void
-deserialize(Bin_Serializer &self, Serialization_Pair pair)
+deserialize(Bin_Serializer &self, Bin_Serialization_Pair pair)
 {
 	self.is_valid = true;
 	pair.from(self, pair.name, pair.data);
@@ -284,8 +284,8 @@ deserialize(Bin_Serializer &self, Serialization_Pair pair)
 }
 
 inline static void
-deserialize(Bin_Serializer &self, std::initializer_list<Serialization_Pair> pairs)
+deserialize(Bin_Serializer &self, std::initializer_list<Bin_Serialization_Pair> pairs)
 {
-	for (const Serialization_Pair &pair : pairs)
-		pair.from(self, pair.name, (void *&)pair.data);
+	for (const Bin_Serialization_Pair &pair : pairs)
+		pair.from(self, pair.name, pair.data);
 }
