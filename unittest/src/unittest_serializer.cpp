@@ -183,18 +183,25 @@ TEST_CASE("[CORE]: Binary_Serializer")
 
 	SUBCASE("Strings")
 	{
-		// TODO: C string.
-		String a1 = string_from("Hello, World!");
-		DEFER(string_deinit(a1));
+		const char *a1 = "Hello, World!";
+		String b1 = string_from("Hello, World!");
+		DEFER(string_deinit(b1));
 
 		serialize(serializer, a1);
+		serialize(serializer, b1);
 
-		String a2 = {};
-		DEFER(string_deinit(a2));
+		const char *a2 = {};
+		String b2 = {};
+		DEFER({
+			memory::deallocate((void *)a2);
+			string_deinit(b2);
+		});
 
 		deserialize(serializer, a2);
+		deserialize(serializer, b2);
 
-		CHECK(a1 == a2);
+		CHECK(string_literal(a1) == a2);
+		CHECK(b1 == b2);
 	}
 
 	SUBCASE("Hash tables")

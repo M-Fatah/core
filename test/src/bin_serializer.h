@@ -115,6 +115,12 @@ serialize(Bin_Serializer &self, const String &data)
 		serialize(self, data[i]);
 }
 
+inline static void
+serialize(Bin_Serializer &self, const char *data)
+{
+	serialize(self, string_literal(data));
+}
+
 template <typename K, typename V>
 inline static void
 serialize(Bin_Serializer &self, const Hash_Table<K, V> &data)
@@ -126,8 +132,6 @@ serialize(Bin_Serializer &self, const Hash_Table<K, V> &data)
 		serialize(self, entry.value);
 	}
 }
-
-
 
 /////////////////////////////////////////////////////////////////////
 template <typename T>
@@ -196,6 +200,15 @@ deserialize(Bin_Serializer &self, String &data)
 	string_resize(data, count);
 	for (u64 i = 0; i < data.count; ++i)
 		deserialize(self, data[i]);
+}
+
+inline static void
+deserialize(Bin_Serializer &self, const char *&data)
+{
+	String out = {};
+	deserialize(self, out);
+	data = out.data;
+	out = {};
 }
 
 template <typename K, typename V>
