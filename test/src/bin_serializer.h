@@ -34,10 +34,11 @@
 		- [ ] Should we assert?
 		- [ ] Should we print warning messages?
 		- [ ] Should we override data?
-	- [ ] Unit tests.
+	- [x] Unit tests.
+	- [ ] Return Error on failure.
 
 	- JSON serializer:
-		- [ ] Should use JSON_Value instead of string buffer?
+		- [ ] Should we use JSON_Value instead of string buffer?
 */
 
 struct Bin_Serializer
@@ -157,6 +158,16 @@ serialize(Bin_Serializer &self, const Hash_Table<K, V> &data)
 	}
 }
 
+inline static void
+serialize(Bin_Serializer &self, const Block &block)
+{
+	serialize(self, block.size);
+	array_reserve(self.buffer, block.size);
+	::memcpy(self.buffer.data + self.s_offset, block.data, block.size); // TODO: Add array_memcpy().
+	self.buffer.count += block.size;
+	self.s_offset += block.size;
+}
+
 /////////////////////////////////////////////////////////////////////
 template <typename T>
 requires (std::is_arithmetic_v<T>)
@@ -258,6 +269,18 @@ deserialize(Bin_Serializer &self, Hash_Table<K, V> &data)
 		deserialize(self, value);
 		hash_table_insert(data, key, value);
 	}
+}
+
+inline static void
+deserialize(Bin_Serializer &self, Block &block)
+{
+	deserialize(self, block.size);
+
+	if (block.data == nullptr)
+		block.data = (u8 *)memory::allocate(block.size);
+
+	for (u64 i = 0; i < block.size; ++i)
+		deserialize(self, ((u8 *)block.data)[i]);
 }
 
 inline static void

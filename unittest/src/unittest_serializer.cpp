@@ -230,6 +230,23 @@ TEST_CASE("[CORE]: Binary_Serializer")
 		}
 	}
 
+	SUBCASE("Blocks")
+	{
+		i32 i = 5;
+
+		Block a1 = {&i, sizeof(i)};
+
+		serialize(serializer, {"a1", a1});
+
+		Block a2 = {};
+		DEFER(memory::deallocate(a2.data));
+
+		deserialize(serializer, {"a1", a2});
+
+		CHECK(*((i32 *)a1.data) == *((i32 *)a2.data));
+		CHECK(a1.size == a2.size);
+	}
+
 	SUBCASE("Structs")
 	{
 		Game original_game = game_init();
