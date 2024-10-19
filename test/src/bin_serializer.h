@@ -17,8 +17,8 @@
 	- [x] Hash tables.
 	- [x] Structs.
 		- [x] Nested structed.
-	- [ ] Blobs.
-		- [ ] Need to be serialized as base64 string in json serializer.
+	- [x] Blobs.
+		- [x] Need to be serialized as base64 string in json serializer.
 	- [x] Allocator.
 		- [x] Binary serializer.
 		- [x] Json serializer.
@@ -38,6 +38,7 @@
 	- [ ] Return Error on failure.
 
 	- JSON serializer:
+		- [ ] Write our own Base64 encoder/decoder.
 		- [ ] Should we use JSON_Value instead of string buffer?
 */
 
