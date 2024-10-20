@@ -144,8 +144,8 @@ struct Jsn_Serialization_Pair
 {
 	const char *name;
 	void *data;
-	void (*to)(Jsn_Serializer &serializer, const char *name, void *data);
-	void (*from)(Jsn_Serializer &serializer, const char *name, void *data);
+	void (*to)(Jsn_Serializer &self, const char *name, void *data);
+	void (*from)(Jsn_Serializer &self, const char *name, void *data);
 
 	template <typename T>
 	Jsn_Serialization_Pair(const char *name, T &data)
@@ -153,13 +153,13 @@ struct Jsn_Serialization_Pair
 		Jsn_Serialization_Pair &self = *this;
 		self.name = name;
 		self.data = (void *)&data;
-		self.to = +[](Jsn_Serializer &serializer, const char *, void *data) {
+		self.to = +[](Jsn_Serializer &self, const char *, void *data) {
 			T &d = *(T *)data;
-			serialize(serializer, d);
+			serialize(self, d);
 		};
-		self.from = +[](Jsn_Serializer &serializer, const char *, void *data) {
+		self.from = +[](Jsn_Serializer &self, const char *, void *data) {
 			T &d = *(T *)data;
-			deserialize(serializer, d);
+			deserialize(self, d);
 		};
 	}
 };

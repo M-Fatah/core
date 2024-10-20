@@ -116,6 +116,7 @@ serialize(Bin_Serializer& self, const T &data)
 }
 
 template <typename T, u64 N>
+requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static void
 serialize(Bin_Serializer &self, const T (&data)[N])
 {
@@ -195,6 +196,7 @@ deserialize(Bin_Serializer& self, T &data)
 }
 
 template <typename T, u64 N>
+requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static void
 deserialize(Bin_Serializer &self, T (&data)[N])
 {
