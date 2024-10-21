@@ -103,7 +103,8 @@ bin_serializer_init(memory::Allocator *allocator = memory::heap_allocator())
 		.buffer = array_init<u8>(allocator),
 		.s_offset = 0,
 		.d_offset = 0,
-		.is_valid = false
+		.is_valid = false,
+		.is_reading = false
 	};
 }
 
