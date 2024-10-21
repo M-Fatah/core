@@ -281,14 +281,21 @@ serialize(Jsn_Serializer &self, Jsn_Serialization_Pair pair)
 {
 	self.is_valid = true;
 
-	if (!string_is_empty(self.buffer))
+	if (string_is_empty(self.buffer))
 	{
-		self.buffer.count--;
-		string_append(self.buffer, ',');
+		string_append(self.buffer, '{');
 	}
 	else
 	{
-		string_append(self.buffer, '{');
+		if (array_last(self.buffer) == ':')
+		{
+			string_append(self.buffer, '{');
+		}
+		else
+		{
+			self.buffer.count--;
+			string_append(self.buffer, ',');
+		}
 	}
 
 	string_append(self.buffer, "\"{}\":", pair.name);
@@ -461,13 +468,17 @@ deserialize(Jsn_Serializer &self, Jsn_Serialization_Pair pair)
 	// TODO: Print error.
 	// TODO: Clear messages.
 	// TODO: Better naming.
-	json_value_deinit(self.value);
+	if (self.value.kind == JSON_VALUE_KIND_NULL)
+	{
+		auto [value, error] = json_value_from_string(self.buffer, self.allocator);
+		self.value = value;
+		ASSERT(!error, "[SERIALIZER][JSON]: Could not parse JSON string.");
+		array_push(self.values, self.value);
+	}
+	// json_value_deinit(self.value);
 
-	auto [value, error] = json_value_from_string(self.buffer, self.allocator);
-	self.value = value;
-	ASSERT(!error, "[SERIALIZER][JSON]: Could not parse JSON string.");
 
-	auto *json_entry = hash_table_find(value.as_object, string_literal(pair.name));
+	auto *json_entry = hash_table_find(array_last(self.values).as_object, string_literal(pair.name));
 	ASSERT(json_entry, "[SERIALIZER][JSON]: Could not find JSON value with provided name.");
 
 	array_push(self.values, json_entry->value);

@@ -40,6 +40,14 @@
 	- JSON serializer:
 		- [ ] Write our own Base64 encoder/decoder.
 		- [ ] Should we use JSON_Value instead of string buffer?
+		- [x] Current API is error prone by mis-usage from the user.
+				serialize(serializer, {
+					{"a", a},
+					{"b", b}
+				});
+				is not equal to:
+				serialize(serializer, {"a", a});
+				serialize(serializer, {"b", b});
 */
 
 struct Bin_Serializer
