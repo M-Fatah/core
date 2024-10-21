@@ -52,22 +52,6 @@ serialize(T &self, Game &data)
 	});
 }
 
-template <typename T>
-inline static void
-deserialize(T &self, Game &data)
-{
-	deserialize(self, {
-		{"a", data.a},
-		{"b", data.b},
-		{"c", data.c},
-		{"d", data.d},
-		{"e", data.e},
-		{"f", data.f},
-		{"g", data.g},
-		{"h", data.h}
-	});
-}
-
 TEST_CASE("[CORE]: Binary_Serializer")
 {
 	Bin_Serializer serializer = bin_serializer_init();
@@ -163,15 +147,15 @@ TEST_CASE("[CORE]: Binary_Serializer")
 		Array<i8> b1 = array_from<i8>({1, 2, 3, 4, 5});
 		DEFER(array_deinit(b1));
 
-		serialize(serializer, a1);
-		serialize(serializer, b1);
+		serialize(serializer, {"a1", a1});
+		serialize(serializer, {"b1", b1});
 
 		i32 a2[3]    = {};
 		Array<i8> b2 = {};
 		DEFER(array_deinit(b2));
 
-		deserialize(serializer, a2);
-		deserialize(serializer, b2);
+		deserialize(serializer, {"a1", a2});
+		deserialize(serializer, {"b1", b2});
 
 		for (u64 i = 0; i < count_of(a1); ++i)
 		{
@@ -384,7 +368,7 @@ TEST_CASE("[CORE]: JSON_Serializer")
 	{
 
 		i32 a1[3]    = {1, 2, 3};
-		Array<i8> b1 = array_from<i8>({1, 2, 3, 4, 5});
+		Array<i8> b1 = array_from<i8>({1, 2, 3});
 		DEFER(array_deinit(b1));
 
 		serialize(serializer, {"a1", a1});
