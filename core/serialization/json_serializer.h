@@ -174,7 +174,8 @@ jsn_serializer_init(memory::Allocator *allocator = memory::heap_allocator())
 		.buffer = string_init(allocator),
 		.value = {},
 		.values = array_init<JSON_Value>(allocator),
-		.is_valid = false
+		.is_valid = false,
+		.is_reading = false
 	};
 }
 
