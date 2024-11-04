@@ -9,57 +9,24 @@
 
 /*
 	TODO:
-	- [x] Fundamental types.
-	- [x] Pointers.
-	- [x] Arrays.
-	- [x] Strings.
-		- [x] C strings.
-	- [x] Hash tables.
-	- [x] Structs.
-		- [x] Nested structed.
-	- [x] Blobs.
-		- [x] Need to be serialized as base64 string in json serializer.
-	- [x] Allocator.
-		- [x] Binary serializer.
-		- [x] Json serializer.
 	- [ ] Versioning.
 	- [ ] Arena backing memory.
 	- [ ] VirtualAlloc?
-	- [x] Collapse serialization and deserialization into one function.
-		- Splitting the serializer into a reader and writer instead of one object.
-			- Downside is cannot interleave serialization and deserialization.
-				For e.x.
-				serialize(serializer, {"a1", a1});
-				deserialize(serializer, {"a1", a2});
-		- Adding deserialize API for the serialization pairs.
-			- Downside is its confusing in terms of usage, as the user is needed to define one serialize function for the type.
-			- But use 2 APIs for serializing and deserializing.
-				For e.x.
-				inline static void serialize(const Game &game);
-				serialize(serializer, {"game", game});
-				deserialize(serializer, {"game", game});
-			- Also using the serializer as a deserializer is confusing.
 	- [ ] Either we assert that the user should use serialized pairs, or generate names for omitted types.
 		- [ ] What happens if the user used pairs in serialization but forgot to use it in deserialization.
 	- [ ] What happens if the user serializes multiple entries with the same name in jsn and name dependent serializers.
 		- [ ] Should we assert?
 		- [ ] Should we print warning messages?
 		- [ ] Should we override data?
-	- [x] Unit tests.
 	- [ ] deserializer_init() should take a block.
 	- [ ] Return Error on failure.
+	- [ ] Better naming.
+	- [ ] Cleanup.
 
 	- JSON serializer:
+		- [ ] Add helper JSON's API for proper use in JSON serializer.
 		- [ ] Write our own Base64 encoder/decoder.
 		- [ ] Should we use JSON_Value instead of string buffer?
-		- [x] Current API is error prone by mis-usage from the user.
-				serialize(serializer, {
-					{"a", a},
-					{"b", b}
-				});
-				is not equal to:
-				serialize(serializer, {"a", a});
-				serialize(serializer, {"b", b});
 */
 
 struct Bin_Serializer
@@ -125,7 +92,6 @@ bin_deserializer_init(const Array<u8> &buffer, memory::Allocator *allocator = me
 		.allocator = allocator,
 		.buffer = buffer,
 		.offset = 0
-		// .is_valid = false
 	};
 }
 
@@ -301,7 +267,6 @@ serialize(Bin_Deserializer &self, const Hash_Table<K, V> &data)
 	u64 count = 0;
 	serialize(self, count);
 	hash_table_clear(d);
-	hash_table_resize(d, count); // TODO: Should we remove this?
 	for (u64 i = 0; i < count; ++i)
 	{
 		K key   = {};

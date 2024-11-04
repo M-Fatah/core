@@ -151,7 +151,6 @@ struct Jsn_Serialization_Pair
 	void (*to)(Jsn_Serializer &self, const char *name, void *data);
 	void (*from)(Jsn_Deserializer &self, const char *name, void *data);
 
-	// TODO: take serializer as template.
 	template <typename T>
 	Jsn_Serialization_Pair(const char *name, T &data)
 	{
@@ -200,7 +199,6 @@ jsn_deserializer_init(String buffer, memory::Allocator *allocator = memory::heap
 
 	return Jsn_Deserializer {
 		.allocator = allocator,
-		.value = value,
 		.values = values
 	};
 }
@@ -208,8 +206,7 @@ jsn_deserializer_init(String buffer, memory::Allocator *allocator = memory::heap
 inline static void
 jsn_deserializer_deinit(Jsn_Deserializer &self)
 {
-	json_value_deinit(self.value);
-	array_deinit(self.values);
+	destroy(self.values);
 	self = {};
 }
 
@@ -409,7 +406,6 @@ serialize(Jsn_Deserializer &self, const Hash_Table<K, V> &data)
 	Array<JSON_Value> array_values = array_last(self.values).as_array;
 
 	hash_table_clear(d);
-	hash_table_resize(d, array_values.count); // TODO: Should we remove this?
 	for (u64 i = 0; i < array_values.count; ++i)
 	{
 		JSON_Value json_value = array_values[i];
