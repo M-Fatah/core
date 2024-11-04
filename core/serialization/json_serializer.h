@@ -140,7 +140,6 @@ struct Jsn_Serializer
 struct Jsn_Deserializer
 {
 	memory::Allocator *allocator;
-	JSON_Value value;
 	Array<JSON_Value> values;
 };
 
