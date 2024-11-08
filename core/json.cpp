@@ -513,6 +513,56 @@ json_value_deinit(JSON_Value &self)
 	}
 }
 
+JSON_Value
+json_value_object_find(const JSON_Value &self, const String &name)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_OBJECT, "[JSON]: Expected JSON_VALUE_KIND_OBJECT.");
+	if (const Hash_Table_Entry<const String, JSON_Value> *entry = hash_table_find(self.as_object, name))
+		return entry->value;
+	return {};
+}
+
+JSON_Value
+json_value_object_find(const JSON_Value &self, const char *name)
+{
+	return json_value_object_find(self, string_literal(name));
+}
+
+bool
+json_value_get_as_bool(const JSON_Value &self)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_BOOL, "[JSON]: Expected JSON_VALUE_KIND_BOOL.");
+	return self.as_bool;
+}
+
+f64
+json_value_get_as_number(const JSON_Value &self)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_NUMBER, "[JSON]: Expected JSON_VALUE_KIND_NUMBER.");
+	return self.as_number;
+}
+
+String
+json_value_get_as_string(const JSON_Value &self)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_STRING, "[JSON]: Expected JSON_VALUE_KIND_STRING.");
+	return self.as_string;
+}
+
+Array<JSON_Value>
+json_value_get_as_array(const JSON_Value &self)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_ARRAY, "[JSON]: Expected JSON_VALUE_KIND_ARRAY.");
+	return self.as_array;
+}
+
+Hash_Table<String, JSON_Value>
+json_value_get_as_object(const JSON_Value &self)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_OBJECT, "[JSON]: Expected JSON_VALUE_KIND_OBJECT.");
+	return self.as_object;
+}
+
 Result<String>
 json_value_to_string(const JSON_Value &self, memory::Allocator *allocator)
 {

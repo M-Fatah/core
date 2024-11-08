@@ -10,6 +10,7 @@
 
 enum JSON_VALUE_KIND : u8
 {
+	JSON_VALUE_KIND_INVALID,
 	JSON_VALUE_KIND_NULL,
 	JSON_VALUE_KIND_BOOL,
 	JSON_VALUE_KIND_NUMBER,
@@ -51,6 +52,30 @@ json_value_from_file(const String &filepath, memory::Allocator *allocator = memo
 
 CORE_API void
 json_value_deinit(JSON_Value &self);
+
+CORE_API JSON_Value
+json_value_object_find(const JSON_Value &self, const String &name);
+
+inline static JSON_Value
+json_value_object_find(const JSON_Value &self, const char *name)
+{
+	return json_value_object_find(self, string_literal(name));
+}
+
+CORE_API bool
+json_value_get_as_bool(const JSON_Value &self);
+
+CORE_API f64
+json_value_get_as_number(const JSON_Value &self);
+
+CORE_API String
+json_value_get_as_string(const JSON_Value &self);
+
+CORE_API Array<JSON_Value>
+json_value_get_as_array(const JSON_Value &self);
+
+CORE_API Hash_Table<String, JSON_Value>
+json_value_get_as_object(const JSON_Value &self);
 
 CORE_API Result<String>
 json_value_to_string(const JSON_Value &self, memory::Allocator *allocator = memory::heap_allocator());
