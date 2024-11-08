@@ -375,6 +375,8 @@ _json_value_array_to_string(const JSON_Value &self, String &json_string, i32 ind
 		const auto &value = self.as_array[i];
 		switch (value.kind)
 		{
+			case JSON_VALUE_KIND_INVALID:
+				break;
 			case JSON_VALUE_KIND_NULL:
 				string_append(json_string, "null");
 				break;
@@ -414,6 +416,8 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, i32 in
 		string_append(json_string, "\"{}\": ", key.data);
 		switch (value.kind)
 		{
+			case JSON_VALUE_KIND_INVALID:
+				break;
 			case JSON_VALUE_KIND_NULL:
 				string_append(json_string, "null");
 				break;
@@ -494,6 +498,7 @@ json_value_deinit(JSON_Value &self)
 {
 	switch(self.kind)
 	{
+		case JSON_VALUE_KIND_INVALID:
 		case JSON_VALUE_KIND_NULL:
 		case JSON_VALUE_KIND_BOOL:
 		case JSON_VALUE_KIND_NUMBER:
