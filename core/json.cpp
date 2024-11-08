@@ -527,12 +527,6 @@ json_value_object_find(const JSON_Value &self, const String &name)
 	return {};
 }
 
-JSON_Value
-json_value_object_find(const JSON_Value &self, const char *name)
-{
-	return json_value_object_find(self, string_literal(name));
-}
-
 bool
 json_value_get_as_bool(const JSON_Value &self)
 {
