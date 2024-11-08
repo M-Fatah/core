@@ -223,8 +223,7 @@ requires (std::is_arithmetic_v<T> && !std::is_same_v<T, bool>)
 inline static void
 serialize(Jsn_Deserializer &self, const T &data)
 {
-	ASSERT(array_last(self.values).kind == JSON_VALUE_KIND_NUMBER, "[SERIALIZER][JSON]: JSON value is not a number!");
-	*(std::remove_const_t<T> *)&data = (std::remove_const_t<T>)array_last(self.values).as_number;
+	*(std::remove_const_t<T> *)&data = (std::remove_const_t<T>)json_value_get_as_number(array_last(self.values));
 }
 
 inline static void
@@ -237,9 +236,7 @@ inline static void
 serialize(Jsn_Deserializer &self, const bool &data)
 {
 	bool &d = (bool &)data;
-
-	ASSERT(array_last(self.values).kind == JSON_VALUE_KIND_BOOL, "[SERIALIZER][JSON]: JSON value is not bool!");
-	d = array_last(self.values).as_bool;
+	d = json_value_get_as_bool(array_last(self.values));
 }
 
 template <typename T>
@@ -282,8 +279,7 @@ requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>) // TOD
 inline static void
 serialize(Jsn_Deserializer &self, const T (&data)[N])
 {
-	ASSERT(array_last(self.values).kind == JSON_VALUE_KIND_ARRAY, "[SERIALIZER][JSON]: JSON value is not an array!");
-	Array<JSON_Value> array_values = array_last(self.values).as_array;
+	Array<JSON_Value> array_values = json_value_get_as_array(array_last(self.values));
 	ASSERT(array_values.count == N, "[SERIALIZER][JSON]: Passed array count does not match the deserialized count.");
 	for (u64 i = 0; i < array_values.count; ++i)
 	{
@@ -319,8 +315,7 @@ serialize(Jsn_Deserializer &self, const Array<T> &data)
 		d = array_init<T>(self.allocator);
 	}
 
-	ASSERT(array_last(self.values).kind == JSON_VALUE_KIND_ARRAY, "[SERIALIZER][JSON]: JSON value is not an array!");
-	Array<JSON_Value> array_values = array_last(self.values).as_array;
+	Array<JSON_Value> array_values = json_value_get_as_array(array_last(self.values));
 	array_resize(d, array_values.count);
 	for (u64 i = 0; i < d.count; ++i)
 	{
@@ -347,8 +342,7 @@ serialize(Jsn_Deserializer &self, const String &data)
 		d = string_init(self.allocator);
 	}
 
-	ASSERT(array_last(self.values).kind == JSON_VALUE_KIND_STRING, "[SERIALIZER][JSON]: JSON value is not a string!");
-	String str = array_last(self.values).as_string;
+	String str = json_value_get_as_string(array_last(self.values));
 	string_clear(d);
 	string_append(d, str);
 }
@@ -401,23 +395,21 @@ serialize(Jsn_Deserializer &self, const Hash_Table<K, V> &data)
 		d = hash_table_init<K, V>(self.allocator);
 	}
 
-	ASSERT(array_last(self.values).kind == JSON_VALUE_KIND_ARRAY, "[SERIALIZER][JSON]: JSON value is not an array!");
 	Array<JSON_Value> array_values = array_last(self.values).as_array;
 
 	hash_table_clear(d);
 	for (u64 i = 0; i < array_values.count; ++i)
 	{
 		JSON_Value json_value = array_values[i];
-		ASSERT(json_value.kind == JSON_VALUE_KIND_OBJECT, "[SERIALIZER][JSON]: JSON value is not an object!");
 
-		auto *key_json_entry = hash_table_find(json_value.as_object, string_literal("key"));
-		array_push(self.values, key_json_entry->value);
+		JSON_Value key_json_value = json_value_object_find(json_value, "key");
+		array_push(self.values, key_json_value);
 		K key   = {};
 		serialize(self, key);
 		array_pop(self.values);
 
-		auto *value_json_entry = hash_table_find(json_value.as_object, string_literal("value"));
-		array_push(self.values, value_json_entry->value);
+		JSON_Value value_json_value = json_value_object_find(json_value, "value");
+		array_push(self.values, value_json_value);
 		V value = {};
 		serialize(self, value);
 		array_pop(self.values);
@@ -436,8 +428,7 @@ serialize(Jsn_Serializer &self, const Block &block)
 inline static void
 serialize(Jsn_Deserializer &self, const Block &block)
 {
-	ASSERT(array_last(self.values).kind == JSON_VALUE_KIND_STRING, "[SERIALIZER][JSON]: JSON value is not a string!");
-	String str = array_last(self.values).as_string;
+	String str = json_value_get_as_string(array_last(self.values));
 
 	std::string o = base64_decode(std::string(str.data));
 
@@ -479,23 +470,10 @@ serialize(Jsn_Serializer &self, Jsn_Serialization_Pair pair)
 inline static void
 serialize(Jsn_Deserializer &self, Jsn_Serialization_Pair pair)
 {
-	// TODO: Print error.
-	// TODO: Clear messages.
-	// TODO: Better naming.
-	// if (self.value.kind == JSON_VALUE_KIND_NULL)
-	// {
-	// 	auto [value, error] = json_value_from_string(self.buffer, self.allocator);
-	// 	self.value = value;
-	// 	ASSERT(!error, "[SERIALIZER][JSON]: Could not parse JSON string.");
-	// 	array_push(self.values, self.value);
-	// }
-	// json_value_deinit(self.value);
+	JSON_Value json_value = json_value_object_find(array_last(self.values), pair.name);
+	ASSERT(json_value.kind != JSON_VALUE_KIND_INVALID, "[SERIALIZER][JSON]: Could not find JSON value with the provided name.");
 
-
-	auto *json_entry = hash_table_find(array_last(self.values).as_object, string_literal(pair.name));
-	ASSERT(json_entry, "[SERIALIZER][JSON]: Could not find JSON value with provided name.");
-
-	array_push(self.values, json_entry->value);
+	array_push(self.values, json_value);
 	pair.from(self, pair.name, pair.data);
 	array_pop(self.values);
 }
@@ -520,12 +498,5 @@ inline static void
 serialize(Jsn_Deserializer &self, std::initializer_list <Jsn_Serialization_Pair> pairs)
 {
 	for (const Jsn_Serialization_Pair &pair : pairs)
-	{
-		auto *json_entry = hash_table_find(array_last(self.values).as_object, string_literal(pair.name));
-		ASSERT(json_entry, "[SERIALIZER][JSON]: Could not find JSON value with provided name.");
-
-		array_push(self.values, json_entry->value);
-		pair.from(self, pair.name, pair.data);
-		array_pop(self.values);
-	}
+		serialize(self, pair);
 }

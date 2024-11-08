@@ -21,10 +21,10 @@
 	- [ ] deserializer_init() should take a block.
 	- [ ] Return Error on failure.
 	- [ ] Better naming.
+	- [ ] Add helper functions to serialize/deserialize without the need to init/deinit serializer/deserializer.
 	- [ ] Cleanup.
 
 	- JSON serializer:
-		- [ ] Add helper JSON's API for proper use in JSON serializer.
 		- [ ] Write our own Base64 encoder/decoder.
 		- [ ] Should we use JSON_Value instead of string buffer?
 */
@@ -61,7 +61,6 @@ struct Bin_Serialization_Pair
 			serialize(serializer, d);
 		};
 		self.from = +[](Bin_Deserializer &deserializer, const char *, void *data) {
-			// TODO: Not needed.
 			T &d = *(T *)data;
 			serialize(deserializer, d);
 		};
