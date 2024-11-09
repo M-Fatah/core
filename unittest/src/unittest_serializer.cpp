@@ -54,8 +54,8 @@ serialize(T &self, Game &data)
 
 TEST_CASE("[CORE]: Binary_Serializer")
 {
-	Bin_Serializer serializer = bin_serializer_init();
-	DEFER(bin_serializer_deinit(serializer));
+	Binary_Serializer serializer = binary_serializer_init();
+	DEFER(binary_serializer_deinit(serializer));
 
 	SUBCASE("Fundamental types")
 	{
@@ -85,8 +85,8 @@ TEST_CASE("[CORE]: Binary_Serializer")
 		serialize(serializer, {"k1", k1});
 		serialize(serializer, {"l1", l1});
 
-	Bin_Deserializer deserializer = bin_deserializer_init(serializer.buffer);
-	DEFER(bin_deserializer_deinit(deserializer));
+		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
+		DEFER(binary_deserializer_deinit(deserializer));
 
 		i8   a2 = 0;
 		i16  b2 = 0;
@@ -136,8 +136,8 @@ TEST_CASE("[CORE]: Binary_Serializer")
 		serialize(serializer, {"a1", a1});
 
 
-	Bin_Deserializer deserializer = bin_deserializer_init(serializer.buffer);
-	DEFER(bin_deserializer_deinit(deserializer));
+		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
+		DEFER(binary_deserializer_deinit(deserializer));
 
 		i32 i2 = 0;
 		i32 *a2 = &i2;
@@ -161,8 +161,8 @@ TEST_CASE("[CORE]: Binary_Serializer")
 		Array<i8> b2 = {};
 		DEFER(array_deinit(b2));
 
-	Bin_Deserializer deserializer = bin_deserializer_init(serializer.buffer);
-	DEFER(bin_deserializer_deinit(deserializer));
+		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
+		DEFER(binary_deserializer_deinit(deserializer));
 
 		serialize(deserializer, {"a1", a2});
 		serialize(deserializer, {"b1", b2});
@@ -190,8 +190,8 @@ TEST_CASE("[CORE]: Binary_Serializer")
 			string_deinit(b2);
 		});
 
-	Bin_Deserializer deserializer = bin_deserializer_init(serializer.buffer);
-	DEFER(bin_deserializer_deinit(deserializer));
+		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
+		DEFER(binary_deserializer_deinit(deserializer));
 
 		serialize(deserializer, {"a1", a2});
 		serialize(deserializer, {"b1", b2});
@@ -214,8 +214,8 @@ TEST_CASE("[CORE]: Binary_Serializer")
 		Hash_Table<i32, String> a2 = {};
 		DEFER(destroy(a2));
 
-	Bin_Deserializer deserializer = bin_deserializer_init(serializer.buffer);
-	DEFER(bin_deserializer_deinit(deserializer));
+		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
+		DEFER(binary_deserializer_deinit(deserializer));
 
 		serialize(deserializer, {"a1", a2});
 
@@ -240,8 +240,8 @@ TEST_CASE("[CORE]: Binary_Serializer")
 		Block a2 = {};
 		DEFER(memory::deallocate(a2.data));
 
-	Bin_Deserializer deserializer = bin_deserializer_init(serializer.buffer);
-	DEFER(bin_deserializer_deinit(deserializer));
+		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
+		DEFER(binary_deserializer_deinit(deserializer));
 
 		serialize(deserializer, {"a1", a2});
 
@@ -272,8 +272,8 @@ TEST_CASE("[CORE]: Binary_Serializer")
 		Game new_game = {};
 		DEFER(game_deinit(new_game));
 
-	Bin_Deserializer deserializer = bin_deserializer_init(serializer.buffer);
-	DEFER(bin_deserializer_deinit(deserializer));
+		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
+		DEFER(binary_deserializer_deinit(deserializer));
 		serialize(deserializer, {"original_game", new_game});
 
 		CHECK(new_game.a == original_game.a);
@@ -299,8 +299,8 @@ TEST_CASE("[CORE]: Binary_Serializer")
 
 TEST_CASE("[CORE]: JSON_Serializer")
 {
-	Jsn_Serializer serializer = jsn_serializer_init();
-	DEFER(jsn_serializer_deinit(serializer));
+	Json_Serializer serializer = json_serializer_init();
+	DEFER(json_serializer_deinit(serializer));
 
 	SUBCASE("Fundamental types")
 	{
@@ -343,8 +343,8 @@ TEST_CASE("[CORE]: JSON_Serializer")
 		char k2 = 0;
 		bool l2 = 0;
 
-		Jsn_Deserializer deserializer = jsn_deserializer_init(serializer.buffer);
-		DEFER(jsn_deserializer_deinit(deserializer));
+		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		DEFER(json_deserializer_deinit(deserializer));
 
 		serialize(deserializer, {"a1", a2});
 		serialize(deserializer, {"b1", b2});
@@ -380,8 +380,8 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 		serialize(serializer, {"a1", a1});
 
-		Jsn_Deserializer deserializer = jsn_deserializer_init(serializer.buffer);
-		DEFER(jsn_deserializer_deinit(deserializer));
+		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		DEFER(json_deserializer_deinit(deserializer));
 
 		i32 i2 = 0;
 		i32 *a2 = &i2;
@@ -401,8 +401,8 @@ TEST_CASE("[CORE]: JSON_Serializer")
 		serialize(serializer, {"a1", a1});
 		serialize(serializer, {"b1", b1});
 
-		Jsn_Deserializer deserializer = jsn_deserializer_init(serializer.buffer);
-		DEFER(jsn_deserializer_deinit(deserializer));
+		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		DEFER(json_deserializer_deinit(deserializer));
 
 		i32 a2[3]    = {};
 		Array<i8> b2 = {};
@@ -427,8 +427,8 @@ TEST_CASE("[CORE]: JSON_Serializer")
 		serialize(serializer, {"a1", a1});
 		serialize(serializer, {"b1", b1});
 
-		Jsn_Deserializer deserializer = jsn_deserializer_init(serializer.buffer);
-		DEFER(jsn_deserializer_deinit(deserializer));
+		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		DEFER(json_deserializer_deinit(deserializer));
 
 		const char *a2 = {};
 		String b2 = {};
@@ -455,8 +455,8 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 		serialize(serializer, {"a1", a1});
 
-		Jsn_Deserializer deserializer = jsn_deserializer_init(serializer.buffer);
-		DEFER(jsn_deserializer_deinit(deserializer));
+		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		DEFER(json_deserializer_deinit(deserializer));
 
 		Hash_Table<i32, String> a2 = {};
 		DEFER(destroy(a2));
@@ -481,8 +481,8 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 		serialize(serializer, {"a1", a1});
 
-		Jsn_Deserializer deserializer = jsn_deserializer_init(serializer.buffer);
-		DEFER(jsn_deserializer_deinit(deserializer));
+		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		DEFER(json_deserializer_deinit(deserializer));
 
 		Block a2 = {};
 		DEFER(memory::deallocate(a2.data));
@@ -513,8 +513,8 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 		serialize(serializer, {"original_game", original_game});
 
-		Jsn_Deserializer deserializer = jsn_deserializer_init(serializer.buffer);
-		DEFER(jsn_deserializer_deinit(deserializer));
+		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		DEFER(json_deserializer_deinit(deserializer));
 
 		Game new_game = {};
 		DEFER(game_deinit(new_game));

@@ -131,60 +131,60 @@ std::string base64_decode(std::string const& encoded_string) {
   return ret;
 }
 
-struct Jsn_Serializer
+struct Json_Serializer
 {
 	memory::Allocator *allocator;
 	String buffer;
 };
 
-struct Jsn_Deserializer
+struct Json_Deserializer
 {
 	memory::Allocator *allocator;
 	Array<JSON_Value> values;
 };
 
-struct Jsn_Serialization_Pair
+struct Json_Serialization_Pair
 {
 	const char *name;
 	void *data;
-	void (*to)(Jsn_Serializer &self, const char *name, void *data);
-	void (*from)(Jsn_Deserializer &self, const char *name, void *data);
+	void (*to)(Json_Serializer &self, const char *name, void *data);
+	void (*from)(Json_Deserializer &self, const char *name, void *data);
 
 	template <typename T>
-	Jsn_Serialization_Pair(const char *name, T &data)
+	Json_Serialization_Pair(const char *name, T &data)
 	{
-		Jsn_Serialization_Pair &self = *this;
+		Json_Serialization_Pair &self = *this;
 		self.name = name;
 		self.data = (void *)&data;
-		self.to = +[](Jsn_Serializer &self, const char *, void *data) {
+		self.to = +[](Json_Serializer &self, const char *, void *data) {
 			T &d = *(T *)data;
 			serialize(self, d);
 		};
-		self.from = +[](Jsn_Deserializer &self, const char *, void *data) {
+		self.from = +[](Json_Deserializer &self, const char *, void *data) {
 			T &d = *(T *)data;
 			serialize(self, d);
 		};
 	}
 };
 
-inline static Jsn_Serializer
-jsn_serializer_init(memory::Allocator *allocator = memory::heap_allocator())
+inline static Json_Serializer
+json_serializer_init(memory::Allocator *allocator = memory::heap_allocator())
 {
-	return Jsn_Serializer {
+	return Json_Serializer {
 		.allocator = allocator,
 		.buffer = string_init(allocator)
 	};
 }
 
 inline static void
-jsn_serializer_deinit(Jsn_Serializer &self)
+json_serializer_deinit(Json_Serializer &self)
 {
 	string_deinit(self.buffer);
 	self = {};
 }
 
-inline static Jsn_Deserializer
-jsn_deserializer_init(String buffer, memory::Allocator *allocator = memory::heap_allocator())
+inline static Json_Deserializer
+json_deserializer_init(String buffer, memory::Allocator *allocator = memory::heap_allocator())
 {
 	auto [value, error] = json_value_from_string(buffer, allocator);
 	if (error)
@@ -196,14 +196,14 @@ jsn_deserializer_init(String buffer, memory::Allocator *allocator = memory::heap
 	Array<JSON_Value> values = array_init<JSON_Value>(allocator);
 	array_push(values, value);
 
-	return Jsn_Deserializer {
+	return Json_Deserializer {
 		.allocator = allocator,
 		.values = values
 	};
 }
 
 inline static void
-jsn_deserializer_deinit(Jsn_Deserializer &self)
+json_deserializer_deinit(Json_Deserializer &self)
 {
 	destroy(self.values);
 	self = {};
@@ -213,7 +213,7 @@ jsn_deserializer_deinit(Jsn_Deserializer &self)
 template <typename T>
 requires (std::is_arithmetic_v<T> && !std::is_same_v<T, bool>)
 inline static void
-serialize(Jsn_Serializer &self, const T &data)
+serialize(Json_Serializer &self, const T &data)
 {
 	string_append(self.buffer, std::to_string(data).c_str()); // TODO: remove std::to_string().
 }
@@ -221,19 +221,19 @@ serialize(Jsn_Serializer &self, const T &data)
 template <typename T>
 requires (std::is_arithmetic_v<T> && !std::is_same_v<T, bool>)
 inline static void
-serialize(Jsn_Deserializer &self, const T &data)
+serialize(Json_Deserializer &self, const T &data)
 {
 	*(std::remove_const_t<T> *)&data = (std::remove_const_t<T>)json_value_get_as_number(array_last(self.values));
 }
 
 inline static void
-serialize(Jsn_Serializer &self, const bool &data)
+serialize(Json_Serializer &self, const bool &data)
 {
 	string_append(self.buffer, data ? "true" : "false");
 }
 
 inline static void
-serialize(Jsn_Deserializer &self, const bool &data)
+serialize(Json_Deserializer &self, const bool &data)
 {
 	bool &d = (bool &)data;
 	d = json_value_get_as_bool(array_last(self.values));
@@ -242,7 +242,7 @@ serialize(Jsn_Deserializer &self, const bool &data)
 template <typename T>
 requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static void
-serialize(Jsn_Serializer &self, const T &data)
+serialize(Json_Serializer &self, const T &data)
 {
 	serialize(self, *data);
 }
@@ -250,7 +250,7 @@ serialize(Jsn_Serializer &self, const T &data)
 template <typename T>
 requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static void
-serialize(Jsn_Deserializer &self, const T &data)
+serialize(Json_Deserializer &self, const T &data)
 {
 	T &d = (T &)data;
 
@@ -262,7 +262,7 @@ serialize(Jsn_Deserializer &self, const T &data)
 template <typename T, u64 N>
 requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>) // TODO: Test char arrays. For some reason, this gets invoked by C string calls.
 inline static void
-serialize(Jsn_Serializer &self, const T (&data)[N])
+serialize(Json_Serializer &self, const T (&data)[N])
 {
 	string_append(self.buffer, '[');
 	for (u64 i = 0; i < N; ++i)
@@ -277,7 +277,7 @@ serialize(Jsn_Serializer &self, const T (&data)[N])
 template <typename T, u64 N>
 requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>) // TODO: Test char arrays. For some reason, this gets invoked by C string calls.
 inline static void
-serialize(Jsn_Deserializer &self, const T (&data)[N])
+serialize(Json_Deserializer &self, const T (&data)[N])
 {
 	Array<JSON_Value> array_values = json_value_get_as_array(array_last(self.values));
 	ASSERT(array_values.count == N, "[SERIALIZER][JSON]: Passed array count does not match the deserialized count.");
@@ -291,7 +291,7 @@ serialize(Jsn_Deserializer &self, const T (&data)[N])
 
 template <typename T>
 inline static void
-serialize(Jsn_Serializer &self, const Array<T> &data)
+serialize(Json_Serializer &self, const Array<T> &data)
 {
 	string_append(self.buffer, '[');
 	for (u64 i = 0; i < data.count; ++i)
@@ -305,7 +305,7 @@ serialize(Jsn_Serializer &self, const Array<T> &data)
 
 template <typename T>
 inline static void
-serialize(Jsn_Deserializer &self, const Array<T> &data)
+serialize(Json_Deserializer &self, const Array<T> &data)
 {
 	Array<T> &d = (Array<T> &)data;
 
@@ -326,13 +326,13 @@ serialize(Jsn_Deserializer &self, const Array<T> &data)
 }
 
 inline static void
-serialize(Jsn_Serializer &self, const String &data)
+serialize(Json_Serializer &self, const String &data)
 {
 	string_append(self.buffer, "\"{}\"", data);
 }
 
 inline static void
-serialize(Jsn_Deserializer &self, const String &data)
+serialize(Json_Deserializer &self, const String &data)
 {
 	String &d = (String &)data;
 
@@ -348,13 +348,13 @@ serialize(Jsn_Deserializer &self, const String &data)
 }
 
 inline static void
-serialize(Jsn_Serializer &self, const char *&data)
+serialize(Json_Serializer &self, const char *&data)
 {
 	serialize(self, string_literal(data));
 }
 
 inline static void
-serialize(Jsn_Deserializer &self, const char *&data)
+serialize(Json_Deserializer &self, const char *&data)
 {
 	String out = {};
 	serialize(self, out);
@@ -364,7 +364,7 @@ serialize(Jsn_Deserializer &self, const char *&data)
 
 template <typename K, typename V>
 inline static void
-serialize(Jsn_Serializer &self, const Hash_Table<K, V> &data)
+serialize(Json_Serializer &self, const Hash_Table<K, V> &data)
 {
 	string_append(self.buffer, '[');
 	i32 i = 0;
@@ -384,7 +384,7 @@ serialize(Jsn_Serializer &self, const Hash_Table<K, V> &data)
 
 template <typename K, typename V>
 inline static void
-serialize(Jsn_Deserializer &self, const Hash_Table<K, V> &data)
+serialize(Json_Deserializer &self, const Hash_Table<K, V> &data)
 {
 	Hash_Table<K, V> &d = (Hash_Table<K, V> &)data;
 
@@ -419,14 +419,14 @@ serialize(Jsn_Deserializer &self, const Hash_Table<K, V> &data)
 }
 
 inline static void
-serialize(Jsn_Serializer &self, const Block &block)
+serialize(Json_Serializer &self, const Block &block)
 {
 	std::string o = base64_encode((const unsigned char *)block.data, (u32)block.size);
 	string_append(self.buffer, "\"{}\"", o.c_str());
 }
 
 inline static void
-serialize(Jsn_Deserializer &self, const Block &block)
+serialize(Json_Deserializer &self, const Block &block)
 {
 	String str = json_value_get_as_string(array_last(self.values));
 
@@ -443,7 +443,7 @@ serialize(Jsn_Deserializer &self, const Block &block)
 
 /////////////////////////////////////////////////////////////////////
 inline static void
-serialize(Jsn_Serializer &self, Jsn_Serialization_Pair pair)
+serialize(Json_Serializer &self, Json_Serialization_Pair pair)
 {
 	if (string_is_empty(self.buffer))
 	{
@@ -468,7 +468,7 @@ serialize(Jsn_Serializer &self, Jsn_Serialization_Pair pair)
 }
 
 inline static void
-serialize(Jsn_Deserializer &self, Jsn_Serialization_Pair pair)
+serialize(Json_Deserializer &self, Json_Serialization_Pair pair)
 {
 	JSON_Value json_value = json_value_object_find(array_last(self.values), pair.name);
 	ASSERT(json_value.kind != JSON_VALUE_KIND_INVALID, "[SERIALIZER][JSON]: Could not find JSON value with the provided name.");
@@ -479,11 +479,11 @@ serialize(Jsn_Deserializer &self, Jsn_Serialization_Pair pair)
 }
 
 inline static void
-serialize(Jsn_Serializer &self, std::initializer_list <Jsn_Serialization_Pair> pairs)
+serialize(Json_Serializer &self, std::initializer_list <Json_Serialization_Pair> pairs)
 {
 	string_append(self.buffer, '{');
 	i32 i = 0;
-	for (const Jsn_Serialization_Pair &pair : pairs)
+	for (const Json_Serialization_Pair &pair : pairs)
 	{
 		if (i > 0)
 			string_append(self.buffer, ',');
@@ -495,8 +495,8 @@ serialize(Jsn_Serializer &self, std::initializer_list <Jsn_Serialization_Pair> p
 }
 
 inline static void
-serialize(Jsn_Deserializer &self, std::initializer_list <Jsn_Serialization_Pair> pairs)
+serialize(Json_Deserializer &self, std::initializer_list <Json_Serialization_Pair> pairs)
 {
-	for (const Jsn_Serialization_Pair &pair : pairs)
+	for (const Json_Serialization_Pair &pair : pairs)
 		serialize(self, pair);
 }
