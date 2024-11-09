@@ -500,3 +500,22 @@ serialize(Json_Deserializer &self, std::initializer_list <Json_Serialization_Pai
 	for (const Json_Serialization_Pair &pair : pairs)
 		serialize(self, pair);
 }
+
+template <typename T>
+inline static String
+to_json(const T &data)
+{
+	Json_Serializer self = json_serializer_init();
+	DEFER(json_serializer_deinit(self));
+	serialize(self, data);
+	return string_copy(self.buffer);
+}
+
+template <typename T>
+inline static void
+from_json(const String &buffer, T &data)
+{
+	Json_Deserializer self = json_deserializer_init(buffer);
+	DEFER(json_deserializer_deinit(self));
+	serialize(self, data);
+}

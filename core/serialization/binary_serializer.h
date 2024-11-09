@@ -20,8 +20,6 @@
 		- [ ] Should we override data?
 	- [ ] deserializer_init() should take a block.
 	- [ ] Return Error on failure.
-	- [ ] Better naming.
-	- [ ] Add helper functions to serialize/deserialize without the need to init/deinit serializer/deserializer.
 	- [ ] Cleanup.
 
 	- JSON serializer:
@@ -324,4 +322,23 @@ serialize(Binary_Deserializer &self, std::initializer_list<Binary_Serialization_
 {
 	for (const Binary_Serialization_Pair &pair : pairs)
 		pair.from(self, pair.name, pair.data);
+}
+
+template <typename T>
+inline static Array<u8>
+to_binary(const T &data)
+{
+	Binary_Serializer self = binary_serializer_init();
+	DEFER(binary_serializer_deinit(self));
+	serialize(self, data);
+	return array_copy(self.buffer);
+}
+
+template <typename T>
+inline static void
+from_binary(const Array<u8> &buffer, T &data)
+{
+	Binary_Deserializer self = binary_deserializer_init(buffer);
+	DEFER(binary_deserializer_deinit(self));
+	serialize(self, data);
 }

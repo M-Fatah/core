@@ -38,7 +38,7 @@ game_deinit(Game &self)
 
 template <typename T>
 inline static void
-serialize(T &self, Game &data)
+serialize(T &self, const Game &data)
 {
 	serialize(self, {
 		{"a", data.a},
@@ -275,6 +275,52 @@ TEST_CASE("[CORE]: Binary_Serializer")
 		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
 		DEFER(binary_deserializer_deinit(deserializer));
 		serialize(deserializer, {"original_game", new_game});
+
+		CHECK(new_game.a == original_game.a);
+		CHECK(new_game.b == original_game.b);
+		CHECK(new_game.c == original_game.c);
+		CHECK(new_game.d == original_game.d);
+
+		for (u64 i = 0; i < new_game.e.count; ++i)
+			CHECK(new_game.e[i] == original_game.e[i]);
+
+		CHECK(new_game.f == original_game.f);
+
+		for (const auto &[new_key, new_value] : new_game.g)
+		{
+			const auto &[original_key, original_value] = *hash_table_find(original_game.g, new_key);
+			CHECK(new_key == original_key);
+			CHECK(new_value == original_value);
+		}
+
+		CHECK(*original_game.h == *new_game.h);
+	}
+
+	SUBCASE("Helpers")
+	{
+		Game original_game = game_init();
+		DEFER(game_deinit(original_game));
+
+		original_game.a = 31;
+		original_game.b = 37;
+		original_game.c = 1.5f;
+		original_game.d = 'A';
+		array_push(original_game.e, 0.5f);
+		array_push(original_game.e, 1.5f);
+		array_push(original_game.e, 2.5f);
+		string_append(original_game.f, "Hello1");
+		hash_table_insert(original_game.g, string_literal("1"), 1.0f);
+		hash_table_insert(original_game.g, string_literal("2"), 2.0f);
+		hash_table_insert(original_game.g, string_literal("3"), 3.0f);
+		*original_game.h = 5;
+
+		Array<u8> buffer = to_binary(original_game);
+		DEFER(array_deinit(buffer));
+
+		Game new_game = {};
+		DEFER(game_deinit(new_game));
+
+		from_binary(buffer, new_game);
 
 		CHECK(new_game.a == original_game.a);
 		CHECK(new_game.b == original_game.b);
@@ -542,5 +588,51 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 		const char *expected_json_string = R"""({"original_game":{"a":31,"b":37,"c":1.500000,"d":65,"e":[0.500000,1.500000,2.500000],"f":"Hello1","g":[{"key":"1","value":1.000000},{"key":"2","value":2.000000},{"key":"3","value":3.000000}],"h":5}})""";
 		CHECK(serializer.buffer == expected_json_string);
+	}
+
+	SUBCASE("Helpers")
+	{
+		Game original_game = game_init();
+		DEFER(game_deinit(original_game));
+
+		original_game.a = 31;
+		original_game.b = 37;
+		original_game.c = 1.5f;
+		original_game.d = 'A';
+		array_push(original_game.e, 0.5f);
+		array_push(original_game.e, 1.5f);
+		array_push(original_game.e, 2.5f);
+		string_append(original_game.f, "Hello1");
+		hash_table_insert(original_game.g, string_literal("1"), 1.0f);
+		hash_table_insert(original_game.g, string_literal("2"), 2.0f);
+		hash_table_insert(original_game.g, string_literal("3"), 3.0f);
+		*original_game.h = 5;
+
+		String buffer = to_json(original_game);
+		DEFER(array_deinit(buffer));
+
+		Game new_game = {};
+		DEFER(game_deinit(new_game));
+
+		from_json(buffer, new_game);
+
+		CHECK(new_game.a == original_game.a);
+		CHECK(new_game.b == original_game.b);
+		CHECK(new_game.c == original_game.c);
+		CHECK(new_game.d == original_game.d);
+
+		for (u64 i = 0; i < new_game.e.count; ++i)
+			CHECK(new_game.e[i] == original_game.e[i]);
+
+		CHECK(new_game.f == original_game.f);
+
+		for (const auto &[new_key, new_value] : new_game.g)
+		{
+			const auto &[original_key, original_value] = *hash_table_find(original_game.g, new_key);
+			CHECK(new_key == original_key);
+			CHECK(new_value == original_value);
+		}
+
+		CHECK(*original_game.h == *new_game.h);
 	}
 }
