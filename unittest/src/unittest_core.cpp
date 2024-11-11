@@ -1,4 +1,5 @@
 #include <core/json.h>
+#include <core/base64.h>
 #include <core/logger.h>
 #include <core/result.h>
 #include <core/formatter.h>
@@ -333,5 +334,22 @@ R"""({
 		auto value_copy        = clone(value, memory::temp_allocator());
 		auto [value_string, _] = json_value_to_string(value_copy, memory::temp_allocator());
 		CHECK(value_string == json);
+	}
+}
+
+TEST_CASE("Base64")
+{
+	SUBCASE("Encode")
+	{
+		String result = base64_encode("Hello");
+		DEFER(string_deinit(result));
+		CHECK(result == "SGVsbG8=");
+	}
+
+	SUBCASE("Decode")
+	{
+		String result = base64_decode("SGVsbG8=");
+		DEFER(string_deinit(result));
+		CHECK(result == "Hello");
 	}
 }
