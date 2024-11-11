@@ -89,6 +89,12 @@ typedef uintptr_t uptr;
 
 namespace memory { struct Allocator; }
 
+struct Block
+{
+	void *data;
+	u64 size;
+};
+
 template <typename T>
 inline static constexpr T
 clone(const T &, memory::Allocator *)

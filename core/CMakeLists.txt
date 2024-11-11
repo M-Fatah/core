@@ -1,5 +1,6 @@
 set(HEADER_FILES
     assert.h
+    base64.h
     defer.h
     defines.h
     ecs.h
@@ -25,6 +26,7 @@ set(HEADER_FILES
 
 set(SOURCE_FILES
     assert.cpp
+    base64.cpp
     ecs.cpp
     formatter.cpp
     json.cpp
