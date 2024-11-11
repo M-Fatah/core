@@ -21,7 +21,7 @@ base64_encode(const u8 *data, u64 size, memory::Allocator *allocator)
 	i32 padding = size % 3;
 	if (padding > 0)
 	{
-		for (u64 i = 0; i < (3 - padding); ++i)
+		for (i32 i = 0; i < (3 - padding); ++i)
 		{
 			out[out.count - i - 1] = '=';
 		}
