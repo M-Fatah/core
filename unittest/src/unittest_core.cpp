@@ -1,4 +1,5 @@
 #include <core/json.h>
+#include <core/base64.h>
 #include <core/logger.h>
 #include <core/result.h>
 #include <core/formatter.h>
@@ -476,4 +477,21 @@ TEST_CASE("[CORE]: Binary_Serializer")
 	}
 
 	CHECK(platform_file_delete("serialize_test.core"));
+}
+
+TEST_CASE("Base64")
+{
+	SUBCASE("Encode")
+	{
+		String result = base64_encode("Hello");
+		DEFER(string_deinit(result));
+		CHECK(result == "SGVsbG8=");
+	}
+
+	SUBCASE("Decode")
+	{
+		String result = base64_decode("SGVsbG8=");
+		DEFER(string_deinit(result));
+		CHECK(result == "Hello");
+	}
 }
