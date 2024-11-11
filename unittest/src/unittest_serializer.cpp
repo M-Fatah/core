@@ -586,7 +586,7 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 		CHECK(*original_game.h == *new_game.h);
 
-		const char *expected_json_string = R"""({"original_game":{"a":31,"b":37,"c":1.500000,"d":65,"e":[0.500000,1.500000,2.500000],"f":"Hello1","g":[{"key":"1","value":1.000000},{"key":"2","value":2.000000},{"key":"3","value":3.000000}],"h":5}})""";
+		const char *expected_json_string = R"""({"original_game":{"a":31,"b":37,"c":1.5,"d":65,"e":[0.5,1.5,2.5],"f":"Hello1","g":[{"key":"1","value":1},{"key":"2","value":2},{"key":"3","value":3}],"h":5}})""";
 		CHECK(serializer.buffer == expected_json_string);
 	}
 
@@ -609,7 +609,7 @@ TEST_CASE("[CORE]: JSON_Serializer")
 		*original_game.h = 5;
 
 		String buffer = to_json(original_game);
-		DEFER(array_deinit(buffer));
+		DEFER(string_deinit(buffer));
 
 		Game new_game = {};
 		DEFER(game_deinit(new_game));

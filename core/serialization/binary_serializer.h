@@ -13,12 +13,11 @@
 	- [ ] Arena backing memory.
 	- [ ] VirtualAlloc?
 	- [ ] Either we assert that the user should use serialized pairs, or generate names for omitted types.
-		- [ ] What happens if the user used pairs in serialization but forgot to use it in deserialization.
 	- [ ] What happens if the user serializes multiple entries with the same name in jsn and name dependent serializers.
 		- [ ] Should we assert?
 		- [ ] Should we print warning messages?
 		- [ ] Should we override data?
-	- [ ] deserializer_init() should take a block.
+	- [ ] deserializer_init() should take a block or a span or a view.
 	- [ ] Return Error on failure.
 	- [ ] Cleanup.
 
