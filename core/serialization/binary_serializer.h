@@ -11,7 +11,6 @@
 	TODO:
 	- [ ] Versioning.
 	- [ ] Arena backing memory.
-	- [ ] VirtualAlloc?
 	- [ ] Either we assert that the user should use serialized pairs, or generate names for omitted types.
 	- [ ] What happens if the user serializes multiple entries with the same name in jsn and name dependent serializers.
 		- [ ] Should we assert?
@@ -22,7 +21,6 @@
 	- [ ] Cleanup.
 
 	- JSON serializer:
-		- [ ] Write our own Base64 encoder/decoder.
 		- [ ] Should we use JSON_Value instead of string buffer?
 */
 
@@ -81,6 +79,93 @@ binary_serializer_deinit(Binary_Serializer &self)
 	self = {};
 }
 
+template <typename T>
+requires (std::is_arithmetic_v<T>)
+inline static void
+serialize(Binary_Serializer &self, const T &data)
+{
+	array_reserve(self.buffer, sizeof(data));
+	::memcpy(self.buffer.data + self.offset, &data, sizeof(T));
+	self.buffer.count += sizeof(T);
+	self.offset += sizeof(T);
+}
+
+template <typename T>
+requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
+inline static void
+serialize(Binary_Serializer& self, const T &data)
+{
+	serialize(self, *data);
+}
+
+template <typename T, u64 N>
+requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
+inline static void
+serialize(Binary_Serializer &self, const T (&data)[N])
+{
+	serialize(self, N);
+	for (u64 i = 0; i < N; ++i)
+		serialize(self, data[i]);
+}
+
+template <typename T>
+inline static void
+serialize(Binary_Serializer &self, const Array<T> &data)
+{
+	serialize(self, data.count);
+	for (u64 i = 0; i < data.count; ++i)
+		serialize(self, data[i]);
+}
+
+inline static void
+serialize(Binary_Serializer &self, const String &data)
+{
+	serialize(self, data.count);
+	for (u64 i = 0; i < data.count; ++i)
+		serialize(self, data[i]);
+}
+
+inline static void
+serialize(Binary_Serializer &self, const char *&data)
+{
+	serialize(self, string_literal(data));
+}
+
+template <typename K, typename V>
+inline static void
+serialize(Binary_Serializer &self, const Hash_Table<K, V> &data)
+{
+	serialize(self, data.count);
+	for (const Hash_Table_Entry<const K, V> &entry : data)
+	{
+		serialize(self, entry.key);
+		serialize(self, entry.value);
+	}
+}
+
+inline static void
+serialize(Binary_Serializer &self, const Block &block)
+{
+	serialize(self, block.size);
+	array_reserve(self.buffer, block.size);
+	::memcpy(self.buffer.data + self.offset, block.data, block.size); // TODO: Add array_memcpy().
+	self.buffer.count += block.size;
+	self.offset += block.size;
+}
+
+inline static void
+serialize(Binary_Serializer &self, Binary_Serialization_Pair pair)
+{
+	pair.to(self, pair.name, pair.data);
+}
+
+inline static void
+serialize(Binary_Serializer &self, std::initializer_list<Binary_Serialization_Pair> pairs)
+{
+	for (const Binary_Serialization_Pair &pair : pairs)
+		pair.to(self, pair.name, pair.data);
+}
+
 inline static Binary_Deserializer
 binary_deserializer_init(const Array<u8> &buffer, memory::Allocator *allocator = memory::heap_allocator())
 {
@@ -95,18 +180,6 @@ inline static void
 binary_deserializer_deinit(Binary_Deserializer &self)
 {
 	self = {};
-}
-
-/////////////////////////////////////////////////////////////////////
-template <typename T>
-requires (std::is_arithmetic_v<T>)
-inline static void
-serialize(Binary_Serializer &self, const T &data)
-{
-	array_reserve(self.buffer, sizeof(data));
-	::memcpy(self.buffer.data + self.offset, &data, sizeof(T));
-	self.buffer.count += sizeof(T);
-	self.offset += sizeof(T);
 }
 
 template <typename T>
@@ -126,14 +199,6 @@ serialize(Binary_Deserializer &self, const T &data)
 template <typename T>
 requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static void
-serialize(Binary_Serializer& self, const T &data)
-{
-	serialize(self, *data);
-}
-
-template <typename T>
-requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
-inline static void
 serialize(Binary_Deserializer& self, const T &data)
 {
 	T &d = (T &)data;
@@ -142,16 +207,6 @@ serialize(Binary_Deserializer& self, const T &data)
 		d = memory::allocate<std::remove_pointer_t<T>>(self.allocator);
 
 	serialize(self, *d);
-}
-
-template <typename T, u64 N>
-requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
-inline static void
-serialize(Binary_Serializer &self, const T (&data)[N])
-{
-	serialize(self, N);
-	for (u64 i = 0; i < N; ++i)
-		serialize(self, data[i]);
 }
 
 template <typename T, u64 N>
@@ -166,13 +221,17 @@ serialize(Binary_Deserializer &self, const T (&data)[N])
 		serialize(self, data[i]);
 }
 
-template <typename T>
 inline static void
-serialize(Binary_Serializer &self, const Array<T> &data)
+serialize(Binary_Deserializer &self, const Block &block)
 {
-	serialize(self, data.count);
-	for (u64 i = 0; i < data.count; ++i)
-		serialize(self, data[i]);
+	Block &d = (Block &)block;
+
+	serialize(self, d.size);
+	if (d.data == nullptr)
+		d.data = (u8 *)memory::allocate(d.size);
+
+	for (u64 i = 0; i < d.size; ++i)
+		serialize(self, ((u8 *)d.data)[i]);
 }
 
 template <typename T>
@@ -195,14 +254,6 @@ serialize(Binary_Deserializer &self, const Array<T> &data)
 }
 
 inline static void
-serialize(Binary_Serializer &self, const String &data)
-{
-	serialize(self, data.count);
-	for (u64 i = 0; i < data.count; ++i)
-		serialize(self, data[i]);
-}
-
-inline static void
 serialize(Binary_Deserializer &self, const String &data)
 {
 	String &d = (String &)data;
@@ -221,30 +272,12 @@ serialize(Binary_Deserializer &self, const String &data)
 }
 
 inline static void
-serialize(Binary_Serializer &self, const char *&data)
-{
-	serialize(self, string_literal(data));
-}
-
-inline static void
 serialize(Binary_Deserializer &self, const char *&data)
 {
 	String out = {};
 	serialize(self, out);
 	data = out.data;
 	out = {};
-}
-
-template <typename K, typename V>
-inline static void
-serialize(Binary_Serializer &self, const Hash_Table<K, V> &data)
-{
-	serialize(self, data.count);
-	for (const Hash_Table_Entry<const K, V> &entry : data)
-	{
-		serialize(self, entry.key);
-		serialize(self, entry.value);
-	}
 }
 
 template <typename K, typename V>
@@ -274,46 +307,9 @@ serialize(Binary_Deserializer &self, const Hash_Table<K, V> &data)
 }
 
 inline static void
-serialize(Binary_Serializer &self, const Block &block)
-{
-	serialize(self, block.size);
-	array_reserve(self.buffer, block.size);
-	::memcpy(self.buffer.data + self.offset, block.data, block.size); // TODO: Add array_memcpy().
-	self.buffer.count += block.size;
-	self.offset += block.size;
-}
-
-inline static void
-serialize(Binary_Deserializer &self, const Block &block)
-{
-	Block &d = (Block &)block;
-
-	serialize(self, d.size);
-	if (d.data == nullptr)
-		d.data = (u8 *)memory::allocate(d.size);
-
-	for (u64 i = 0; i < d.size; ++i)
-		serialize(self, ((u8 *)d.data)[i]);
-}
-
-/////////////////////////////////////////////////////////////////////
-inline static void
-serialize(Binary_Serializer &self, Binary_Serialization_Pair pair)
-{
-	pair.to(self, pair.name, pair.data);
-}
-
-inline static void
 serialize(Binary_Deserializer &self, Binary_Serialization_Pair pair)
 {
 	pair.from(self, pair.name, pair.data);
-}
-
-inline static void
-serialize(Binary_Serializer &self, std::initializer_list<Binary_Serialization_Pair> pairs)
-{
-	for (const Binary_Serialization_Pair &pair : pairs)
-		pair.to(self, pair.name, pair.data);
 }
 
 inline static void

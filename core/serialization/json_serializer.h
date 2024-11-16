@@ -60,6 +60,141 @@ json_serializer_deinit(Json_Serializer &self)
 	self = {};
 }
 
+template <typename T>
+requires (std::is_arithmetic_v<T> && !std::is_same_v<T, bool> && !std::is_same_v<T, char>)
+inline static void
+serialize(Json_Serializer &self, const T &data)
+{
+	string_append(self.buffer, "{}", data);
+}
+
+inline static void
+serialize(Json_Serializer &self, const char &data)
+{
+	string_append(self.buffer, "{}", (i32)data);
+}
+
+inline static void
+serialize(Json_Serializer &self, const bool &data)
+{
+	string_append(self.buffer, data ? "true" : "false");
+}
+
+template <typename T>
+requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
+inline static void
+serialize(Json_Serializer &self, const T &data)
+{
+	serialize(self, *data);
+}
+
+template <typename T, u64 N>
+requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>) // TODO: Test char arrays. For some reason, this gets invoked by C string calls.
+inline static void
+serialize(Json_Serializer &self, const T (&data)[N])
+{
+	string_append(self.buffer, '[');
+	for (u64 i = 0; i < N; ++i)
+	{
+		if (i > 0)
+			string_append(self.buffer, ',');
+		serialize(self, data[i]);
+	}
+	string_append(self.buffer, ']');
+}
+
+template <typename T>
+inline static void
+serialize(Json_Serializer &self, const Array<T> &data)
+{
+	string_append(self.buffer, '[');
+	for (u64 i = 0; i < data.count; ++i)
+	{
+		if (i > 0)
+			string_append(self.buffer, ',');
+		serialize(self, data[i]);
+	}
+	string_append(self.buffer, ']');
+}
+
+inline static void
+serialize(Json_Serializer &self, const String &data)
+{
+	string_append(self.buffer, "\"{}\"", data);
+}
+
+inline static void
+serialize(Json_Serializer &self, const char *&data)
+{
+	serialize(self, string_literal(data));
+}
+
+template <typename K, typename V>
+inline static void
+serialize(Json_Serializer &self, const Hash_Table<K, V> &data)
+{
+	string_append(self.buffer, '[');
+	i32 i = 0;
+	for (const Hash_Table_Entry<const K, V> &entry : data)
+	{
+		if (i > 0)
+			string_append(self.buffer, ',');
+		string_append(self.buffer, "{{\"key\":");
+		serialize(self, entry.key);
+		string_append(self.buffer, ",\"value\":");
+		serialize(self, entry.value);
+		string_append(self.buffer, '}');
+		++i;
+	}
+	string_append(self.buffer, ']');
+}
+
+inline static void
+serialize(Json_Serializer &self, const Block &block)
+{
+	String o = base64_encode((const unsigned char *)block.data, (u32)block.size);
+	DEFER(string_deinit(o));
+	string_append(self.buffer, "\"{}\"", o);
+}
+
+inline static void
+serialize(Json_Serializer &self, Json_Serialization_Pair pair)
+{
+	if (string_is_empty(self.buffer))
+	{
+		string_append(self.buffer, '{');
+	}
+	else if (array_last(self.buffer) == ':')
+	{
+		string_append(self.buffer, '{');
+	}
+	else
+	{
+		self.buffer.count--;
+		string_append(self.buffer, ',');
+	}
+
+	string_append(self.buffer, "\"{}\":", pair.name);
+	pair.to(self, pair.name, pair.data);
+	string_append(self.buffer, '}');
+}
+
+inline static void
+serialize(Json_Serializer &self, std::initializer_list<Json_Serialization_Pair> pairs)
+{
+	string_append(self.buffer, '{');
+	i32 i = 0;
+	for (const Json_Serialization_Pair &pair : pairs)
+	{
+		if (i > 0)
+			string_append(self.buffer, ',');
+		string_append(self.buffer, "\"{}\":", pair.name);
+		pair.to(self, pair.name, pair.data);
+		++i;
+	}
+	string_append(self.buffer, '}');
+}
+
 inline static Json_Deserializer
 json_deserializer_init(String buffer, memory::Allocator *allocator = memory::heap_allocator())
 {
@@ -86,21 +221,6 @@ json_deserializer_deinit(Json_Deserializer &self)
 	self = {};
 }
 
-/////////////////////////////////////////////////////////////////////
-template <typename T>
-requires (std::is_arithmetic_v<T> && !std::is_same_v<T, bool> && !std::is_same_v<T, char>)
-inline static void
-serialize(Json_Serializer &self, const T &data)
-{
-	string_append(self.buffer, "{}", data);
-}
-
-inline static void
-serialize(Json_Serializer &self, const char &data)
-{
-	string_append(self.buffer, "{}", (i32)data);
-}
-
 template <typename T>
 requires (std::is_arithmetic_v<T> && !std::is_same_v<T, bool>)
 inline static void
@@ -110,24 +230,10 @@ serialize(Json_Deserializer &self, const T &data)
 }
 
 inline static void
-serialize(Json_Serializer &self, const bool &data)
-{
-	string_append(self.buffer, data ? "true" : "false");
-}
-
-inline static void
 serialize(Json_Deserializer &self, const bool &data)
 {
 	bool &d = (bool &)data;
 	d = json_value_get_as_bool(array_last(self.values));
-}
-
-template <typename T>
-requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
-inline static void
-serialize(Json_Serializer &self, const T &data)
-{
-	serialize(self, *data);
 }
 
 template <typename T>
@@ -145,21 +251,6 @@ serialize(Json_Deserializer &self, const T &data)
 template <typename T, u64 N>
 requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>) // TODO: Test char arrays. For some reason, this gets invoked by C string calls.
 inline static void
-serialize(Json_Serializer &self, const T (&data)[N])
-{
-	string_append(self.buffer, '[');
-	for (u64 i = 0; i < N; ++i)
-	{
-		if (i > 0)
-			string_append(self.buffer, ',');
-		serialize(self, data[i]);
-	}
-	string_append(self.buffer, ']');
-}
-
-template <typename T, u64 N>
-requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>) // TODO: Test char arrays. For some reason, this gets invoked by C string calls.
-inline static void
 serialize(Json_Deserializer &self, const T (&data)[N])
 {
 	Array<JSON_Value> array_values = json_value_get_as_array(array_last(self.values));
@@ -172,18 +263,21 @@ serialize(Json_Deserializer &self, const T (&data)[N])
 	}
 }
 
-template <typename T>
 inline static void
-serialize(Json_Serializer &self, const Array<T> &data)
+serialize(Json_Deserializer &self, const Block &block)
 {
-	string_append(self.buffer, '[');
-	for (u64 i = 0; i < data.count; ++i)
-	{
-		if (i > 0)
-			string_append(self.buffer, ',');
-		serialize(self, data[i]);
-	}
-	string_append(self.buffer, ']');
+	String str = json_value_get_as_string(array_last(self.values));
+
+	String o = base64_decode(str);
+	DEFER(string_deinit(o));
+
+	Block &d = (Block &)block;
+
+	if (d.data == nullptr)
+		d.data = (u8 *)memory::allocate(o.count);
+
+	::memcpy(d.data, o.data, o.count);
+	d.size = o.count;
 }
 
 template <typename T>
@@ -209,12 +303,6 @@ serialize(Json_Deserializer &self, const Array<T> &data)
 }
 
 inline static void
-serialize(Json_Serializer &self, const String &data)
-{
-	string_append(self.buffer, "\"{}\"", data);
-}
-
-inline static void
 serialize(Json_Deserializer &self, const String &data)
 {
 	String &d = (String &)data;
@@ -231,38 +319,12 @@ serialize(Json_Deserializer &self, const String &data)
 }
 
 inline static void
-serialize(Json_Serializer &self, const char *&data)
-{
-	serialize(self, string_literal(data));
-}
-
-inline static void
 serialize(Json_Deserializer &self, const char *&data)
 {
 	String out = {};
 	serialize(self, out);
 	data = out.data;
 	out = {};
-}
-
-template <typename K, typename V>
-inline static void
-serialize(Json_Serializer &self, const Hash_Table<K, V> &data)
-{
-	string_append(self.buffer, '[');
-	i32 i = 0;
-	for (const Hash_Table_Entry<const K, V> &entry : data)
-	{
-		if (i > 0)
-			string_append(self.buffer, ',');
-		string_append(self.buffer, "{{\"key\":");
-		serialize(self, entry.key);
-		string_append(self.buffer, ",\"value\":");
-		serialize(self, entry.value);
-		string_append(self.buffer, '}');
-		++i;
-	}
-	string_append(self.buffer, ']');
 }
 
 template <typename K, typename V>
@@ -302,57 +364,6 @@ serialize(Json_Deserializer &self, const Hash_Table<K, V> &data)
 }
 
 inline static void
-serialize(Json_Serializer &self, const Block &block)
-{
-	String o = base64_encode((const unsigned char *)block.data, (u32)block.size);
-	DEFER(string_deinit(o));
-	string_append(self.buffer, "\"{}\"", o);
-}
-
-inline static void
-serialize(Json_Deserializer &self, const Block &block)
-{
-	String str = json_value_get_as_string(array_last(self.values));
-
-	String o = base64_decode(str);
-	DEFER(string_deinit(o));
-
-	Block &d = (Block &)block;
-
-	if (d.data == nullptr)
-		d.data = (u8 *)memory::allocate(o.count);
-
-	::memcpy(d.data, o.data, o.count);
-	d.size = o.count;
-}
-
-/////////////////////////////////////////////////////////////////////
-inline static void
-serialize(Json_Serializer &self, Json_Serialization_Pair pair)
-{
-	if (string_is_empty(self.buffer))
-	{
-		string_append(self.buffer, '{');
-	}
-	else
-	{
-		if (array_last(self.buffer) == ':')
-		{
-			string_append(self.buffer, '{');
-		}
-		else
-		{
-			self.buffer.count--;
-			string_append(self.buffer, ',');
-		}
-	}
-
-	string_append(self.buffer, "\"{}\":", pair.name);
-	pair.to(self, pair.name, pair.data);
-	string_append(self.buffer, '}');
-}
-
-inline static void
 serialize(Json_Deserializer &self, Json_Serialization_Pair pair)
 {
 	JSON_Value json_value = json_value_object_find(array_last(self.values), pair.name);
@@ -361,22 +372,6 @@ serialize(Json_Deserializer &self, Json_Serialization_Pair pair)
 	array_push(self.values, json_value);
 	pair.from(self, pair.name, pair.data);
 	array_pop(self.values);
-}
-
-inline static void
-serialize(Json_Serializer &self, std::initializer_list <Json_Serialization_Pair> pairs)
-{
-	string_append(self.buffer, '{');
-	i32 i = 0;
-	for (const Json_Serialization_Pair &pair : pairs)
-	{
-		if (i > 0)
-			string_append(self.buffer, ',');
-		string_append(self.buffer, "\"{}\":", pair.name);
-		pair.to(self, pair.name, pair.data);
-		++i;
-	}
-	string_append(self.buffer, '}');
 }
 
 inline static void
