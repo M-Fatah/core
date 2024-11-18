@@ -34,12 +34,10 @@ struct Json_Serialization_Pair
 		self.name = name;
 		self.data = (void *)&data;
 		self.to = +[](Json_Serializer &self, const char *, void *data) -> Error {
-			T &d = *(T *)data;
-			return serialize(self, d);
+			return serialize(self, *(const T *)data);
 		};
 		self.from = +[](Json_Deserializer &self, const char *, void *data) -> Error {
-			T &d = *(T *)data;
-			return serialize(self, d);
+			return serialize(self, *(std::remove_const_t<T> *)data);
 		};
 	}
 };
@@ -141,7 +139,7 @@ serialize(Json_Serializer &self, const String &data)
 }
 
 inline static Error
-serialize(Json_Serializer &self, const char *&data)
+serialize(Json_Serializer &self, const char *data)
 {
 	return serialize(self, string_literal(data));
 }
@@ -248,40 +246,37 @@ json_deserializer_deinit(Json_Deserializer &self)
 template <typename T>
 requires (std::is_arithmetic_v<T> && !std::is_same_v<T, bool>)
 inline static Error
-serialize(Json_Deserializer &self, const T &data)
+serialize(Json_Deserializer &self, T &data)
 {
-	*(std::remove_const_t<T> *)&data = (std::remove_const_t<T>)json_value_get_as_number(array_last(self.values));
+	data = (T)json_value_get_as_number(array_last(self.values));
 	return Error{};
 }
 
 inline static Error
-serialize(Json_Deserializer &self, const bool &data)
+serialize(Json_Deserializer &self, bool &data)
 {
-	bool &d = (bool &)data;
-	d = json_value_get_as_bool(array_last(self.values));
+	data = json_value_get_as_bool(array_last(self.values));
 	return Error{};
 }
 
 template <typename T>
 requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static Error
-serialize(Json_Deserializer &self, const T &data)
+serialize(Json_Deserializer &self, T &data)
 {
-	T &d = (T &)data;
+	if (data == nullptr)
+		data = memory::allocate<std::remove_pointer_t<T>>(self.allocator);
 
-	if (d == nullptr)
-		d = memory::allocate<std::remove_pointer_t<T>>(self.allocator);
-
-	if (d == nullptr)
+	if (data == nullptr)
 		return Error{"[DESERIALIZER][JSON]: Could not allocate memory for passed pointer type."};
 
-	return serialize(self, *d);
+	return serialize(self, *data);
 }
 
 template <typename T, u64 N>
 requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>) // TODO: Test char arrays. For some reason, this gets invoked by C string calls.
 inline static Error
-serialize(Json_Deserializer &self, const T (&data)[N])
+serialize(Json_Deserializer &self, T (&data)[N])
 {
 	Array<JSON_Value> array_values = json_value_get_as_array(array_last(self.values));
 	if (array_values.count != N)
@@ -301,45 +296,41 @@ serialize(Json_Deserializer &self, const T (&data)[N])
 }
 
 inline static Error
-serialize(Json_Deserializer &self, const Block &block)
+serialize(Json_Deserializer &self, Block &block)
 {
 	String str = json_value_get_as_string(array_last(self.values));
 
-	String o = base64_decode(str);
+	String o = base64_decode(str, self.allocator);
 	DEFER(string_deinit(o));
 
-	Block &d = (Block &)block;
+	if (block.data == nullptr)
+		block.data = (u8 *)memory::allocate(o.count);
 
-	if (d.data == nullptr)
-		d.data = (u8 *)memory::allocate(o.count);
-
-	if (d.data == nullptr)
+	if (block.data == nullptr)
 		return Error{"[DESERIALIZER][JSON]: Could not allocate memory for passed pointer type."};
 
-	::memcpy(d.data, o.data, o.count);
-	d.size = o.count;
+	::memcpy(block.data, o.data, o.count);
+	block.size = o.count;
 
 	return Error{};
 }
 
 template <typename T>
 inline static Error
-serialize(Json_Deserializer &self, const Array<T> &data)
+serialize(Json_Deserializer &self, Array<T> &data)
 {
-	Array<T> &d = (Array<T> &)data;
-
-	if (self.allocator != d.allocator || d.allocator == nullptr)
+	if (self.allocator != data.allocator || data.allocator == nullptr)
 	{
-		destroy(d);
-		d = array_init<T>(self.allocator);
+		destroy(data);
+		data = array_init<T>(self.allocator);
 	}
 
 	Array<JSON_Value> array_values = json_value_get_as_array(array_last(self.values));
-	array_resize(d, array_values.count);
-	for (u64 i = 0; i < d.count; ++i)
+	array_resize(data, array_values.count);
+	for (u64 i = 0; i < data.count; ++i)
 	{
 		array_push(self.values, array_values[i]);
-		if (Error error = serialize(self, d[i]))
+		if (Error error = serialize(self, data[i]))
 			return error;
 		array_pop(self.values);
 	}
@@ -348,19 +339,17 @@ serialize(Json_Deserializer &self, const Array<T> &data)
 }
 
 inline static Error
-serialize(Json_Deserializer &self, const String &data)
+serialize(Json_Deserializer &self, String &data)
 {
-	String &d = (String &)data;
-
-	if (self.allocator != d.allocator || d.allocator == nullptr)
+	if (self.allocator != data.allocator || data.allocator == nullptr)
 	{
-		string_deinit(d);
-		d = string_init(self.allocator);
+		string_deinit(data);
+		data = string_init(self.allocator);
 	}
 
 	String str = json_value_get_as_string(array_last(self.values));
-	string_clear(d);
-	string_append(d, str);
+	string_clear(data);
+	string_append(data, str);
 
 	return Error{};
 }
@@ -379,20 +368,18 @@ serialize(Json_Deserializer &self, const char *&data)
 
 template <typename K, typename V>
 inline static Error
-serialize(Json_Deserializer &self, const Hash_Table<K, V> &data)
+serialize(Json_Deserializer &self, Hash_Table<K, V> &data)
 {
-	Hash_Table<K, V> &d = (Hash_Table<K, V> &)data;
-
 	// TODO: Should we add allocator in hash table?
-	if (self.allocator != d.entries.allocator || d.entries.allocator == nullptr)
+	if (self.allocator != data.entries.allocator || data.entries.allocator == nullptr)
 	{
-		destroy(d);
-		d = hash_table_init<K, V>(self.allocator);
+		destroy(data);
+		data = hash_table_init<K, V>(self.allocator);
 	}
 
 	Array<JSON_Value> array_values = array_last(self.values).as_array;
 
-	hash_table_clear(d);
+	hash_table_clear(data);
 	for (u64 i = 0; i < array_values.count; ++i)
 	{
 		K key   = {};
@@ -410,7 +397,7 @@ serialize(Json_Deserializer &self, const Hash_Table<K, V> &data)
 			return error;
 		array_pop(self.values);
 
-		hash_table_insert(d, key, value);
+		hash_table_insert(data, key, value);
 	}
 
 	return Error{};
