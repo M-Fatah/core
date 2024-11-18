@@ -610,8 +610,10 @@ TEST_CASE("[CORE]: JSON_Serializer")
 		hash_table_insert(original_game.g, string_literal("3"), 3.0f);
 		*original_game.h = 5;
 
-		String buffer = to_json(original_game);
+		auto [buffer, error] = to_json(original_game);
 		DEFER(string_deinit(buffer));
+
+		CHECK(error == false);
 
 		Game new_game = {};
 		DEFER(game_deinit(new_game));
