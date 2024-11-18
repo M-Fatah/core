@@ -37,10 +37,10 @@ game_deinit(Game &self)
 }
 
 template <typename T>
-inline static void
+inline static Error
 serialize(T &self, const Game &data)
 {
-	serialize(self, {
+	return serialize(self, {
 		{"a", data.a},
 		{"b", data.b},
 		{"c", data.c},
@@ -314,8 +314,10 @@ TEST_CASE("[CORE]: Binary_Serializer")
 		hash_table_insert(original_game.g, string_literal("3"), 3.0f);
 		*original_game.h = 5;
 
-		Array<u8> buffer = to_binary(original_game);
+		auto [buffer, error] = to_binary(original_game);
 		DEFER(array_deinit(buffer));
+
+		CHECK(error == false);
 
 		Game new_game = {};
 		DEFER(game_deinit(new_game));

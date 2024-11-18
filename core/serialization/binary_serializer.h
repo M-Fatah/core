@@ -1,9 +1,10 @@
 #pragma once
 
-#include <core/defines.h>
-#include <core/containers/array.h>
-#include <core/containers/string.h>
-#include <core/containers/hash_table.h>
+#include "core/defines.h"
+#include "core/result.h"
+#include "core/containers/array.h"
+#include "core/containers/string.h"
+#include "core/containers/hash_table.h"
 
 #include <type_traits>
 
@@ -18,6 +19,7 @@
 		- [ ] Should we override data?
 	- [ ] deserializer_init() should take a block or a span or a view.
 	- [ ] Return Error on failure.
+	- [ ] Endianness?
 	- [ ] Cleanup.
 
 	- JSON serializer:
@@ -42,8 +44,8 @@ struct Binary_Serialization_Pair
 {
 	const char *name;
 	void *data;
-	void (*to)(Binary_Serializer &serializer, const char *name, void *data);
-	void (*from)(Binary_Deserializer &deserializer, const char *name, void *data);
+	Error (*to)(Binary_Serializer &serializer, const char *name, void *data);
+	Error (*from)(Binary_Deserializer &deserializer, const char *name, void *data);
 
 	template <typename T>
 	Binary_Serialization_Pair(const char *name, T &data)
@@ -51,13 +53,13 @@ struct Binary_Serialization_Pair
 		Binary_Serialization_Pair &self = *this;
 		self.name = name;
 		self.data = (void *)&data;
-		self.to = +[](Binary_Serializer &serializer, const char *, void *data) {
+		self.to = +[](Binary_Serializer &serializer, const char *, void *data) -> Error {
 			T &d = *(T *)data;
-			serialize(serializer, d);
+			return serialize(serializer, d);
 		};
-		self.from = +[](Binary_Deserializer &deserializer, const char *, void *data) {
+		self.from = +[](Binary_Deserializer &deserializer, const char *, void *data) -> Error {
 			T &d = *(T *)data;
-			serialize(deserializer, d);
+			return serialize(deserializer, d);
 		};
 	}
 };
@@ -81,89 +83,113 @@ binary_serializer_deinit(Binary_Serializer &self)
 
 template <typename T>
 requires (std::is_arithmetic_v<T>)
-inline static void
+inline static Error
 serialize(Binary_Serializer &self, const T &data)
 {
 	array_reserve(self.buffer, sizeof(data));
 	::memcpy(self.buffer.data + self.offset, &data, sizeof(T));
 	self.buffer.count += sizeof(T);
 	self.offset += sizeof(T);
+	return {};
 }
 
 template <typename T>
 requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
-inline static void
+inline static Error
 serialize(Binary_Serializer& self, const T &data)
 {
-	serialize(self, *data);
+	return serialize(self, *data);
 }
 
 template <typename T, u64 N>
 requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
-inline static void
+inline static Error
 serialize(Binary_Serializer &self, const T (&data)[N])
 {
-	serialize(self, N);
+	Error error = serialize(self, N);
+	if (error)
+		return error;
+
 	for (u64 i = 0; i < N; ++i)
-		serialize(self, data[i]);
-}
-
-template <typename T>
-inline static void
-serialize(Binary_Serializer &self, const Array<T> &data)
-{
-	serialize(self, data.count);
-	for (u64 i = 0; i < data.count; ++i)
-		serialize(self, data[i]);
-}
-
-inline static void
-serialize(Binary_Serializer &self, const String &data)
-{
-	serialize(self, data.count);
-	for (u64 i = 0; i < data.count; ++i)
-		serialize(self, data[i]);
-}
-
-inline static void
-serialize(Binary_Serializer &self, const char *&data)
-{
-	serialize(self, string_literal(data));
-}
-
-template <typename K, typename V>
-inline static void
-serialize(Binary_Serializer &self, const Hash_Table<K, V> &data)
-{
-	serialize(self, data.count);
-	for (const Hash_Table_Entry<const K, V> &entry : data)
 	{
-		serialize(self, entry.key);
-		serialize(self, entry.value);
+		error = serialize(self, data[i]);
+		if (error)
+			return error;
 	}
+
+	return {};
 }
 
-inline static void
+inline static Error
 serialize(Binary_Serializer &self, const Block &block)
 {
-	serialize(self, block.size);
+	Error error = serialize(self, block.size);
+	if (error)
+		return error;
+
 	array_reserve(self.buffer, block.size);
 	::memcpy(self.buffer.data + self.offset, block.data, block.size); // TODO: Add array_memcpy().
 	self.buffer.count += block.size;
 	self.offset += block.size;
+
+	return {};
 }
 
-inline static void
+template <typename T>
+inline static Error
+serialize(Binary_Serializer &self, const Array<T> &data)
+{
+	Error error = serialize(self, data.count);
+	if (error)
+		return error;
+	for (u64 i = 0; i < data.count; ++i)
+	{
+		error = serialize(self, data[i]);
+		if (error)
+			return error;
+	}
+
+	return {};
+}
+
+inline static Error
+serialize(Binary_Serializer &self, const char *&data)
+{
+	return serialize(self, string_literal(data));
+}
+
+template <typename K, typename V>
+inline static Error
+serialize(Binary_Serializer &self, const Hash_Table<K, V> &data)
+{
+	if (Error error = serialize(self, data.count))
+		return error;
+
+	for (const Hash_Table_Entry<const K, V> &entry : data)
+	{
+		if (Error error = serialize(self, entry.key))
+			return error;
+
+		if (Error error = serialize(self, entry.value))
+			return error;
+	}
+
+	return {};
+}
+
+inline static Error
 serialize(Binary_Serializer &self, Binary_Serialization_Pair pair)
 {
-	pair.to(self, pair.name, pair.data);
+	return pair.to(self, pair.name, pair.data);
 }
 
-inline static void
+inline static Error
 serialize(Binary_Serializer &self, std::initializer_list<Binary_Serialization_Pair> pairs)
 {
 	for (const Binary_Serialization_Pair &pair : pairs)
-		pair.to(self, pair.name, pair.data);
+		if (Error error = pair.to(self, pair.name, pair.data))
+			return error;
+	return Error{};
 }
 
 inline static Binary_Deserializer
@@ -184,21 +210,25 @@ binary_deserializer_deinit(Binary_Deserializer &self)
 
 template <typename T>
 requires (std::is_arithmetic_v<T>)
-inline static void
+inline static Error
 serialize(Binary_Deserializer &self, const T &data)
 {
 	u8 *d = (u8 *)&data;
 	u64 data_size = sizeof(data);
 
-	ASSERT(self.offset + data_size <= self.buffer.count, "[SERIALIZER][BINARY]: Trying to deserialize beyond buffer capacity.");
+	if (self.offset + data_size > self.buffer.count)
+		return Error{"[DESERIALIZER][BINARY]: Trying to deserialize beyond buffer capacity."};
+
 	for (u64 i = 0; i < data_size; ++i)
 		d[i] = self.buffer[i + self.offset];
 	self.offset += data_size;
+
+	return Error{};
 }
 
 template <typename T>
 requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
-inline static void
+inline static Error
 serialize(Binary_Deserializer& self, const T &data)
 {
 	T &d = (T &)data;
@@ -206,36 +236,54 @@ serialize(Binary_Deserializer& self, const T &data)
 	if (d == nullptr)
 		d = memory::allocate<std::remove_pointer_t<T>>(self.allocator);
 
-	serialize(self, *d);
+	if (d == nullptr)
+		return Error{"[DESERIALIZER][BINARY]: Could not allocate memory for passed pointer type."};
+
+	return serialize(self, *d);
 }
 
 template <typename T, u64 N>
 requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
-inline static void
+inline static Error
 serialize(Binary_Deserializer &self, const T (&data)[N])
 {
 	u64 count = 0;
-	serialize(self, count);
-	ASSERT(count == N, "[SERIALIZER][BINARY]: Passed array count does not match the deserialized count.");
+	if (Error error = serialize(self, count))
+		return error;
+
+	if (count != N)
+		return Error{"[DESERIALIZER][BINARY]: Passed array count does not match the deserialized count."};
+
 	for (u64 i = 0; i < count; ++i)
-		serialize(self, data[i]);
+		if (Error error = serialize(self, data[i]))
+			return error;
+
+	return Error{};
 }
 
-inline static void
+inline static Error
 serialize(Binary_Deserializer &self, const Block &block)
 {
 	Block &d = (Block &)block;
 
-	serialize(self, d.size);
+	if (Error error = serialize(self, d.size))
+		return error;
+
 	if (d.data == nullptr)
 		d.data = (u8 *)memory::allocate(d.size);
 
+	if (d.data == nullptr)
+		return Error{"[DESERIALIZER][BINARY]: Could not allocate memory for passed pointer type."};
+
 	for (u64 i = 0; i < d.size; ++i)
-		serialize(self, ((u8 *)d.data)[i]);
+		if (Error error = serialize(self, ((u8 *)d.data)[i]))
+			return error;
+
+	return Error{};
 }
 
 template <typename T>
-inline static void
+inline static Error
 serialize(Binary_Deserializer &self, const Array<T> &data)
 {
 	Array<T> &d = (Array<T> &)data;
@@ -247,13 +295,18 @@ serialize(Binary_Deserializer &self, const Array<T> &data)
 	}
 
 	u64 count = 0;
-	serialize(self, count);
+	if (Error error = serialize(self, count))
+		return error;
+
 	array_resize(d, count);
 	for (u64 i = 0; i < d.count; ++i)
-		serialize(self, d[i]);
+		if (Error error = serialize(self, d[i]))
+			return error;
+
+	return Error{};
 }
 
-inline static void
+inline static Error
 serialize(Binary_Deserializer &self, const String &data)
 {
 	String &d = (String &)data;
@@ -265,23 +318,32 @@ serialize(Binary_Deserializer &self, const String &data)
 	}
 
 	u64 count = 0;
-	serialize(self, count);
+	if (Error error = serialize(self, count))
+		return error;
+
 	string_resize(d, count);
 	for (u64 i = 0; i < d.count; ++i)
-		serialize(self, d[i]);
+		if (Error error = serialize(self, d[i]))
+			return error;
+
+	return Error{};
 }
 
-inline static void
+inline static Error
 serialize(Binary_Deserializer &self, const char *&data)
 {
 	String out = {};
-	serialize(self, out);
+	if (Error error = serialize(self, out))
+		return error;
+
 	data = out.data;
 	out = {};
+
+	return Error{};
 }
 
 template <typename K, typename V>
-inline static void
+inline static Error
 serialize(Binary_Deserializer &self, const Hash_Table<K, V> &data)
 {
 	Hash_Table<K, V> &d = (Hash_Table<K, V> &)data;
@@ -294,46 +356,58 @@ serialize(Binary_Deserializer &self, const Hash_Table<K, V> &data)
 	}
 
 	u64 count = 0;
-	serialize(self, count);
+	if (Error error = serialize(self, count))
+		return error;
+
 	hash_table_clear(d);
 	for (u64 i = 0; i < count; ++i)
 	{
 		K key   = {};
 		V value = {};
-		serialize(self, key);
-		serialize(self, value);
+
+		if (Error error = serialize(self, key))
+			return error;
+
+		if (Error error = serialize(self, value))
+			return error;
+
 		hash_table_insert(d, key, value);
 	}
+
+	return Error{};
 }
 
-inline static void
+inline static Error
 serialize(Binary_Deserializer &self, Binary_Serialization_Pair pair)
 {
-	pair.from(self, pair.name, pair.data);
+	return pair.from(self, pair.name, pair.data);
 }
 
-inline static void
+inline static Error
 serialize(Binary_Deserializer &self, std::initializer_list<Binary_Serialization_Pair> pairs)
 {
 	for (const Binary_Serialization_Pair &pair : pairs)
-		pair.from(self, pair.name, pair.data);
+		if (Error error = pair.from(self, pair.name, pair.data))
+			return error;
+	return Error{};
 }
 
 template <typename T>
-inline static Array<u8>
+inline static Result<Array<u8>>
 to_binary(const T &data)
 {
 	Binary_Serializer self = binary_serializer_init();
 	DEFER(binary_serializer_deinit(self));
-	serialize(self, data);
+	if (Error error = serialize(self, data))
+		return error;
 	return array_copy(self.buffer);
 }
 
 template <typename T>
-inline static void
+inline static Error
 from_binary(const Array<u8> &buffer, T &data)
 {
 	Binary_Deserializer self = binary_deserializer_init(buffer);
 	DEFER(binary_deserializer_deinit(self));
-	serialize(self, data);
+	return serialize(self, data);
 }
