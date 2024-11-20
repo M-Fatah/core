@@ -3,6 +3,27 @@
 #include "core/defines.h"
 #include "core/result.h"
 
+/*
+	TODO:
+	- [ ] Versioning.
+	- [ ] Compression?
+	- [ ] Encryption?
+	- [ ] Arena backing memory.
+	- [ ] Either we assert that the user should use serialized pairs, or generate names for omitted types.
+	- [ ] What happens if the user serializes multiple entries with the same name in json and name dependent serializers.
+		- [ ] Should we assert?
+		- [ ] Should we print warning messages?
+		- [ ] Should we override data?
+		- [ ] Should we return Error?
+	- [ ] deserializer_init() should take a block or a span or a view.
+	- [ ] Cleanup.
+
+	- Binary serializer:
+		- [ ] Endianness?
+	- JSON serializer:
+		- [ ] Should we use JSON_Value instead of string buffer?
+*/
+
 template <typename S>
 struct Serialize_Pair
 {
