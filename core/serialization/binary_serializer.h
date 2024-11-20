@@ -158,14 +158,14 @@ serialize(Binary_Serializer &self, const Hash_Table<K, V> &data)
 inline static Error
 serialize(Binary_Serializer &self, Serialize_Pair<Binary_Serializer> pair)
 {
-	return pair.serialize(self, pair.name, pair.data);
+	return pair.archive(self, pair.name, pair.data);
 }
 
 inline static Error
 serialize(Binary_Serializer &self, std::initializer_list<Serialize_Pair<Binary_Serializer>> pairs)
 {
 	for (const Serialize_Pair<Binary_Serializer> &pair : pairs)
-		if (Error error = pair.serialize(self, pair.name, pair.data))
+		if (Error error = pair.archive(self, pair.name, pair.data))
 			return error;
 	return Error{};
 }
@@ -349,14 +349,14 @@ serialize(Binary_Deserializer &self, Hash_Table<K, V> &data)
 inline static Error
 serialize(Binary_Deserializer &self, Serialize_Pair<Binary_Deserializer> pair)
 {
-	return pair.serialize(self, pair.name, pair.data);
+	return pair.archive(self, pair.name, pair.data);
 }
 
 inline static Error
 serialize(Binary_Deserializer &self, std::initializer_list<Serialize_Pair<Binary_Deserializer>> pairs)
 {
 	for (const Serialize_Pair<Binary_Deserializer> &pair : pairs)
-		if (Error error = pair.serialize(self, pair.name, pair.data))
+		if (Error error = pair.archive(self, pair.name, pair.data))
 			return error;
 	return Error{};
 }

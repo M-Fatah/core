@@ -169,7 +169,7 @@ serialize(Json_Serializer &self, Serialize_Pair<Json_Serializer> pair)
 	}
 
 	string_append(self.buffer, "\"{}\":", pair.name);
-	if (Error error = pair.serialize(self, pair.name, pair.data))
+	if (Error error = pair.archive(self, pair.name, pair.data))
 		return error;
 	string_append(self.buffer, '}');
 
@@ -186,7 +186,7 @@ serialize(Json_Serializer &self, std::initializer_list<Serialize_Pair<Json_Seria
 		if (i > 0)
 			string_append(self.buffer, ',');
 		string_append(self.buffer, "\"{}\":", pair.name);
-		if (Error error = pair.serialize(self, pair.name, pair.data))
+		if (Error error = pair.archive(self, pair.name, pair.data))
 			return error;
 		++i;
 	}
@@ -390,7 +390,7 @@ serialize(Json_Deserializer &self, Serialize_Pair<Json_Deserializer> pair)
 		return Error{"[DESERIALIZER][JSON]: Could not find JSON value with the provided name."};
 
 	array_push(self.values, json_value);
-	if (Error error = pair.serialize(self, pair.name, pair.data))
+	if (Error error = pair.archive(self, pair.name, pair.data))
 		return error;
 	array_pop(self.values);
 
