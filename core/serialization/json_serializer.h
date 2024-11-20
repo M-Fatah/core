@@ -1,12 +1,13 @@
 #pragma once
 
-#include <core/defines.h>
-#include <core/json.h>
-#include <core/logger.h>
-#include <core/base64.h>
-#include <core/containers/array.h>
-#include <core/containers/string.h>
-#include <core/containers/hash_table.h>
+#include "core/serialization/serializer.h"
+#include "core/defines.h"
+#include "core/json.h"
+#include "core/logger.h"
+#include "core/base64.h"
+#include "core/containers/array.h"
+#include "core/containers/string.h"
+#include "core/containers/hash_table.h"
 
 struct Json_Serializer
 {
@@ -18,28 +19,6 @@ struct Json_Deserializer
 {
 	memory::Allocator *allocator;
 	Array<JSON_Value> values;
-};
-
-struct Json_Serialization_Pair
-{
-	const char *name;
-	void *data;
-	Error (*to)(Json_Serializer &self, const char *name, void *data);
-	Error (*from)(Json_Deserializer &self, const char *name, void *data);
-
-	template <typename T>
-	Json_Serialization_Pair(const char *name, T &data)
-	{
-		Json_Serialization_Pair &self = *this;
-		self.name = name;
-		self.data = (void *)&data;
-		self.to = +[](Json_Serializer &self, const char *, void *data) -> Error {
-			return serialize(self, *(const T *)data);
-		};
-		self.from = +[](Json_Deserializer &self, const char *, void *data) -> Error {
-			return serialize(self, *(std::remove_const_t<T> *)data);
-		};
-	}
 };
 
 inline static Json_Serializer
@@ -173,7 +152,7 @@ serialize(Json_Serializer &self, const Hash_Table<K, V> &data)
 }
 
 inline static Error
-serialize(Json_Serializer &self, Json_Serialization_Pair pair)
+serialize(Json_Serializer &self, Serialize_Pair<Json_Serializer> pair)
 {
 	if (string_is_empty(self.buffer))
 	{
@@ -190,7 +169,7 @@ serialize(Json_Serializer &self, Json_Serialization_Pair pair)
 	}
 
 	string_append(self.buffer, "\"{}\":", pair.name);
-	if (Error error = pair.to(self, pair.name, pair.data))
+	if (Error error = pair.serialize(self, pair.name, pair.data))
 		return error;
 	string_append(self.buffer, '}');
 
@@ -198,16 +177,16 @@ serialize(Json_Serializer &self, Json_Serialization_Pair pair)
 }
 
 inline static Error
-serialize(Json_Serializer &self, std::initializer_list<Json_Serialization_Pair> pairs)
+serialize(Json_Serializer &self, std::initializer_list<Serialize_Pair<Json_Serializer>> pairs)
 {
 	string_append(self.buffer, '{');
 	i32 i = 0;
-	for (const Json_Serialization_Pair &pair : pairs)
+	for (const Serialize_Pair<Json_Serializer> &pair : pairs)
 	{
 		if (i > 0)
 			string_append(self.buffer, ',');
 		string_append(self.buffer, "\"{}\":", pair.name);
-		if (Error error = pair.to(self, pair.name, pair.data))
+		if (Error error = pair.serialize(self, pair.name, pair.data))
 			return error;
 		++i;
 	}
@@ -404,14 +383,14 @@ serialize(Json_Deserializer &self, Hash_Table<K, V> &data)
 }
 
 inline static Error
-serialize(Json_Deserializer &self, Json_Serialization_Pair pair)
+serialize(Json_Deserializer &self, Serialize_Pair<Json_Deserializer> pair)
 {
 	JSON_Value json_value = json_value_object_find(array_last(self.values), pair.name);
 	if (json_value.kind == JSON_VALUE_KIND_INVALID)
 		return Error{"[DESERIALIZER][JSON]: Could not find JSON value with the provided name."};
 
 	array_push(self.values, json_value);
-	if (Error error = pair.from(self, pair.name, pair.data))
+	if (Error error = pair.serialize(self, pair.name, pair.data))
 		return error;
 	array_pop(self.values);
 
@@ -419,9 +398,9 @@ serialize(Json_Deserializer &self, Json_Serialization_Pair pair)
 }
 
 inline static Error
-serialize(Json_Deserializer &self, std::initializer_list <Json_Serialization_Pair> pairs)
+serialize(Json_Deserializer &self, std::initializer_list <Serialize_Pair<Json_Deserializer>> pairs)
 {
-	for (const Json_Serialization_Pair &pair : pairs)
+	for (const Serialize_Pair<Json_Deserializer> &pair : pairs)
 		if (Error error = serialize(self, pair))
 			return error;
 	return Error{};

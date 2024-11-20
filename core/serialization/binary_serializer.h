@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/serialization/serializer.h"
 #include "core/defines.h"
 #include "core/result.h"
 #include "core/containers/array.h"
@@ -17,6 +18,7 @@
 		- [ ] Should we assert?
 		- [ ] Should we print warning messages?
 		- [ ] Should we override data?
+		- [ ] Should we return Error?
 	- [ ] deserializer_init() should take a block or a span or a view.
 	- [ ] Cleanup.
 
@@ -38,28 +40,6 @@ struct Binary_Deserializer
 	memory::Allocator *allocator;
 	Array<u8> buffer;
 	u64 offset;
-};
-
-struct Binary_Serialization_Pair
-{
-	const char *name;
-	void *data;
-	Error (*to)(Binary_Serializer &serializer, const char *name, void *data);
-	Error (*from)(Binary_Deserializer &deserializer, const char *name, void *data);
-
-	template <typename T>
-	Binary_Serialization_Pair(const char *name, T &data)
-	{
-		Binary_Serialization_Pair &self = *this;
-		self.name = name;
-		self.data = (void *)&data;
-		self.to = +[](Binary_Serializer &serializer, const char *, void *data) -> Error {
-			return serialize(serializer, *(const T *)data);
-		};
-		self.from = +[](Binary_Deserializer &deserializer, const char *, void *data) -> Error {
-			return serialize(deserializer, *(std::remove_const_t<T> *)data);
-		};
-	}
 };
 
 inline static Binary_Serializer
@@ -176,16 +156,16 @@ serialize(Binary_Serializer &self, const Hash_Table<K, V> &data)
 }
 
 inline static Error
-serialize(Binary_Serializer &self, Binary_Serialization_Pair pair)
+serialize(Binary_Serializer &self, Serialize_Pair<Binary_Serializer> pair)
 {
-	return pair.to(self, pair.name, pair.data);
+	return pair.serialize(self, pair.name, pair.data);
 }
 
 inline static Error
-serialize(Binary_Serializer &self, std::initializer_list<Binary_Serialization_Pair> pairs)
+serialize(Binary_Serializer &self, std::initializer_list<Serialize_Pair<Binary_Serializer>> pairs)
 {
-	for (const Binary_Serialization_Pair &pair : pairs)
-		if (Error error = pair.to(self, pair.name, pair.data))
+	for (const Serialize_Pair<Binary_Serializer> &pair : pairs)
+		if (Error error = pair.serialize(self, pair.name, pair.data))
 			return error;
 	return Error{};
 }
@@ -367,16 +347,16 @@ serialize(Binary_Deserializer &self, Hash_Table<K, V> &data)
 }
 
 inline static Error
-serialize(Binary_Deserializer &self, Binary_Serialization_Pair pair)
+serialize(Binary_Deserializer &self, Serialize_Pair<Binary_Deserializer> pair)
 {
-	return pair.from(self, pair.name, pair.data);
+	return pair.serialize(self, pair.name, pair.data);
 }
 
 inline static Error
-serialize(Binary_Deserializer &self, std::initializer_list<Binary_Serialization_Pair> pairs)
+serialize(Binary_Deserializer &self, std::initializer_list<Serialize_Pair<Binary_Deserializer>> pairs)
 {
-	for (const Binary_Serialization_Pair &pair : pairs)
-		if (Error error = pair.from(self, pair.name, pair.data))
+	for (const Serialize_Pair<Binary_Deserializer> &pair : pairs)
+		if (Error error = pair.serialize(self, pair.name, pair.data))
 			return error;
 	return Error{};
 }
