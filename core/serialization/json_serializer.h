@@ -68,13 +68,13 @@ serialize(Json_Serializer &self, const T &data)
 	return serialize(self, *data);
 }
 
-template <typename T, u64 N>
-requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>) // TODO: Test char arrays. For some reason, this gets invoked by C string calls.
+template <typename T>
+requires (std::is_array_v<T>)
 inline static Error
-serialize(Json_Serializer &self, const T (&data)[N])
+serialize(Json_Serializer &self, const T &data)
 {
 	string_append(self.buffer, '[');
-	for (u64 i = 0; i < N; ++i)
+	for (u64 i = 0; i < count_of(data); ++i)
 	{
 		if (i > 0)
 			string_append(self.buffer, ',');
@@ -252,13 +252,13 @@ serialize(Json_Deserializer &self, T &data)
 	return serialize(self, *data);
 }
 
-template <typename T, u64 N>
-requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>) // TODO: Test char arrays. For some reason, this gets invoked by C string calls.
+template <typename T>
+requires (std::is_array_v<T>)
 inline static Error
-serialize(Json_Deserializer &self, T (&data)[N])
+serialize(Json_Deserializer &self, T &data)
 {
 	Array<JSON_Value> array_values = json_value_get_as_array(array_last(self.values));
-	if (array_values.count != N)
+	if (array_values.count != count_of(data))
 		return Error{"[DESERIALIZER][JSON]: Passed array count does not match the deserialized count."};
 
 	for (u64 i = 0; i < array_values.count; ++i)

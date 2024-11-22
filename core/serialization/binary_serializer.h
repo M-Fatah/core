@@ -60,16 +60,16 @@ serialize(Binary_Serializer& self, const T &data)
 	return serialize(self, *data);
 }
 
-template <typename T, u64 N>
-requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
+template <typename T>
+requires (std::is_array_v<T>)
 inline static Error
-serialize(Binary_Serializer &self, const T (&data)[N])
+serialize(Binary_Serializer &self, const T &data)
 {
-	Error error = serialize(self, N);
+	Error error = serialize(self, count_of(data));
 	if (error)
 		return error;
 
-	for (u64 i = 0; i < N; ++i)
+	for (u64 i = 0; i < count_of(data); ++i)
 	{
 		error = serialize(self, data[i]);
 		if (error)
@@ -98,17 +98,16 @@ template <typename T>
 inline static Error
 serialize(Binary_Serializer &self, const Array<T> &data)
 {
-	Error error = serialize(self, data.count);
-	if (error)
+	if (Error error = serialize(self, data.count))
 		return error;
+
 	for (u64 i = 0; i < data.count; ++i)
 	{
-		error = serialize(self, data[i]);
-		if (error)
+		if (Error error = serialize(self, data[i]))
 			return error;
 	}
 
-	return {};
+	return Error{};
 }
 
 inline static Error
@@ -200,16 +199,16 @@ serialize(Binary_Deserializer& self, T &data)
 	return serialize(self, *data);
 }
 
-template <typename T, u64 N>
-requires (!std::is_same_v<T, char *> && !std::is_same_v<T, const char *>) // TODO: Test removal.
+template <typename T>
+requires (std::is_array_v<T>)
 inline static Error
-serialize(Binary_Deserializer &self, T (&data)[N])
+serialize(Binary_Deserializer &self, T &data)
 {
 	u64 count = 0;
 	if (Error error = serialize(self, count))
 		return error;
 
-	if (count != N)
+	if (count != count_of(data))
 		return Error{"[DESERIALIZER][BINARY]: Passed array count does not match the deserialized count."};
 
 	for (u64 i = 0; i < count; ++i)
