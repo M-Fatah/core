@@ -135,6 +135,14 @@ serialize(Binary_Serializer &self, const Hash_Table<K, V> &data)
 	return {};
 }
 
+template <typename T>
+inline static Error
+serialize(Binary_Serializer &self, const char *name, const T &data)
+{
+	unused(name);
+	return serialize(self, data);
+}
+
 inline static Binary_Deserializer
 binary_deserializer_init(const Array<u8> &buffer, memory::Allocator *allocator = memory::heap_allocator())
 {
@@ -309,14 +317,6 @@ serialize(Binary_Deserializer &self, Hash_Table<K, V> &data)
 	}
 
 	return Error{};
-}
-
-template <typename T>
-inline static Error
-serialize(Binary_Serializer &self, const char *name, const T &data)
-{
-	unused(name);
-	return serialize(self, data);
 }
 
 template <typename T>

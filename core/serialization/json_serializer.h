@@ -151,6 +151,32 @@ serialize(Json_Serializer &self, const Hash_Table<K, V> &data)
 	return Error{};
 }
 
+template <typename T>
+inline static Error
+serialize(Json_Serializer &self, const char *name, const T &data)
+{
+	if (string_is_empty(self.buffer))
+	{
+		string_append(self.buffer, '{');
+	}
+	else if (array_last(self.buffer) == ':')
+	{
+		string_append(self.buffer, '{');
+	}
+	else
+	{
+		self.buffer.count--;
+		string_append(self.buffer, ',');
+	}
+
+	string_append(self.buffer, "\"{}\":", name);
+	if (Error error = serialize(self, data))
+		return error;
+	string_append(self.buffer, '}');
+
+	return Error{};
+}
+
 inline static Json_Deserializer
 json_deserializer_init(String buffer, memory::Allocator *allocator = memory::heap_allocator())
 {
@@ -334,32 +360,6 @@ serialize(Json_Deserializer &self, Hash_Table<K, V> &data)
 
 		hash_table_insert(data, key, value);
 	}
-
-	return Error{};
-}
-
-template <typename T>
-inline static Error
-serialize(Json_Serializer &self, const char *name, const T &data)
-{
-	if (string_is_empty(self.buffer))
-	{
-		string_append(self.buffer, '{');
-	}
-	else if (array_last(self.buffer) == ':')
-	{
-		string_append(self.buffer, '{');
-	}
-	else
-	{
-		self.buffer.count--;
-		string_append(self.buffer, ',');
-	}
-
-	string_append(self.buffer, "\"{}\":", name);
-	if (Error error = serialize(self, data))
-		return error;
-	string_append(self.buffer, '}');
 
 	return Error{};
 }

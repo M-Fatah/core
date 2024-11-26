@@ -31,16 +31,16 @@ template <typename S>
 struct Serialize_Pair
 {
 	const char *name;
-	void *data;
-	Error (*archive)(S &serializer, const char *name, void *data);
+	const void *data;
+	Error (*archive)(S &serializer, const char *name, const void *data);
 
 	template <typename T>
-	Serialize_Pair(const char *name, T &data)
+	Serialize_Pair(const char *name, const T &data)
 	{
 		Serialize_Pair &self = *this;
 		self.name = name;
-		self.data = (void *)&data;
-		self.archive = +[](S &serializer, const char *name, void *data) -> Error {
+		self.data = &data;
+		self.archive = +[](S &serializer, const char *name, const void *data) -> Error {
 			return serialize(serializer, name, *(std::remove_const_t<T> *)data);
 		};
 	}
