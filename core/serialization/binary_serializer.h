@@ -135,21 +135,6 @@ serialize(Binary_Serializer &self, const Hash_Table<K, V> &data)
 	return {};
 }
 
-inline static Error
-serialize(Binary_Serializer &self, Serialize_Pair<Binary_Serializer> pair)
-{
-	return pair.archive(self, pair.name, pair.data);
-}
-
-inline static Error
-serialize(Binary_Serializer &self, std::initializer_list<Serialize_Pair<Binary_Serializer>> pairs)
-{
-	for (const Serialize_Pair<Binary_Serializer> &pair : pairs)
-		if (Error error = pair.archive(self, pair.name, pair.data))
-			return error;
-	return Error{};
-}
-
 inline static Binary_Deserializer
 binary_deserializer_init(const Array<u8> &buffer, memory::Allocator *allocator = memory::heap_allocator())
 {
@@ -326,19 +311,20 @@ serialize(Binary_Deserializer &self, Hash_Table<K, V> &data)
 	return Error{};
 }
 
+template <typename T>
 inline static Error
-serialize(Binary_Deserializer &self, Serialize_Pair<Binary_Deserializer> pair)
+serialize(Binary_Serializer &self, const char *name, const T &data)
 {
-	return pair.archive(self, pair.name, pair.data);
+	unused(name);
+	return serialize(self, data);
 }
 
+template <typename T>
 inline static Error
-serialize(Binary_Deserializer &self, std::initializer_list<Serialize_Pair<Binary_Deserializer>> pairs)
+serialize(Binary_Deserializer &self, const char *name, T &data)
 {
-	for (const Serialize_Pair<Binary_Deserializer> &pair : pairs)
-		if (Error error = pair.archive(self, pair.name, pair.data))
-			return error;
-	return Error{};
+	unused(name);
+	return serialize(self, data);
 }
 
 template <typename T>

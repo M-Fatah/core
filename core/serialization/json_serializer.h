@@ -151,50 +151,6 @@ serialize(Json_Serializer &self, const Hash_Table<K, V> &data)
 	return Error{};
 }
 
-inline static Error
-serialize(Json_Serializer &self, Serialize_Pair<Json_Serializer> pair)
-{
-	if (string_is_empty(self.buffer))
-	{
-		string_append(self.buffer, '{');
-	}
-	else if (array_last(self.buffer) == ':')
-	{
-		string_append(self.buffer, '{');
-	}
-	else
-	{
-		self.buffer.count--;
-		string_append(self.buffer, ',');
-	}
-
-	string_append(self.buffer, "\"{}\":", pair.name);
-	if (Error error = pair.archive(self, pair.name, pair.data))
-		return error;
-	string_append(self.buffer, '}');
-
-	return Error{};
-}
-
-inline static Error
-serialize(Json_Serializer &self, std::initializer_list<Serialize_Pair<Json_Serializer>> pairs)
-{
-	string_append(self.buffer, '{');
-	i32 i = 0;
-	for (const Serialize_Pair<Json_Serializer> &pair : pairs)
-	{
-		if (i > 0)
-			string_append(self.buffer, ',');
-		string_append(self.buffer, "\"{}\":", pair.name);
-		if (Error error = pair.archive(self, pair.name, pair.data))
-			return error;
-		++i;
-	}
-	string_append(self.buffer, '}');
-
-	return Error{};
-}
-
 inline static Json_Deserializer
 json_deserializer_init(String buffer, memory::Allocator *allocator = memory::heap_allocator())
 {
@@ -382,27 +338,45 @@ serialize(Json_Deserializer &self, Hash_Table<K, V> &data)
 	return Error{};
 }
 
+template <typename T>
 inline static Error
-serialize(Json_Deserializer &self, Serialize_Pair<Json_Deserializer> pair)
+serialize(Json_Serializer &self, const char *name, const T &data)
 {
-	JSON_Value json_value = json_value_object_find(array_last(self.values), pair.name);
-	if (json_value.kind == JSON_VALUE_KIND_INVALID)
-		return Error{"[DESERIALIZER][JSON]: Could not find JSON value with the provided name."};
+	if (string_is_empty(self.buffer))
+	{
+		string_append(self.buffer, '{');
+	}
+	else if (array_last(self.buffer) == ':')
+	{
+		string_append(self.buffer, '{');
+	}
+	else
+	{
+		self.buffer.count--;
+		string_append(self.buffer, ',');
+	}
 
-	array_push(self.values, json_value);
-	if (Error error = pair.archive(self, pair.name, pair.data))
+	string_append(self.buffer, "\"{}\":", name);
+	if (Error error = serialize(self, data))
 		return error;
-	array_pop(self.values);
+	string_append(self.buffer, '}');
 
 	return Error{};
 }
 
+template <typename T>
 inline static Error
-serialize(Json_Deserializer &self, std::initializer_list<Serialize_Pair<Json_Deserializer>> pairs)
+serialize(Json_Deserializer &self, const char *name, T &data)
 {
-	for (const Serialize_Pair<Json_Deserializer> &pair : pairs)
-		if (Error error = serialize(self, pair))
-			return error;
+	JSON_Value json_value = json_value_object_find(array_last(self.values), name);
+	if (json_value.kind == JSON_VALUE_KIND_INVALID)
+		return Error{"[DESERIALIZER][JSON]: Could not find JSON value with the provided name."};
+
+	array_push(self.values, json_value);
+	if (Error error = serialize(self, data))
+		return error;
+	array_pop(self.values);
+
 	return Error{};
 }
 
