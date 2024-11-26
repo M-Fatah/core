@@ -594,49 +594,66 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 	SUBCASE("Helpers")
 	{
-		Game original_game = game_init();
-		DEFER(game_deinit(original_game));
-
-		original_game.a = 31;
-		original_game.b = 37;
-		original_game.c = 1.5f;
-		original_game.d = 'A';
-		array_push(original_game.e, 0.5f);
-		array_push(original_game.e, 1.5f);
-		array_push(original_game.e, 2.5f);
-		string_append(original_game.f, "Hello1");
-		hash_table_insert(original_game.g, string_literal("1"), 1.0f);
-		hash_table_insert(original_game.g, string_literal("2"), 2.0f);
-		hash_table_insert(original_game.g, string_literal("3"), 3.0f);
-		*original_game.h = 5;
-
-		auto [buffer, error] = to_json(original_game);
-		DEFER(string_deinit(buffer));
-
-		CHECK(error == false);
-
-		Game new_game = {};
-		DEFER(game_deinit(new_game));
-
-		from_json(buffer, new_game);
-
-		CHECK(new_game.a == original_game.a);
-		CHECK(new_game.b == original_game.b);
-		CHECK(new_game.c == original_game.c);
-		CHECK(new_game.d == original_game.d);
-
-		for (u64 i = 0; i < new_game.e.count; ++i)
-			CHECK(new_game.e[i] == original_game.e[i]);
-
-		CHECK(new_game.f == original_game.f);
-
-		for (const auto &[new_key, new_value] : new_game.g)
+		SUBCASE("Fundamental types")
 		{
-			const auto &[original_key, original_value] = *hash_table_find(original_game.g, new_key);
-			CHECK(new_key == original_key);
-			CHECK(new_value == original_value);
+			i32 a1 = 1;
+			auto [buffer, error] = to_json(a1);
+			DEFER(string_deinit(buffer));
+
+			CHECK(buffer == "{\"data\":1}");
+
+			i32 a2 = 0;
+			from_json(buffer, a2);
+
+			CHECK(a1 == a2);
 		}
 
-		CHECK(*original_game.h == *new_game.h);
+		SUBCASE("Structs")
+		{
+			Game original_game = game_init();
+			DEFER(game_deinit(original_game));
+
+			original_game.a = 31;
+			original_game.b = 37;
+			original_game.c = 1.5f;
+			original_game.d = 'A';
+			array_push(original_game.e, 0.5f);
+			array_push(original_game.e, 1.5f);
+			array_push(original_game.e, 2.5f);
+			string_append(original_game.f, "Hello1");
+			hash_table_insert(original_game.g, string_literal("1"), 1.0f);
+			hash_table_insert(original_game.g, string_literal("2"), 2.0f);
+			hash_table_insert(original_game.g, string_literal("3"), 3.0f);
+			*original_game.h = 5;
+
+			auto [buffer, error] = to_json(original_game);
+			DEFER(string_deinit(buffer));
+
+			CHECK(error == false);
+
+			Game new_game = {};
+			DEFER(game_deinit(new_game));
+
+			from_json(buffer, new_game);
+
+			CHECK(new_game.a == original_game.a);
+			CHECK(new_game.b == original_game.b);
+			CHECK(new_game.c == original_game.c);
+			CHECK(new_game.d == original_game.d);
+
+			for (u64 i = 0; i < new_game.e.count; ++i)
+				CHECK(new_game.e[i] == original_game.e[i]);
+
+			CHECK(new_game.f == original_game.f);
+
+			for (const auto &[new_key, new_value] : new_game.g)
+			{
+				const auto &[original_key, original_value] = *hash_table_find(original_game.g, new_key);
+				CHECK(new_key == original_key);
+				CHECK(new_value == original_value);
+			}
+
+			CHECK(*original_game.h == *new_game.h);
+		}
 	}
 }

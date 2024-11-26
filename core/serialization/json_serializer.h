@@ -398,7 +398,7 @@ serialize(Json_Deserializer &self, Serialize_Pair<Json_Deserializer> pair)
 }
 
 inline static Error
-serialize(Json_Deserializer &self, std::initializer_list <Serialize_Pair<Json_Deserializer>> pairs)
+serialize(Json_Deserializer &self, std::initializer_list<Serialize_Pair<Json_Deserializer>> pairs)
 {
 	for (const Serialize_Pair<Json_Deserializer> &pair : pairs)
 		if (Error error = serialize(self, pair))
@@ -408,20 +408,20 @@ serialize(Json_Deserializer &self, std::initializer_list <Serialize_Pair<Json_De
 
 template <typename T>
 inline static Result<String>
-to_json(const T &data)
+to_json(const T &data, memory::Allocator *allocator = memory::heap_allocator())
 {
-	Json_Serializer self = json_serializer_init();
+	Json_Serializer self = json_serializer_init(allocator);
 	DEFER(json_serializer_deinit(self));
-	if (Error error = serialize(self, data))
+	if (Error error = serialize(self, {"data", data}))
 		return error;
-	return string_copy(self.buffer);
+	return string_copy(self.buffer, allocator);
 }
 
 template <typename T>
 inline static Error
-from_json(const String &buffer, T &data)
+from_json(const String &buffer, T &data, memory::Allocator *allocator = memory::heap_allocator())
 {
-	Json_Deserializer self = json_deserializer_init(buffer);
+	Json_Deserializer self = json_deserializer_init(buffer, allocator);
 	DEFER(json_deserializer_deinit(self));
-	return serialize(self, data);
+	return serialize(self, {"data", data});
 }

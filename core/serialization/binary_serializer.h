@@ -343,20 +343,20 @@ serialize(Binary_Deserializer &self, std::initializer_list<Serialize_Pair<Binary
 
 template <typename T>
 inline static Result<Array<u8>>
-to_binary(const T &data)
+to_binary(const T &data, memory::Allocator *allocator = memory::heap_allocator())
 {
-	Binary_Serializer self = binary_serializer_init();
+	Binary_Serializer self = binary_serializer_init(allocator);
 	DEFER(binary_serializer_deinit(self));
 	if (Error error = serialize(self, data))
 		return error;
-	return array_copy(self.buffer);
+	return array_copy(self.buffer, allocator);
 }
 
 template <typename T>
 inline static Error
-from_binary(const Array<u8> &buffer, T &data)
+from_binary(const Array<u8> &buffer, T &data, memory::Allocator *allocator = memory::heap_allocator())
 {
-	Binary_Deserializer self = binary_deserializer_init(buffer);
+	Binary_Deserializer self = binary_deserializer_init(buffer, allocator);
 	DEFER(binary_deserializer_deinit(self));
 	return serialize(self, data);
 }
