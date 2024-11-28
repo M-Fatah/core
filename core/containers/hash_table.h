@@ -159,6 +159,9 @@ template <typename K, typename V>
 inline static const Hash_Table_Entry<const K, V> *
 hash_table_find(const Hash_Table<K, V> &self, const K &key)
 {
+	if (self.count == 0)
+		return nullptr;
+
 	u64 hash_value       = hash(key);
 	u64 slot_index       = hash_value & (self.capacity - 1);
 	u64 start_slot_index = slot_index;
