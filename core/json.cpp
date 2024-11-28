@@ -446,6 +446,51 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, i32 in
 }
 
 // API.
+JSON_Value
+json_value_init_as_bool(bool value)
+{
+	return JSON_Value {
+		.kind = JSON_VALUE_KIND_BOOL,
+		.as_bool = value
+	};
+}
+
+JSON_Value
+json_value_init_as_number(f64 value)
+{
+	return JSON_Value {
+		.kind = JSON_VALUE_KIND_NUMBER,
+		.as_number = value
+	};
+}
+
+JSON_Value
+json_value_init_as_string(memory::Allocator *allocator)
+{
+	return JSON_Value {
+		.kind = JSON_VALUE_KIND_STRING,
+		.as_string = string_init(allocator)
+	};
+}
+
+JSON_Value
+json_value_init_as_array(memory::Allocator *allocator)
+{
+	return JSON_Value {
+		.kind = JSON_VALUE_KIND_ARRAY,
+		.as_array = array_init<JSON_Value>(allocator)
+	};
+}
+
+JSON_Value
+json_value_init_as_object(memory::Allocator *allocator)
+{
+	return JSON_Value {
+		.kind = JSON_VALUE_KIND_OBJECT,
+		.as_object = hash_table_init<String, JSON_Value>(allocator)
+	};
+}
+
 Result<JSON_Value>
 json_value_from_string(const char *json_string, memory::Allocator *allocator)
 {
@@ -525,6 +570,13 @@ json_value_object_find(const JSON_Value &self, const String &name)
 	if (const Hash_Table_Entry<const String, JSON_Value> *entry = hash_table_find(self.as_object, name))
 		return entry->value;
 	return {};
+}
+
+void
+json_value_object_insert(JSON_Value &self, const String &name, const JSON_Value &value)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_OBJECT, "[JSON]: Expected JSON_VALUE_KIND_OBJECT.");
+	hash_table_insert(self.as_object, string_copy(name), value);
 }
 
 bool

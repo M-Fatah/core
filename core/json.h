@@ -30,7 +30,28 @@ struct JSON_Value
 		Array<JSON_Value> as_array;
 		Hash_Table<String, JSON_Value> as_object;
 	};
+
+	explicit
+	operator bool() const
+	{
+		return kind != JSON_VALUE_KIND_INVALID;
+	}
 };
+
+CORE_API JSON_Value
+json_value_init_as_bool(bool value = false);
+
+CORE_API JSON_Value
+json_value_init_as_number(f64 value = 0.0f);
+
+CORE_API JSON_Value
+json_value_init_as_string(memory::Allocator *allocator = memory::heap_allocator());
+
+CORE_API JSON_Value
+json_value_init_as_array(memory::Allocator *allocator = memory::heap_allocator());
+
+CORE_API JSON_Value
+json_value_init_as_object(memory::Allocator *allocator = memory::heap_allocator());
 
 CORE_API Result<JSON_Value>
 json_value_from_string(const char *json_string, memory::Allocator *allocator = memory::heap_allocator());
@@ -55,6 +76,15 @@ json_value_deinit(JSON_Value &self);
 
 CORE_API JSON_Value
 json_value_object_find(const JSON_Value &self, const String &name);
+
+CORE_API void
+json_value_object_insert(JSON_Value &self, const String &name, const JSON_Value &value);
+
+inline static void
+json_value_object_insert(JSON_Value &self, const char *name, const JSON_Value &value)
+{
+	json_value_object_insert(self, string_literal(name), value);
+}
 
 inline static JSON_Value
 json_value_object_find(const JSON_Value &self, const char *name)
