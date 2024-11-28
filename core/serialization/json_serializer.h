@@ -34,21 +34,13 @@ inline static void
 json_serializer_deinit(Json_Serializer &self)
 {
 	destroy(self.values);
-	self = {};
+	self = Json_Serializer{};
 }
 
 template <typename T>
-requires (std::is_arithmetic_v<T> && !std::is_same_v<T, bool> && !std::is_same_v<T, char>)
+requires (std::is_arithmetic_v<T>)
 inline static Error
 serialize(Json_Serializer &self, const T &data)
-{
-	JSON_Value &value = array_last(self.values);
-	value = json_value_init_as_number((f64)data);
-	return Error{};
-}
-
-inline static Error
-serialize(Json_Serializer &self, const char &data)
 {
 	JSON_Value &value = array_last(self.values);
 	value = json_value_init_as_number((f64)data);
@@ -86,19 +78,17 @@ serialize(Json_Serializer &self, const T &data)
 			return error;
 		array_push(value.as_array, array_pop(self.values));
 	}
+
 	return Error{};
 }
 
 inline static Error
-serialize(Json_Serializer &self, const String &data);
-
-inline static Error
 serialize(Json_Serializer &self, const Block &block)
 {
-	String o = base64_encode((const unsigned char *)block.data, (u32)block.size, self.allocator);
-	DEFER(string_deinit(o));
-
-	return serialize(self, o);
+	JSON_Value &value = array_last(self.values);
+	value.kind = JSON_VALUE_KIND_STRING;
+	value.as_string = base64_encode((const u8 *)block.data, (u32)block.size, self.allocator);
+	return Error{};
 }
 
 template <typename T>
@@ -116,6 +106,7 @@ serialize(Json_Serializer &self, const Array<T> &data)
 		JSON_Value element = array_pop(self.values);
 		array_push(value.as_array, element);
 	}
+
 	return Error{};
 }
 
@@ -151,7 +142,6 @@ serialize(Json_Serializer &self, const Hash_Table<K, V> &data)
 		array_push(self.values, JSON_Value{});
 		if (Error error = serialize(self, entry.value))
 			return error;
-
 		JSON_Value value = array_pop(self.values);
 
 		JSON_Value key_value_json_object = json_value_init_as_object(self.allocator);
@@ -218,11 +208,11 @@ inline static void
 json_deserializer_deinit(Json_Deserializer &self)
 {
 	destroy(self.values);
-	self = {};
+	self = Json_Deserializer{};
 }
 
 template <typename T>
-requires (std::is_arithmetic_v<T> && !std::is_same_v<T, bool>)
+requires (std::is_arithmetic_v<T>)
 inline static Error
 serialize(Json_Deserializer &self, T &data)
 {
@@ -386,7 +376,7 @@ inline static Error
 serialize(Json_Deserializer &self, const char *name, T &data)
 {
 	JSON_Value json_value = json_value_object_find(array_last(self.values), name);
-	if (json_value.kind == JSON_VALUE_KIND_INVALID)
+	if (!json_value)
 		return Error{"[DESERIALIZER][JSON]: Could not find JSON value with the provided name."};
 
 	array_push(self.values, json_value);

@@ -50,16 +50,6 @@ serialize(T &self, const Game &data)
 		{"g", data.g},
 		{"h", data.h}
 	});
-
-	// serialize(self, {"a", data.a});
-	// serialize(self, {"b", data.b});
-	// serialize(self, {"c", data.c});
-	// serialize(self, {"d", data.d});
-	// serialize(self, {"e", data.e});
-	// serialize(self, {"f", data.f});
-	// serialize(self, {"g", data.g});
-	// serialize(self, {"h", data.h});
-	// return Error{};
 }
 
 TEST_CASE("[CORE]: Binary_Serializer")

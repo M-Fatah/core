@@ -7,20 +7,11 @@
 	TODO:
 	- [ ] Versioning.
 	- [ ] Arena backing memory.
-
-	- [ ] Either we assert that the user should use serialized pairs, or generate names for omitted types.
-	- [ ] deserializer_init() should take a block or a span or a view.
-	- [ ] Cleanup.
-
-	- Binary serializer:
+	- [ ] Binary serializer:
 		- [ ] Endianness?
-
-	- JSON serializer:
-		- [ ] What happens if the user serializes multiple entries with the same name in json and name dependent serializers.
-			- [ ] Should we assert?
-			- [x] Should we print warning messages?
-			- [x] Should we override data?
-			- [ ] Should we return Error?
+	- [ ] JSON serializer:
+		- [ ] Assert that the user should use serialized pairs or return an error, or generate names for omitted types.
+	- [ ] Cleanup.
 */
 
 template <typename S>

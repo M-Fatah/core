@@ -7,8 +7,6 @@
 #include "core/containers/string.h"
 #include "core/containers/hash_table.h"
 
-#include <type_traits>
-
 struct Binary_Serializer
 {
 	memory::Allocator *allocator;
@@ -37,7 +35,7 @@ inline static void
 binary_serializer_deinit(Binary_Serializer &self)
 {
 	array_deinit(self.buffer);
-	self = {};
+	self = Binary_Serializer{};
 }
 
 template <typename T>
@@ -45,11 +43,10 @@ requires (std::is_arithmetic_v<T>)
 inline static Error
 serialize(Binary_Serializer &self, const T &data)
 {
-	array_reserve(self.buffer, sizeof(data));
-	::memcpy(self.buffer.data + self.offset, &data, sizeof(T));
-	self.buffer.count += sizeof(T);
+	array_resize(self.buffer, self.buffer.count + sizeof(T));
+	::memcpy(self.buffer.data + self.offset, &data, sizeof(T)); // TODO: Add array_memcpy().
 	self.offset += sizeof(T);
-	return {};
+	return Error{};
 }
 
 template <typename T>
@@ -65,33 +62,27 @@ requires (std::is_array_v<T>)
 inline static Error
 serialize(Binary_Serializer &self, const T &data)
 {
-	Error error = serialize(self, count_of(data));
-	if (error)
+	if (Error error = serialize(self, count_of(data)))
 		return error;
 
 	for (u64 i = 0; i < count_of(data); ++i)
-	{
-		error = serialize(self, data[i]);
-		if (error)
+		if (Error error = serialize(self, data[i]))
 			return error;
-	}
 
-	return {};
+	return Error{};
 }
 
 inline static Error
 serialize(Binary_Serializer &self, const Block &block)
 {
-	Error error = serialize(self, block.size);
-	if (error)
+	if (Error error = serialize(self, block.size))
 		return error;
 
-	array_reserve(self.buffer, block.size);
+	array_resize(self.buffer, self.buffer.count + block.size);
 	::memcpy(self.buffer.data + self.offset, block.data, block.size); // TODO: Add array_memcpy().
-	self.buffer.count += block.size;
 	self.offset += block.size;
 
-	return {};
+	return Error{};
 }
 
 template <typename T>
@@ -102,10 +93,8 @@ serialize(Binary_Serializer &self, const Array<T> &data)
 		return error;
 
 	for (u64 i = 0; i < data.count; ++i)
-	{
 		if (Error error = serialize(self, data[i]))
 			return error;
-	}
 
 	return Error{};
 }
@@ -132,7 +121,7 @@ serialize(Binary_Serializer &self, const Hash_Table<K, V> &data)
 			return error;
 	}
 
-	return {};
+	return Error{};
 }
 
 template <typename T>
@@ -156,7 +145,7 @@ binary_deserializer_init(const Array<u8> &buffer, memory::Allocator *allocator =
 inline static void
 binary_deserializer_deinit(Binary_Deserializer &self)
 {
-	self = {};
+	self = Binary_Deserializer{};
 }
 
 template <typename T>
