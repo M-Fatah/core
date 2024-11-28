@@ -18,6 +18,7 @@ string_init(memory::Allocator *allocator = memory::heap_allocator())
 	return self;
 }
 
+// TODO: Unit test for null character if string is copied using for loop.
 inline static String
 string_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {

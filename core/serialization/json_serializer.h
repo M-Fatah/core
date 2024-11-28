@@ -13,6 +13,7 @@ struct Json_Serializer
 {
 	memory::Allocator *allocator;
 	String buffer;
+	Array<JSON_Value> values;
 };
 
 struct Json_Deserializer
@@ -26,7 +27,8 @@ json_serializer_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	return Json_Serializer {
 		.allocator = allocator,
-		.buffer = string_init(allocator)
+		.buffer = string_init(allocator),
+		.values = array_from({json_value_init_as_object(allocator)}, allocator)
 	};
 }
 
@@ -34,6 +36,7 @@ inline static void
 json_serializer_deinit(Json_Serializer &self)
 {
 	string_deinit(self.buffer);
+	destroy(self.values);
 	self = {};
 }
 
@@ -42,6 +45,8 @@ requires (std::is_arithmetic_v<T> && !std::is_same_v<T, bool> && !std::is_same_v
 inline static Error
 serialize(Json_Serializer &self, const T &data)
 {
+	JSON_Value &value = array_last(self.values);
+	value = json_value_init_as_number((f64)data);
 	string_append(self.buffer, "{}", data);
 	return Error{};
 }
@@ -49,6 +54,9 @@ serialize(Json_Serializer &self, const T &data)
 inline static Error
 serialize(Json_Serializer &self, const char &data)
 {
+	JSON_Value &value = array_last(self.values);
+	value = json_value_init_as_number((f64)data);
+
 	string_append(self.buffer, "{}", (i32)data);
 	return Error{};
 }
@@ -56,6 +64,9 @@ serialize(Json_Serializer &self, const char &data)
 inline static Error
 serialize(Json_Serializer &self, const bool &data)
 {
+	JSON_Value &value = array_last(self.values);
+	value = json_value_init_as_bool(data);
+
 	string_append(self.buffer, data ? "true" : "false");
 	return Error{};
 }
@@ -73,38 +84,52 @@ requires (std::is_array_v<T>)
 inline static Error
 serialize(Json_Serializer &self, const T &data)
 {
+	JSON_Value &value = array_last(self.values);
+	value = json_value_init_as_array(self.allocator);
+
 	string_append(self.buffer, '[');
 	for (u64 i = 0; i < count_of(data); ++i)
 	{
 		if (i > 0)
 			string_append(self.buffer, ',');
+		array_push(self.values, JSON_Value{});
 		if (Error error = serialize(self, data[i]))
 			return error;
+		array_push(value.as_array, array_pop(self.values));
 	}
 	string_append(self.buffer, ']');
 	return Error{};
 }
 
 inline static Error
+serialize(Json_Serializer &self, const String &data);
+
+inline static Error
 serialize(Json_Serializer &self, const Block &block)
 {
 	String o = base64_encode((const unsigned char *)block.data, (u32)block.size, self.allocator);
 	DEFER(string_deinit(o));
-	string_append(self.buffer, "\"{}\"", o);
-	return Error{};
+
+	return serialize(self, o);
 }
 
 template <typename T>
 inline static Error
 serialize(Json_Serializer &self, const Array<T> &data)
 {
+	JSON_Value &value = array_last(self.values);
+	value = json_value_init_as_array(self.allocator);
+
 	string_append(self.buffer, '[');
 	for (u64 i = 0; i < data.count; ++i)
 	{
 		if (i > 0)
 			string_append(self.buffer, ',');
+		array_push(self.values, JSON_Value{});
 		if (Error error = serialize(self, data[i]))
 			return error;
+		JSON_Value element = array_pop(self.values);
+		array_push(value.as_array, element);
 	}
 	string_append(self.buffer, ']');
 	return Error{};
@@ -113,6 +138,8 @@ serialize(Json_Serializer &self, const Array<T> &data)
 inline static Error
 serialize(Json_Serializer &self, const String &data)
 {
+	JSON_Value &value = array_last(self.values);
+	value = json_value_init_as_string(self.allocator);
 	string_append(self.buffer, "\"{}\"", data);
 	return Error{};
 }
@@ -127,6 +154,9 @@ template <typename K, typename V>
 inline static Error
 serialize(Json_Serializer &self, const Hash_Table<K, V> &data)
 {
+	JSON_Value &array = array_last(self.values);
+	array = json_value_init_as_array(self.allocator);
+
 	string_append(self.buffer, '[');
 	i32 i = 0;
 	for (const Hash_Table_Entry<const K, V> &entry : data)
@@ -135,16 +165,26 @@ serialize(Json_Serializer &self, const Hash_Table<K, V> &data)
 			string_append(self.buffer, ',');
 		string_append(self.buffer, "{{\"key\":");
 
+		array_push(self.values, JSON_Value{});
 		if (Error error = serialize(self, entry.key))
 			return error;
+		JSON_Value key = array_pop(self.values);
 
 		string_append(self.buffer, ",\"value\":");
 
+		array_push(self.values, JSON_Value{});
 		if (Error error = serialize(self, entry.value))
 			return error;
 
+		JSON_Value value = array_pop(self.values);
+
 		string_append(self.buffer, '}');
 		++i;
+
+		JSON_Value key_value_json_object = json_value_init_as_object(self.allocator);
+		json_value_object_insert(key_value_json_object, "key", key);
+		json_value_object_insert(key_value_json_object, "value", value);
+		array_push(array.as_array, key_value_json_object);
 	}
 	string_append(self.buffer, ']');
 
@@ -169,10 +209,21 @@ serialize(Json_Serializer &self, const char *name, const T &data)
 		string_append(self.buffer, ',');
 	}
 
+	array_push(self.values, json_value_init_as_object(self.allocator));
+
 	string_append(self.buffer, "\"{}\":", name);
+
 	if (Error error = serialize(self, data))
 		return error;
+
 	string_append(self.buffer, '}');
+
+	JSON_Value object = array_pop(self.values);
+
+	if (json_value_object_find(array_last(self.values), name))
+		LOG_WARNING("[SERIALIZER][JSON]: Overwrite of duplicate json object with name '{}'.", name);
+
+	json_value_object_insert(array_last(self.values), name, object);
 
 	return Error{};
 }
