@@ -494,7 +494,7 @@ json_value_init_as_object(memory::Allocator *allocator)
 Result<JSON_Value>
 json_value_from_string(const char *json_string, memory::Allocator *allocator)
 {
-	if (::strcmp(json_string, "") == 0)
+	if (json_string == nullptr || ::strcmp(json_string, "") == 0)
 		return Error{"[JSON]: Provided JSON string is empty."};
 
 	JSON_Parser parser = {};
@@ -536,6 +536,43 @@ json_value_from_file(const char *filepath, memory::Allocator *allocator)
 	}
 
 	return json_value_from_string((char *)file_data, allocator);
+}
+
+JSON_Value
+json_value_copy(const JSON_Value &self, memory::Allocator *allocator)
+{
+	switch (self.kind)
+	{
+		case JSON_VALUE_KIND_NULL:
+		case JSON_VALUE_KIND_BOOL:
+		case JSON_VALUE_KIND_NUMBER:
+		{
+			return self;
+		}
+		case JSON_VALUE_KIND_STRING:
+		{
+			JSON_Value copy = self;
+			copy.as_string = string_copy(self.as_string, allocator);
+			return copy;
+		}
+		case JSON_VALUE_KIND_ARRAY:
+		{
+			JSON_Value copy = self;
+			copy.as_array = clone(self.as_array, allocator);
+			return copy;
+		}
+		case JSON_VALUE_KIND_OBJECT:
+		{
+			JSON_Value copy = self;
+			copy.as_object = clone(self.as_object, allocator);
+			return copy;
+		}
+		default:
+		{
+			ASSERT(false, "[JSON]: Invalid JSON_VALUE_KIND.");
+			return JSON_Value{};
+		}
+	}
 }
 
 void

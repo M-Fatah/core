@@ -71,6 +71,9 @@ json_value_from_file(const String &filepath, memory::Allocator *allocator = memo
 	return json_value_from_file(filepath.data, allocator);
 }
 
+CORE_API JSON_Value
+json_value_copy(const JSON_Value &self, memory::Allocator *allocator = memory::heap_allocator());
+
 CORE_API void
 json_value_deinit(JSON_Value &self);
 
@@ -122,38 +125,7 @@ json_value_to_file(const JSON_Value &self, const String &filepath)
 inline static JSON_Value
 clone(const JSON_Value &self, memory::Allocator *allocator = memory::heap_allocator())
 {
-	switch (self.kind)
-	{
-		case JSON_VALUE_KIND_NULL:
-		case JSON_VALUE_KIND_BOOL:
-		case JSON_VALUE_KIND_NUMBER:
-		{
-			return self;
-		}
-		case JSON_VALUE_KIND_STRING:
-		{
-			JSON_Value copy = self;
-			copy.as_string = string_copy(self.as_string, allocator);
-			return copy;
-		}
-		case JSON_VALUE_KIND_ARRAY:
-		{
-			JSON_Value copy = self;
-			copy.as_array = clone(self.as_array, allocator);
-			return copy;
-		}
-		case JSON_VALUE_KIND_OBJECT:
-		{
-			JSON_Value copy = self;
-			copy.as_object = clone(self.as_object, allocator);
-			return copy;
-		}
-		default:
-		{
-			ASSERT(false, "[JSON]: Invalid JSON_VALUE_KIND.");
-			return JSON_Value{};
-		}
-	}
+	return json_value_copy(self, allocator);
 }
 
 inline static void
