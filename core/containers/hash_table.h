@@ -10,6 +10,8 @@
 
 #include <initializer_list>
 
+inline static constexpr u64 HASH_TABLE_INITIAL_CAPACITY = 8;
+
 enum HASH_TABLE_SLOT_FLAGS
 {
 	HASH_TABLE_SLOT_FLAGS_EMPTY,
@@ -46,7 +48,7 @@ inline static Hash_Table<K, V>
 hash_table_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	Hash_Table<K, V> self = {};
-	self.slots              = array_with_count<Hash_Table_Slot>(8, allocator);
+	self.slots              = array_with_count<Hash_Table_Slot>(HASH_TABLE_INITIAL_CAPACITY, allocator);
 	self.entry_slot_indices = array_init<u16>(allocator);
 	self.entries            = array_init<Hash_Table_Entry<K, V>>(allocator);
 	self.capacity           = self.slots.count;
@@ -58,7 +60,7 @@ template <typename K, typename V>
 inline static Hash_Table<K, V>
 hash_table_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
-	capacity = capacity > 8 ? capacity : 8;
+	capacity = capacity > HASH_TABLE_INITIAL_CAPACITY ? capacity : HASH_TABLE_INITIAL_CAPACITY;
 	Hash_Table<K, V> self = {};
 	self.slots              = array_with_count<Hash_Table_Slot>(next_power_of_two((i32)capacity), allocator);
 	self.entry_slot_indices = array_init<u16>(allocator);
@@ -114,8 +116,11 @@ template <typename K, typename V>
 inline static const Hash_Table_Entry<const K, V> *
 hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 {
-	u64 load_ratio = (u64)(((f32)self.count / (f32)self.capacity) * 100);
-	if (load_ratio > 70)
+	if (self.capacity == 0)
+		hash_table_resize(self, HASH_TABLE_INITIAL_CAPACITY);
+
+	f32 load_ratio = ((f32)self.count / (f32)self.capacity) * 100.0f;
+	if (load_ratio > 70.0f)
 		hash_table_resize(self, self.capacity * 2);
 
 	u64 hash_value       = hash(key);
