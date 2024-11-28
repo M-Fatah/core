@@ -50,6 +50,16 @@ serialize(T &self, const Game &data)
 		{"g", data.g},
 		{"h", data.h}
 	});
+
+	// serialize(self, {"a", data.a});
+	// serialize(self, {"b", data.b});
+	// serialize(self, {"c", data.c});
+	// serialize(self, {"d", data.d});
+	// serialize(self, {"e", data.e});
+	// serialize(self, {"f", data.f});
+	// serialize(self, {"g", data.g});
+	// serialize(self, {"h", data.h});
+	// return Error{};
 }
 
 TEST_CASE("[CORE]: Binary_Serializer")
@@ -391,7 +401,7 @@ TEST_CASE("[CORE]: JSON_Serializer")
 		char k2 = 0;
 		bool l2 = 0;
 
-		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		Json_Deserializer deserializer = json_deserializer_init(serializer.values[0]);
 		DEFER(json_deserializer_deinit(deserializer));
 
 		serialize(deserializer, {"a1", a2});
@@ -428,7 +438,7 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 		serialize(serializer, {"a1", a1});
 
-		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		Json_Deserializer deserializer = json_deserializer_init(serializer.values[0]);
 		DEFER(json_deserializer_deinit(deserializer));
 
 		i32 i2 = 0;
@@ -449,7 +459,7 @@ TEST_CASE("[CORE]: JSON_Serializer")
 		serialize(serializer, {"a1", a1});
 		serialize(serializer, {"b1", b1});
 
-		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		Json_Deserializer deserializer = json_deserializer_init(serializer.values[0]);
 		DEFER(json_deserializer_deinit(deserializer));
 
 		i32 a2[3]    = {};
@@ -475,7 +485,7 @@ TEST_CASE("[CORE]: JSON_Serializer")
 		serialize(serializer, {"a1", a1});
 		serialize(serializer, {"b1", b1});
 
-		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		Json_Deserializer deserializer = json_deserializer_init(serializer.values[0]);
 		DEFER(json_deserializer_deinit(deserializer));
 
 		const char *a2 = {};
@@ -503,7 +513,7 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 		serialize(serializer, {"a1", a1});
 
-		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		Json_Deserializer deserializer = json_deserializer_init(serializer.values[0]);
 		DEFER(json_deserializer_deinit(deserializer));
 
 		Hash_Table<i32, String> a2 = {};
@@ -529,7 +539,7 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 		serialize(serializer, {"a1", a1});
 
-		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		Json_Deserializer deserializer = json_deserializer_init(serializer.values[0]);
 		DEFER(json_deserializer_deinit(deserializer));
 
 		Block a2 = {};
@@ -561,7 +571,7 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 		serialize(serializer, {"original_game", original_game});
 
-		Json_Deserializer deserializer = json_deserializer_init(serializer.buffer);
+		Json_Deserializer deserializer = json_deserializer_init(serializer.values[0]);
 		DEFER(json_deserializer_deinit(deserializer));
 
 		Game new_game = {};
@@ -588,8 +598,37 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 		CHECK(*original_game.h == *new_game.h);
 
-		const char *expected_json_string = R"""({"original_game":{"a":31,"b":37,"c":1.5,"d":65,"e":[0.5,1.5,2.5],"f":"Hello1","g":[{"key":"1","value":1},{"key":"2","value":2},{"key":"3","value":3}],"h":5}})""";
-		CHECK(serializer.buffer == expected_json_string);
+		const char *expected_json_string = R"""({
+	"original_game": {
+		"a": 31,
+		"b": 37,
+		"c": 1.5,
+		"d": 65,
+		"e": [
+			0.5,
+			1.5,
+			2.5
+		],
+		"f": "Hello1",
+		"g": [
+			{
+				"key": "1",
+				"value": 1
+			},
+			{
+				"key": "2",
+				"value": 2
+			},
+			{
+				"key": "3",
+				"value": 3
+			}
+		],
+		"h": 5
+	}
+})""";
+		auto [string, error] = json_value_to_string(serializer.values[0], memory::temp_allocator());
+		CHECK(string == expected_json_string);
 	}
 
 	SUBCASE("Helpers")
@@ -600,7 +639,7 @@ TEST_CASE("[CORE]: JSON_Serializer")
 			auto [buffer, error] = to_json(a1);
 			DEFER(string_deinit(buffer));
 
-			CHECK(buffer == "{\"data\":1}");
+			CHECK(buffer == "{\n\t\"data\": 1\n}");
 
 			i32 a2 = 0;
 			from_json(buffer, a2);
