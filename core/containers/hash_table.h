@@ -48,7 +48,7 @@ inline static Hash_Table<K, V>
 hash_table_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	Hash_Table<K, V> self = {};
-	self.slots              = array_with_count<Hash_Table_Slot>(HASH_TABLE_INITIAL_CAPACITY, allocator);
+	self.slots              = array_init<Hash_Table_Slot>(allocator);
 	self.entry_slot_indices = array_init<u16>(allocator);
 	self.entries            = array_init<Hash_Table_Entry<K, V>>(allocator);
 	self.capacity           = self.slots.count;
