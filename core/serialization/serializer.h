@@ -10,7 +10,7 @@
 	- [ ] Binary serializer:
 		- [ ] Endianness?
 	- [ ] JSON serializer:
-		- [ ] Assert that the user should use serialized pairs or return an error, or generate names for omitted types.
+		- [ ] Generate names for omitted types?
 	- [ ] Cleanup.
 */
 
