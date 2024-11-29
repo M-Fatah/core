@@ -12,6 +12,7 @@ struct Binary_Serializer
 	memory::Allocator *allocator;
 	Array<u8> buffer;
 	u64 offset;
+	bool is_valid;
 };
 
 struct Binary_Deserializer
@@ -19,6 +20,7 @@ struct Binary_Deserializer
 	memory::Allocator *allocator;
 	Array<u8> buffer;
 	u64 offset;
+	bool is_valid;
 };
 
 inline static Binary_Serializer
@@ -27,7 +29,8 @@ binary_serializer_init(memory::Allocator *allocator = memory::heap_allocator())
 	return Binary_Serializer {
 		.allocator = allocator,
 		.buffer = array_init<u8>(allocator),
-		.offset = 0
+		.offset = 0,
+		.is_valid = false
 	};
 }
 
@@ -43,6 +46,9 @@ requires (std::is_arithmetic_v<T>)
 inline static Error
 serialize(Binary_Serializer &self, const T &data)
 {
+	if (!self.is_valid)
+		return Error{"[SERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
+
 	array_resize(self.buffer, self.buffer.count + sizeof(T));
 	::memcpy(self.buffer.data + self.offset, &data, sizeof(T)); // TODO: Add array_memcpy().
 	self.offset += sizeof(T);
@@ -62,6 +68,9 @@ requires (std::is_array_v<T>)
 inline static Error
 serialize(Binary_Serializer &self, const T &data)
 {
+	if (!self.is_valid)
+		return Error{"[SERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
+
 	if (Error error = serialize(self, count_of(data)))
 		return error;
 
@@ -75,6 +84,9 @@ serialize(Binary_Serializer &self, const T &data)
 inline static Error
 serialize(Binary_Serializer &self, const Block &block)
 {
+	if (!self.is_valid)
+		return Error{"[SERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
+
 	if (Error error = serialize(self, block.size))
 		return error;
 
@@ -89,6 +101,9 @@ template <typename T>
 inline static Error
 serialize(Binary_Serializer &self, const Array<T> &data)
 {
+	if (!self.is_valid)
+		return Error{"[SERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
+
 	if (Error error = serialize(self, data.count))
 		return error;
 
@@ -109,6 +124,9 @@ template <typename K, typename V>
 inline static Error
 serialize(Binary_Serializer &self, const Hash_Table<K, V> &data)
 {
+	if (!self.is_valid)
+		return Error{"[SERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
+
 	if (Error error = serialize(self, data.count))
 		return error;
 
@@ -129,6 +147,8 @@ inline static Error
 serialize(Binary_Serializer &self, const char *name, const T &data)
 {
 	unused(name);
+	self.is_valid = true;
+	DEFER(self.is_valid = false);
 	return serialize(self, data);
 }
 
@@ -138,7 +158,8 @@ binary_deserializer_init(const Array<u8> &buffer, memory::Allocator *allocator =
 	return Binary_Deserializer {
 		.allocator = allocator,
 		.buffer = buffer,
-		.offset = 0
+		.offset = 0,
+		.is_valid = false
 	};
 }
 
@@ -153,6 +174,9 @@ requires (std::is_arithmetic_v<T>)
 inline static Error
 serialize(Binary_Deserializer &self, T &data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	u8 *d = (u8 *)&data;
 	u64 data_size = sizeof(data);
 
@@ -172,6 +196,9 @@ requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<
 inline static Error
 serialize(Binary_Deserializer& self, T &data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	if (data == nullptr)
 		data = memory::allocate<std::remove_pointer_t<T>>(self.allocator);
 
@@ -186,6 +213,9 @@ requires (std::is_array_v<T>)
 inline static Error
 serialize(Binary_Deserializer &self, T &data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	u64 count = 0;
 	if (Error error = serialize(self, count))
 		return error;
@@ -203,6 +233,9 @@ serialize(Binary_Deserializer &self, T &data)
 inline static Error
 serialize(Binary_Deserializer &self, Block &block)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	if (Error error = serialize(self, block.size))
 		return error;
 
@@ -223,6 +256,9 @@ template <typename T>
 inline static Error
 serialize(Binary_Deserializer &self, Array<T> &data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	if (self.allocator != data.allocator || data.allocator == nullptr)
 	{
 		destroy(data);
@@ -244,6 +280,9 @@ serialize(Binary_Deserializer &self, Array<T> &data)
 inline static Error
 serialize(Binary_Deserializer &self, String &data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	if (self.allocator != data.allocator || data.allocator == nullptr)
 	{
 		string_deinit(data);
@@ -265,6 +304,9 @@ serialize(Binary_Deserializer &self, String &data)
 inline static Error
 serialize(Binary_Deserializer &self, const char *&data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	String out = {};
 	if (Error error = serialize(self, out))
 		return error;
@@ -279,6 +321,9 @@ template <typename K, typename V>
 inline static Error
 serialize(Binary_Deserializer &self, Hash_Table<K, V> &data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	// TODO: Should we add allocator in hash table?
 	if (self.allocator != data.entries.allocator || data.entries.allocator == nullptr)
 	{
@@ -313,6 +358,8 @@ inline static Error
 serialize(Binary_Deserializer &self, const char *name, T &data)
 {
 	unused(name);
+	self.is_valid = true;
+	DEFER(self.is_valid = false);
 	return serialize(self, data);
 }
 

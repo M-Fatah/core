@@ -13,12 +13,14 @@ struct Json_Serializer
 {
 	memory::Allocator *allocator;
 	Array<JSON_Value> values;
+	bool is_valid;
 };
 
 struct Json_Deserializer
 {
 	memory::Allocator *allocator;
 	Array<JSON_Value> values;
+	bool is_valid;
 };
 
 inline static Json_Serializer
@@ -26,7 +28,8 @@ json_serializer_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	return Json_Serializer {
 		.allocator = allocator,
-		.values = array_from({json_value_init_as_object(allocator)}, allocator)
+		.values = array_from({json_value_init_as_object(allocator)}, allocator),
+		.is_valid = false
 	};
 }
 
@@ -42,6 +45,9 @@ requires (std::is_arithmetic_v<T>)
 inline static Error
 serialize(Json_Serializer &self, const T &data)
 {
+	if (!self.is_valid)
+		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
+
 	JSON_Value &value = array_last(self.values);
 	value = json_value_init_as_number((f64)data);
 	return Error{};
@@ -50,6 +56,9 @@ serialize(Json_Serializer &self, const T &data)
 inline static Error
 serialize(Json_Serializer &self, const bool &data)
 {
+	if (!self.is_valid)
+		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
+
 	JSON_Value &value = array_last(self.values);
 	value = json_value_init_as_bool(data);
 	return Error{};
@@ -68,6 +77,9 @@ requires (std::is_array_v<T>)
 inline static Error
 serialize(Json_Serializer &self, const T &data)
 {
+	if (!self.is_valid)
+		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
+
 	JSON_Value &value = array_last(self.values);
 	value = json_value_init_as_array(self.allocator);
 
@@ -85,6 +97,9 @@ serialize(Json_Serializer &self, const T &data)
 inline static Error
 serialize(Json_Serializer &self, const Block &block)
 {
+	if (!self.is_valid)
+		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
+
 	JSON_Value &value = array_last(self.values);
 	value.kind = JSON_VALUE_KIND_STRING;
 	value.as_string = base64_encode((const u8 *)block.data, (u32)block.size, self.allocator);
@@ -95,6 +110,9 @@ template <typename T>
 inline static Error
 serialize(Json_Serializer &self, const Array<T> &data)
 {
+	if (!self.is_valid)
+		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
+
 	JSON_Value &value = array_last(self.values);
 	value = json_value_init_as_array(self.allocator);
 
@@ -113,6 +131,9 @@ serialize(Json_Serializer &self, const Array<T> &data)
 inline static Error
 serialize(Json_Serializer &self, const String &data)
 {
+	if (!self.is_valid)
+		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
+
 	JSON_Value &value = array_last(self.values);
 	value.kind = JSON_VALUE_KIND_STRING;
 	value.as_string = string_copy(data, self.allocator);
@@ -129,6 +150,9 @@ template <typename K, typename V>
 inline static Error
 serialize(Json_Serializer &self, const Hash_Table<K, V> &data)
 {
+	if (!self.is_valid)
+		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
+
 	JSON_Value &array = array_last(self.values);
 	array = json_value_init_as_array(self.allocator);
 
@@ -157,6 +181,9 @@ template <typename T>
 inline static Error
 serialize(Json_Serializer &self, const char *name, const T &data)
 {
+	self.is_valid = true;
+	DEFER(self.is_valid = false);
+
 	array_push(self.values, json_value_init_as_object(self.allocator));
 
 	if (Error error = serialize(self, data))
@@ -188,7 +215,8 @@ json_deserializer_init(const String &buffer, memory::Allocator *allocator = memo
 
 	return Json_Deserializer {
 		.allocator = allocator,
-		.values = values
+		.values = values,
+		.is_valid = false
 	};
 }
 
@@ -200,7 +228,8 @@ json_deserializer_init(const JSON_Value &value, memory::Allocator *allocator = m
 
 	return Json_Deserializer {
 		.allocator = allocator,
-		.values = values
+		.values = values,
+		.is_valid = false
 	};
 }
 
@@ -216,6 +245,9 @@ requires (std::is_arithmetic_v<T>)
 inline static Error
 serialize(Json_Deserializer &self, T &data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	data = (T)json_value_get_as_number(array_last(self.values));
 	return Error{};
 }
@@ -223,6 +255,9 @@ serialize(Json_Deserializer &self, T &data)
 inline static Error
 serialize(Json_Deserializer &self, bool &data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	data = json_value_get_as_bool(array_last(self.values));
 	return Error{};
 }
@@ -232,6 +267,9 @@ requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<
 inline static Error
 serialize(Json_Deserializer &self, T &data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	if (data == nullptr)
 		data = memory::allocate<std::remove_pointer_t<T>>(self.allocator);
 
@@ -246,6 +284,9 @@ requires (std::is_array_v<T>)
 inline static Error
 serialize(Json_Deserializer &self, T &data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	Array<JSON_Value> array_values = json_value_get_as_array(array_last(self.values));
 	if (array_values.count != count_of(data))
 		return Error{"[DESERIALIZER][JSON]: Passed array count does not match the deserialized count."};
@@ -266,6 +307,9 @@ serialize(Json_Deserializer &self, T &data)
 inline static Error
 serialize(Json_Deserializer &self, Block &block)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	String str = json_value_get_as_string(array_last(self.values));
 
 	String o = base64_decode(str, self.allocator);
@@ -287,6 +331,9 @@ template <typename T>
 inline static Error
 serialize(Json_Deserializer &self, Array<T> &data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	if (self.allocator != data.allocator || data.allocator == nullptr)
 	{
 		destroy(data);
@@ -309,6 +356,9 @@ serialize(Json_Deserializer &self, Array<T> &data)
 inline static Error
 serialize(Json_Deserializer &self, String &data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	if (self.allocator != data.allocator || data.allocator == nullptr)
 	{
 		string_deinit(data);
@@ -325,6 +375,9 @@ serialize(Json_Deserializer &self, String &data)
 inline static Error
 serialize(Json_Deserializer &self, const char *&data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	String out = {};
 	if (Error error = serialize(self, out))
 		return error;
@@ -338,6 +391,9 @@ template <typename K, typename V>
 inline static Error
 serialize(Json_Deserializer &self, Hash_Table<K, V> &data)
 {
+	if (!self.is_valid)
+		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
+
 	// TODO: Should we add allocator in hash table?
 	if (self.allocator != data.entries.allocator || data.entries.allocator == nullptr)
 	{
@@ -375,6 +431,9 @@ template <typename T>
 inline static Error
 serialize(Json_Deserializer &self, const char *name, T &data)
 {
+	self.is_valid = true;
+	DEFER(self.is_valid = false);
+
 	JSON_Value json_value = json_value_object_find(array_last(self.values), name);
 	if (!json_value)
 		return Error{"[DESERIALIZER][JSON]: Could not find JSON value with the provided name."};

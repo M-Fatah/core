@@ -135,7 +135,6 @@ TEST_CASE("[CORE]: Binary_Serializer")
 
 		serialize(serializer, {"a1", a1});
 
-
 		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
 		DEFER(binary_deserializer_deinit(deserializer));
 
@@ -274,6 +273,7 @@ TEST_CASE("[CORE]: Binary_Serializer")
 
 		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
 		DEFER(binary_deserializer_deinit(deserializer));
+
 		serialize(deserializer, {"original_game", new_game});
 
 		CHECK(new_game.a == original_game.a);
@@ -342,6 +342,24 @@ TEST_CASE("[CORE]: Binary_Serializer")
 		}
 
 		CHECK(*original_game.h == *new_game.h);
+	}
+
+	SUBCASE("Error")
+	{
+		i32 a1 = 1;
+		Error error1 = serialize(serializer, a1);
+		CHECK(error1 == true);
+		CHECK(error1.message == "[SERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(serializer, {\"a\", a})'.");
+
+		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
+		DEFER(binary_deserializer_deinit(deserializer));
+
+		i32 a2 = 0;
+		Error error2 = serialize(deserializer, a2);
+		CHECK(error2 == true);
+		CHECK(error2.message == "[DESERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {\"a\", a})'.");
+
+		CHECK(a1 != a2);
 	}
 }
 
@@ -684,5 +702,23 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 			CHECK(*original_game.h == *new_game.h);
 		}
+	}
+
+	SUBCASE("Error")
+	{
+		i32 a1 = 1;
+		Error error1 = serialize(serializer, a1);
+		CHECK(error1 == true);
+		CHECK(error1.message == "[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {\"a\", a})'.");
+
+		Json_Deserializer deserializer = json_deserializer_init(serializer.values[0]);
+		DEFER(json_deserializer_deinit(deserializer));
+
+		i32 a2 = 0;
+		Error error2 = serialize(deserializer, a2);
+		CHECK(error2 == true);
+		CHECK(error2.message == "[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {\"a\", a})'.");
+
+		CHECK(a1 != a2);
 	}
 }
