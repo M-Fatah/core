@@ -8,6 +8,7 @@
 	- [ ] I/O streams.
 	- [ ] Versioning.
 	- [ ] Arena backing memory.
+	- [ ] Relative pointers.
 	- [ ] Binary serializer:
 		- [ ] Endianness?
 	- [ ] JSON serializer:

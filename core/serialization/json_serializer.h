@@ -452,8 +452,19 @@ to_json(const T &data, memory::Allocator *allocator = memory::heap_allocator())
 {
 	Json_Serializer self = json_serializer_init(allocator);
 	DEFER(json_serializer_deinit(self));
-	if (Error error = serialize(self, {"data", data}))
-		return error;
+	if constexpr (std::is_class_v<T>                       &&
+				 !std::_Is_specialization_v<T, Array>      &&
+				 !std::_Is_specialization_v<T, Hash_Table> &&
+				 !std::is_same_v<T, Block>)
+	{
+		if (Error error = serialize(self, data))
+			return error;
+	}
+	else
+	{
+		if (Error error = serialize(self, {"data", data}))
+			return error;
+	}
 	return json_value_to_string(array_first(self.values), allocator);
 }
 
@@ -463,5 +474,18 @@ from_json(const String &buffer, T &data, memory::Allocator *allocator = memory::
 {
 	Json_Deserializer self = json_deserializer_init(buffer, allocator);
 	DEFER(json_deserializer_deinit(self));
-	return serialize(self, {"data", data});
+	if constexpr (std::is_class_v<T>                       &&
+				 !std::_Is_specialization_v<T, Array>      &&
+				 !std::_Is_specialization_v<T, Hash_Table> &&
+				 !std::is_same_v<T, Block>)
+	{
+		if (Error error = serialize(self, data))
+			return error;
+	}
+	else
+	{
+		if (Error error = serialize(self, {"data", data}))
+			return error;
+	}
+	return Error{};
 }

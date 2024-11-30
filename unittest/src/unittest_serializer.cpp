@@ -149,14 +149,14 @@ TEST_CASE("[CORE]: Binary_Serializer")
 	SUBCASE("Arrays")
 	{
 
-		i32 a1[3]    = {1, 2, 3};
+		i32 a1[5]    = {1, 2, 3, 4, 5};
 		Array<i8> b1 = array_from<i8>({1, 2, 3, 4, 5});
 		DEFER(array_deinit(b1));
 
 		serialize(serializer, {"a1", a1});
 		serialize(serializer, {"b1", b1});
 
-		i32 a2[3]    = {};
+		i32 a2[5]    = {};
 		Array<i8> b2 = {};
 		DEFER(array_deinit(b2));
 
