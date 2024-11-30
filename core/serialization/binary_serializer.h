@@ -240,7 +240,7 @@ serialize(Binary_Deserializer &self, Block &block)
 		return error;
 
 	if (block.data == nullptr)
-		block.data = (u8 *)memory::allocate(block.size);
+		block.data = (u8 *)memory::allocate(self.allocator, block.size);
 
 	if (block.data == nullptr)
 		return Error{"[DESERIALIZER][BINARY]: Could not allocate memory for passed pointer type."};

@@ -312,11 +312,11 @@ serialize(Json_Deserializer &self, Block &block)
 
 	String str = json_value_get_as_string(array_last(self.values));
 
-	String o = base64_decode(str, self.allocator);
+	String o = base64_decode(str, memory::temp_allocator());
 	DEFER(string_deinit(o));
 
 	if (block.data == nullptr)
-		block.data = (u8 *)memory::allocate(o.count);
+		block.data = (u8 *)memory::allocate(self.allocator, o.count);
 
 	if (block.data == nullptr)
 		return Error{"[DESERIALIZER][JSON]: Could not allocate memory for passed pointer type."};
