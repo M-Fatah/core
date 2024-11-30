@@ -5,6 +5,7 @@
 
 /*
 	TODO:
+	- [ ] I/O streams.
 	- [ ] Versioning.
 	- [ ] Arena backing memory.
 	- [ ] Binary serializer:
