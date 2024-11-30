@@ -7,9 +7,10 @@
 #include "core/reflect.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
-#include "core/serialization/serializer.h"
 
 #include <initializer_list>
+
+inline static constexpr u64 HASH_TABLE_INITIAL_CAPACITY = 8;
 
 enum HASH_TABLE_SLOT_FLAGS
 {
@@ -47,7 +48,7 @@ inline static Hash_Table<K, V>
 hash_table_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	Hash_Table<K, V> self = {};
-	self.slots              = array_with_count<Hash_Table_Slot>(8, allocator);
+	self.slots              = array_init<Hash_Table_Slot>(allocator);
 	self.entry_slot_indices = array_init<u16>(allocator);
 	self.entries            = array_init<Hash_Table_Entry<K, V>>(allocator);
 	self.capacity           = self.slots.count;
@@ -59,7 +60,7 @@ template <typename K, typename V>
 inline static Hash_Table<K, V>
 hash_table_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
-	capacity = capacity > 8 ? capacity : 8;
+	capacity = capacity > HASH_TABLE_INITIAL_CAPACITY ? capacity : HASH_TABLE_INITIAL_CAPACITY;
 	Hash_Table<K, V> self = {};
 	self.slots              = array_with_count<Hash_Table_Slot>(next_power_of_two((i32)capacity), allocator);
 	self.entry_slot_indices = array_init<u16>(allocator);
@@ -115,8 +116,11 @@ template <typename K, typename V>
 inline static const Hash_Table_Entry<const K, V> *
 hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 {
-	u64 load_ratio = (u64)(((f32)self.count / (f32)self.capacity) * 100);
-	if (load_ratio > 70)
+	if (self.capacity == 0)
+		hash_table_resize(self, HASH_TABLE_INITIAL_CAPACITY);
+
+	f32 load_ratio = ((f32)self.count / (f32)self.capacity) * 100.0f;
+	if (load_ratio > 70.0f)
 		hash_table_resize(self, self.capacity * 2);
 
 	u64 hash_value       = hash(key);
@@ -155,6 +159,9 @@ template <typename K, typename V>
 inline static const Hash_Table_Entry<const K, V> *
 hash_table_find(const Hash_Table<K, V> &self, const K &key)
 {
+	if (self.count == 0)
+		return nullptr;
+
 	u64 hash_value       = hash(key);
 	u64 slot_index       = hash_value & (self.capacity - 1);
 	u64 start_slot_index = slot_index;
@@ -314,34 +321,6 @@ destroy(Hash_Table<K, V> &self)
 		}
 	}
 	hash_table_deinit(self);
-}
-
-template <typename K, typename V>
-inline static void
-serialize(Serializer *serializer, const Hash_Table<K, V> &self)
-{
-	serialize(serializer, self.count);
-	for (const auto &entry: self)
-	{
-		serialize(serializer, entry.key);
-		serialize(serializer, entry.value);
-	}
-}
-
-template <typename K, typename V>
-inline static void
-deserialize(Serializer *serializer, Hash_Table<K, V> &self)
-{
-	u64 count = 0;
-	deserialize(serializer, count);
-	for (u64 i = 0; i < count; ++i)
-	{
-		K key = {};
-		V value = {};
-		deserialize(serializer, key);
-		deserialize(serializer, value);
-		hash_table_insert(self, key, value);
-	}
 }
 
 template <typename K, typename V>

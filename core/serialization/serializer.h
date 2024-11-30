@@ -1,114 +1,53 @@
 #pragma once
 
 #include "core/defines.h"
+#include "core/result.h"
 
 /*
 	TODO:
-	- [ ] Support versioning.
-	- [ ] Support json serialization.
-	- [ ] Add unittests for json serialization.
-	- [ ] Define fixed size for char and bool, since they are compiler implementation specific and differ between compilers.
+	- [ ] I/O streams.
+	- [ ] Versioning.
+	- [ ] Arena backing memory.
+	- [ ] Relative pointers.
+	- [ ] Binary serializer:
+		- [ ] Endianness?
+	- [ ] JSON serializer:
+		- [ ] Generate names for omitted types?
+	- [ ] Cleanup.
 */
 
-#define SERIALIZE(T)      \
-virtual void              \
-serialize(T data) = 0;
-
-#define DESERIALIZE(T)    \
-virtual void              \
-deserialize(T &data) = 0;
-
-struct Serializer
+template <typename S>
+struct Serialize_Pair
 {
-	virtual
-	~Serializer() = default;
+	const char *name;
+	const void *data;
+	Error (*archive)(S &serializer, const char *name, const void *data);
 
-	SERIALIZE(i8)
-	SERIALIZE(i16)
-	SERIALIZE(i32)
-	SERIALIZE(i64)
-	SERIALIZE(u8)
-	SERIALIZE(u16)
-	SERIALIZE(u32)
-	SERIALIZE(u64)
-	SERIALIZE(f32)
-	SERIALIZE(f64)
-	SERIALIZE(bool)
-	SERIALIZE(char)
-
-	DESERIALIZE(i8)
-	DESERIALIZE(i16)
-	DESERIALIZE(i32)
-	DESERIALIZE(i64)
-	DESERIALIZE(u8)
-	DESERIALIZE(u16)
-	DESERIALIZE(u32)
-	DESERIALIZE(u64)
-	DESERIALIZE(f32)
-	DESERIALIZE(f64)
-	DESERIALIZE(bool)
-	DESERIALIZE(char)
-
-	virtual void
-	clear() = 0;
+	template <typename T>
+	Serialize_Pair(const char *name, const T &data)
+	{
+		Serialize_Pair &self = *this;
+		self.name = name;
+		self.data = &data;
+		self.archive = +[](S &serializer, const char *name, const void *data) -> Error {
+			return serialize(serializer, name, *(std::remove_const_t<T> *)data);
+		};
+	}
 };
 
-#undef SERIALIZE
-#undef DESERIALIZE
-
-template <typename T>
-inline static void
-serialize(Serializer *, const T &)
+template <typename S>
+inline static Error
+serialize(S &self, Serialize_Pair<S> pair)
 {
-	static_assert(sizeof(T) == 0, "There is no `void serialize(Serializer *, const T &)` function overload defined for this type.");
+	return pair.archive(self, pair.name, pair.data);
 }
 
-template <typename T>
-inline static void
-deserialize(Serializer *, T &)
+template <typename S>
+inline static Error
+serialize(S &self, std::initializer_list<Serialize_Pair<S>> pairs)
 {
-	static_assert(sizeof(T) == 0, "There is no `void deserialize(Serializer *, T &)` function overload defined for this type.");
+	for (const Serialize_Pair<S> &pair : pairs)
+		if (Error error = serialize(self, pair))
+			return error;
+	return Error{};
 }
-
-#define SERIALIZE(T)                   \
-inline static void                     \
-serialize(Serializer *self, T data)    \
-{                                      \
-    self->serialize(data);             \
-}
-
-#define DESERIALIZE(T)                 \
-inline static void                     \
-deserialize(Serializer *self, T &data) \
-{                                      \
-    self->deserialize(data);           \
-}
-
-SERIALIZE(i8)
-SERIALIZE(i16)
-SERIALIZE(i32)
-SERIALIZE(i64)
-SERIALIZE(u8)
-SERIALIZE(u16)
-SERIALIZE(u32)
-SERIALIZE(u64)
-SERIALIZE(f32)
-SERIALIZE(f64)
-SERIALIZE(bool)
-SERIALIZE(char)
-
-DESERIALIZE(i8)
-DESERIALIZE(i16)
-DESERIALIZE(i32)
-DESERIALIZE(i64)
-DESERIALIZE(u8)
-DESERIALIZE(u16)
-DESERIALIZE(u32)
-DESERIALIZE(u64)
-DESERIALIZE(f32)
-DESERIALIZE(f64)
-DESERIALIZE(bool)
-DESERIALIZE(char)
-
-#undef SERIALIZE
-#undef DESERIALIZE

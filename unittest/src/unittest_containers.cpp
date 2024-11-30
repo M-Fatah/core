@@ -579,9 +579,25 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 	SUBCASE("init")
 	{
 		{
+			Hash_Table<const char *, const char *> table = hash_table_init<const char *, const char *>();
+			DEFER(hash_table_deinit(table));
+
+			CHECK(table.count    == 0);
+			CHECK(table.capacity == 0);
+
+			CHECK(table.slots.data     == nullptr);
+			CHECK(table.slots.count    == 0);
+			CHECK(table.slots.capacity == 0);
+		}
+
+		{
 			auto table = hash_table_with_capacity<i32, const char *>(62, memory::temp_allocator());
 			CHECK(table.count == 0);
 			CHECK(table.capacity == 64);
+
+			CHECK(table.slots.data     != nullptr);
+			CHECK(table.slots.count    == 64);
+			CHECK(table.slots.capacity == 64);
 
 			hash_table_insert(table, 1, (const char *)"Hello");
 			hash_table_insert(table, 2, (const char *)"World!");
@@ -596,6 +612,10 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 			CHECK(table.count == 2);
 			CHECK(table.capacity == 8);
 
+			CHECK(table.slots.data     != nullptr);
+			CHECK(table.slots.count    == 8);
+			CHECK(table.slots.capacity == 8);
+
 			CHECK(table.entries[0].key == 1);
 			CHECK(::strcmp(table.entries[0].value, "Hello") == 0);
 
@@ -609,12 +629,8 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 		Hash_Table<const char *, const char *> table = hash_table_init<const char *, const char *>();
 		DEFER(hash_table_deinit(table));
 
-		CHECK(table.slots.data     != nullptr);
-		CHECK(table.slots.count    == 8);
-		CHECK(table.slots.capacity == 8);
-
 		CHECK(table.count    == 0);
-		CHECK(table.capacity == 8);
+		CHECK(table.capacity == 0);
 
 		const char *key   = "Hello";
 		const char *value = "World!";
@@ -673,13 +689,6 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 	{
 		Hash_Table<i32, Foo> table = hash_table_init<i32, Foo>();
 		DEFER(hash_table_deinit(table));
-
-		CHECK(table.slots.data != nullptr);
-		CHECK(table.slots.count == 8);
-		CHECK(table.slots.capacity == 8);
-
-		CHECK(table.count    == 0);
-		CHECK(table.capacity == 8);
 
 		i32 key = 1;
 		Foo value = Foo{1};
@@ -787,7 +796,7 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 		DEFER(destroy(table1));
 
 		CHECK(table1.count    == 0);
-		CHECK(table1.capacity == 8);
+		CHECK(table1.capacity == 0);
 
 		for (i32 i = 0; i < 10; ++i)
 			hash_table_insert(table1, i, i + 1);
@@ -845,7 +854,7 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 		Hash_Table<Foo, i32> table = hash_table_init<Foo, i32>(memory::temp_allocator());
 
 		CHECK(table.count    == 0);
-		CHECK(table.capacity == 8);
+		CHECK(table.capacity == 0);
 
 		for (i32 i = 0; i < 10; ++i)
 			hash_table_insert(table, Foo{i}, i + 1);

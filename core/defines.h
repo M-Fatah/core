@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <float.h>
+#include <type_traits>
 
 #define CONCATENATE(ARG1, ARG2) _CONCATENATE(ARG1, ARG2)
 #define _CONCATENATE(ARG1, ARG2) ARG1##ARG2
@@ -18,21 +19,21 @@
 #define COUNT_OF(...) _COUNT_OF(__VA_ARGS__, _COUNT_OF_RSEQ())
 #define _COUNT_OF(...) _COUNT_OF_CHECK_N(__VA_ARGS__)
 #define _COUNT_OF_CHECK_N(                             \
-     _01, _02, _03, _04, _05, _06, _07, _08, _09, _10, \
-     _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, \
-     _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, \
-     _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, \
-     _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, \
-     _51, _52, _53, _54, _55, _56, _57, _58, _59, _60, \
-     _61, _62, _63, _64, N,...) N
+	_01, _02, _03, _04, _05, _06, _07, _08, _09, _10, \
+	_11, _12, _13, _14, _15, _16, _17, _18, _19, _20, \
+	_21, _22, _23, _24, _25, _26, _27, _28, _29, _30, \
+	_31, _32, _33, _34, _35, _36, _37, _38, _39, _40, \
+	_41, _42, _43, _44, _45, _46, _47, _48, _49, _50, \
+	_51, _52, _53, _54, _55, _56, _57, _58, _59, _60, \
+	_61, _62, _63, _64, N,...) N
 #define _COUNT_OF_RSEQ()                               \
-     64, 63, 62, 61, 60,                               \
-     59, 58, 57, 56, 55, 54, 53, 52, 51, 50,           \
-     49, 48, 47, 46, 45, 44, 43, 42, 41, 40,           \
-     39, 38, 37, 36, 35, 34, 33, 32, 31, 30,           \
-     29, 28, 27, 26, 25, 24, 23, 22, 21, 20,           \
-     19, 18, 17, 16, 15, 14, 13, 12, 11, 10,           \
-     09, 08, 07, 06, 05, 04, 03, 02, 01, 00
+	64, 63, 62, 61, 60,                               \
+	59, 58, 57, 56, 55, 54, 53, 52, 51, 50,           \
+	49, 48, 47, 46, 45, 44, 43, 42, 41, 40,           \
+	39, 38, 37, 36, 35, 34, 33, 32, 31, 30,           \
+	29, 28, 27, 26, 25, 24, 23, 22, 21, 20,           \
+	19, 18, 17, 16, 15, 14, 13, 12, 11, 10,           \
+	09, 08, 07, 06, 05, 04, 03, 02, 01, 00
 
 #define FOR_EACH(ACTION, ...) CONCATENATE(_FOR_EACH, COUNT_OF(__VA_ARGS__))(ACTION, __VA_ARGS__)
 #define _FOR_EACH16(ACTION, ARG, ...) ACTION(ARG), _FOR_EACH15(ACTION, __VA_ARGS__)
@@ -87,8 +88,19 @@ typedef double    f64;
 typedef intptr_t  iptr;
 typedef uintptr_t uptr;
 
+template <class T, template <class...> class Template>
+struct is_specialization : std::false_type {};
+
+template <template <class...> class Template, class... Args>
+struct is_specialization<Template<Args...>, Template> : std::true_type {}; // TODO: Replace std::true_type and std::false_type with our own.
+
+template <class T, template <class...> class Template>
+constexpr bool is_specialization_v = is_specialization<T, Template>::value;
+
 namespace memory { struct Allocator; }
 
+// TODO: Better name?
+// TODO: Better place?
 struct Block
 {
 	void *data;
@@ -110,8 +122,8 @@ destroy(T &)
 	static_assert(sizeof(T) == 0, "There is no `void destroy(T &)` function overload defined for this type.");
 }
 
-template <typename T, u32 N>
-inline static u32
+template <typename T, u64 N>
+inline static u64
 count_of(const T (&)[N])
 {
 	return N;

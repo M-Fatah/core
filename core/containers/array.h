@@ -5,7 +5,6 @@
 #include "core/formatter.h"
 #include "core/reflect.h"
 #include "core/memory/memory.h"
-#include "core/serialization/serializer.h"
 
 #include <type_traits>
 #include <initializer_list>
@@ -13,10 +12,10 @@
 template <typename T>
 struct Array
 {
+	memory::Allocator *allocator; // TODO: This was moved from down to here.
 	T *data;
 	u64 count;
 	u64 capacity;
-	memory::Allocator *allocator;
 
 	T &
 	operator[](u64 index)
@@ -39,6 +38,10 @@ array_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	Array<T> self = {};
 	self.allocator = allocator;
+
+	if (self.allocator == nullptr)
+		self.allocator = memory::heap_allocator();
+
 	return self;
 }
 
@@ -48,6 +51,10 @@ array_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_al
 {
 	Array<T> self = {};
 	self.allocator = allocator;
+
+	if (self.allocator == nullptr)
+		self.allocator = memory::heap_allocator();
+
 	self.data = (T*)memory::allocate(self.allocator, capacity * sizeof(T));
 	self.capacity = capacity;
 	return self;
@@ -57,7 +64,7 @@ template <typename T>
 inline static Array<T>
 array_with_count(u64 count, memory::Allocator *allocator = memory::heap_allocator())
 {
-	auto self = array_with_capacity<T>(count, allocator);
+	Array<T> self = array_with_capacity<T>(count, allocator);
 	self.count = count;
 	return self;
 }
@@ -66,7 +73,7 @@ template <typename T>
 inline static Array<T>
 array_from(const T *first, const T *last, memory::Allocator *allocator = memory::heap_allocator())
 {
-	auto self = array_with_capacity<T>(last - first, allocator);
+	Array<T> self = array_with_capacity<T>(last - first, allocator);
 	for (const T *it = first; it != last; ++it)
 		self[self.count++] = *it;
 	return self;
@@ -283,26 +290,6 @@ destroy(Array<T> &self)
 			destroy(self[i]);
 	}
 	array_deinit(self);
-}
-
-template <typename T>
-inline static void
-serialize(Serializer *serializer, const Array<T> &self)
-{
-	serialize(serializer, self.count);
-	for (u64 i = 0; i < self.count; ++i)
-		serialize(serializer, self[i]);
-}
-
-template <typename T>
-inline static void
-deserialize(Serializer *serializer, Array<T> &self)
-{
-	u64 count = 0;
-	deserialize(serializer, count);
-	array_resize(self, count);
-	for (u64 i = 0; i < count; ++i)
-		deserialize(serializer, self[i]);
 }
 
 template <typename T>

@@ -375,6 +375,8 @@ _json_value_array_to_string(const JSON_Value &self, String &json_string, i32 ind
 		const auto &value = self.as_array[i];
 		switch (value.kind)
 		{
+			case JSON_VALUE_KIND_INVALID:
+				break;
 			case JSON_VALUE_KIND_NULL:
 				string_append(json_string, "null");
 				break;
@@ -414,6 +416,8 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, i32 in
 		string_append(json_string, "\"{}\": ", key.data);
 		switch (value.kind)
 		{
+			case JSON_VALUE_KIND_INVALID:
+				break;
 			case JSON_VALUE_KIND_NULL:
 				string_append(json_string, "null");
 				break;
@@ -442,10 +446,55 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, i32 in
 }
 
 // API.
+JSON_Value
+json_value_init_as_bool(bool value)
+{
+	return JSON_Value {
+		.kind = JSON_VALUE_KIND_BOOL,
+		.as_bool = value
+	};
+}
+
+JSON_Value
+json_value_init_as_number(f64 value)
+{
+	return JSON_Value {
+		.kind = JSON_VALUE_KIND_NUMBER,
+		.as_number = value
+	};
+}
+
+JSON_Value
+json_value_init_as_string(memory::Allocator *allocator)
+{
+	return JSON_Value {
+		.kind = JSON_VALUE_KIND_STRING,
+		.as_string = string_init(allocator)
+	};
+}
+
+JSON_Value
+json_value_init_as_array(memory::Allocator *allocator)
+{
+	return JSON_Value {
+		.kind = JSON_VALUE_KIND_ARRAY,
+		.as_array = array_init<JSON_Value>(allocator)
+	};
+}
+
+JSON_Value
+json_value_init_as_object(memory::Allocator *allocator)
+{
+	return JSON_Value {
+		.kind = JSON_VALUE_KIND_OBJECT,
+		.as_object = hash_table_init<String, JSON_Value>(allocator)
+	};
+}
+
 Result<JSON_Value>
 json_value_from_string(const char *json_string, memory::Allocator *allocator)
 {
-	if (::strcmp(json_string, "") == 0)
+	if (json_string == nullptr || ::strcmp(json_string, "") == 0)
 		return Error{"[JSON]: Provided JSON string is empty."};
 
 	JSON_Parser parser = {};
@@ -489,11 +538,49 @@ json_value_from_file(const char *filepath, memory::Allocator *allocator)
 	return json_value_from_string((char *)file_data, allocator);
 }
 
+JSON_Value
+json_value_copy(const JSON_Value &self, memory::Allocator *allocator)
+{
+	switch (self.kind)
+	{
+		case JSON_VALUE_KIND_NULL:
+		case JSON_VALUE_KIND_BOOL:
+		case JSON_VALUE_KIND_NUMBER:
+		{
+			return self;
+		}
+		case JSON_VALUE_KIND_STRING:
+		{
+			JSON_Value copy = self;
+			copy.as_string = string_copy(self.as_string, allocator);
+			return copy;
+		}
+		case JSON_VALUE_KIND_ARRAY:
+		{
+			JSON_Value copy = self;
+			copy.as_array = clone(self.as_array, allocator);
+			return copy;
+		}
+		case JSON_VALUE_KIND_OBJECT:
+		{
+			JSON_Value copy = self;
+			copy.as_object = clone(self.as_object, allocator);
+			return copy;
+		}
+		default:
+		{
+			ASSERT(false, "[JSON]: Invalid JSON_VALUE_KIND.");
+			return JSON_Value{};
+		}
+	}
+}
+
 void
 json_value_deinit(JSON_Value &self)
 {
 	switch(self.kind)
 	{
+		case JSON_VALUE_KIND_INVALID:
 		case JSON_VALUE_KIND_NULL:
 		case JSON_VALUE_KIND_BOOL:
 		case JSON_VALUE_KIND_NUMBER:
@@ -511,6 +598,57 @@ json_value_deinit(JSON_Value &self)
 			ASSERT(false, "[JSON]: Invalid JSON_VALUE_KIND.");
 			break;
 	}
+}
+
+JSON_Value
+json_value_object_find(const JSON_Value &self, const String &name)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_OBJECT, "[JSON]: Expected JSON_VALUE_KIND_OBJECT.");
+	if (const Hash_Table_Entry<const String, JSON_Value> *entry = hash_table_find(self.as_object, name))
+		return entry->value;
+	return {};
+}
+
+void
+json_value_object_insert(JSON_Value &self, const String &name, const JSON_Value &value)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_OBJECT, "[JSON]: Expected JSON_VALUE_KIND_OBJECT.");
+	hash_table_insert(self.as_object, string_copy(name), value);
+}
+
+bool
+json_value_get_as_bool(const JSON_Value &self)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_BOOL, "[JSON]: Expected JSON_VALUE_KIND_BOOL.");
+	return self.as_bool;
+}
+
+f64
+json_value_get_as_number(const JSON_Value &self)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_NUMBER, "[JSON]: Expected JSON_VALUE_KIND_NUMBER.");
+	return self.as_number;
+}
+
+String
+json_value_get_as_string(const JSON_Value &self)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_STRING, "[JSON]: Expected JSON_VALUE_KIND_STRING.");
+	return self.as_string;
+}
+
+Array<JSON_Value>
+json_value_get_as_array(const JSON_Value &self)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_ARRAY, "[JSON]: Expected JSON_VALUE_KIND_ARRAY.");
+	return self.as_array;
+}
+
+Hash_Table<String, JSON_Value>
+json_value_get_as_object(const JSON_Value &self)
+{
+	ASSERT(self.kind == JSON_VALUE_KIND_OBJECT, "[JSON]: Expected JSON_VALUE_KIND_OBJECT.");
+	return self.as_object;
 }
 
 Result<String>
