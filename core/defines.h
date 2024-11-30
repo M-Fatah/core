@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <float.h>
+#include <type_traits>
 
 #define CONCATENATE(ARG1, ARG2) _CONCATENATE(ARG1, ARG2)
 #define _CONCATENATE(ARG1, ARG2) ARG1##ARG2
@@ -86,6 +87,15 @@ typedef double    f64;
 
 typedef intptr_t  iptr;
 typedef uintptr_t uptr;
+
+template <class T, template <class...> class Template>
+struct is_specialization : std::false_type {};
+
+template <template <class...> class Template, class... Args>
+struct is_specialization<Template<Args...>, Template> : std::true_type {}; // TODO: Replace std::true_type and std::false_type with our own.
+
+template <class T, template <class...> class Template>
+constexpr bool is_specialization_v = is_specialization<T, Template>::value;
 
 namespace memory { struct Allocator; }
 
