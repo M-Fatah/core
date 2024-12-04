@@ -316,7 +316,7 @@ formatter_parse_next(Formatter *self, std::function<void()> &&callback)
 				per_depth.fmt_offset = i + 2;
 				per_depth.fields[per_depth.current_processing_field_index].from = self->buffer.count;
 				++self->current_processing_depth_index;
-				ASSERT(self->current_processing_depth_index < FORMATTER_MAX_DEPTH_COUNT, "[FORMATTER]: Max supported depth count is 256.");
+				assert(self->current_processing_depth_index < FORMATTER_MAX_DEPTH_COUNT, "[FORMATTER]: Max supported depth count is 256.");
 				callback();
 				--self->current_processing_depth_index;
 				per_depth.fields[per_depth.current_processing_field_index].to = self->buffer.count;
@@ -344,7 +344,7 @@ formatter_parse_next(Formatter *self, std::function<void()> &&callback)
 				per_depth.fmt_offset = i + 3;
 				per_depth.fields[per_depth.current_processing_field_index].from = self->buffer.count;
 				++self->current_processing_depth_index;
-				ASSERT(self->current_processing_depth_index < FORMATTER_MAX_DEPTH_COUNT, "[FORMATTER]: Max supported depth count is 256.");
+				assert(self->current_processing_depth_index < FORMATTER_MAX_DEPTH_COUNT, "[FORMATTER]: Max supported depth count is 256.");
 				callback();
 				--self->current_processing_depth_index;
 				per_depth.fields[per_depth.current_processing_field_index].to = self->buffer.count;
