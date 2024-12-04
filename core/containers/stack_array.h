@@ -29,14 +29,14 @@ struct Stack_Array
 	T &
 	operator[](u64 index)
 	{
-		assert(index < count, "[STACK_ARRAY]: Access out of range.");
+		core::assert(index < count, "[STACK_ARRAY]: Access out of range.");
 		return data[index];
 	}
 
 	const T &
 	operator[](u64 index) const
 	{
-		assert(index < count, "[STACK_ARRAY]: Access out of range.");
+		core::assert(index < count, "[STACK_ARRAY]: Access out of range.");
 		return data[index];
 	}
 };
@@ -45,7 +45,7 @@ template <typename T, u64 N>
 inline static void
 stack_array_push(Stack_Array<T, N> &self, const T &value)
 {
-	assert(self.count < N, "[STACK_ARRAY]: Access out of range.");
+	core::assert(self.count < N, "[STACK_ARRAY]: Access out of range.");
 	self.data[self.count++] = value;
 }
 
@@ -53,7 +53,7 @@ template <typename T, u64 N>
 inline static T
 stack_array_pop(Stack_Array<T, N> &self)
 {
-	assert(self.count > 0, "[STACK_ARRAY]: Trying to pop from a 0 count array.");
+	core::assert(self.count > 0, "[STACK_ARRAY]: Trying to pop from a 0 count array.");
 	return self.data[--self.count];
 }
 
