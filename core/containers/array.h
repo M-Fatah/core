@@ -20,14 +20,14 @@ struct Array
 	T &
 	operator[](u64 index)
 	{
-		core::assert(index < count, "[ARRAY]: Access out of range.");
+		assert(index < count, "[ARRAY]: Access out of range.");
 		return data[index];
 	}
 
 	const T &
 	operator[](u64 index) const
 	{
-		core::assert(index < count, "[ARRAY]: Access out of range.");
+		assert(index < count, "[ARRAY]: Access out of range.");
 		return data[index];
 	}
 };
@@ -155,7 +155,7 @@ template <typename T>
 inline static T
 array_pop(Array<T> &self)
 {
-	core::assert(self.count > 0, "[ARRAY]: Trying to pop from a 0 count array.");
+	assert(self.count > 0, "[ARRAY]: Trying to pop from a 0 count array.");
 	return self.data[--self.count];
 }
 
@@ -163,7 +163,7 @@ template <typename T>
 inline static void
 array_remove(Array<T> &self, u64 index)
 {
-	core::assert(index < self.count, "[ARRAY]: Access out of range.");
+	assert(index < self.count, "[ARRAY]: Access out of range.");
 	if((index + 1) != self.count)
 	{
 		T temp = self.data[self.count - 1];
@@ -223,7 +223,7 @@ template <typename T>
 inline static T &
 array_first(Array<T> &self)
 {
-	core::assert(self.count > 0, "[ARRAY]: Count is 0.");
+	assert(self.count > 0, "[ARRAY]: Count is 0.");
 	return self[0];
 }
 
@@ -231,7 +231,7 @@ template <typename T>
 inline static T &
 array_last(Array<T> &self)
 {
-	core::assert(self.count > 0, "[ARRAY]: Count is 0.");
+	assert(self.count > 0, "[ARRAY]: Count is 0.");
 	return self[self.count - 1];
 }
 

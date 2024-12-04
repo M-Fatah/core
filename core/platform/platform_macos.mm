@@ -22,6 +22,9 @@
 #include <mach-o/dyld.h>
 #include <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
+// TODO: Figure out a better name for assert and remove this undef.
+#undef assert
+
 static char current_executable_directory[PATH_MAX] = {};
 
 @class Content_View;
@@ -358,20 +361,20 @@ platform_api_init(const char *filepath)
 	_string_concat(current_executable_directory, src_relative_path, dst_absolute_path);
 
 	[[maybe_unused]] bool copy_successful = platform_file_copy(src_relative_path, dst_relative_path);
-	core::assert(copy_successful, "[PLATFORM]: Failed to copy library.");
+	assert(copy_successful, "[PLATFORM]: Failed to copy library.");
 
 	self.handle = ::dlopen(dst_absolute_path, RTLD_LAZY);
-	core::assert(self.handle, "[PLATFORM]: Failed to load library.");
+	assert(self.handle, "[PLATFORM]: Failed to load library.");
 
 	platform_api_proc proc = (platform_api_proc)::dlsym(self.handle, "platform_api");
-	core::assert(proc, "[PLATFORM]: Failed to get proc platform_api.");
+	assert(proc, "[PLATFORM]: Failed to get proc platform_api.");
 
 	self.api = proc(nullptr, PLATFORM_API_STATE_INIT);
-	core::assert(self.api, "[PLATFORM]: Failed to get api.");
+	assert(self.api, "[PLATFORM]: Failed to get api.");
 
 	struct stat file_stat = {};
 	[[maybe_unused]] i32 stat_result = ::stat(src_relative_path, &file_stat);
-	core::assert(stat_result == 0, "[PLATFORM]: Failed to get file attributes.");
+	assert(stat_result == 0, "[PLATFORM]: Failed to get file attributes.");
 
 	self.last_write_time = file_stat.st_mtime;
 	::strcpy(self.filepath, src_absolute_path);
@@ -385,7 +388,7 @@ platform_api_deinit(Platform_Api *self)
 	if (self->api)
 	{
 		platform_api_proc proc = (platform_api_proc)::dlsym(self->handle, "platform_api");
-		core::assert(proc, "[PLATFORM]: Failed to get proc platform_api.");
+		assert(proc, "[PLATFORM]: Failed to get proc platform_api.");
 		self->api = proc(self->api, PLATFORM_API_STATE_DEINIT);
 	}
 
@@ -400,7 +403,7 @@ platform_api_load(Platform_Api *self)
 
 	struct stat file_stat = {};
 	i32 stat_result = ::stat(self->filepath, &file_stat);
-	core::assert(stat_result == 0, "[PLATFORM]: Failed to get file attributes.");
+	assert(stat_result == 0, "[PLATFORM]: Failed to get file attributes.");
 
 	i64 last_write_time = file_stat.st_mtime;
 	if ((last_write_time == self->last_write_time) || (stat_result != 0))
@@ -415,13 +418,13 @@ platform_api_load(Platform_Api *self)
 	bool copy_result = platform_file_copy(self->filepath, dst_absolute_path);
 
 	self->handle = ::dlopen(dst_absolute_path, RTLD_LAZY);
-	core::assert(self->handle, "[PLATFORM]: Failed to load library.");
+	assert(self->handle, "[PLATFORM]: Failed to load library.");
 
 	platform_api_proc proc = (platform_api_proc)::dlsym(self->handle, "platform_api");
-	core::assert(proc, "[PLATFORM]: Failed to get proc platform_api.");
+	assert(proc, "[PLATFORM]: Failed to get proc platform_api.");
 
 	self->api = proc(self->api, PLATFORM_API_STATE_LOAD);
-	core::assert(self->api, "[PLATFORM]: Failed to get api.");
+	assert(self->api, "[PLATFORM]: Failed to get api.");
 
 	// If copying failed we don't update last write time so that we can try copying it again in the next frame.
 	if (copy_result == true)
@@ -445,7 +448,7 @@ void
 platform_allocator_deinit(Platform_Allocator *self)
 {
 	[[maybe_unused]] i32 result = ::munmap(self->ptr, self->size);
-	core::assert(result == 0, "[PLATFORM][MACOS]: Failed to free virtual memory.");
+	assert(result == 0, "[PLATFORM][MACOS]: Failed to free virtual memory.");
 }
 
 Platform_Memory
@@ -536,14 +539,14 @@ platform_window_init(u32 width, u32 height, const char *title)
 							backing:NSBackingStoreBuffered
 							defer:NO];
 		[window makeKeyAndOrderFront:window];
-		core::assert(window, "[PLATFORM][MACOS]: Failed to create window.");
+		assert(window, "[PLATFORM][MACOS]: Failed to create window.");
 
 		Content_View *content_view = [[Content_View alloc] init:window];
-		core::assert(content_view, "[PLATFORM][MACOS]: Failed to create content view.");
+		assert(content_view, "[PLATFORM][MACOS]: Failed to create content view.");
 		[content_view setWantsLayer:YES];
 
 		Window_Delegate *window_delegate = [[Window_Delegate alloc] init:ctx];
-		core::assert(window_delegate, "[PLATFORM][MACOS]: Failed to create window delegate.");
+		assert(window_delegate, "[PLATFORM][MACOS]: Failed to create window delegate.");
 
 		[window setLevel:NSNormalWindowLevel];
 		[window setContentView:content_view];
@@ -724,10 +727,10 @@ platform_set_current_directory()
 	::memset(module_path_absolute, 0, sizeof(module_path_absolute));
 
 	[[maybe_unused]] i64 module_path_relative_length = ::_NSGetExecutablePath(module_path_relative, &module_path_relative_size);
-	core::assert(module_path_relative_length != -1 && module_path_relative_length < (i64)sizeof(module_path_relative), "[PLATFORM]: Failed to get relative path of the current executable.");
+	assert(module_path_relative_length != -1 && module_path_relative_length < (i64)sizeof(module_path_relative), "[PLATFORM]: Failed to get relative path of the current executable.");
 
 	[[maybe_unused]] char *path_absolute = ::realpath(module_path_relative, module_path_absolute);
-	core::assert(path_absolute == module_path_absolute, "[PLATFORM]: Failed to get absolute path of the current executable.");
+	assert(path_absolute == module_path_absolute, "[PLATFORM]: Failed to get absolute path of the current executable.");
 
 	char *last_slash = module_path_absolute;
 	char *iterator = module_path_absolute;
@@ -739,7 +742,7 @@ platform_set_current_directory()
 	*last_slash = '\0';
 
 	[[maybe_unused]] i32 result = ::chdir(module_path_absolute);
-	core::assert(result == 0, "[PLATFORM]: Failed to set current directory.");
+	assert(result == 0, "[PLATFORM]: Failed to set current directory.");
 	::strcpy(current_executable_directory, module_path_absolute);
 }
 
@@ -768,7 +771,7 @@ platform_file_read(const char *filepath, Platform_Memory mem)
 
 	i64 bytes_read = ::read(file_handle, mem.ptr, mem.size);
 	[[maybe_unused]] i32 close_result = ::close(file_handle);
-	core::assert(close_result == 0, "[PLATFORM]: Failed to close file handle.");
+	assert(close_result == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_read == -1)
 		return 0;
 	return bytes_read;
@@ -783,7 +786,7 @@ platform_file_write(const char *filepath, Platform_Memory mem)
 
 	i64 bytes_written = ::write(file_handle, mem.ptr, mem.size);
 	[[maybe_unused]] i32 close_result = ::close(file_handle);
-	core::assert(close_result == 0, "[PLATFORM]: Failed to close file handle.");
+	assert(close_result == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_written == -1)
 		return 0;
 	return bytes_written;
@@ -852,7 +855,7 @@ platform_file_dialog_open(char *path, u32 path_length, const char *filters)
 		if ([open_panel runModal] == NSModalResponseOK)
 		{
 			NSURL *url = [[open_panel URLs] objectAtIndex:0];
-			core::assert(url.path.length <= path_length, "[PLATFORM][MACOS]: Open file dialog selected path is longer than passed path length.");
+			assert(url.path.length <= path_length, "[PLATFORM][MACOS]: Open file dialog selected path is longer than passed path length.");
 			::snprintf(path, path_length, "%s", [url.path cStringUsingEncoding:(NSASCIIStringEncoding)]);
 			return true;
 		}
@@ -879,7 +882,7 @@ platform_file_dialog_save(char *path, u32 path_length, const char *filters)
 		if ([save_panel runModal] == NSModalResponseOK)
 		{
 			NSURL *url = [save_panel URL];
-			core::assert(url.path.length <= path_length, "[PLATFORM][MACOS]: Save file dialog selected path is longer than passed path length.");
+			assert(url.path.length <= path_length, "[PLATFORM][MACOS]: Save file dialog selected path is longer than passed path length.");
 			::snprintf(path, path_length, "%s", [url.path cStringUsingEncoding:(NSASCIIStringEncoding)]);
 			return true;
 		}
@@ -893,7 +896,7 @@ platform_query_microseconds()
 {
 	struct timespec time;
 	[[maybe_unused]] i32 result = clock_gettime(CLOCK_MONOTONIC, &time);
-	core::assert(result == 0, "[PLATFORM]: Failed to query clock.");
+	assert(result == 0, "[PLATFORM]: Failed to query clock.");
 	return time.tv_sec * 1000000.0f + time.tv_nsec * 0.001f;
 }
 
