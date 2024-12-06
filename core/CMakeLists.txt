@@ -10,6 +10,7 @@ set(HEADER_FILES
     logger.h
     reflect.h
     result.h
+    source_location.h
     utils.h
     containers/array.h
     containers/hash_table.h
