@@ -11,7 +11,7 @@ struct Source_Location
 };
 
 inline static consteval Source_Location
-source_location_get(const char *file_name = __builtin_FILE(), const char *function_name = __builtin_FUNCTION(), u32 line_number = __builtin_LINE(), u32 column_number = __builtin_COLUMN())
+source_location_get(const char *file_name = __builtin_FILE(), const char *function_name = __builtin_FUNCTION(), const u32 line_number = __builtin_LINE(), const u32 column_number = __builtin_COLUMN())
 {
 	return Source_Location {
 		.file_name = file_name,
