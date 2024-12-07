@@ -1,7 +1,7 @@
 #include "core/platform/platform.h"
 
 #include "core/defer.h"
-#include "core/assert.h"
+#include "core/validate.h"
 #include "core/formatter.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
@@ -14,9 +14,6 @@
 #include <math.h>
 #include <atomic>
 #include <inttypes.h>
-
-// TODO: Figure out a better name for assert and remove this undef.
-#undef assert
 
 // TODO: Remove.
 inline static void
@@ -182,20 +179,20 @@ platform_api_init(const char *filepath)
 	_string_concat(path, ".tmp", path_tmp);
 
 	bool result = ::CopyFileA(path, path_tmp, false);
-	assert(result, "[PLATFORM]: Failed to copy library.");
+	validate(result, "[PLATFORM]: Failed to copy library.");
 
 	self.handle = ::LoadLibraryA(path_tmp);
-	assert(self.handle, "[PLATFORM]: Failed to load library.");
+	validate(self.handle, "[PLATFORM]: Failed to load library.");
 
 	platform_api_proc proc = (platform_api_proc)::GetProcAddress((HMODULE)self.handle, "platform_api");
-	assert(proc, "[PLATFORM]: Failed to get proc platform_api.");
+	validate(proc, "[PLATFORM]: Failed to get proc platform_api.");
 
 	self.api = proc(nullptr, PLATFORM_API_STATE_INIT);
-	assert(self.api, "[PLATFORM]: Failed to get api.");
+	validate(self.api, "[PLATFORM]: Failed to get api.");
 
 	WIN32_FILE_ATTRIBUTE_DATA data = {};
 	result = ::GetFileAttributesExA(path, GetFileExInfoStandard, &data);
-	assert(result, "[PLATFORM]: Failed to get file attributes.");
+	validate(result, "[PLATFORM]: Failed to get file attributes.");
 
 	self.last_write_time = *(i64 *)&data.ftLastWriteTime;
 	::strcpy_s(self.filepath, filepath);
@@ -209,7 +206,7 @@ platform_api_deinit(Platform_Api *self)
 	if (self->api)
 	{
 		platform_api_proc proc = (platform_api_proc)GetProcAddress((HMODULE)self->handle, "platform_api");
-		assert(proc, "failed to get proc platform_api");
+		validate(proc, "failed to get proc platform_api");
 		self->api = proc(self->api, PLATFORM_API_STATE_DEINIT);
 	}
 
@@ -230,7 +227,7 @@ platform_api_load(Platform_Api *self)
 		return self->api;
 
 	result = ::FreeLibrary((HMODULE)self->handle);
-	assert(result, "[PLATFORM]: Failed to free library.");
+	validate(result, "[PLATFORM]: Failed to free library.");
 
 	char path_tmp[128] = {};
 	_string_concat(path, ".tmp", path_tmp);
@@ -238,13 +235,13 @@ platform_api_load(Platform_Api *self)
 	bool copy_result = ::CopyFileA(path, path_tmp, false);
 
 	self->handle = ::LoadLibraryA(path_tmp);
-	assert(self->handle, "[PLATFORM]: Failed to load library.");
+	validate(self->handle, "[PLATFORM]: Failed to load library.");
 
 	platform_api_proc proc = (platform_api_proc)::GetProcAddress((HMODULE)self->handle, "platform_api");
-	assert(proc, "[PLATFORM]: Failed to get proc platform_api.");
+	validate(proc, "[PLATFORM]: Failed to get proc platform_api.");
 
 	self->api = proc(self->api, PLATFORM_API_STATE_LOAD);
-	assert(self->api, "[PLATFORM]: Failed to get api.");
+	validate(self->api, "[PLATFORM]: Failed to get api.");
 
 	// If copying failed we don't update last write time so that we can try copying it again in the next frame.
 	if (copy_result)
@@ -268,7 +265,7 @@ void
 platform_allocator_deinit(Platform_Allocator *self)
 {
 	[[maybe_unused]] bool result = VirtualFree(self->ptr, 0, MEM_RELEASE);
-	assert(result, "[PLATFORM]: Failed to free virtual memory.");
+	validate(result, "[PLATFORM]: Failed to free virtual memory.");
 }
 
 Platform_Memory
@@ -348,7 +345,7 @@ platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_
 Platform_Window
 platform_window_init(u32 width, u32 height, const char *title)
 {
-	assert(width > 0 && height > 0, "[PLATFORM]: Windows cannot have zero width or height.");
+	validate(width > 0 && height > 0, "[PLATFORM]: Windows cannot have zero width or height.");
 
 	Platform_Window self = {};
 
@@ -360,7 +357,7 @@ platform_window_init(u32 width, u32 height, const char *title)
 	wc.hbrBackground = (HBRUSH)COLOR_WINDOW;
 	wc.lpszClassName = "Mist_Window_Class";
 	[[maybe_unused]] ATOM class_atom = RegisterClassExA(&wc);
-	assert(class_atom != 0, "[PLATFORM]: Failed to register window class.");
+	validate(class_atom != 0, "[PLATFORM]: Failed to register window class.");
 
 	self.handle = CreateWindowExA(
 		0,
@@ -372,7 +369,7 @@ platform_window_init(u32 width, u32 height, const char *title)
 		nullptr,
 		nullptr,
 		nullptr);
-	assert(self.handle, "[PLATFORM]: Failed to create window.");
+	validate(self.handle, "[PLATFORM]: Failed to create window.");
 
 	self.width  = width;
 	self.height = height;
@@ -385,7 +382,7 @@ platform_window_deinit(Platform_Window *self)
 {
 	bool res = false;
 	res = DestroyWindow((HWND)self->handle);
-	assert(res, "[PLATFORM]: Failed to destroy window.");
+	validate(res, "[PLATFORM]: Failed to destroy window.");
 }
 
 bool
@@ -533,7 +530,7 @@ platform_set_current_directory()
 	*last_slash = '\0';
 
 	[[maybe_unused]] bool result = SetCurrentDirectoryA(module_path);
-	assert(result, "[PLATFORM]: Failed to set current directory.");
+	validate(result, "[PLATFORM]: Failed to set current directory.");
 }
 
 bool
@@ -651,11 +648,11 @@ platform_query_microseconds()
 	LARGE_INTEGER ticks;
 	if (QueryPerformanceFrequency(&frequency) == false)
 	{
-		assert(false, "[PLATFORM]: Failed to query performance frequency.");
+		validate(false, "[PLATFORM]: Failed to query performance frequency.");
 	}
 	if (QueryPerformanceCounter(&ticks) == false)
 	{
-		assert(false, "[PLATFORM]: Failed to query performance counter.");
+		validate(false, "[PLATFORM]: Failed to query performance counter.");
 	}
 	return ticks.QuadPart * 1000000 / frequency.QuadPart;
 }
@@ -665,7 +662,7 @@ platform_sleep_set_period(u32 period)
 {
 	if (timeBeginPeriod(period) != TIMERR_NOERROR)
 	{
-		assert(false, "[PLATFORM]: Failed to set time begin period.");
+		validate(false, "[PLATFORM]: Failed to set time begin period.");
 	}
 }
 

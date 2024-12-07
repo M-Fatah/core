@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/defines.h"
-#include "core/assert.h"
+#include "core/validate.h"
 #include "core/defer.h"
 #include "core/hash.h"
 #include "core/formatter.h"
@@ -150,7 +150,7 @@ template <typename ...TArgs>
 inline static void
 string_append(String &self, const char *fmt, const TArgs &...args)
 {
-	assert(self.allocator, "[STRING]: Cannot append to a string literal.");
+	validate(self.allocator, "[STRING]: Cannot append to a string literal.");
 	auto buffer = format(fmt, args...);
 	string_append(self, string_literal(buffer));
 }
@@ -464,7 +464,7 @@ string_ends_with(const char *c_string, const char *suffix)
 inline static void
 string_remove_last(String &self)
 {
-	assert(self.count > 0, "[STRING]: Count is 0.");
+	validate(self.count > 0, "[STRING]: Count is 0.");
 	--self.count;
 	self.data[self.count] = '\0';
 }

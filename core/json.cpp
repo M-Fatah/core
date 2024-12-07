@@ -569,7 +569,7 @@ json_value_copy(const JSON_Value &self, memory::Allocator *allocator)
 		}
 		default:
 		{
-			assert(false, "[JSON]: Invalid JSON_VALUE_KIND.");
+			validate(false, "[JSON]: Invalid JSON_VALUE_KIND.");
 			return JSON_Value{};
 		}
 	}
@@ -595,7 +595,7 @@ json_value_deinit(JSON_Value &self)
 			destroy(self.as_object);
 			break;
 		default:
-			assert(false, "[JSON]: Invalid JSON_VALUE_KIND.");
+			validate(false, "[JSON]: Invalid JSON_VALUE_KIND.");
 			break;
 	}
 }
@@ -603,7 +603,7 @@ json_value_deinit(JSON_Value &self)
 JSON_Value
 json_value_object_find(const JSON_Value &self, const String &name)
 {
-	assert(self.kind == JSON_VALUE_KIND_OBJECT, "[JSON]: Expected JSON_VALUE_KIND_OBJECT.");
+	validate(self.kind == JSON_VALUE_KIND_OBJECT, "[JSON]: Expected JSON_VALUE_KIND_OBJECT.");
 	if (const Hash_Table_Entry<const String, JSON_Value> *entry = hash_table_find(self.as_object, name))
 		return entry->value;
 	return {};
@@ -612,42 +612,42 @@ json_value_object_find(const JSON_Value &self, const String &name)
 void
 json_value_object_insert(JSON_Value &self, const String &name, const JSON_Value &value)
 {
-	assert(self.kind == JSON_VALUE_KIND_OBJECT, "[JSON]: Expected JSON_VALUE_KIND_OBJECT.");
+	validate(self.kind == JSON_VALUE_KIND_OBJECT, "[JSON]: Expected JSON_VALUE_KIND_OBJECT.");
 	hash_table_insert(self.as_object, string_copy(name), value);
 }
 
 bool
 json_value_get_as_bool(const JSON_Value &self)
 {
-	assert(self.kind == JSON_VALUE_KIND_BOOL, "[JSON]: Expected JSON_VALUE_KIND_BOOL.");
+	validate(self.kind == JSON_VALUE_KIND_BOOL, "[JSON]: Expected JSON_VALUE_KIND_BOOL.");
 	return self.as_bool;
 }
 
 f64
 json_value_get_as_number(const JSON_Value &self)
 {
-	assert(self.kind == JSON_VALUE_KIND_NUMBER, "[JSON]: Expected JSON_VALUE_KIND_NUMBER.");
+	validate(self.kind == JSON_VALUE_KIND_NUMBER, "[JSON]: Expected JSON_VALUE_KIND_NUMBER.");
 	return self.as_number;
 }
 
 String
 json_value_get_as_string(const JSON_Value &self)
 {
-	assert(self.kind == JSON_VALUE_KIND_STRING, "[JSON]: Expected JSON_VALUE_KIND_STRING.");
+	validate(self.kind == JSON_VALUE_KIND_STRING, "[JSON]: Expected JSON_VALUE_KIND_STRING.");
 	return self.as_string;
 }
 
 Array<JSON_Value>
 json_value_get_as_array(const JSON_Value &self)
 {
-	assert(self.kind == JSON_VALUE_KIND_ARRAY, "[JSON]: Expected JSON_VALUE_KIND_ARRAY.");
+	validate(self.kind == JSON_VALUE_KIND_ARRAY, "[JSON]: Expected JSON_VALUE_KIND_ARRAY.");
 	return self.as_array;
 }
 
 Hash_Table<String, JSON_Value>
 json_value_get_as_object(const JSON_Value &self)
 {
-	assert(self.kind == JSON_VALUE_KIND_OBJECT, "[JSON]: Expected JSON_VALUE_KIND_OBJECT.");
+	validate(self.kind == JSON_VALUE_KIND_OBJECT, "[JSON]: Expected JSON_VALUE_KIND_OBJECT.");
 	return self.as_object;
 }
 
