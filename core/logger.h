@@ -58,6 +58,7 @@ template <typename ...TArgs>
 inline static void
 log_debug(const char *fmt, TArgs &&...args)
 {
+	unused(fmt, args...);
 	#if DEBUG
 		logger_write_to_console(LOG_TAG_DEBUG, fmt, std::forward<TArgs>(args)...);
 	#endif
