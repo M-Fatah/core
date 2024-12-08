@@ -30,7 +30,6 @@ inline static void
 log_fatal(const char *fmt, TArgs &&...args)
 {
 	log_to_console(LOG_TAG_FATAL, fmt, std::forward<TArgs>(args)...);
-	::abort();
 }
 
 template <typename ...TArgs>
