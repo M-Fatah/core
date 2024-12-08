@@ -1,5 +1,4 @@
 set(HEADER_FILES
-    assert.h
     base64.h
     defer.h
     defines.h
@@ -10,6 +9,7 @@ set(HEADER_FILES
     logger.h
     reflect.h
     result.h
+    source_location.h
     utils.h
     containers/array.h
     containers/hash_table.h
@@ -22,10 +22,10 @@ set(HEADER_FILES
     platform/platform.h
     serialization/binary_serializer.h
     serialization/json_serializer.h
+    validate.h
 )
 
 set(SOURCE_FILES
-    assert.cpp
     base64.cpp
     ecs.cpp
     formatter.cpp
@@ -35,6 +35,7 @@ set(SOURCE_FILES
     memory/heap_allocator.cpp
     memory/arena_allocator.cpp
     memory/pool_allocator.cpp
+    validate.cpp
 )
 
 set(LIBS

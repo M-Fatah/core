@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/assert.h"
+#include "core/validate.h"
 #include "core/defines.h"
 
 #include <initializer_list>
@@ -29,14 +29,14 @@ struct Stack_Array
 	T &
 	operator[](u64 index)
 	{
-		ASSERT(index < count, "[STACK_ARRAY]: Access out of range.");
+		validate(index < count, "[STACK_ARRAY]: Access out of range.");
 		return data[index];
 	}
 
 	const T &
 	operator[](u64 index) const
 	{
-		ASSERT(index < count, "[STACK_ARRAY]: Access out of range.");
+		validate(index < count, "[STACK_ARRAY]: Access out of range.");
 		return data[index];
 	}
 };
@@ -45,7 +45,7 @@ template <typename T, u64 N>
 inline static void
 stack_array_push(Stack_Array<T, N> &self, const T &value)
 {
-	ASSERT(self.count < N, "[STACK_ARRAY]: Access out of range.");
+	validate(self.count < N, "[STACK_ARRAY]: Access out of range.");
 	self.data[self.count++] = value;
 }
 
@@ -53,7 +53,7 @@ template <typename T, u64 N>
 inline static T
 stack_array_pop(Stack_Array<T, N> &self)
 {
-	ASSERT(self.count > 0, "[STACK_ARRAY]: Trying to pop from a 0 count array.");
+	validate(self.count > 0, "[STACK_ARRAY]: Trying to pop from a 0 count array.");
 	return self.data[--self.count];
 }
 
