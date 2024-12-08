@@ -43,12 +43,12 @@ _log_tag_name_to_color(LOG_TAG tag)
 {
 	switch(tag)
 	{
-		case LOG_TAG_FATAL:    return LOG_TAG_COLOR_BG_RED;
-		case LOG_TAG_ERROR:    return LOG_TAG_COLOR_FG_RED;
-		case LOG_TAG_WARNING:  return LOG_TAG_COLOR_FG_YELLOW;
-		case LOG_TAG_INFO:     return LOG_TAG_COLOR_FG_WHITE_DIMMED;
-		case LOG_TAG_DEBUG:    return LOG_TAG_COLOR_FG_BLUE;
-		default:               return LOG_TAG_COLOR_FG_WHITE_DIMMED;
+		case LOG_TAG_FATAL:   return LOG_TAG_COLOR_BG_RED;
+		case LOG_TAG_ERROR:   return LOG_TAG_COLOR_FG_RED;
+		case LOG_TAG_WARNING: return LOG_TAG_COLOR_FG_YELLOW;
+		case LOG_TAG_INFO:    return LOG_TAG_COLOR_FG_WHITE_DIMMED;
+		case LOG_TAG_DEBUG:   return LOG_TAG_COLOR_FG_BLUE;
+		default:              return LOG_TAG_COLOR_FG_WHITE_DIMMED;
 	}
 }
 
@@ -57,12 +57,12 @@ _log_tag_name_to_string(LOG_TAG tag)
 {
 	switch(tag)
 	{
-		case LOG_TAG_FATAL:    return "[FATAL]: ";
-		case LOG_TAG_ERROR:    return "[ERROR]: ";
-		case LOG_TAG_WARNING:  return "[WARNING]: ";
-		case LOG_TAG_INFO:     return "[INFO]: ";
-		case LOG_TAG_DEBUG:    return "[DEBUG]: ";
-		default:               return "";
+		case LOG_TAG_FATAL:   return "[FATAL]: ";
+		case LOG_TAG_ERROR:   return "[ERROR]: ";
+		case LOG_TAG_WARNING: return "[WARNING]: ";
+		case LOG_TAG_INFO:    return "[INFO]: ";
+		case LOG_TAG_DEBUG:   return "[DEBUG]: ";
+		default:              return "";
 	}
 }
 
