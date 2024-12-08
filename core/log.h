@@ -8,7 +8,6 @@
 enum LOG_TAG
 {
 	LOG_TAG_FATAL,
-	LOG_TAG_CRITICAL,
 	LOG_TAG_ERROR,
 	LOG_TAG_WARNING,
 	LOG_TAG_INFO,
@@ -27,18 +26,11 @@ log_to_console(LOG_TAG tag, const char *fmt, const TArgs &...args)
 }
 
 template <typename ...TArgs>
-NO_RETURN inline static void
+inline static void
 log_fatal(const char *fmt, TArgs &&...args)
 {
 	log_to_console(LOG_TAG_FATAL, fmt, std::forward<TArgs>(args)...);
 	::abort();
-}
-
-template <typename ...TArgs>
-inline static void
-log_critical(const char *fmt, TArgs &&...args)
-{
-	log_to_console(LOG_TAG_CRITICAL, fmt, std::forward<TArgs>(args)...);
 }
 
 template <typename ...TArgs>

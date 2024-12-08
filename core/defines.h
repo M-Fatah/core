@@ -53,8 +53,6 @@
 #define _FOR_EACH02(ACTION, ARG, ...) ACTION(ARG), _FOR_EACH01(ACTION, __VA_ARGS__)
 #define _FOR_EACH01(ACTION, ARG, ...) ACTION(ARG)
 
-#define NO_RETURN [[noreturn]]
-
 #define I8_MIN  INT8_MIN
 #define I8_MAX  INT8_MAX
 #define I16_MIN INT16_MIN
