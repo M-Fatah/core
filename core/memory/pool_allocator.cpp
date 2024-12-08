@@ -1,6 +1,6 @@
-#include "pool_allocator.h"
+#include "core/memory/pool_allocator.h"
 
-#include "core/logger.h"
+#include "core/log.h"
 #include "core/memory/arena_allocator.h"
 
 namespace memory
@@ -70,7 +70,7 @@ namespace memory
 			{
 				if (node == data)
 				{
-					LOG_ERROR("[POOL_ALLOCATOR]: Double free of memory at address '{}'.", data);
+					log_error("[POOL_ALLOCATOR]: Double free of memory at address '{}'.", data);
 					return;
 				}
 				node = node->next;

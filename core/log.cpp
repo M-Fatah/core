@@ -1,4 +1,4 @@
-#include "logger.h"
+#include "core/log.h"
 
 #include <stdio.h>
 
@@ -15,7 +15,7 @@ enum LOG_TAG_COLOR
 };
 
 inline static const char *
-_logger_tag_color_to_string(LOG_TAG_COLOR color)
+_log_tag_color_to_string(LOG_TAG_COLOR color)
 {
 	//
 	// NOTE:
@@ -39,7 +39,7 @@ _logger_tag_color_to_string(LOG_TAG_COLOR color)
 }
 
 inline static LOG_TAG_COLOR
-_logger_tag_name_to_color(LOG_TAG tag)
+_log_tag_name_to_color(LOG_TAG tag)
 {
 	switch(tag)
 	{
@@ -53,7 +53,7 @@ _logger_tag_name_to_color(LOG_TAG tag)
 }
 
 inline static const char *
-_logger_tag_name_to_string(LOG_TAG tag)
+_log_tag_name_to_string(LOG_TAG tag)
 {
 	switch(tag)
 	{
@@ -67,15 +67,15 @@ _logger_tag_name_to_string(LOG_TAG tag)
 }
 
 void
-logger_write_to_console(LOG_TAG tag, const String &message)
+log_to_console(LOG_TAG tag, const String &message)
 {
-	const char *tag_string       = _logger_tag_name_to_string(tag);
-	const char *tag_color_string = _logger_tag_color_to_string(_logger_tag_name_to_color(tag));
+	const char *tag_string       = _log_tag_name_to_string(tag);
+	const char *tag_color_string = _log_tag_color_to_string(_log_tag_name_to_color(tag));
 
 	// Print the formatted message to the console, with the color specified for its tag.
 	bool is_error = tag < LOG_TAG_WARNING;
 	if (is_error)
-		fprintf(stderr, "\033[%sm%s%s\n\033[0m", tag_color_string, tag_string, message.data);
+		::fprintf(stderr, "\033[%sm%s%s\n\033[0m", tag_color_string, tag_string, message.data);
 	else
-		fprintf(stdout, "\033[%sm%s%s\n\033[0m", tag_color_string, tag_string, message.data);
+		::fprintf(stdout, "\033[%sm%s%s\n\033[0m", tag_color_string, tag_string, message.data);
 }

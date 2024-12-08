@@ -1,6 +1,6 @@
 #include "core/formatter.h"
 
-#include <core/logger.h>
+#include <core/log.h>
 #include "core/memory/memory.h"
 #include "core/containers/string.h"
 
@@ -207,7 +207,7 @@ formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 					}
 					else
 					{
-						LOG_ERROR("[FORMATTER]: Formatting error at index '{}', expected '{}' but found '{}{}'.", i, "{{", fmt[i], fmt[i + 1]);
+						log_error("[FORMATTER]: Formatting error at index '{}', expected '{}' but found '{}{}'.", i, "{{", fmt[i], fmt[i + 1]);
 						return false;
 					}
 				}
@@ -220,7 +220,7 @@ formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 					}
 					else
 					{
-						LOG_ERROR("[FORMATTER]: Formatting error at index '{}', expected '{}' but found '{}{}'.", i, "}}", fmt[i], fmt[i + 1]);
+						log_error("[FORMATTER]: Formatting error at index '{}', expected '{}' but found '{}{}'.", i, "}}", fmt[i], fmt[i + 1]);
 						return false;
 					}
 				}
@@ -229,13 +229,13 @@ formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 			{
 				if (fmt[i] == '{')
 				{
-					LOG_ERROR("[FORMATTER]: Formatting error at index '{}', expected '{}' but found '{}'.", i, "{{", fmt[i]);
+					log_error("[FORMATTER]: Formatting error at index '{}', expected '{}' but found '{}'.", i, "{{", fmt[i]);
 					return false;
 				}
 
 				if (fmt[i] == '}')
 				{
-					LOG_ERROR("[FORMATTER]: Formatting error at index '{}', expected '{}' but found '{}'.", i, "}}", fmt[i]);
+					log_error("[FORMATTER]: Formatting error at index '{}', expected '{}' but found '{}'.", i, "}}", fmt[i]);
 					return false;
 				}
 			}
@@ -245,14 +245,14 @@ formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 	if (per_depth.field_count > FORMATTER_MAX_REPLACEMENT_FIELD_COUNT)
 	{
 		++self->current_processing_depth_index;
-		LOG_ERROR("[FORMATTER]: Max supported replacement field count is '{}'.", FORMATTER_MAX_REPLACEMENT_FIELD_COUNT);
+		log_error("[FORMATTER]: Max supported replacement field count is '{}'.", FORMATTER_MAX_REPLACEMENT_FIELD_COUNT);
 		--self->current_processing_depth_index;
 		return false;
 	}
 
 	if (found_replacement_field_with_index && found_replacement_field_with_no_index)
 	{
-		LOG_ERROR("[FORMATTER]: Cannot mix between automatic and manual replacement field indexing.");
+		log_error("[FORMATTER]: Cannot mix between automatic and manual replacement field indexing.");
 		return false;
 	}
 
@@ -261,7 +261,7 @@ formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 		if (per_depth.field_count != per_depth.arg_count && (largest_field_index + 1) != per_depth.arg_count)
 		{
 			++self->current_processing_depth_index;
-			LOG_ERROR("[FORMATTER]: Mismatch between replacement field count '{}' and argument count '{}'!", per_depth.field_count, per_depth.arg_count);
+			log_error("[FORMATTER]: Mismatch between replacement field count '{}' and argument count '{}'!", per_depth.field_count, per_depth.arg_count);
 			--self->current_processing_depth_index;
 			return false;
 		}
@@ -269,7 +269,7 @@ formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 		if ((largest_field_index + 1) > per_depth.arg_count)
 		{
 			++self->current_processing_depth_index;
-			LOG_ERROR("[FORMATTER]: Replacement field index '{}' cannot be greater than the argument count '{}'!", largest_field_index, per_depth.arg_count);
+			log_error("[FORMATTER]: Replacement field index '{}' cannot be greater than the argument count '{}'!", largest_field_index, per_depth.arg_count);
 			--self->current_processing_depth_index;
 			return false;
 		}

@@ -1,6 +1,6 @@
 #include <core/json.h>
 #include <core/base64.h>
-#include <core/logger.h>
+#include <core/log.h>
 #include <core/result.h>
 #include <core/formatter.h>
 #include <core/memory/memory.h>
@@ -245,7 +245,7 @@ TEST_CASE("[CORE]: JSON")
 
 		auto [value, error] = json_value_from_string(json, memory::temp_allocator());
 		if (error)
-			LOG_ERROR("{}", error.message.data);
+			log_error("{}", error.message.data);
 
 		CHECK(error == false);
 		CHECK(value.kind == JSON_VALUE_KIND_OBJECT);
@@ -329,7 +329,7 @@ R"""({
 
 		auto [value, error] = json_value_from_string(json, memory::temp_allocator());
 		if (error)
-			LOG_ERROR("{}", error.message.data);
+			log_error("{}", error.message.data);
 
 		auto value_copy        = clone(value, memory::temp_allocator());
 		auto [value_string, _] = json_value_to_string(value_copy, memory::temp_allocator());

@@ -1,6 +1,6 @@
 #include "core/memory/heap_allocator.h"
 
-#include "core/logger.h"
+#include "core/log.h"
 #include "core/platform/platform.h"
 
 #include <stdlib.h>
@@ -35,7 +35,7 @@ namespace memory
 		Heap_Allocator *self = this;
 		self->ctx = ::new Heap_Allocator_Context;
 		if (self->ctx == nullptr)
-			LOG_FATAL("[HEAP_ALLOCATOR]: Could not allocate memory for initialization.");
+			log_fatal("[HEAP_ALLOCATOR]: Could not allocate memory for initialization.");
 		self->ctx->head = nullptr;
 #endif
 	}
@@ -86,7 +86,7 @@ namespace memory
 		// TODO:
 		Heap_Allocator_Node *node = (Heap_Allocator_Node *)::malloc(sizeof(Heap_Allocator_Node) + size);
 		if (node == nullptr)
-			LOG_FATAL("[HEAP_ALLOCATOR]: Could not allocate memory with given size {}.", size);
+			log_fatal("[HEAP_ALLOCATOR]: Could not allocate memory with given size {}.", size);
 
 		if (node != nullptr && size != 0)
 		{
@@ -112,7 +112,7 @@ namespace memory
 		void *data = ::malloc(size);
 		// TODO:
 		if (data == nullptr)
-			LOG_FATAL("[HEAP_ALLOCATOR]: Could not allocate memory with given size {}.", size);
+			log_fatal("[HEAP_ALLOCATOR]: Could not allocate memory with given size {}.", size);
 		return data;
 #endif
 	}
