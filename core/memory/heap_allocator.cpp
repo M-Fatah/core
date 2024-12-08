@@ -1,6 +1,6 @@
 #include "core/memory/heap_allocator.h"
 
-#include "core/logger.h"
+#include "core/log.h"
 #include "core/platform/platform.h"
 
 #include <stdlib.h>

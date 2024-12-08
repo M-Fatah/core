@@ -2,7 +2,7 @@
 
 #include "core/validate.h"
 #include "core/defer.h"
-#include "core/logger.h"
+#include "core/log.h"
 #include "core/memory/memory.h"
 
 #include <dlfcn.h>

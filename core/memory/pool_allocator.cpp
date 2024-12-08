@@ -1,6 +1,6 @@
-#include "pool_allocator.h"
+#include "core/memory/pool_allocator.h"
 
-#include "core/logger.h"
+#include "core/log.h"
 #include "core/memory/arena_allocator.h"
 
 namespace memory

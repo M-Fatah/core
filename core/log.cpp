@@ -1,4 +1,4 @@
-#include "logger.h"
+#include "core/log.h"
 
 #include <stdio.h>
 
@@ -15,7 +15,7 @@ enum LOG_TAG_COLOR
 };
 
 inline static const char *
-_logger_tag_color_to_string(LOG_TAG_COLOR color)
+_log_tag_color_to_string(LOG_TAG_COLOR color)
 {
 	//
 	// NOTE:
@@ -39,38 +39,40 @@ _logger_tag_color_to_string(LOG_TAG_COLOR color)
 }
 
 inline static LOG_TAG_COLOR
-_logger_tag_name_to_color(LOG_TAG tag)
+_log_tag_name_to_color(LOG_TAG tag)
 {
 	switch(tag)
 	{
-		case LOG_TAG_FATAL:   return LOG_TAG_COLOR_BG_RED;
-		case LOG_TAG_ERROR:   return LOG_TAG_COLOR_FG_RED;
-		case LOG_TAG_WARNING: return LOG_TAG_COLOR_FG_YELLOW;
-		case LOG_TAG_INFO:    return LOG_TAG_COLOR_FG_WHITE_DIMMED;
-		case LOG_TAG_DEBUG:   return LOG_TAG_COLOR_FG_BLUE;
-		default:              return LOG_TAG_COLOR_FG_WHITE_DIMMED;
+		case LOG_TAG_FATAL:    return LOG_TAG_COLOR_BG_RED;
+		case LOG_TAG_CRITICAL: return LOG_TAG_COLOR_BG_RED;
+		case LOG_TAG_ERROR:    return LOG_TAG_COLOR_FG_RED;
+		case LOG_TAG_WARNING:  return LOG_TAG_COLOR_FG_YELLOW;
+		case LOG_TAG_INFO:     return LOG_TAG_COLOR_FG_WHITE_DIMMED;
+		case LOG_TAG_DEBUG:    return LOG_TAG_COLOR_FG_BLUE;
+		default:               return LOG_TAG_COLOR_FG_WHITE_DIMMED;
 	}
 }
 
 inline static const char *
-_logger_tag_name_to_string(LOG_TAG tag)
+_log_tag_name_to_string(LOG_TAG tag)
 {
 	switch(tag)
 	{
-		case LOG_TAG_FATAL:   return "[FATAL]: ";
-		case LOG_TAG_ERROR:   return "[ERROR]: ";
-		case LOG_TAG_WARNING: return "[WARNING]: ";
-		case LOG_TAG_INFO:    return "[INFO]: ";
-		case LOG_TAG_DEBUG:   return "[DEBUG]: ";
-		default:              return "";
+		case LOG_TAG_FATAL:    return "[FATAL]: ";
+		case LOG_TAG_CRITICAL: return "[CRITICAL]: ";
+		case LOG_TAG_ERROR:    return "[ERROR]: ";
+		case LOG_TAG_WARNING:  return "[WARNING]: ";
+		case LOG_TAG_INFO:     return "[INFO]: ";
+		case LOG_TAG_DEBUG:    return "[DEBUG]: ";
+		default:               return "";
 	}
 }
 
 void
-logger_write_to_console(LOG_TAG tag, const String &message)
+log_to_console(LOG_TAG tag, const String &message)
 {
-	const char *tag_string       = _logger_tag_name_to_string(tag);
-	const char *tag_color_string = _logger_tag_color_to_string(_logger_tag_name_to_color(tag));
+	const char *tag_string       = _log_tag_name_to_string(tag);
+	const char *tag_color_string = _log_tag_color_to_string(_log_tag_name_to_color(tag));
 
 	// Print the formatted message to the console, with the color specified for its tag.
 	bool is_error = tag < LOG_TAG_WARNING;

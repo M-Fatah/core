@@ -3,7 +3,7 @@
 #include "core/serialization/serializer.h"
 #include "core/defines.h"
 #include "core/json.h"
-#include "core/logger.h"
+#include "core/log.h"
 #include "core/base64.h"
 #include "core/containers/array.h"
 #include "core/containers/string.h"

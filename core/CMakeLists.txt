@@ -6,7 +6,7 @@ set(HEADER_FILES
     formatter.h
     hash.h
     json.h
-    logger.h
+    log.h
     reflect.h
     result.h
     source_location.h
@@ -30,7 +30,7 @@ set(SOURCE_FILES
     ecs.cpp
     formatter.cpp
     json.cpp
-    logger.cpp
+    log.cpp
     memory/memory.cpp
     memory/heap_allocator.cpp
     memory/arena_allocator.cpp

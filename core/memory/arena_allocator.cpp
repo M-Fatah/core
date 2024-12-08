@@ -1,6 +1,6 @@
-#include "arena_allocator.h"
+#include "core/memory/arena_allocator.h"
 
-#include "core/logger.h"
+#include "core/log.h"
 
 // TODO: Remove and use logger.
 #include <stdio.h>

@@ -1,6 +1,6 @@
 #include <core/json.h>
 #include <core/base64.h>
-#include <core/logger.h>
+#include <core/log.h>
 #include <core/result.h>
 #include <core/formatter.h>
 #include <core/memory/memory.h>

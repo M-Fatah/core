@@ -1,6 +1,6 @@
 #include "core/formatter.h"
 
-#include <core/logger.h>
+#include <core/log.h>
 #include "core/memory/memory.h"
 #include "core/containers/string.h"
 
