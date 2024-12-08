@@ -28,13 +28,13 @@ namespace memory
 		Arena_Allocator *self = this;
 		self->ctx = memory::allocate_zeroed<Arena_Allocator_Context>(allocator);
 		if (self->ctx == nullptr)
-			LOG_FATAL("[ARENA_ALLOCATOR]: Could not allocate memory for initialization.");
+			log_fatal("[ARENA_ALLOCATOR]: Could not allocate memory for initialization.");
 
 		self->ctx->allocator = allocator;
 
 		self->ctx->head = (Arena_Allocator_Node *)memory::allocate(allocator, sizeof(Arena_Allocator_Node) + initial_capacity);
 		if (self->ctx->head == nullptr)
-			LOG_FATAL("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", sizeof(Arena_Allocator_Node) + initial_capacity);
+			log_fatal("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", sizeof(Arena_Allocator_Node) + initial_capacity);
 
 		self->ctx->head->capacity = initial_capacity;
 		self->ctx->head->used     = 0;
@@ -81,13 +81,13 @@ namespace memory
 			auto capacity = size > self->ctx->head->capacity ? size : self->ctx->head->capacity;
 			auto node = (Arena_Allocator_Node *)memory::allocate(self->ctx->allocator, sizeof(Arena_Allocator_Node) + capacity);
 			if (node == nullptr)
-				LOG_FATAL("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", size);
+				log_fatal("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", size);
 			node->capacity  = capacity;
 			node->used      = 0;
 			node->next      = self->ctx->head;
 			self->ctx->head = node;
 
-			LOG_DEBUG("[ARENA_ALLOCATOR]: Allocated a new node with given capacity {}.", capacity);
+			log_debug("[ARENA_ALLOCATOR]: Allocated a new node with given capacity {}.", capacity);
 
 			return node + 1;
 		}
@@ -115,7 +115,7 @@ namespace memory
 
 			self->ctx->head = (Arena_Allocator_Node *)memory::allocate(self->ctx->allocator, sizeof(Arena_Allocator_Node) + self->ctx->peak_size);
 			if (self->ctx->head == nullptr)
-				LOG_FATAL("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", sizeof(Arena_Allocator_Node) + self->ctx->peak_size);
+				log_fatal("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", sizeof(Arena_Allocator_Node) + self->ctx->peak_size);
 			self->ctx->head->capacity = self->ctx->peak_size;
 			self->ctx->head->used     = 0;
 			self->ctx->head->next     = nullptr;

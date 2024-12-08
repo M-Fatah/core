@@ -11,7 +11,7 @@ validate(bool expression, const char *message, Source_Location source_location)
 		if (expression)
 			return;
 
-		LOG_FATAL("Validation failure with message: '{}', file: '{}', line: '{}'.", message, source_location.file_name, source_location.line_number);
+		log_fatal("Validation failure with message: '{}', file: '{}', line: '{}'.", message, source_location.file_name, source_location.line_number);
 
 		#if COMPILER_MSVC
 			__debugbreak();

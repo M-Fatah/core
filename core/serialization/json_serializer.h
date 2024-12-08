@@ -192,7 +192,7 @@ serialize(Json_Serializer &self, const char *name, const T &data)
 	JSON_Value object = array_pop(self.values);
 
 	if (json_value_object_find(array_last(self.values), name))
-		LOG_WARNING("[SERIALIZER][JSON]: Overwrite of duplicate json object with name '{}'.", name);
+		log_warning("[SERIALIZER][JSON]: Overwrite of duplicate json object with name '{}'.", name);
 
 	json_value_object_insert(array_last(self.values), name, object);
 
@@ -206,7 +206,7 @@ json_deserializer_init(const String &buffer, memory::Allocator *allocator = memo
 	auto [value, error] = json_value_from_string(buffer, allocator);
 	if (error)
 	{
-		LOG_ERROR(error.message);
+		log_error(error.message.data);
 		return {};
 	}
 
