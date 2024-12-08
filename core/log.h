@@ -19,9 +19,9 @@ log_to_console(LOG_TAG tag, const String &message);
 
 template <typename ...TArgs>
 inline static void
-log_to_console(LOG_TAG tag, const char *fmt, const TArgs &...args)
+log_to_console(LOG_TAG tag, const char *fmt, TArgs &&...args)
 {
-	auto buffer = format(fmt, args...);
+	auto buffer = format(fmt, std::forward<TArgs>(args)...);
 	log_to_console(tag, string_literal(buffer));
 }
 
