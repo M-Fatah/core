@@ -1,5 +1,4 @@
 #include <core/json.h>
-#include <core/base64.h>
 #include <core/log.h>
 #include <core/result.h>
 #include <core/formatter.h>
@@ -7,6 +6,8 @@
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
 #include <core/platform/platform.h>
+
+import base64;
 
 #include <doctest/doctest.h>
 

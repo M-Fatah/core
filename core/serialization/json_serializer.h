@@ -4,10 +4,11 @@
 #include "core/defines.h"
 #include "core/json.h"
 #include "core/log.h"
-#include "core/base64.h"
 #include "core/containers/array.h"
 #include "core/containers/string.h"
 #include "core/containers/hash_table.h"
+
+import base64;
 
 struct Json_Serializer
 {

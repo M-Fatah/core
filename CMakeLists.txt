@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.28.2)
 
 project(core VERSION 0.0.1)
 
@@ -18,6 +18,7 @@ set(CMAKE_PDB_OUTPUT_DIRECTORY     "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
+set(PREBUILT_MODULE_PATH           "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 
 # Global compile definitions.
 set(GLOBAL_COMPILE_DEFINITIONS
@@ -34,9 +35,11 @@ set(GLOBAL_COMPILE_DEFINITIONS
     $<$<PLATFORM_ID:Darwin>:PLATFORM_MACOS=1>
 )
 
+set(CMAKE_CXX_STANDARD 20)
+
 # Global compile options.
 if(MSVC)
-    set(GLOBAL_COMPILE_OPTIONS -W4 -WX -std:c++20 -Zc:preprocessor -wd5105)
+    set(GLOBAL_COMPILE_OPTIONS -W4 -WX -std:c++20 -Zc:preprocessor -wd5105 -wd4273)
 else()
     # TODO: -Wno-deprecated-declarations is due to doctest.h sprintf() function.
     set(GLOBAL_COMPILE_OPTIONS -Wall -Wextra -pedantic -Werror -std=c++2b -fno-exceptions -Wno-invalid-offsetof -Wno-nested-anon-types -Wno-c++11-narrowing -Wno-gnu-zero-variadic-macro-arguments -Wno-deprecated-declarations -Wno-enum-constexpr-conversion -Wno-unknown-warning-option
