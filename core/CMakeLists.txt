@@ -1,7 +1,6 @@
 set(HEADER_FILES
     defer.h
     defines.h
-    ecs.h
     formatter.h
     hash.h
     json.h
@@ -25,7 +24,6 @@ set(HEADER_FILES
 )
 
 set(SOURCE_FILES
-    ecs.cpp
     formatter.cpp
     json.cpp
     log.cpp
@@ -83,6 +81,7 @@ target_sources(core
         ${PROJECT_SOURCE_DIR}
     FILES
         base64.cppm
+        ecs.cppm
 )
 
 target_link_libraries(core PUBLIC ${LIBS})
