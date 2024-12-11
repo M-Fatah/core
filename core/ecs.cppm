@@ -1,4 +1,4 @@
-#pragma once
+module;
 
 #include "core/export.h"
 #include "core/defines.h"
@@ -8,10 +8,13 @@
 #include <type_traits>
 #include <typeinfo>
 #include <concepts>
+#include <atomic>
+
+export module ecs;
 
 namespace ecs
 {
-	struct Entity
+	export struct Entity
 	{
 		u64 id = U64_MAX;
 
@@ -27,9 +30,6 @@ namespace ecs
 			return id != U64_MAX;
 		}
 	};
-
-	CORE_API Entity
-	entity_new();
 
 	typedef u64 Component_Hash;
 
@@ -121,7 +121,7 @@ namespace ecs
 		}
 	};
 
-	struct ECS
+	export struct ECS
 	{
 		Hash_Table<Component_Hash, IComponent_Table *> component_tables;
 
@@ -186,13 +186,13 @@ namespace ecs
 		}
 	};
 
-	inline static ECS
+	export inline ECS
 	ecs_new()
 	{
 		return {hash_table_init<Component_Hash, IComponent_Table *>()};
 	}
 
-	inline static void
+	export inline void
 	ecs_free(ECS &self)
 	{
 		for (auto &[_, v] : self.component_tables)
@@ -201,50 +201,59 @@ namespace ecs
 		hash_table_deinit(self.component_tables);
 	}
 
-	template <typename T>
-	inline static void
+	export template <typename T>
+	inline void
 	ecs_add_table(ECS &self)
 	{
-		hash_table_insert(self.component_tables, (u64)typeid(T).hash_code(), (IComponent_Table *)memory::allocate_and_call_constructor<Component_Table<T>>());
+		const std::type_info &info = typeid(T);
+		hash_table_insert(self.component_tables, (u64)info.hash_code(), (IComponent_Table *)memory::allocate_and_call_constructor<Component_Table<T>>());
 	}
 
-	template <Component_Type T>
-	inline static const T *
+	export template <Component_Type T>
+	inline const T *
 	ecs_component_read(ECS &self, Entity e)
 	{
 		return self.read<T>(e);
 	}
 
-	template <Component_Type T>
-	inline static T *
+	export template <Component_Type T>
+	inline T *
 	ecs_component_write(ECS &self, Entity e)
 	{
 		return self.write<T>(e);
 	}
 
-	template <Component_Type T>
-	inline static void
+	export template <Component_Type T>
+	inline void
 	ecs_component_remove(ECS &self, Entity e)
 	{
 		self.remove<T>(e);
 	}
 
-	template <Component_Type ...TArgs>
-	inline static Array<Entity>
+	export template <Component_Type ...TArgs>
+	inline Array<Entity>
 	ecs_entity_list(ECS &self)
 	{
 		return self.list<TArgs...>();
 	}
 
 	// TODO: Test this.
-	inline static void
+	export inline void
 	ecs_reload(ECS &self)
 	{
 		self.reload();
 	}
 
+	export CORE_API Entity
+	entity_new()
+	{
+		static std::atomic<u64> id = 0;
+		return Entity{id.fetch_add(1)};
+	}
+
 	// TODO: Rename this to ecs_entity_remove()?
-	inline static void
+	// TODO: Should set the id of the removed entity to U64_MAX?
+	export inline void
 	ecs_entity_free(ECS &self, Entity e)
 	{
 		self.entity_free(e);
