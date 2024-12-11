@@ -1,9 +1,25 @@
-#include "core/base64.h"
+module;
+
+#pragma once
+
+#include "core/export.h"
+#include "core/defines.h"
+#include "core/export.h"
+#include "core/memory/memory.h"
+#include "core/containers/string.h"
+
+export module base64;
+
+/*
+	TODO:
+	- [ ] Should decode return a String or an Array<u8>?
+	- [ ] Should use Result<T>?
+*/
 
 inline static constexpr const char *BASE64_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-String
-base64_encode(const u8 *data, u64 size, memory::Allocator *allocator)
+export CORE_API String
+base64_encode(const u8 *data, u64 size, memory::Allocator *allocator = memory::heap_allocator())
 {
 	String out = string_init(allocator);
 
@@ -30,8 +46,8 @@ base64_encode(const u8 *data, u64 size, memory::Allocator *allocator)
 	return out;
 }
 
-String
-base64_decode(const String &data, memory::Allocator *allocator)
+export CORE_API String
+base64_decode(const String &data, memory::Allocator *allocator = memory::heap_allocator())
 {
 	constexpr auto index = [](const String &data, char c) -> u8 {
 		for (u8 i = 0; i < data.count; ++i)
@@ -81,4 +97,34 @@ base64_decode(const String &data, memory::Allocator *allocator)
 	}
 
 	return out;
+}
+
+export inline String
+base64_encode(const Block &data, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return base64_encode((const u8 *)data.data, data.size, allocator);
+}
+
+export inline String
+base64_encode(const Array<u8> &data, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return base64_encode(data.data, data.count, allocator);
+}
+
+export inline String
+base64_encode(const String &data, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return base64_encode((const u8 *)data.data, data.count, allocator);
+}
+
+export inline String
+base64_encode(const char *data, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return base64_encode(string_literal(data), allocator);
+}
+
+export inline String
+base64_decode(const char *data, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return base64_decode(string_literal(data), allocator);
 }
