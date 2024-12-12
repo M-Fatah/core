@@ -37,11 +37,11 @@ jobs:
       #       sudo apt-get install gcc-14.2.0 g++-14.2.0
       #       echo "gcc=$gcc" >> $env:GITHUB_OUTPUT
       #       echo "gxx=$gxx" >> $env:GITHUB_OUTPUT
-      # - if: matrix.os == 'ubuntu-24.04'
-      #   name: Setup Ninja
-      #   uses: ashutoshvarma/setup-ninja@master
-      #   with:
-      #     version: 1.12.1
+      - if: matrix.os == 'ubuntu-24.04'
+        name: Setup Ninja
+        uses: ashutoshvarma/setup-ninja@master
+        with:
+          version: 1.12.1
 
       - if: matrix.os == 'ubuntu-24.04'
         name: Installing Linux dependencies
