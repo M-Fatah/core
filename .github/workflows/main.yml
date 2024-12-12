@@ -37,6 +37,8 @@ jobs:
             sudo apt-get update
             sudo apt install build-essential
             sudo apt install gcc-14 g++-14
+            sudo update-alternatives --install /usr/bin/g++ g++ /usr/local/gcc-14.2.0/bin/g++14.2.0 14
+            sudo update-alternatives --install /usr/bin/gcc gcc /usr/local/gcc-14.2.0/bin/gcc14.2.0 14
 
       - if: matrix.os == 'ubuntu-24.04'
         name: Setup Ninja
