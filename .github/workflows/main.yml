@@ -56,8 +56,7 @@ jobs:
         name: Configuring
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{matrix.build-variant}} -DCORE_BUILD_UNITY=OFF # TODO: Re-enable unity build.
 
-      - if: matrix.os != 'ubuntu-24.04'
-        name: Building
+      - name: Building
         run: cmake --build build --clean-first --config ${{matrix.build-variant}} -j
 
       - name: Running tests
