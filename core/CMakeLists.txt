@@ -1,8 +1,6 @@
 set(HEADER_FILES
-    base64.h
     defer.h
     defines.h
-    ecs.h
     formatter.h
     hash.h
     json.h
@@ -26,8 +24,6 @@ set(HEADER_FILES
 )
 
 set(SOURCE_FILES
-    base64.cpp
-    ecs.cpp
     formatter.cpp
     json.cpp
     log.cpp
@@ -76,6 +72,18 @@ if(${CORE_BUILD_STATIC})
     set(BUILD_TYPE STATIC)
 endif()
 add_library(core ${BUILD_TYPE} ${HEADER_FILES} ${SOURCE_FILES})
+
+# TODO:
+target_sources(core
+  PUBLIC
+    FILE_SET all_my_modules TYPE CXX_MODULES
+    BASE_DIRS
+        ${PROJECT_SOURCE_DIR}
+    FILES
+        base64.cppm
+        ecs.cppm
+)
+
 target_link_libraries(core PUBLIC ${LIBS})
 target_compile_options(core PRIVATE ${GLOBAL_COMPILE_OPTIONS})
 target_compile_definitions(core PRIVATE ${GLOBAL_COMPILE_DEFINITIONS})

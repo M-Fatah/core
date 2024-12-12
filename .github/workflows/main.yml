@@ -18,25 +18,43 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        # os: [windows-latest, ubuntu-latest, macos-latest] // TODO:
+        os: [windows-latest, ubuntu-24.04]
         build-variant: [Debug, Release]
     steps:
       - uses: actions/checkout@v4
 
       # TODO: Install GCC without using a script.
-      - if: matrix.os == 'ubuntu-latest'
+      - if: matrix.os == 'ubuntu-24.04'
         name: Installing GCC
         uses: egor-tensin/setup-gcc@v1
         with:
-          version: 12
+          version: 14
 
-      - if: matrix.os == 'ubuntu-latest'
+      # - if: matrix.os == 'ubuntu-24.04'
+      #   name: Installing GCC
+      #   run: |
+      #       sudo apt-get install gcc-14.2.0 g++-14.2.0
+      #       echo "gcc=$gcc" >> $env:GITHUB_OUTPUT
+      #       echo "gxx=$gxx" >> $env:GITHUB_OUTPUT
+      - if: matrix.os == 'ubuntu-24.04'
+        name: Setup Ninja
+        uses: ashutoshvarma/setup-ninja@master
+        with:
+          version: 1.12.1
+
+      - if: matrix.os == 'ubuntu-24.04'
         name: Installing Linux dependencies
         run: |
             sudo apt update
             sudo apt-get install -y libx11-dev libxkbcommon-x11-dev libx11-xcb-dev
 
-      - name: Configuring
+      - if: matrix.os == 'ubuntu-24.04'
+        name: Configuring
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{matrix.build-variant}} -DCORE_BUILD_UNITY=OFF # TODO: Re-enable unity build.
+
+      - if: matrix.os != 'ubuntu-24.04'
+        name: Configuring
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{matrix.build-variant}} -DCORE_BUILD_UNITY=OFF # TODO: Re-enable unity build.
 
       - name: Building

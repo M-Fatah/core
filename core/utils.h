@@ -2,7 +2,7 @@
 
 #include "core/defines.h"
 
-inline static u64
+inline u64
 next_power_of_two(i32 value)
 {
 	--value;

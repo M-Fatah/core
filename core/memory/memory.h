@@ -37,35 +37,35 @@ namespace memory
 	CORE_API Allocator *
 	temp_allocator();
 
-	inline static void *
+	inline void *
 	allocate(u64 size)
 	{
 		auto allocator = heap_allocator();
 		return allocator->allocate(size);
 	}
 
-	inline static void *
+	inline void *
 	allocate(Allocator *allocator, u64 size)
 	{
 		return allocator->allocate(size);
 	}
 
 	template <typename T>
-	inline static T *
+	inline T *
 	allocate()
 	{
 		return (T *)allocate(sizeof(T));
 	}
 
 	template <typename T>
-	inline static T *
+	inline T *
 	allocate(Allocator *allocator)
 	{
 		return (T *)allocate(allocator, sizeof(T));
 	}
 
 	template <typename T, typename ...TArgs>
-	inline static T *
+	inline T *
 	allocate_and_call_constructor(TArgs &&...args)
 	{
 		T *data = allocate<T>();
@@ -74,7 +74,7 @@ namespace memory
 	}
 
 	template <typename T, typename ...TArgs>
-	inline static T *
+	inline T *
 	allocate_and_call_constructor(Allocator *allocator, TArgs &&...args)
 	{
 		T *data = allocate<T>(allocator);
@@ -82,7 +82,7 @@ namespace memory
 		return data;
 	}
 
-	inline static void *
+	inline void *
 	allocate_zeroed(u64 size)
 	{
 		void *data = allocate(size);
@@ -90,7 +90,7 @@ namespace memory
 		return data;
 	}
 
-	inline static void *
+	inline void *
 	allocate_zeroed(Allocator *allocator, u64 size)
 	{
 		void *data = allocate(allocator, size);
@@ -99,34 +99,34 @@ namespace memory
 	}
 
 	template <typename T>
-	inline static T *
+	inline T *
 	allocate_zeroed()
 	{
 		return (T *)allocate_zeroed(sizeof(T));
 	}
 
 	template <typename T>
-	inline static T *
+	inline T *
 	allocate_zeroed(Allocator *allocator)
 	{
 		return (T *)allocate_zeroed(allocator, sizeof(T));
 	}
 
-	inline static void
+	inline void
 	deallocate(void *data)
 	{
 		auto allocator = heap_allocator();
 		allocator->deallocate(data);
 	}
 
-	inline static void
+	inline void
 	deallocate(Allocator *allocator, void *data)
 	{
 		allocator->deallocate(data);
 	}
 
 	template <typename T>
-	inline static void
+	inline void
 	deallocate_and_call_destructor(T *data)
 	{
 		data->~T();
@@ -134,7 +134,7 @@ namespace memory
 	}
 
 	template <typename T>
-	inline static void
+	inline void
 	deallocate_and_call_destructor(Allocator *allocator, T *data)
 	{
 		data->~T();

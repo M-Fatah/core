@@ -2,6 +2,7 @@
 
 #include "core/platform/platform.h"
 
+#include <stdlib.h>
 #include <cerrno>
 
 struct JSON_Parser
