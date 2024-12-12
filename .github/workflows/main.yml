@@ -35,6 +35,7 @@ jobs:
         run: |
             sudo apt-get autoremove g++
             sudo apt-get autoremove gcc
+            sudo apt-get autoremove clang
             sudo apt install gcc-14 g++-14
       - if: matrix.os == 'ubuntu-24.04'
         name: Setup Ninja
