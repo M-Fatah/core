@@ -1,7 +1,5 @@
 module;
 
-#pragma once
-
 #include "core/export.h"
 #include "core/defines.h"
 #include "core/export.h"
