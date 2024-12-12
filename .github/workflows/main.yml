@@ -33,16 +33,11 @@ jobs:
       - if: matrix.os == 'ubuntu-24.04'
         name: Installing GCC
         run: |
-            sudo update-alternatives --remove-all gcc
             sudo update-alternatives --remove-all g++
             sudo apt-get install gcc-14.2.0 g++-14.2.0
-            sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14.2.0 20
             sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14.2.0 20
-            sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc 30
-            sudo update-alternatives --set cc /usr/bin/gcc
             sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++ 30
             sudo update-alternatives --set c++ /usr/bin/g++
-            sudo update-alternatives --config gcc
             sudo update-alternatives --config g++
       - if: matrix.os == 'ubuntu-24.04'
         name: Setup Ninja
