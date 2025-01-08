@@ -6,7 +6,7 @@
 
 namespace memory
 {
-	static constexpr const u64 ARENA_ALLOCATOR_INITIAL_CAPACITY = 4 * 1024 * 1024ULL;
+	inline static constexpr const u64 ARENA_ALLOCATOR_INITIAL_CAPACITY = 4 * 1024 * 1024ULL;
 
 	struct Arena_Allocator : Allocator
 	{

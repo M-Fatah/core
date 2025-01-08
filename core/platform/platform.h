@@ -211,19 +211,32 @@ platform_api_deinit(Platform_Api *self);
 CORE_API void *
 platform_api_load(Platform_Api *self);
 
-
-CORE_API Platform_Allocator
-platform_allocator_init(u64 size_in_bytes);
-
-CORE_API void
-platform_allocator_deinit(Platform_Allocator *self);
-
 CORE_API Platform_Memory
-platform_allocator_alloc(Platform_Allocator *self, u64 size_in_bytes);
+platform_virtual_memory_reserve(void *address, u64 size);
 
 CORE_API void
-platform_allocator_clear(Platform_Allocator *self);
+platform_virtual_memory_commit(Platform_Memory memory);
 
+CORE_API void
+platform_virtual_memory_decommit(Platform_Memory memory);
+
+CORE_API void
+platform_virtual_memory_release(Platform_Memory memory);
+
+// TODO: Deprecate.
+// {
+	CORE_API Platform_Allocator
+	platform_allocator_init(u64 size_in_bytes);
+
+	CORE_API void
+	platform_allocator_deinit(Platform_Allocator *self);
+
+	CORE_API Platform_Memory
+	platform_allocator_alloc(Platform_Allocator *self, u64 size_in_bytes);
+
+	CORE_API void
+	platform_allocator_clear(Platform_Allocator *self);
+// }
 
 CORE_API Platform_Thread *
 platform_thread_init();
