@@ -236,6 +236,33 @@ platform_api_load(Platform_Api *self)
 	return self->api;
 }
 
+Platform_Memory
+platform_virtual_memory_init(void *address, u64 size)
+{
+	void *memory = ::mmap(address, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	return Platform_Memory {
+		.ptr = (u8 *)memory,
+		.size = memory ? size : 0
+	};
+}
+
+void
+platform_virtual_memory_commit(Platform_Memory memory)
+{
+	validate(::mprotect(memory.ptr, memory.size, PROT_READ | PROT_WRITE) != 0);
+}
+
+void
+platform_virtual_memory_decommit(Platform_Memory memory)
+{
+	validate(::mprotect(memory.ptr, memory.size, PROT_NONE) != 0);
+}
+
+void
+platform_virtual_memory_release(Platform_Memory memory)
+{
+	::munmap(memory.ptr, memory.size);
+}
 
 Platform_Allocator
 platform_allocator_init(u64 size_in_bytes)

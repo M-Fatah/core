@@ -250,12 +250,39 @@ platform_api_load(Platform_Api *self)
 	return self->api;
 }
 
+Platform_Memory
+platform_virtual_memory_init(void *address, u64 size)
+{
+	void *memory = ::VirtualAlloc(address, size, MEM_RESERVE, PAGE_READWRITE);
+	return Platform_Memory {
+		.ptr = (u8 *)memory,
+		.size = memory ? size : 0
+	};
+}
+
+void
+platform_virtual_memory_commit(Platform_Memory memory)
+{
+	::VirtualAlloc(memory.ptr, memory.size, MEM_COMMIT, PAGE_READWRITE);
+}
+
+void
+platform_virtual_memory_decommit(Platform_Memory memory)
+{
+	validate(::VirtualFree(memory.ptr, memory.size, MEM_DECOMMIT));
+}
+
+void
+platform_virtual_memory_release(Platform_Memory memory)
+{
+	validate(::VirtualFree(memory.ptr, 0, MEM_RELEASE));
+}
 
 Platform_Allocator
 platform_allocator_init(u64 size_in_bytes)
 {
 	Platform_Allocator self = {};
-	self.ptr = (u8 *)VirtualAlloc(0, size_in_bytes, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+	self.ptr = (u8 *)::VirtualAlloc(0, size_in_bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (self.ptr)
 		self.size = size_in_bytes;
 	return self;
@@ -264,8 +291,8 @@ platform_allocator_init(u64 size_in_bytes)
 void
 platform_allocator_deinit(Platform_Allocator *self)
 {
-	[[maybe_unused]] bool result = VirtualFree(self->ptr, 0, MEM_RELEASE);
-	validate(result, "[PLATFORM]: Failed to free virtual memory.");
+	[[maybe_unused]] bool result = ::VirtualFree(self->ptr, 0, MEM_RELEASE);
+	validate(result, "[PLATFORM][WINDOWS]: Failed to free virtual memory.");
 }
 
 Platform_Memory
