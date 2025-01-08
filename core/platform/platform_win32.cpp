@@ -251,7 +251,7 @@ platform_api_load(Platform_Api *self)
 }
 
 Platform_Memory
-platform_virtual_memory_init(void *address, u64 size)
+platform_virtual_memory_reserve(void *address, u64 size)
 {
 	void *memory = ::VirtualAlloc(address, size, MEM_RESERVE, PAGE_READWRITE);
 	return Platform_Memory {
