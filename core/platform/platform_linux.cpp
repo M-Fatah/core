@@ -237,7 +237,7 @@ platform_api_load(Platform_Api *self)
 }
 
 Platform_Memory
-platform_virtual_memory_init(void *address, u64 size)
+platform_virtual_memory_reserve(void *address, u64 size)
 {
 	void *memory = ::mmap(address, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	return Platform_Memory {

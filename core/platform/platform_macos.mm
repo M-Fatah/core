@@ -449,7 +449,7 @@ platform_allocator_deinit(Platform_Allocator *self)
 }
 
 Platform_Memory
-platform_virtual_memory_init(void *address, u64 size)
+platform_virtual_memory_reserve(void *address, u64 size)
 {
 	void *memory = ::mmap(address, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	return Platform_Memory {
