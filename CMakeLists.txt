@@ -36,7 +36,7 @@ target_compile_definitions(core-options INTERFACE
 )
 target_compile_options(core-options INTERFACE
     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>: -Werror -Wall -Wno-c++2b-extensions -Wno-enum-constexpr-conversion -Wno-c++11-narrowing -Wno-deprecated-declarations -Wno-invalid-offsetof>
-    $<$<CXX_COMPILER_ID:GNU>: -Wall -Wextra>
+    $<$<CXX_COMPILER_ID:GNU>: -Werror -Wall -Wextra -std=c++2b -Wno-invalid-offsetof>
     $<$<CXX_COMPILER_ID:MSVC>: /WX /W4>
 )
 
