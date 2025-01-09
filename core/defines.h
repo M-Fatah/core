@@ -116,7 +116,7 @@ clone(const T &, memory::Allocator *)
 }
 
 template <typename T>
-inline static constexpr void
+inline static void
 destroy(T &)
 {
 	static_assert(sizeof(T) == 0, "There is no `void destroy(T &)` function overload defined for this type.");
@@ -130,7 +130,7 @@ count_of(const T (&)[N])
 }
 
 template <typename ...TArgs>
-inline static constexpr void
+inline static void
 unused(const TArgs &...)
 {
 

@@ -19,8 +19,9 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 
-# Global compile definitions.
-set(GLOBAL_COMPILE_DEFINITIONS
+add_library(core-options INTERFACE)
+target_compile_features(core-options INTERFACE cxx_std_20)
+target_compile_definitions(core-options INTERFACE
     $<$<CONFIG:DEBUG>:DEBUG=1>
     $<$<CONFIG:RELWITHDEBINFO>:DEBUG=1>
     $<$<CONFIG:RELEASE>:RELEASE=1>
@@ -33,15 +34,11 @@ set(GLOBAL_COMPILE_DEFINITIONS
     $<$<PLATFORM_ID:Linux>:PLATFORM_LINUX=1>
     $<$<PLATFORM_ID:Darwin>:PLATFORM_MACOS=1>
 )
-
-# Global compile options.
-if(MSVC)
-    set(GLOBAL_COMPILE_OPTIONS -W4 -WX -std:c++20 -Zc:preprocessor -wd5105)
-else()
-    # TODO: -Wno-deprecated-declarations is due to doctest.h sprintf() function.
-    set(GLOBAL_COMPILE_OPTIONS -Wall -Wextra -pedantic -Werror -std=c++2b -fno-exceptions -Wno-invalid-offsetof -Wno-nested-anon-types -Wno-c++11-narrowing -Wno-gnu-zero-variadic-macro-arguments -Wno-deprecated-declarations -Wno-enum-constexpr-conversion -Wno-unknown-warning-option
-    )
-endif()
+target_compile_options(core-options INTERFACE
+    $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>: -Werror -Wall -Wno-c++2b-extensions -Wno-enum-constexpr-conversion -Wno-c++11-narrowing -Wno-deprecated-declarations -Wno-invalid-offsetof>
+    $<$<CXX_COMPILER_ID:GNU>: -Wall -Wextra>
+    $<$<CXX_COMPILER_ID:MSVC>: /WX /W4>
+)
 
 add_subdirectory(core)
 add_subdirectory(test)
