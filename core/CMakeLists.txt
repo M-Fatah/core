@@ -39,6 +39,7 @@ set(SOURCE_FILES
 )
 
 set(LIBS
+    core-options
 )
 
 if(WIN32)

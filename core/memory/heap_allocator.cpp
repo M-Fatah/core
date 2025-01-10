@@ -3,6 +3,7 @@
 #include "core/log.h"
 #include "core/platform/platform.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
 #if DEBUG

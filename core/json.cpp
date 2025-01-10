@@ -2,7 +2,8 @@
 
 #include "core/platform/platform.h"
 
-#include <cerrno>
+#include <errno.h>
+#include <stdlib.h>
 
 struct JSON_Parser
 {

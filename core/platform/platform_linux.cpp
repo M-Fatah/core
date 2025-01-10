@@ -4,6 +4,7 @@
 #include "core/defer.h"
 #include "core/memory/memory.h"
 
+#include <stdio.h>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <limits.h>
