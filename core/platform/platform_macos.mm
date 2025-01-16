@@ -894,7 +894,7 @@ platform_query_microseconds()
 	struct timespec time;
 	[[maybe_unused]] i32 result = clock_gettime(CLOCK_MONOTONIC, &time);
 	validate(result == 0, "[PLATFORM]: Failed to query clock.");
-	return time.tv_sec * 1000000.0f + time.tv_nsec * 0.001f;
+	return time.tv_sec * 1000000 + time.tv_nsec * 0.001;
 }
 
 void
