@@ -220,6 +220,14 @@ TEST_CASE("[CORE]: Formatter")
 	const char *fmt_string = "{}/{}";
 	buffer = format(fmt_string, "A", "B");
 	CHECK(string_literal(buffer) == "A/B");
+
+	const char *fmt_null_c_string = nullptr;
+	buffer = format(fmt_string, fmt_null_c_string);
+	CHECK(string_literal(buffer) == "");
+
+	String fmt_null_string = {};
+	buffer = format(fmt_string, fmt_null_string);
+	CHECK(string_literal(buffer) == "");
 }
 
 TEST_CASE("[CORE]: JSON")

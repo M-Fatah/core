@@ -147,6 +147,9 @@ formatter()
 bool
 formatter_parse_begin(Formatter *self, const char *fmt, u64 arg_count)
 {
+	if (fmt == nullptr)
+		return false;
+
 	// Start of a new formatting.
 	if (self->current_processing_depth_index == 0)
 		_formatter_clear(self);
