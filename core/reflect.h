@@ -48,7 +48,7 @@
 
 inline static constexpr const u64 REFLECT_MAX_NAME_LENGTH      = 128;
 inline static constexpr const i32 REFLECT_MIN_ENUM_VALUE       = -32;
-inline static constexpr const i32 REFLECT_MAX_ENUM_VALUE       =  32;
+inline static constexpr const i32 REFLECT_MAX_ENUM_VALUE       =  64;
 inline static constexpr const i32 REFLECT_MAX_ENUM_VALUE_COUNT = REFLECT_MAX_ENUM_VALUE - REFLECT_MIN_ENUM_VALUE;
 
 enum TYPE_KIND
