@@ -779,5 +779,6 @@ hash(const String &self)
 inline static void
 format(Formatter *formatter, const String &self)
 {
-	format(formatter, self.data);
+	for (char c : self)
+		format(formatter, c);
 }
