@@ -764,7 +764,7 @@ platform_file_read(const String &file_path, memory::Allocator *allocator)
 {
 	String content = string_init(allocator);
 
-	i32 file_handle = ::open(filepath, O_RDONLY, S_IRWXU);
+	i32 file_handle = ::open(file_path.data, O_RDONLY, S_IRWXU);
 	if (file_handle == -1)
 		return content;
 
