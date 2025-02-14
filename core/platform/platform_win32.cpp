@@ -544,7 +544,7 @@ u64
 platform_file_size(const char *filepath)
 {
 	WIN32_FILE_ATTRIBUTE_DATA data = {};
-	if (GetFileAttributesExA(filepath, GetFileExInfoStandard, &data) == false)
+	if (::GetFileAttributesExA(filepath, GetFileExInfoStandard, &data) == false)
 		return 0;
 
 	LARGE_INTEGER size;
@@ -566,6 +566,32 @@ platform_file_read(const char *filepath, Platform_Memory mem)
 	CloseHandle(file_handle);
 
 	return (u64)bytes_read;
+}
+
+String
+platform_file_read(const String &file_path, memory::Allocator *allocator)
+{
+	String content = string_init(allocator);
+
+	HANDLE file_handle = ::CreateFileA(file_path.data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	if (file_handle == INVALID_HANDLE_VALUE)
+		return content;
+
+	u64 file_size = platform_file_size(file_path.data);
+	if (file_size == 0)
+		return content;
+
+	string_resize(content, file_size);
+
+	DWORD bytes_read = 0;
+	::ReadFile(file_handle, content.data, (u32)content.count, &bytes_read, 0);
+	::CloseHandle(file_handle);
+
+	validate(content.count == bytes_read);
+
+	string_append(content, '\0');
+
+	return content;
 }
 
 u64

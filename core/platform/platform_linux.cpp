@@ -648,6 +648,33 @@ platform_file_size(const char *filepath)
 	return 0;
 }
 
+String
+platform_file_read(const String &file_path, memory::Allocator *allocator)
+{
+	String content = string_init(allocator);
+
+	i32 file_handle = ::open(file_path.data, O_RDONLY, S_IRWXU);
+	if (file_handle == -1)
+		return content;
+
+	u64 file_size = platform_file_size(file_path.data);
+	if (file_size == 0)
+		return content;
+
+	string_resize(content, file_size);
+
+	i64 bytes_read = ::read(file_handle, content.data, content.count);
+	validate(::close(file_handle), "[PLATFORM]: Failed to close file handle.");
+	if (bytes_read == -1)
+		return content;
+
+	validate((i64)content.count == bytes_read);
+
+	string_append(content, '\0');
+
+	return content;
+}
+
 u64
 platform_file_read(const char *filepath, Platform_Memory mem)
 {
