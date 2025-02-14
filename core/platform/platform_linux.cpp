@@ -668,6 +668,8 @@ platform_file_read(const String &file_path, memory::Allocator *allocator)
 	if (bytes_read == -1)
 		return content;
 
+	validate((i64)content.count == bytes_read);
+
 	string_append(content, '\0');
 
 	return content;
