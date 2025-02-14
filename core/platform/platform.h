@@ -2,6 +2,17 @@
 
 #include "core/export.h"
 #include "core/defines.h"
+#include "core/memory/memory.h"
+#include "core/containers/string.h"
+
+CORE_API String
+platform_file_read(const String &file_path, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_file_read(const char *file_path, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_file_read(string_literal(file_path), allocator);
+}
 
 #ifdef __cplusplus
 extern "C" {
