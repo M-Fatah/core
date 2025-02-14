@@ -775,11 +775,9 @@ platform_file_read(const String &file_path, memory::Allocator *allocator)
 	string_resize(content, file_size);
 
 	i64 bytes_read = ::read(file_handle, content.data, content.count);
-	validate(::close(file_handle), "[PLATFORM]: Failed to close file handle.");
+	validate(::close(file_handle) == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_read == -1)
 		return content;
-
-	string_append(content, '\0');
 
 	return content;
 }

@@ -585,11 +585,9 @@ platform_file_read(const String &file_path, memory::Allocator *allocator)
 
 	DWORD bytes_read = 0;
 	::ReadFile(file_handle, content.data, (u32)content.count, &bytes_read, 0);
-	::CloseHandle(file_handle);
+	validate(::CloseHandle(file_handle), "[PLATFORM][WINDOWS]: Failed to close file handle.");
 
 	validate(content.count == bytes_read);
-
-	string_append(content, '\0');
 
 	return content;
 }
