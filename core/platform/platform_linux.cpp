@@ -241,7 +241,7 @@ platform_path_get_file_name(const String &path, memory::Allocator *allocator)
 	return string_copy(array_last(splits), allocator);
 }
 
-u64
+String
 platform_path_read_file(const String &path, memory::Allocator *allocator)
 {
 	String content = string_init(allocator);
