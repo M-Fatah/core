@@ -147,6 +147,140 @@ _platform_key_from_key_sym(KeySym key)
 	return PLATFORM_KEY_COUNT;
 }
 
+// API.
+// C++.
+bool
+platform_path_is_valid(const String &path)
+{
+	struct stat path_stat = {};
+	return ::stat(path.data, &path_stat) == 0;
+}
+
+bool
+platform_path_is_file(const String &path)
+{
+	struct stat path_stat = {};
+	return ::stat(path.data, &path_stat) == 0 && S_ISREG(path_stat.st_mode);
+}
+
+bool
+platform_path_is_directory(const String &path)
+{
+	struct stat path_stat = {};
+	return ::stat(path.data, &path_stat) == 0 && S_ISDIR(path_stat.st_mode);
+}
+
+String
+platform_path_get_absolute(const String &path, memory::Allocator *allocator)
+{
+	char buffer[PATH_MAX] = {};
+	if(::realpath(path.data, buffer))
+		return string_from(buffer, allocator);
+
+	String full_path = platform_path_get_current_working_directory(allocator);
+	string_append(full_path, "/{}", path);
+	return full_path;
+}
+
+String
+platform_path_get_directory(const String &path, memory::Allocator *allocator)
+{
+	if (!platform_path_is_valid(path))
+		return string_literal("");
+
+	String path_directory = string_copy(path, allocator);
+	string_replace(path_directory, '\\', '/');
+
+	if (platform_path_is_directory(path))
+		return path_directory;
+
+	u64 path_directory_length = string_find_last_of(path_directory, '/');
+	if (path_directory_length != u64(-1))
+		string_resize(path_directory, path_directory_length);
+	return path_directory;
+}
+
+String
+platform_path_get_current_working_directory(memory::Allocator *allocator)
+{
+	char buffer[PATH_MAX] = {};
+	validate(::getcwd(buffer, PATH_MAX));
+	return string_from(buffer, allocator);
+}
+
+void
+platform_path_set_current_working_directory(const String &path)
+{
+	validate(::chdir(path.data) == 0);
+}
+
+String
+platform_path_get_executable_path(memory::Allocator *allocator)
+{
+	char module_path_relative[PATH_MAX + 1];
+	::memset(module_path_relative, 0, sizeof(module_path_relative));
+
+	char module_path_absolute[PATH_MAX + 1];
+	::memset(module_path_absolute, 0, sizeof(module_path_absolute));
+
+	i64 module_path_relative_length = ::readlink("/proc/self/exe", module_path_relative, sizeof(module_path_relative));
+	validate(module_path_relative_length != -1 && module_path_relative_length < (i64)sizeof(module_path_relative), "[PLATFORM]: Failed to get relative path of the current executable.");
+
+	char *path_absolute = ::realpath(module_path_relative, module_path_absolute);
+	validate(path_absolute == module_path_absolute, "[PLATFORM]: Failed to get absolute path of the current executable.");
+
+	return string_from(path_absolute, allocator);
+}
+
+String
+platform_path_get_file_name(const String &path, memory::Allocator *allocator)
+{
+	String path_temp = string_copy(path, memory::temp_allocator());
+	string_replace(path_temp, "\\", "/");
+	Array<String> splits = string_split(path_temp, "/", true, memory::temp_allocator());
+	return string_copy(array_last(splits), allocator);
+}
+
+String
+platform_path_read_file(const String &path, memory::Allocator *allocator)
+{
+	String content = string_init(allocator);
+
+	i32 file_handle = ::open(path.data, O_RDONLY, S_IRWXU);
+	if (file_handle == -1)
+		return content;
+
+	u64 file_size = platform_file_size(path.data);
+	if (file_size == 0)
+		return content;
+
+	string_resize(content, file_size);
+
+	i64 bytes_read = ::read(file_handle, content.data, content.count);
+	validate(::close(file_handle) == 0, "[PLATFORM]: Failed to close file handle.");
+	if (bytes_read == -1)
+		return content;
+
+	validate((i64)content.count == bytes_read);
+
+	return content;
+}
+
+u64
+platform_path_write_file(const String &path, Block block)
+{
+	i32 file_handle = ::open(path.data, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
+	if (file_handle == -1)
+		return 0;
+
+	i64 bytes_written = ::write(file_handle, block.data, block.size);
+	validate(::close(file_handle) == 0, "[PLATFORM]: Failed to close file handle.");
+	if (bytes_written == -1)
+		return 0;
+	return bytes_written;
+}
+
+// C.
 Platform_Api
 platform_api_init(const char *filepath)
 {

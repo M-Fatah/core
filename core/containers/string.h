@@ -32,6 +32,10 @@ string_from(const char *c_string, memory::Allocator *allocator = memory::heap_al
 {
 	auto length_of = [](const char *string) -> u64 {
 		u64 count = 0;
+
+		if (string == nullptr)
+			return count;
+
 		const char *ptr = string;
 		while (*ptr++) ++count;
 		return count;
@@ -80,6 +84,10 @@ string_literal(const char *c_string)
 {
 	auto length_of = [](const char *string) -> u64 {
 		u64 count = 0;
+
+		if (string == nullptr)
+			return count;
+
 		const char *ptr = string;
 		while (*ptr++) ++count;
 		return count;

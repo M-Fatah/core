@@ -166,7 +166,141 @@ _window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 	return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 
-// API
+// API.
+
+// C++.
+bool
+platform_path_is_valid(const String &path)
+{
+	DWORD attributes = ::GetFileAttributes(path.data);
+	return attributes != INVALID_FILE_ATTRIBUTES;
+}
+
+bool
+platform_path_is_file(const String &path)
+{
+	DWORD attributes = ::GetFileAttributes(path.data);
+	return (attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY));
+}
+
+bool
+platform_path_is_directory(const String &path)
+{
+	DWORD attributes = ::GetFileAttributes(path.data);
+	return (attributes != INVALID_FILE_ATTRIBUTES && attributes & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+String
+platform_path_get_absolute(const String &path, memory::Allocator *allocator)
+{
+	DWORD full_path_length = ::GetFullPathName(path.data, 0, nullptr, nullptr);
+
+	String full_path = string_init(allocator);
+	string_resize(full_path, full_path_length);
+
+	validate(::GetFullPathName(path.data, full_path_length, full_path.data, nullptr));
+
+	string_replace(full_path, '\\', '/');
+
+	return full_path;
+}
+
+String
+platform_path_get_directory(const String &path, memory::Allocator *allocator)
+{
+	if (!platform_path_is_valid(path))
+		return string_literal("");
+
+	String path_directory = string_copy(path, allocator);
+	string_replace(path_directory, '\\', '/');
+
+	if (platform_path_is_directory(path))
+		return path_directory;
+
+	u64 path_directory_length = string_find_last_of(path_directory, '/');
+	if (path_directory_length != u64(-1))
+		string_resize(path_directory, path_directory_length);
+	return path_directory;
+}
+
+String
+platform_path_get_current_working_directory(memory::Allocator *allocator)
+{
+	DWORD path_directory_length = ::GetCurrentDirectory(0, nullptr);
+
+	String path_directory = string_init(allocator);
+	string_resize(path_directory, path_directory_length);
+	validate(::GetCurrentDirectory(path_directory_length, path_directory.data));
+	string_replace(path_directory, '\\', '/');
+	return path_directory;
+}
+
+void
+platform_path_set_current_working_directory(const String &path)
+{
+	String path_temp = string_copy(path, memory::temp_allocator());
+	string_replace(path_temp, '\\', '/');
+	validate(::SetCurrentDirectory(path_temp.data));
+}
+
+String
+platform_path_get_executable_path(memory::Allocator *allocator)
+{
+	String path_executable_temp = string_with_capacity(4096, memory::temp_allocator());
+	u64 path_executable_length = ::GetModuleFileName(0, path_executable_temp.data, (DWORD)path_executable_temp.count);
+	string_resize(path_executable_temp, path_executable_length);
+	string_replace(path_executable_temp, '\\', '/');
+	return string_copy(path_executable_temp, allocator);
+}
+
+String
+platform_path_get_file_name(const String &path, memory::Allocator *allocator)
+{
+	String path_temp = string_copy(path, memory::temp_allocator());
+	string_replace(path_temp, "\\", "/");
+	Array<String> splits = string_split(path_temp, "/", true, memory::temp_allocator());
+	return string_copy(array_last(splits), allocator);
+}
+
+String
+platform_path_read_file(const String &path, memory::Allocator *allocator)
+{
+	String content = string_init(allocator);
+
+	HANDLE file_handle = ::CreateFileA(path.data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	if (file_handle == INVALID_HANDLE_VALUE)
+		return content;
+
+	u64 file_size = platform_file_size(path.data);
+	if (file_size == 0)
+		return content;
+
+	string_resize(content, file_size);
+
+	DWORD bytes_read = 0;
+	::ReadFile(file_handle, content.data, (u32)content.count, &bytes_read, 0);
+	validate(::CloseHandle(file_handle), "[PLATFORM][WINDOWS]: Failed to close file handle.");
+	validate(content.count == bytes_read);
+
+	return content;
+}
+
+u64
+platform_path_write_file(const String &path, Block block)
+{
+	HANDLE file_handle = ::CreateFileA(path.data, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+	if (file_handle == INVALID_HANDLE_VALUE)
+		return 0;
+
+	DWORD bytes_written = 0;
+	::WriteFile(file_handle, block.data, (DWORD)block.size, &bytes_written, 0);
+	validate(::CloseHandle(file_handle));
+	validate(bytes_written == block.size);
+
+	return (u64)bytes_written;
+}
+
+// C.
 Platform_Api
 platform_api_init(const char *filepath)
 {
