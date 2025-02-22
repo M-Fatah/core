@@ -269,7 +269,7 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 u64
 platform_path_write_file(const String &path, Block block)
 {
-	i32 file_handle = ::open(path, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
+	i32 file_handle = ::open(path.data, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
 	if (file_handle == -1)
 		return 0;
 
