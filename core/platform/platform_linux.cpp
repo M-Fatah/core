@@ -153,7 +153,7 @@ bool
 platform_path_is_valid(const String &path)
 {
 	struct stat path_stat = {};
-	return ::stat(path, &path_stat) == 0;
+	return ::stat(path.data, &path_stat) == 0;
 }
 
 bool
@@ -178,7 +178,7 @@ platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 		return string_from(buffer, allocator);
 
 	String full_path = platform_path_get_current_working_directory(allocator);
-	string_append(full_path, '/{}', path);
+	string_append(full_path, "/{}", path);
 	return full_path;
 }
 
@@ -246,11 +246,11 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 {
 	String content = string_init(allocator);
 
-	i32 file_handle = ::open(file_path.data, O_RDONLY, S_IRWXU);
+	i32 file_handle = ::open(path.data, O_RDONLY, S_IRWXU);
 	if (file_handle == -1)
 		return content;
 
-	u64 file_size = platform_file_size(file_path.data);
+	u64 file_size = platform_file_size(path.data);
 	if (file_size == 0)
 		return content;
 
@@ -269,7 +269,7 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 u64
 platform_path_write_file(const String &path, Block block)
 {
-	i32 file_handle = ::open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
+	i32 file_handle = ::open(path, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
 	if (file_handle == -1)
 		return 0;
 
