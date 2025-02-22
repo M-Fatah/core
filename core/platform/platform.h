@@ -14,6 +14,100 @@ platform_file_read(const char *file_path, memory::Allocator *allocator = memory:
 	return platform_file_read(string_literal(file_path), allocator);
 }
 
+CORE_API bool
+platform_path_is_valid(const String &path);
+
+inline static bool
+platform_path_is_valid(const char *path)
+{
+	return platform_path_is_valid(string_literal(path));
+}
+
+CORE_API bool
+platform_path_is_file(const String &path);
+
+inline static bool
+platform_path_is_file(const char *path)
+{
+	return platform_path_is_file(string_literal(path));
+}
+
+CORE_API bool
+platform_path_is_directory(const String &path);
+
+inline static bool
+platform_path_is_directory(const char *path)
+{
+	return platform_path_is_directory(string_literal(path));
+}
+
+// TODO: Rename to get_full_path?
+CORE_API String
+platform_path_get_absolute(const String &path, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_path_get_absolute(const char *path, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_get_absolute(string_literal(path), allocator);
+}
+
+CORE_API String
+platform_path_get_directory(const String &path, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_path_get_directory(const char *path, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_get_directory(string_literal(path), allocator);
+}
+
+CORE_API String
+platform_path_get_current_working_directory(memory::Allocator *allocator = memory::heap_allocator());
+
+CORE_API void
+platform_path_set_current_working_directory(const String &path);
+
+inline static void
+platform_path_set_current_working_directory(const char *path)
+{
+	platform_path_set_current_working_directory(string_literal(path));
+}
+
+CORE_API String
+platform_path_get_executable_path(memory::Allocator *allocator = memory::heap_allocator());
+
+CORE_API String
+platform_path_get_file_name(const String &path, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_path_get_file_name(const char *path, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_get_file_name(string_literal(path), allocator);
+}
+
+CORE_API String
+platform_path_read_file(const String &path, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_path_read_file(const char *path, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_read_file(string_literal(path), allocator);
+}
+
+CORE_API u64
+platform_path_write_file(const String &path, Block block);
+
+inline static u64
+platform_path_write_file(const char *path, const String &content)
+{
+	return platform_path_write_file(string_literal(path), Block{(void *)content.data, content.count});
+}
+
+inline static u64
+platform_path_write_file(const char *path, const char *content)
+{
+	return platform_path_write_file(path, string_literal(content));
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -100,9 +100,11 @@ template <typename T>
 inline static void
 array_deinit(Array<T> &self)
 {
-	if(self.allocator)
+	if (self.capacity && self.allocator)
 		memory::deallocate(self.allocator, self.data);
-	self = {};
+	self.data = nullptr;
+	self.count = 0;
+	self.capacity = 0;
 }
 
 template <typename T>
@@ -127,7 +129,7 @@ template <typename T>
 inline static void
 array_resize(Array<T> &self, u64 new_count)
 {
-	if(new_count > self.count)
+	if (new_count > self.count)
 		array_reserve(self, new_count - self.count);
 	self.count = new_count;
 }
