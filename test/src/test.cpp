@@ -398,5 +398,7 @@ main(i32, char **)
 	Hash_Table<i32, i32> c = hash_table_from<i32, i32>({{1, 2}, {3, 4}}, memory::temp_allocator());
 	auto b16 = format2("{}", c);
 
+	unused(b1, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16);
+
 	return 0;
 }
