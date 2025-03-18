@@ -4,6 +4,7 @@ set(HEADER_FILES
     defines.h
     ecs.h
     formatter.h
+    formatter2.h
     hash.h
     json.h
     log.h
@@ -29,6 +30,7 @@ set(SOURCE_FILES
     base64.cpp
     ecs.cpp
     formatter.cpp
+    formatter2.cpp
     json.cpp
     log.cpp
     memory/memory.cpp

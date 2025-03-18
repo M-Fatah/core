@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <inttypes.h>
 
+#include <core/formatter2.h>
+
 // inline static void
 // print(Value v)
 // {
@@ -354,18 +356,10 @@ main(i32, char **)
 
 	// print(value_of(1));
 
-
-	// Platform_Window window = platform_window_init(800, 600, "Test");
-	// while (platform_window_poll(&window))
-	// {
-	// 	if (window.input.keys[PLATFORM_KEY_C].pressed)
-	// 		platform_window_close(&window);
-
-	// 	if (window.input.keys[PLATFORM_KEY_T].pressed)
-	// 		platform_window_set_title(&window, "Test with T");
-	// }
-
-	// platform_window_deinit(&window);
+	auto [b1, err1] = format2("{}{}", 1, 2);
+	auto [b2, err2] = format2("{{}}{{}}", 1, 2);
+	auto [b3, err3] = format2("{}}", 1);
+	auto [b4, err4] = format2("{{}", 1);
 
 	return 0;
 }
