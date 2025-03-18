@@ -202,6 +202,10 @@ format2(const Hash_Table<K, V> &data)
 	return buffer;
 }
 
+// TODO: Get rid of this fuckery.
+inline static String
+format2(const char *data);
+
 template <typename ...TArgs>
 inline static String
 format2(const char *fmt, TArgs &&...args)
