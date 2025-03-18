@@ -389,7 +389,14 @@ main(i32, char **)
 	vec3 v = {1, 2, 3};
 	auto b13 = format2("{}", v);
 
-	auto b14 = format2(v);
+	Array<i32> a = array_from({1, 2, 3}, memory::temp_allocator());
+	auto b14 = format2("{}", a);
+
+	String b = string_from("BB", memory::temp_allocator());
+	auto b15 = format2("{}", b);
+
+	Hash_Table<i32, i32> c = hash_table_from<i32, i32>({{1, 2}, {3, 4}}, memory::temp_allocator());
+	auto b16 = format2("{}", c);
 
 	return 0;
 }

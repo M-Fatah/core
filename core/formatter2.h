@@ -1,7 +1,9 @@
 #pragma once
 
 #include "core/result.h"
+#include "core/containers/array.h"
 #include "core/containers/string.h"
+#include "core/containers/hash_table.h"
 
 /*
 	TODO:
@@ -14,7 +16,7 @@ inline static constexpr const char *FORMAT_DIGITS_LOWERCASE = "0123456789abcdef"
 inline static constexpr const char *FORMAT_DIGITS_UPPERCASE = "0123456789ABCDEF";
 
 template <typename ...TArgs>
-inline static String
+inline static constexpr String
 format2(const char *fmt, TArgs &&...args);
 
 template <typename T>
@@ -149,8 +151,51 @@ format2(const T (&data)[N])
 	return buffer;
 }
 
-template <typename ...TArgs>
+template <typename T>
 inline static String
+format2(const Array<T> &data)
+{
+	String buffer = string_init(memory::temp_allocator());
+
+	string_append(buffer, format2("[{}] {{ ", data.count));
+	for (u64 i = 0; i < data.count; ++i)
+	{
+		if (i != 0)
+			string_append(buffer, ", ");
+		string_append(buffer, format2("{}", data[i]));
+	}
+	string_append(buffer, " }}");
+	return buffer;
+}
+
+inline static String
+format2(const String &data)
+{
+	// TODO: Loop.
+	return format2(data.data);
+}
+
+template <typename K, typename V>
+inline static String
+format2(const Hash_Table<K, V> &data)
+{
+	String buffer = string_init(memory::temp_allocator());
+
+	string_append(buffer, format2("[{}] {{ ", data.count));
+	u64 i = 0;
+	for(const auto &[key, value]: data)
+	{
+		if(i != 0)
+			string_append(buffer, ", ");
+		string_append(buffer, format2("{}: {}", key, value));
+		++i;
+	}
+	string_append(buffer, " }}");
+	return buffer;
+}
+
+template <typename ...TArgs>
+inline static constexpr String
 format2(const char *fmt, TArgs &&...args)
 {
 	// 1. Validate that the format string is correct, and loop over all the replacement fields and match them against the arguments.
