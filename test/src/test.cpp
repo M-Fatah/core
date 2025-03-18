@@ -337,6 +337,17 @@
 
 // TYPE_OF(P, x, y, z, w)
 
+struct vec3
+{
+	f32 x, y, z;
+};
+
+inline static String
+format2(const vec3 &data)
+{
+	return format2("{{{}, {}, {}}}", data.x, data.y, data.z);;
+}
+
 i32
 main(i32, char **)
 {
@@ -356,10 +367,29 @@ main(i32, char **)
 
 	// print(value_of(1));
 
-	auto [b1, err1] = format2("{}{}", 1, 2);
-	auto [b2, err2] = format2("{{}}{{}}", 1, 2);
-	auto [b3, err3] = format2("{}}", 1);
-	auto [b4, err4] = format2("{{}", 1);
+	auto b1 = format2("{}{}", 1, 2);
+
+	auto b5 = format2("{}", 1.5f);
+	auto b6 = format2("{}", 2.5);
+
+	i32 array[] = {1, 2, 3};
+	auto b7 = format2("{}", array);
+
+	auto b8 = format2("{}", "Hello, World!");
+
+	i32 i = 5;
+	auto b9 = format2("{}", &i);
+
+	auto b10 = format2("{}", 'A');
+	auto b11 = format2("{}", false);
+
+	char array2[] = {'A', 'B', 'C'};
+	auto b12 = format2("{}", array2);
+
+	vec3 v = {1, 2, 3};
+	auto b13 = format2("{}", v);
+
+	auto b14 = format2(v);
 
 	return 0;
 }
