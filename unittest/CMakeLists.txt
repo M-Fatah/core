@@ -16,6 +16,7 @@ set(HEADER_FILES
 set(SOURCE_FILES
     src/unittest.cpp
     src/unittest_core.cpp
+    src/unittest_format.cpp
     src/unittest_containers.cpp
     src/unittest_platform.cpp
     src/unittest_reflect.cpp

@@ -10,13 +10,15 @@
 	- [ ] Implement 100% correct floating point formatting.
 	- [ ] Support format specifiers.
 	- [ ] Compile time check string format.
+	- [ ] Add indexed replacement field specifiers support.
+	- [ ] Rename format to to_string?
 */
 
 inline static constexpr const char *FORMAT_DIGITS_LOWERCASE = "0123456789abcdef";
 inline static constexpr const char *FORMAT_DIGITS_UPPERCASE = "0123456789ABCDEF";
 
 template <typename ...TArgs>
-inline static constexpr String
+inline static String
 format2(const char *fmt, TArgs &&...args);
 
 template <typename T>
@@ -118,7 +120,7 @@ format2(char data)
 }
 
 template <typename T>
-requires (std::is_pointer_v<T> && !std::is_same_v<std::remove_cvref_t<T>, char *>)
+requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static String
 format2(const T &data)
 {
@@ -134,7 +136,11 @@ format2(const T (&data)[N])
 	if constexpr (std::is_same_v<T, char>)
 	{
 		for (u64 i = 0; i < N; ++i)
+		{
+			if (i == N - 1 && data[i] == '\0')
+				continue;
 			string_append(buffer, data[i]);
+		}
 	}
 	else
 	{
@@ -171,8 +177,10 @@ format2(const Array<T> &data)
 inline static String
 format2(const String &data)
 {
-	// TODO: Loop.
-	return format2(data.data);
+	String buffer = string_init(memory::temp_allocator());
+	for (u64 i = 0; i < data.count; ++i)
+		string_append(buffer, data[i]);
+	return buffer;
 }
 
 template <typename K, typename V>
@@ -195,7 +203,7 @@ format2(const Hash_Table<K, V> &data)
 }
 
 template <typename ...TArgs>
-inline static constexpr String
+inline static String
 format2(const char *fmt, TArgs &&...args)
 {
 	// 1. Validate that the format string is correct, and loop over all the replacement fields and match them against the arguments.
@@ -268,4 +276,72 @@ format2(const char *fmt, TArgs &&...args)
 	validate(replacement_field_count == sizeof...(args), "[FORMAT]: Replacement field count does not match argument count.");
 
 	return buffer;
+}
+
+// TODO: Find a way to get rid of this.
+inline static String
+format2_(const char *fmt)
+{
+	String fmt_string = string_literal(fmt);
+	if (string_is_empty(fmt_string))
+		return string_literal("");
+
+	String buffer = string_init(memory::temp_allocator());
+
+	u64 replacement_field_count = 0;
+	for (u64 i = 0; i < fmt_string.count; ++i)
+	{
+		if (fmt_string[i] == '{')
+		{
+			if (i + 1 < fmt_string.count)
+			{
+				switch (fmt_string[i + 1])
+				{
+					case '{':
+					{
+						string_append(buffer, '{');
+						++i;
+						break;
+					}
+					case '}':
+					{
+						++i;
+						++replacement_field_count;
+						break;
+					}
+				}
+			}
+			else
+			{
+				validate(false, "[FORMAT]: '{' must have a matching '{' or '}'.");
+			}
+		}
+		else if (fmt_string[i] == '}')
+		{
+			if (i + 1 < fmt_string.count && fmt_string[i + 1] == '}')
+			{
+				string_append(buffer, '}');
+				++i;
+			}
+			else
+			{
+				validate(false, "[FORMAT]: '}' must have a matching '}'.");
+			}
+		}
+		else
+		{
+			string_append(buffer, fmt_string[i]);
+		}
+	}
+
+	validate(replacement_field_count == 0, "[FORMAT]: Replacement field count does not match argument count.");
+
+	return buffer;
+}
+
+
+inline static String
+format2(const char *data)
+{
+	return format2_(data);
 }
