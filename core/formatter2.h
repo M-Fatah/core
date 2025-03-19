@@ -258,32 +258,34 @@ format2(const char *fmt, TArgs &&...args)
 					}
 					case '}':
 					{
-						++i;
-
-						i32 index = 0;
-						([&]<typename T>(const T &arg)
+						if constexpr (sizeof...(args) > 0)
 						{
-							if (index == replacement_field_count)
+							i32 index = 0;
+							([&]<typename T>(const T &arg)
 							{
-								++format_depth;
-								if constexpr (is_char_array<T>)
+								if (index == replacement_field_count)
 								{
-									for (u64 i = 0; i < count_of(arg); ++i)
+									++format_depth;
+									if constexpr (is_char_array<T>)
 									{
-										if (i == count_of(arg) - 1 && arg[i] == '\0')
-											break;
-										string_append(buffer, arg[i]);
+										for (u64 i = 0; i < count_of(arg); ++i)
+										{
+											if (i == count_of(arg) - 1 && arg[i] == '\0')
+												break;
+											string_append(buffer, arg[i]);
+										}
 									}
+									else
+									{
+										string_append(buffer, format2(arg));
+									}
+									--format_depth;
 								}
-								else
-								{
-									string_append(buffer, format2(arg));
-								}
-								--format_depth;
-							}
-							++index;
-						}(args), ...);
+								++index;
+							}(args), ...);
+						}
 
+						++i;
 						++replacement_field_count;
 						break;
 					}
