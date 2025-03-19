@@ -1,7 +1,6 @@
 #pragma once
 
 #include <core/defines.h>
-#include "core/result.h"
 #include "core/containers/array.h"
 #include "core/containers/string.h"
 #include "core/containers/hash_table.h"
@@ -14,10 +13,8 @@
 	- [ ] Add indexed replacement field support.
 	- [ ] Rename format to to_string?
 	- [ ] Add to_string helpers.
+	- [ ] Should we provide format helpers for all of ours types here, or provide it in their files?
 */
-
-inline static constexpr const char *FORMAT_DIGITS_LOWERCASE = "0123456789abcdef";
-inline static constexpr const char *FORMAT_DIGITS_UPPERCASE = "0123456789ABCDEF";
 
 template <typename ...TArgs>
 inline static String
@@ -28,7 +25,7 @@ requires (std::is_integral_v<T> && !std::is_floating_point_v<T>)
 inline static String
 format2(T data, u8 base = 10, bool uppercase = false)
 {
-	const char *digits = uppercase ? FORMAT_DIGITS_UPPERCASE : FORMAT_DIGITS_LOWERCASE;
+	const char *digits = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
 
 	bool is_negative = false;
 	if constexpr (std::is_signed_v<T>)
@@ -109,7 +106,7 @@ inline static String
 format2(bool data)
 {
 	String buffer = string_init(memory::temp_allocator());
-	string_append(buffer, data ? "true" : "false");
+	string_append(buffer, data ? string_literal("true") : string_literal("false")); // TODO: use c string.
 	return buffer;
 }
 
@@ -127,6 +124,23 @@ inline static String
 format2(const T &data)
 {
 	return format2((uptr)data, 16, true);
+}
+
+// TODO: Remove.
+template <typename ...TArgs>
+inline static void
+string_append(String &self, const char *fmt, const TArgs &...args)
+{
+	validate(self.allocator, "[STRING]: Cannot append to a string literal.");
+	string_append(self, format2(fmt, args...));
+}
+
+// TODO: Remove.
+template <typename ...TArgs>
+inline static String
+string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
+{
+	return string_copy(format2(fmt, args...), allocator);
 }
 
 template <typename T>
@@ -154,7 +168,7 @@ format2(const T &data)
 				string_append(buffer, ", ");
 			string_append(buffer, format2(data[i]));
 		}
-		string_append(buffer, " }}");
+		string_append(buffer, " }}"); // TODO: This is formatted.
 	}
 
 	return buffer;
@@ -173,7 +187,7 @@ format2(const Array<T> &data)
 			string_append(buffer, ", ");
 		string_append(buffer, format2("{}", data[i]));
 	}
-	string_append(buffer, " }}");
+	string_append(buffer, " }}"); // TODO: This is formatted.
 	return buffer;
 }
 
@@ -198,7 +212,7 @@ format2(const Hash_Table<K, V> &data)
 		string_append(buffer, format2("{}: {}", key, value));
 		++i;
 	}
-	string_append(buffer, " }}");
+	string_append(buffer, " }}"); // TODO: This is formatted.
 	return buffer;
 }
 

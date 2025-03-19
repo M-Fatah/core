@@ -2,7 +2,6 @@
 
 #include "core/defines.h"
 #include "core/validate.h"
-#include "core/formatter.h"
 #include "core/reflect.h"
 #include "core/memory/memory.h"
 
@@ -292,20 +291,6 @@ destroy(Array<T> &self)
 			destroy(self[i]);
 	}
 	array_deinit(self);
-}
-
-template <typename T>
-inline static void
-format(Formatter *formatter, const Array<T> &self)
-{
-	format(formatter, "[{}] {{ ", self.count);
-	for (u64 i = 0; i < self.count; ++i)
-	{
-		if (i != 0)
-			format(formatter, ", ");
-		format(formatter, "{}", self[i]);
-	}
-	format(formatter, " }}");
 }
 
 template <typename T>

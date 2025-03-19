@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/defines.h"
-#include "core/formatter.h"
+#include "core/format.h"
 #include "core/containers/string.h"
 
 struct Error
@@ -111,8 +111,8 @@ struct Result
 	Result & operator=(Result &&)      = default;
 };
 
-inline static void
-format(Formatter *formatter, const Error &self)
+inline static String
+format2(const Error &self)
 {
-	format(formatter, self.message);
+	return format2(self.message);
 }

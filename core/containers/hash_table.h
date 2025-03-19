@@ -3,7 +3,6 @@
 #include "core/defines.h"
 #include "core/hash.h"
 #include "core/utils.h"
-#include "core/formatter.h"
 #include "core/reflect.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
@@ -321,22 +320,6 @@ destroy(Hash_Table<K, V> &self)
 		}
 	}
 	hash_table_deinit(self);
-}
-
-template <typename K, typename V>
-inline static void
-format(Formatter *formatter, const Hash_Table<K, V> &self)
-{
-	format(formatter, "[{}] {{ ", self.count);
-	u64 i = 0;
-	for(const auto &[key, value]: self)
-	{
-		if(i != 0)
-			format(formatter, ", ");
-		format(formatter, "{}: {}", key, value);
-		++i;
-	}
-	format(formatter, " }}");
 }
 
 TYPE_OF_ENUM(HASH_TABLE_SLOT_FLAGS, HASH_TABLE_SLOT_FLAGS_EMPTY, HASH_TABLE_SLOT_FLAGS_USED, HASH_TABLE_SLOT_FLAGS_DELETED)

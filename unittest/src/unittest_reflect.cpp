@@ -1,4 +1,5 @@
 #include <core/defines.h>
+#include <core/format.h>
 #include <core/reflect.h>
 #include <core/containers/array.h>
 #include <core/containers/string.h>

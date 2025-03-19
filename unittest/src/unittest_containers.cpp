@@ -1,4 +1,5 @@
 #include <core/defer.h>
+#include <core/format.h>
 #include <core/containers/array.h>
 #include <core/containers/hash_table.h>
 #include <core/containers/stack_array.h>

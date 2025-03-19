@@ -4,7 +4,6 @@
 #include "core/validate.h"
 #include "core/defer.h"
 #include "core/hash.h"
-#include "core/formatter.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
 
@@ -55,14 +54,6 @@ string_from(const char *first, const char *last, memory::Allocator *allocator = 
 		self[self.count++] = *it;
 	self.data[self.count] = '\0';
 	return self;
-}
-
-template <typename ...TArgs>
-inline static String
-string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
-{
-	auto buffer = format(fmt, args...);
-	return string_from(buffer, allocator);
 }
 
 inline static String
@@ -144,15 +135,6 @@ string_append(String &self, const String &other)
 	for (auto c : other)
 		array_push(self, c);
 	self.data[self.count] = '\0';
-}
-
-template <typename ...TArgs>
-inline static void
-string_append(String &self, const char *fmt, const TArgs &...args)
-{
-	validate(self.allocator, "[STRING]: Cannot append to a string literal.");
-	auto buffer = format(fmt, args...);
-	string_append(self, string_literal(buffer));
 }
 
 inline static char
@@ -774,11 +756,4 @@ inline static u64
 hash(const String &self)
 {
 	return hash_fnv_x32(self.data, self.count);
-}
-
-inline static void
-format(Formatter *formatter, const String &self)
-{
-	for (char c : self)
-		format(formatter, c);
 }

@@ -2,7 +2,6 @@
 #include <core/base64.h>
 #include <core/log.h>
 #include <core/result.h>
-#include <core/formatter.h>
 #include <core/memory/memory.h>
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
@@ -114,120 +113,6 @@ TEST_CASE("[CORE]: Result")
 		auto [result, error] = _result_test_with_custom_error_pseudo_disk_read(false);
 		CHECK(error == PSEUDO_DISK_READ_RESULT_CODE::NOT_OK);
 	}
-}
-
-struct vec3
-{
-	f32 x, y, z;
-};
-
-inline static const char *
-format(Formatter *self, const vec3 &value)
-{
-	return format(self, "{{{}, {}, {}}}", value.x, value.y, value.z);
-}
-
-TEST_CASE("[CORE]: Formatter")
-{
-	auto buffer = format("{}/{}/{}/{}/{}/{}", "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6});
-	CHECK(string_literal(buffer) == "Hello/A/true/1.5/3/{4, 5, 6}");
-
-	buffer = format("{}/{}", true, false);
-	CHECK(string_literal(buffer) == "true/false");
-
-	buffer = format("{}/{}", -1.5f, 1.5f);
-	CHECK(string_literal(buffer) == "-1.5/1.5");
-
-	buffer = format("{}/{}", -3, 3);
-	CHECK(string_literal(buffer) == "-3/3");
-
-	buffer = format("{}", vec3{1, 2, 3});
-	CHECK(string_literal(buffer) == "{1, 2, 3}");
-
-	buffer = format("{0}{2}{6}", "0", "{1}", "2");
-	CHECK(string_literal(buffer) == "");
-
-	buffer = format("{0}{1}{0}", "0", "1");
-	CHECK(string_literal(buffer) == "010");
-
-	buffer = format("{0}{0}{0}", "0");
-	CHECK(string_literal(buffer) == "000");
-
-	buffer = format("{0}{2}{1}", "Hello, ", "!", "World");
-	CHECK(string_literal(buffer) == "Hello, World!");
-
-	buffer = format("{0}{1}{2}", "Hello, ", "World", "!");
-	CHECK(string_literal(buffer) == "Hello, World!");
-
-	buffer = format("{0}{1}{2}", "Hello, ", "World");
-	CHECK(string_literal(buffer) == "");
-
-	const char *positional_arg_fmt = "{0}{2}{1}";
-	buffer = format(positional_arg_fmt, "Hello, ", "!", "World");
-	CHECK(string_literal(buffer) == "Hello, World!");
-
-	buffer = format("{0}{2}{1}", 0, 2, 1);
-	CHECK(string_literal(buffer) == "012");
-
-	buffer = format("{0}{1}{3}{2}", "Hello, ", 0, 2, 1);
-	CHECK(string_literal(buffer) == "Hello, 012");
-
-	buffer = format("{}", "{ \"name\": \"n\" }");
-	CHECK(string_literal(buffer) == "{ \"name\": \"n\" }");
-
-	buffer = format("{{ \"name\": \"n\" }}");
-	CHECK(string_literal(buffer) == "{ \"name\": \"n\" }");
-
-	buffer = format("{}", "{{ \"name\": \"n\" }}");
-	CHECK(string_literal(buffer) == "{{ \"name\": \"n\" }}");
-
-	i32 x = 1;
-	buffer = format("{}", &x);
-
-	char test[] = "test";
-	buffer = format("{}", test);
-	CHECK(string_literal(buffer) == "test");
-
-	vec3 array[2] = {{1, 2, 3}, {4, 5, 6}};
-	buffer = format("{}", array);
-	CHECK(string_literal(buffer) == "[2] { {1, 2, 3}, {4, 5, 6} }");
-
-	const char *array_of_strings[2] = {"Hello", "World"};
-	buffer = format("{}", array_of_strings);
-	CHECK(string_literal(buffer) == "[2] { Hello, World }");
-
-	buffer = format("{}", array_from<i32>({1, 2, 3}, memory::temp_allocator()));
-	CHECK(string_literal(buffer) == "[3] { 1, 2, 3 }");
-
-	buffer = format("{}", hash_table_from<i32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()));
-	CHECK(string_literal(buffer) == "[3] { 1: 1, 2: 2, 3: 3 }");
-
-	buffer = format("{}{}{}{}{}", 1, 2, 3);
-	CHECK(string_literal(buffer) == "");
-
-	buffer = format("{}{}{}{}{}", 1, 2, 3, "{}", 4);
-	CHECK(string_literal(buffer) == "123{}4");
-
-	buffer = format("A", "B");
-	CHECK(string_literal(buffer) == "A");
-
-	buffer = format("{}A", "B");
-	CHECK(string_literal(buffer) == "BA");
-
-	buffer = format("{}", "A", "B", "C");
-	CHECK(string_literal(buffer) == "");
-
-	const char *fmt_string = "{}/{}";
-	buffer = format(fmt_string, "A", "B");
-	CHECK(string_literal(buffer) == "A/B");
-
-	const char *fmt_null_c_string = nullptr;
-	buffer = format(fmt_string, fmt_null_c_string);
-	CHECK(string_literal(buffer) == "");
-
-	String fmt_null_string = {};
-	buffer = format(fmt_string, fmt_null_string);
-	CHECK(string_literal(buffer) == "");
 }
 
 TEST_CASE("[CORE]: JSON")
