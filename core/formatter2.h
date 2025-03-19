@@ -260,7 +260,7 @@ format2(const char *fmt, TArgs &&...args)
 					{
 						if constexpr (sizeof...(args) > 0)
 						{
-							i32 index = 0;
+							u64 index = 0;
 							([&]<typename T>(const T &arg)
 							{
 								if (index == replacement_field_count)
