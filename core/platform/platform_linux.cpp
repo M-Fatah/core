@@ -2,6 +2,7 @@
 
 #include "core/validate.h"
 #include "core/defer.h"
+#include "core/format.h"
 #include "core/memory/memory.h"
 
 #include <stdio.h>
