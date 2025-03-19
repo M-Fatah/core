@@ -129,32 +129,41 @@ format2(const T &data)
 	return format2((uptr)data, 16, true);
 }
 
-template <typename T, u64 N>
+// TODO: Move out of here.
+template <class> struct is_bounded_char_array : std::false_type {};
+template <class> struct is_unbounded_char_array : std::false_type {};
+
+template <size_t N>
+struct is_bounded_char_array<char[N]> : std::true_type {};
+
+template <>
+struct is_unbounded_char_array<char[]> : std::true_type {};
+
+template <class> struct is_bounded_array : std::false_type {};
+
+template <class T>
+concept is_char_array = is_bounded_char_array<T>::value || is_unbounded_char_array<T>::value;
+
+template <typename T>
+requires (std::is_array_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static String
-format2(const T (&data)[N])
+format2(const T &data)
 {
 	String buffer = string_init(memory::temp_allocator());
 
-	if constexpr (std::is_same_v<T, char>)
+	if constexpr (is_char_array<T>)
 	{
-		if (format_depth == 0)
+		for (u64 i = 0; i < count_of(data); ++i)
 		{
-			string_append(buffer, format2((const char *)data));
-		}
-		else
-		{
-			for (u64 i = 0; i < N; ++i)
-			{
-				if (i == N - 1 && data[i] == '\0')
-					break;
-				string_append(buffer, data[i]);
-			}
+			if (i == count_of(data) - 1 && data[i] == '\0')
+				break;
+			string_append(buffer, data[i]);
 		}
 	}
 	else
 	{
-		string_append(buffer, format2("[{}] {{ ", N));
-		for (u64 i = 0; i < N; ++i)
+		string_append(buffer, format2("[{}] {{ ", count_of(data)));
+		for (u64 i = 0; i < count_of(data); ++i)
 		{
 			if (i != 0)
 				string_append(buffer, ", ");
@@ -207,9 +216,9 @@ format2(const Hash_Table<K, V> &data)
 
 	string_append(buffer, format2("[{}] {{ ", data.count));
 	u64 i = 0;
-	for(const auto &[key, value]: data)
+	for (const auto &[key, value] : data)
 	{
-		if(i != 0)
+		if (i != 0)
 			string_append(buffer, ", ");
 		string_append(buffer, format2("{}: {}", key, value));
 		++i;
@@ -257,7 +266,19 @@ format2(const char *fmt, TArgs &&...args)
 							if (index == replacement_field_count)
 							{
 								++format_depth;
-								string_append(buffer, format2(arg));
+								if constexpr (is_char_array<T>)
+								{
+									for (u64 i = 0; i < count_of(arg); ++i)
+									{
+										if (i == count_of(arg) - 1 && arg[i] == '\0')
+											break;
+										string_append(buffer, arg[i]);
+									}
+								}
+								else
+								{
+									string_append(buffer, format2(arg));
+								}
 								--format_depth;
 							}
 							++index;
