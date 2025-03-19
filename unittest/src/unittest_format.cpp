@@ -1,4 +1,4 @@
-#include <core/formatter2.h>
+#include <core/format.h>
 
 #include <doctest/doctest.h>
 
