@@ -111,6 +111,12 @@ TEST_CASE("[CORE]: Format")
 	buffer = format2("{}", char_array);
 	CHECK(buffer == "ABC");
 
+	buffer = format2(string_literal("{{}}"));
+	CHECK(buffer == "{}");
+
+	buffer = format2("{}", string_literal("{{}}"));
+	CHECK(buffer == "{{}}");
+
 	// const char *fmt_null_c_string = nullptr;
 	// buffer = format2(fmt_string, fmt_null_c_string);
 	// CHECK(buffer == "");

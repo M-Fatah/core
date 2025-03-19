@@ -10,14 +10,13 @@
 	- [ ] Implement 100% correct floating point formatting.
 	- [ ] Support format specifiers.
 	- [ ] Compile time check string format.
-	- [ ] Add indexed replacement field specifiers support.
+	- [ ] Add indexed replacement field support.
 	- [ ] Rename format to to_string?
+	- [ ] Add to_string helpers.
 */
 
 inline static constexpr const char *FORMAT_DIGITS_LOWERCASE = "0123456789abcdef";
 inline static constexpr const char *FORMAT_DIGITS_UPPERCASE = "0123456789ABCDEF";
-
-inline static u64 format_depth = 0;
 
 template <typename ...TArgs>
 inline static String
@@ -195,17 +194,7 @@ format2(const Array<T> &data)
 inline static String
 format2(const String &data)
 {
-	if (format_depth == 0)
-	{
-		return format2(data.data);
-	}
-	else
-	{
-		String buffer = string_init(memory::temp_allocator());
-		for (u64 i = 0; i < data.count; ++i)
-			string_append(buffer, data[i]);
-		return buffer;
-	}
+	return format2(data.data);
 }
 
 template <typename K, typename V>
@@ -265,7 +254,6 @@ format2(const char *fmt, TArgs &&...args)
 							{
 								if (index == replacement_field_count)
 								{
-									++format_depth;
 									if constexpr (is_char_array<T>)
 									{
 										for (u64 i = 0; i < count_of(arg); ++i)
@@ -275,11 +263,15 @@ format2(const char *fmt, TArgs &&...args)
 											string_append(buffer, arg[i]);
 										}
 									}
+									else if constexpr (std::is_same_v<T, String>)
+									{
+										for (u64 i = 0; i < arg.count; ++i)
+											string_append(buffer, arg[i]);
+									}
 									else
 									{
 										string_append(buffer, format2(arg));
 									}
-									--format_depth;
 								}
 								++index;
 							}(args), ...);
