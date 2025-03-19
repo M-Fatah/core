@@ -107,6 +107,10 @@ TEST_CASE("[CORE]: Format")
 	buffer = format2(fmt_string, "A", "B");
 	CHECK(buffer == "A/B");
 
+	char char_array[] = {'A', 'B', 'C'};
+	buffer = format2("{}", char_array);
+	CHECK(buffer == "ABC");
+
 	// const char *fmt_null_c_string = nullptr;
 	// buffer = format2(fmt_string, fmt_null_c_string);
 	// CHECK(buffer == "");
