@@ -95,7 +95,22 @@ template <template <class...> class Template, class... Args>
 struct is_specialization<Template<Args...>, Template> : std::true_type {}; // TODO: Replace std::true_type and std::false_type with our own.
 
 template <class T, template <class...> class Template>
-constexpr bool is_specialization_v = is_specialization<T, Template>::value;
+concept is_specialization_v = is_specialization<T, Template>::value;
+
+template <typename>
+struct is_bounded_char_array : std::false_type {};
+
+template <size_t N>
+struct is_bounded_char_array<char[N]> : std::true_type {};
+
+template <typename>
+struct is_unbounded_char_array : std::false_type {};
+
+template <>
+struct is_unbounded_char_array<char[]> : std::true_type {};
+
+template <typename T>
+concept is_char_array_v = is_bounded_char_array<T>::value || is_unbounded_char_array<T>::value;
 
 namespace memory { struct Allocator; }
 

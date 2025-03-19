@@ -74,6 +74,10 @@ TEST_CASE("[CORE]: Format")
 	buffer = format2("{}", test);
 	CHECK(buffer == "test");
 
+	char abc[] = {'A', 'B', 'C'};
+	buffer = format2(abc);
+	CHECK(buffer == "ABC");
+
 	vec3 array[2] = {{1, 2, 3}, {4, 5, 6}};
 	buffer = format2("{}", array);
 	CHECK(buffer == "[2] { {1, 2, 3}, {4, 5, 6} }");

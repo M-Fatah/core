@@ -1,5 +1,6 @@
 #pragma once
 
+#include <core/defines.h>
 #include "core/result.h"
 #include "core/containers/array.h"
 #include "core/containers/string.h"
@@ -128,21 +129,6 @@ format2(const T &data)
 	return format2((uptr)data, 16, true);
 }
 
-// TODO: Move out of here.
-template <class> struct is_bounded_char_array : std::false_type {};
-template <class> struct is_unbounded_char_array : std::false_type {};
-
-template <size_t N>
-struct is_bounded_char_array<char[N]> : std::true_type {};
-
-template <>
-struct is_unbounded_char_array<char[]> : std::true_type {};
-
-template <class> struct is_bounded_array : std::false_type {};
-
-template <class T>
-concept is_char_array = is_bounded_char_array<T>::value || is_unbounded_char_array<T>::value;
-
 template <typename T>
 requires (std::is_array_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
 inline static String
@@ -150,7 +136,7 @@ format2(const T &data)
 {
 	String buffer = string_init(memory::temp_allocator());
 
-	if constexpr (is_char_array<T>)
+	if constexpr (is_char_array_v<T>)
 	{
 		for (u64 i = 0; i < count_of(data); ++i)
 		{
@@ -254,7 +240,7 @@ format2(const char *fmt, TArgs &&...args)
 							{
 								if (index == replacement_field_count)
 								{
-									if constexpr (is_char_array<T>)
+									if constexpr (is_char_array_v<T>)
 									{
 										for (u64 i = 0; i < count_of(arg); ++i)
 										{
