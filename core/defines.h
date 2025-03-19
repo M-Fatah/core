@@ -100,7 +100,7 @@ concept is_specialization_v = is_specialization<T, Template>::value;
 template <typename>
 struct is_bounded_char_array : std::false_type {};
 
-template <size_t N>
+template <u64 N>
 struct is_bounded_char_array<char[N]> : std::true_type {};
 
 template <typename>
