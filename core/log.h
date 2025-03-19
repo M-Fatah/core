@@ -2,7 +2,7 @@
 
 #include "core/export.h"
 #include "core/defines.h"
-#include "core/formatter.h"
+#include "core/format.h"
 #include "core/containers/string.h"
 
 enum LOG_TAG
@@ -21,8 +21,7 @@ template <typename ...TArgs>
 inline static void
 log_to_console(LOG_TAG tag, const char *fmt, TArgs &&...args)
 {
-	auto buffer = format(fmt, std::forward<TArgs>(args)...);
-	log_to_console(tag, string_literal(buffer));
+	log_to_console(tag, format2(fmt, std::forward<TArgs>(args)...));
 }
 
 template <typename ...TArgs>

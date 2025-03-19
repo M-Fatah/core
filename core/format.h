@@ -14,6 +14,7 @@
 	- [ ] Rename format to to_string?
 	- [ ] Add to_string helpers.
 	- [ ] Should we provide format helpers for all of ours types here, or provide it in their files?
+	- [ ] Check why the string capacity is bigger than it needs to be.
 */
 
 template <typename ...TArgs>
