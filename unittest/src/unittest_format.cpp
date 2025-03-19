@@ -13,7 +13,7 @@ format2(const vec3 &data)
 	return format2("{{{}, {}, {}}}", data.x, data.y, data.z);;
 }
 
-TEST_CASE("[CORE]: Format")
+TEST_CASE("[CORE]: format")
 {
 	String buffer = format2("{}/{}/{}/{}/{}/{}", "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6});
 	CHECK(buffer == "Hello/A/true/1.5/3/{4, 5, 6}");
@@ -128,4 +128,25 @@ TEST_CASE("[CORE]: Format")
 	// String fmt_null_string = {};
 	// buffer = format2(fmt_string, fmt_null_string);
 	// CHECK(buffer == "");
+}
+
+TEST_CASE("[CORE]: to_string")
+{
+	String buffer = to_string(1);
+	CHECK(buffer == "1");
+
+	buffer = to_string(1.5f);
+	CHECK(buffer == "1.5");
+
+	buffer = to_string(2.5);
+	CHECK(buffer == "2.5");
+
+	buffer = to_string('A');
+	CHECK(buffer == "A");
+
+	buffer = to_string(true);
+	CHECK(buffer == "true");
+
+	buffer = to_string(array_from({1, 2, 3}, memory::temp_allocator()));
+	CHECK(buffer == "[3] { 1, 2, 3 }");
 }

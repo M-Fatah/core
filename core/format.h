@@ -11,8 +11,6 @@
 	- [ ] Support format specifiers.
 	- [ ] Compile time check string format.
 	- [ ] Add indexed replacement field support.
-	- [ ] Rename format to to_string?
-	- [ ] Add to_string helpers.
 	- [ ] Should we provide format helpers for all of ours types here, or provide it in their files?
 	- [ ] Check why the string capacity is bigger than it needs to be.
 */
@@ -310,4 +308,11 @@ format2(const char *fmt, TArgs &&...args)
 	validate(replacement_field_count == sizeof...(args), "[FORMAT]: Replacement field count does not match argument count.");
 
 	return buffer;
+}
+
+template <typename T>
+inline static String
+to_string(const T &data)
+{
+	return format2(data);
 }
