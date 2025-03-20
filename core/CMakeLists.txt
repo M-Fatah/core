@@ -3,7 +3,6 @@ set(HEADER_FILES
     defer.h
     defines.h
     ecs.h
-    formatter.h
     format.h
     hash.h
     json.h
@@ -29,7 +28,6 @@ set(HEADER_FILES
 set(SOURCE_FILES
     base64.cpp
     ecs.cpp
-    formatter.cpp
     json.cpp
     log.cpp
     memory/memory.cpp

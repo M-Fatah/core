@@ -7,7 +7,7 @@ struct vec3
 	f32 x, y, z;
 };
 
-inline static String 
+inline static String
 format2(const vec3 &data)
 {
 	return format2("{{{}, {}, {}}}", data.x, data.y, data.z);;
