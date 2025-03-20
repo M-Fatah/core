@@ -56,7 +56,7 @@ serialize(Binary_Serializer &self, const T &data)
 }
 
 template <typename T>
-requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
+requires (std::is_pointer_v<T> && !is_c_string_v<T>)
 inline static Error
 serialize(Binary_Serializer& self, const T &data)
 {
@@ -192,7 +192,7 @@ serialize(Binary_Deserializer &self, T &data)
 }
 
 template <typename T>
-requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
+requires (std::is_pointer_v<T> && !is_c_string_v<T>)
 inline static Error
 serialize(Binary_Deserializer& self, T &data)
 {
