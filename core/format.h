@@ -295,37 +295,40 @@ format2(const char *fmt, TArgs &&...args)
 
 				validate(replacement_field_index < sizeof...(args), "[FORMAT]: Replacement field index exceeds the total number of arguments passed.");
 
-				u64 index = 0;
-				([&]<typename T>(const T &arg)
+				if constexpr (sizeof...(args) > 0)
 				{
-					if (index == replacement_field_index)
+					u64 index = 0;
+					([&]<typename T>(const T &arg)
 					{
-						if constexpr (is_char_array_v<T>)
+						if (index == replacement_field_index)
 						{
-							for (u64 i = 0; i < count_of(arg); ++i)
+							if constexpr (is_char_array_v<T>)
 							{
-								if (i == count_of(arg) - 1 && arg[i] == '\0')
-									break;
-								string_append(buffer, arg[i]);
+								for (u64 i = 0; i < count_of(arg); ++i)
+								{
+									if (i == count_of(arg) - 1 && arg[i] == '\0')
+										break;
+									string_append(buffer, arg[i]);
+								}
+							}
+							else if constexpr (std::is_same_v<T, String>)
+							{
+								for (u64 i = 0; i < arg.count; ++i)
+									string_append(buffer, arg[i]);
+							}
+							else if constexpr (std::is_same_v<T, char *> || std::is_same_v<T, const char *>)
+							{
+								for (u64 i = 0; i < ::strlen(arg); ++i)
+									string_append(buffer, arg[i]);
+							}
+							else
+							{
+								string_append(buffer, format2(arg));
 							}
 						}
-						else if constexpr (std::is_same_v<T, String>)
-						{
-							for (u64 i = 0; i < arg.count; ++i)
-								string_append(buffer, arg[i]);
-						}
-						else if constexpr (std::is_same_v<T, char *> || std::is_same_v<T, const char *>)
-						{
-							for (u64 i = 0; i < ::strlen(arg); ++i)
-								string_append(buffer, arg[i]);
-						}
-						else
-						{
-							string_append(buffer, format2(arg));
-						}
-					}
-					++index;
-				}(args), ...);
+						++index;
+					}(args), ...);
+				}
 
 				i += 2;
 			}
