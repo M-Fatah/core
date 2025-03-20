@@ -16,7 +16,7 @@
 	- [ ] Use formatting in validate messages.
 	- [ ] What should be done in this case:
 			char abc_curly_bracket[] = "ABC{";
-			format2(abc_curly_bracket);
+			format(abc_curly_bracket);
 		- [ ] Should we print it as is.
 			or
 		- [ ] Treat it as a format string and assert on '{'.
@@ -25,12 +25,12 @@
 
 template <typename ...TArgs>
 inline static String
-format2(const char *fmt, TArgs &&...args);
+format(const char *fmt, TArgs &&...args);
 
 template <typename T>
 requires (std::is_integral_v<T> && !std::is_floating_point_v<T>)
 inline static String
-format2(T data, u8 base = 10, bool uppercase = false)
+format(T data, u8 base = 10, bool uppercase = false)
 {
 	const char *digits = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
 
@@ -73,7 +73,7 @@ format2(T data, u8 base = 10, bool uppercase = false)
 template <typename T>
 requires (std::is_floating_point_v<T>)
 inline static String
-format2(T data)
+format(T data)
 {
 	String buffer = string_init(memory::temp_allocator());
 
@@ -85,7 +85,7 @@ format2(T data)
 
 	u64 integer = (u64)data;
 	f64 fraction = data - integer;
-	string_append(buffer, format2((u64)integer));
+	string_append(buffer, format((u64)integer));
 	string_append(buffer, '.');
 
 	//
@@ -96,7 +96,7 @@ format2(T data)
 	{
 		fraction *= 10;
 		integer = (u64)fraction;
-		string_append(buffer, format2(integer));
+		string_append(buffer, format(integer));
 		fraction = fraction - integer;
 	}
 
@@ -110,7 +110,7 @@ format2(T data)
 }
 
 inline static String
-format2(bool data)
+format(bool data)
 {
 	String buffer = string_init(memory::temp_allocator());
 	string_append(buffer, data ? string_literal("true") : string_literal("false")); // TODO: use c string.
@@ -118,7 +118,7 @@ format2(bool data)
 }
 
 inline static String
-format2(char data)
+format(char data)
 {
 	String buffer = string_init(memory::temp_allocator());
 	string_append(buffer, data);
@@ -128,9 +128,9 @@ format2(char data)
 template <typename T>
 requires (std::is_pointer_v<T> && !is_c_string_v<T>)
 inline static String
-format2(const T &data)
+format(const T &data)
 {
-	return format2((uptr)data, 16, true);
+	return format((uptr)data, 16, true);
 }
 
 // TODO: Remove.
@@ -139,7 +139,7 @@ inline static void
 string_append(String &self, const char *fmt, const TArgs &...args)
 {
 	validate(self.allocator, "[STRING]: Cannot append to a string literal.");
-	string_append(self, format2(fmt, args...));
+	string_append(self, format(fmt, args...));
 }
 
 // TODO: Remove.
@@ -147,13 +147,13 @@ template <typename ...TArgs>
 inline static String
 string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
 {
-	return string_copy(format2(fmt, args...), allocator);
+	return string_copy(format(fmt, args...), allocator);
 }
 
 template <typename T>
 requires (std::is_array_v<T> && !is_c_string_v<T>)
 inline static String
-format2(const T &data)
+format(const T &data)
 {
 	String buffer = string_init(memory::temp_allocator());
 
@@ -167,12 +167,12 @@ format2(const T &data)
 	}
 	else
 	{
-		string_append(buffer, format2("[{}] {{ ", count_of(data)));
+		string_append(buffer, format("[{}] {{ ", count_of(data)));
 		for (u64 i = 0; i < count_of(data); ++i)
 		{
 			if (i != 0)
 				string_append(buffer, ", ");
-			string_append(buffer, format2(data[i]));
+			string_append(buffer, format(data[i]));
 		}
 		string_append(buffer, " }}"); // TODO: This is formatted.
 	}
@@ -182,49 +182,50 @@ format2(const T &data)
 
 template <typename T>
 inline static String
-format2(const Array<T> &data)
+format(const Array<T> &data)
 {
 	String buffer = string_init(memory::temp_allocator());
 
-	string_append(buffer, format2("[{}] {{ ", data.count));
+	string_append(buffer, format("[{}] {{ ", data.count));
 	for (u64 i = 0; i < data.count; ++i)
 	{
 		if (i != 0)
 			string_append(buffer, ", ");
-		string_append(buffer, format2("{}", data[i]));
+		string_append(buffer, format("{}", data[i]));
 	}
 	string_append(buffer, " }}"); // TODO: This is formatted.
 	return buffer;
 }
 
 inline static String
-format2(const String &data)
+format(const String &data)
 {
-	return format2(data.data);
+	return format(data.data);
 }
 
 template <typename K, typename V>
 inline static String
-format2(const Hash_Table<K, V> &data)
+format(const Hash_Table<K, V> &data)
 {
 	String buffer = string_init(memory::temp_allocator());
 
-	string_append(buffer, format2("[{}] {{ ", data.count));
+	string_append(buffer, format("[{}] {{ ", data.count));
 	u64 i = 0;
 	for (const auto &[key, value] : data)
 	{
 		if (i != 0)
 			string_append(buffer, ", ");
-		string_append(buffer, format2("{}: {}", key, value));
+		string_append(buffer, format("{}: {}", key, value));
 		++i;
 	}
 	string_append(buffer, " }}"); // TODO: This is formatted.
 	return buffer;
 }
 
+// TODO: Pass as reference and check if char[] won't get decayed into pointers.
 template <typename ...TArgs>
 inline static String
-format2(const char *fmt, TArgs &&...args)
+format(const char *fmt, TArgs &&...args)
 {
 	// 1. Validate that the format string is correct, and loop over all the replacement fields and match them against the arguments.
 	// 2. Format each argument into the corresponding replacement field.
@@ -278,7 +279,7 @@ format2(const char *fmt, TArgs &&...args)
 							}
 							else
 							{
-								string_append(buffer, format2(arg));
+								string_append(buffer, format(arg));
 							}
 						}
 						++index;
@@ -326,7 +327,7 @@ format2(const char *fmt, TArgs &&...args)
 							}
 							else
 							{
-								string_append(buffer, format2(arg));
+								string_append(buffer, format(arg));
 							}
 						}
 						++index;
@@ -359,5 +360,5 @@ template <typename T>
 inline static String
 to_string(const T &data)
 {
-	return format2(data);
+	return format(data);
 }

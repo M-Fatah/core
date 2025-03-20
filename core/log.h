@@ -21,7 +21,7 @@ template <typename ...TArgs>
 inline static void
 log_to_console(LOG_TAG tag, const char *fmt, TArgs &&...args)
 {
-	log_to_console(tag, format2(fmt, std::forward<TArgs>(args)...));
+	log_to_console(tag, format(fmt, std::forward<TArgs>(args)...));
 }
 
 template <typename ...TArgs>

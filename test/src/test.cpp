@@ -343,9 +343,9 @@ struct vec3
 };
 
 inline static String
-format2(const vec3 &data)
+format(const vec3 &data)
 {
-	return format2("{{{}, {}, {}}}", data.x, data.y, data.z);;
+	return format("{{{}, {}, {}}}", data.x, data.y, data.z);;
 }
 
 i32
@@ -367,36 +367,36 @@ main(i32, char **)
 
 	// print(value_of(1));
 
-	auto b1 = format2("{}{}", 1, 2);
+	auto b1 = format("{}{}", 1, 2);
 
-	auto b5 = format2("{}", 1.5f);
-	auto b6 = format2("{}", 2.5);
+	auto b5 = format("{}", 1.5f);
+	auto b6 = format("{}", 2.5);
 
 	i32 array[] = {1, 2, 3};
-	auto b7 = format2("{}", array);
+	auto b7 = format("{}", array);
 
-	auto b8 = format2("{}", "Hello, World!");
+	auto b8 = format("{}", "Hello, World!");
 
 	i32 i = 5;
-	auto b9 = format2("{}", &i);
+	auto b9 = format("{}", &i);
 
-	auto b10 = format2("{}", 'A');
-	auto b11 = format2("{}", false);
+	auto b10 = format("{}", 'A');
+	auto b11 = format("{}", false);
 
 	char array2[] = {'A', 'B', 'C'};
-	auto b12 = format2("{}", array2);
+	auto b12 = format("{}", array2);
 
 	vec3 v = {1, 2, 3};
-	auto b13 = format2("{}", v);
+	auto b13 = format("{}", v);
 
 	Array<i32> a = array_from({1, 2, 3}, memory::temp_allocator());
-	auto b14 = format2("{}", a);
+	auto b14 = format("{}", a);
 
 	String b = string_from("BB", memory::temp_allocator());
-	auto b15 = format2("{}", b);
+	auto b15 = format("{}", b);
 
 	Hash_Table<i32, i32> c = hash_table_from<i32, i32>({{1, 2}, {3, 4}}, memory::temp_allocator());
-	auto b16 = format2("{}", c);
+	auto b16 = format("{}", c);
 
 	unused(b1, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16);
 
