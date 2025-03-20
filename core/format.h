@@ -10,9 +10,11 @@
 	- [ ] Implement 100% correct floating point formatting.
 	- [ ] Support format specifiers.
 	- [ ] Compile time check string format.
-	- [ ] Add indexed replacement field support.
 	- [ ] Should we provide format helpers for all of ours types here, or provide it in their files?
 	- [ ] Check why the string capacity is bigger than it needs to be.
+	- [ ] Check why log functions stack overflow.
+	- [ ] Use formatting in validate messages.
+	- [ ] Cleanup.
 */
 
 template <typename ...TArgs>
@@ -230,74 +232,110 @@ format2(const char *fmt, TArgs &&...args)
 	String buffer = string_init(memory::temp_allocator());
 
 	u64 replacement_field_count = 0;
+	u64 replacement_field_largest_index = 0;
 	for (u64 i = 0; i < fmt_string.count; ++i)
 	{
 		if (fmt_string[i] == '{')
 		{
-			if (i + 1 < fmt_string.count)
-			{
-				switch (fmt_string[i + 1])
-				{
-					case '{':
-					{
-						string_append(buffer, '{');
-						++i;
-						break;
-					}
-					case '}':
-					{
-						if constexpr (sizeof...(args) > 0)
-						{
-							u64 index = 0;
-							([&]<typename T>(const T &arg)
-							{
-								if (index == replacement_field_count)
-								{
-									if constexpr (is_char_array_v<T>)
-									{
-										for (u64 i = 0; i < count_of(arg); ++i)
-										{
-											if (i == count_of(arg) - 1 && arg[i] == '\0')
-												break;
-											string_append(buffer, arg[i]);
-										}
-									}
-									else if constexpr (std::is_same_v<T, String>)
-									{
-										for (u64 i = 0; i < arg.count; ++i)
-											string_append(buffer, arg[i]);
-									}
-									else
-									{
-										string_append(buffer, format2(arg));
-									}
-								}
-								++index;
-							}(args), ...);
-						}
+			validate((i + 1 < fmt_string.count) && (fmt_string[i + 1] == '{' || fmt_string[i + 1] == '}' || (fmt_string[i + 1] >= '0' && fmt_string[i + 1] <= '9')), "[FORMAT]: '{' must have a matching '{' or '}'.");
 
-						++i;
-						++replacement_field_count;
-						break;
-					}
-				}
-			}
-			else
+			if (fmt_string[i + 1] == '{')
 			{
-				validate(false, "[FORMAT]: '{' must have a matching '{' or '}'.");
+				string_append(buffer, '{');
+				++i;
+			}
+			else if (fmt_string[i + 1] == '}')
+			{
+				if constexpr (sizeof...(args) > 0)
+				{
+					u64 index = 0;
+					([&]<typename T>(const T &arg)
+					{
+						if (index == replacement_field_count)
+						{
+							if constexpr (is_char_array_v<T>)
+							{
+								for (u64 i = 0; i < count_of(arg); ++i)
+								{
+									if (i == count_of(arg) - 1 && arg[i] == '\0')
+										break;
+									string_append(buffer, arg[i]);
+								}
+							}
+							else if constexpr (std::is_same_v<T, String>)
+							{
+								for (u64 i = 0; i < arg.count; ++i)
+									string_append(buffer, arg[i]);
+							}
+							else if constexpr (std::is_same_v<T, char *> || std::is_same_v<T, const char *>)
+							{
+								for (u64 i = 0; i < ::strlen(arg); ++i)
+									string_append(buffer, arg[i]);
+							}
+							else
+							{
+								string_append(buffer, format2(arg));
+							}
+						}
+						++index;
+					}(args), ...);
+				}
+
+				++i;
+				++replacement_field_count;
+			}
+			else if (fmt_string[i + 1] >= '0' && fmt_string[i + 1] <= '9')
+			{
+				// TODO: Doesn't handle more than 10 indices.
+				validate(fmt_string[i + 2] == '}', "[FORMAT]: Missing '}' for indexed replacement field.");
+
+				u64 replacement_field_index = fmt_string[i + 1] - '0';
+				if (replacement_field_index > replacement_field_largest_index)
+					replacement_field_largest_index = replacement_field_index;
+
+				validate(replacement_field_index < sizeof...(args), "[FORMAT]: Replacement field index exceeds the total number of arguments passed.");
+
+				u64 index = 0;
+				([&]<typename T>(const T &arg)
+				{
+					if (index == replacement_field_index)
+					{
+						if constexpr (is_char_array_v<T>)
+						{
+							for (u64 i = 0; i < count_of(arg); ++i)
+							{
+								if (i == count_of(arg) - 1 && arg[i] == '\0')
+									break;
+								string_append(buffer, arg[i]);
+							}
+						}
+						else if constexpr (std::is_same_v<T, String>)
+						{
+							for (u64 i = 0; i < arg.count; ++i)
+								string_append(buffer, arg[i]);
+						}
+						else if constexpr (std::is_same_v<T, char *> || std::is_same_v<T, const char *>)
+						{
+							for (u64 i = 0; i < ::strlen(arg); ++i)
+								string_append(buffer, arg[i]);
+						}
+						else
+						{
+							string_append(buffer, format2(arg));
+						}
+					}
+					++index;
+				}(args), ...);
+
+				i += 2;
 			}
 		}
 		else if (fmt_string[i] == '}')
 		{
-			if (i + 1 < fmt_string.count && fmt_string[i + 1] == '}')
-			{
-				string_append(buffer, '}');
-				++i;
-			}
-			else
-			{
-				validate(false, "[FORMAT]: '}' must have a matching '}'.");
-			}
+			validate(i + 1 < fmt_string.count && fmt_string[i + 1] == '}', "[FORMAT]: '}' must have a matching '}'.");
+
+			string_append(buffer, '}');
+			++i;
 		}
 		else
 		{
@@ -305,7 +343,8 @@ format2(const char *fmt, TArgs &&...args)
 		}
 	}
 
-	validate(replacement_field_count == sizeof...(args), "[FORMAT]: Replacement field count does not match argument count.");
+	validate(replacement_field_count == 0 || replacement_field_largest_index == 0, "[FORMATTER]: Cannot mix between automatic and manual replacement field indexing.");
+	validate(replacement_field_count == sizeof...(args) || (replacement_field_largest_index + 1) == sizeof...(args), "[FORMAT]: Replacement field count does not match argument count.");
 
 	return buffer;
 }

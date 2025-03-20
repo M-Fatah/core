@@ -30,33 +30,27 @@ TEST_CASE("[CORE]: format")
 	buffer = format2("{}", vec3{1, 2, 3});
 	CHECK(buffer == "{1, 2, 3}");
 
-	// buffer = format2("{0}{2}{6}", "0", "{1}", "2");
-	// CHECK(buffer == "");
+	buffer = format2("{0}{1}{0}", "0", "1");
+	CHECK(buffer == "010");
 
-	// buffer = format2("{0}{1}{0}", "0", "1");
-	// CHECK(buffer == "010");
+	buffer = format2("{0}{0}{0}", "0");
+	CHECK(buffer == "000");
 
-	// buffer = format2("{0}{0}{0}", "0");
-	// CHECK(buffer == "000");
+	buffer = format2("{0}{2}{1}", "Hello, ", "!", "World");
+	CHECK(buffer == "Hello, World!");
 
-	// buffer = format2("{0}{2}{1}", "Hello, ", "!", "World");
-	// CHECK(buffer == "Hello, World!");
+	buffer = format2("{0}{1}{2}", "Hello, ", "World", "!");
+	CHECK(buffer == "Hello, World!");
 
-	// buffer = format2("{0}{1}{2}", "Hello, ", "World", "!");
-	// CHECK(buffer == "Hello, World!");
+	const char *positional_arg_fmt = "{0}{2}{1}";
+	buffer = format2(positional_arg_fmt, "Hello, ", "!", "World");
+	CHECK(buffer == "Hello, World!");
 
-	// buffer = format2("{0}{1}{2}", "Hello, ", "World");
-	// CHECK(buffer == "");
+	buffer = format2("{0}{2}{1}", 0, 2, 1);
+	CHECK(buffer == "012");
 
-	// const char *positional_arg_fmt = "{0}{2}{1}";
-	// buffer = format2(positional_arg_fmt, "Hello, ", "!", "World");
-	// CHECK(buffer == "Hello, World!");
-
-	// buffer = format2("{0}{2}{1}", 0, 2, 1);
-	// CHECK(buffer == "012");
-
-	// buffer = format2("{0}{1}{3}{2}", "Hello, ", 0, 2, 1);
-	// CHECK(buffer == "Hello, 012");
+	buffer = format2("{0}{1}{3}{2}", "Hello, ", 0, 2, 1);
+	CHECK(buffer == "Hello, 012");
 
 	buffer = format2("{}", "{ \"name\": \"n\" }");
 	CHECK(buffer == "{ \"name\": \"n\" }");
@@ -92,20 +86,11 @@ TEST_CASE("[CORE]: format")
 	buffer = format2("{}", hash_table_from<i32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()));
 	CHECK(buffer == "[3] { 1: 1, 2: 2, 3: 3 }");
 
-	// buffer = format2("{}{}{}{}{}", 1, 2, 3);
-	// CHECK(buffer == "");
-
 	buffer = format2("{}{}{}{}{}", 1, 2, 3, "{}", 4);
 	CHECK(buffer == "123{}4");
 
-	// buffer = format2("A", "B");
-	// CHECK(buffer == "A");
-
 	buffer = format2("{}A", "B");
 	CHECK(buffer == "BA");
-
-	// buffer = format2("{}", "A", "B", "C");
-	// CHECK(buffer == "");
 
 	const char *fmt_string = "{}/{}";
 	buffer = format2(fmt_string, "A", "B");
@@ -120,6 +105,24 @@ TEST_CASE("[CORE]: format")
 
 	buffer = format2("{}", string_literal("{{}}"));
 	CHECK(buffer == "{{}}");
+
+	// buffer = format2("{");
+	// CHECK(buffer == "");
+
+	// buffer = format2("{}{}{}{}{}", 1, 2, 3);
+	// CHECK(buffer == "");
+
+	// buffer = format2("{0}{2}{6}", "0", "{1}", "2");
+	// CHECK(buffer == "");
+
+	// buffer = format2("{0}{}{1}", "0", "{1}", "2");
+	// CHECK(buffer == "");
+
+	// buffer = format2("{0}{1}{2}", "Hello, ", "World");
+	// CHECK(buffer == "");
+
+	// buffer = format2("{}", "A", "B", "C");
+	// CHECK(buffer == "");
 
 	// const char *fmt_null_c_string = nullptr;
 	// buffer = format2(fmt_string, fmt_null_c_string);
