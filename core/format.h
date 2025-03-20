@@ -14,6 +14,12 @@
 	- [ ] Check why the string capacity is bigger than it needs to be.
 	- [ ] Check why log functions stack overflow.
 	- [ ] Use formatting in validate messages.
+	- [ ] What should be done in this case:
+			char abc_curly_bracket[] = "ABC{";
+			format2(abc_curly_bracket);
+		- [ ] Should we print it as is.
+			or
+		- [ ] Treat it as a format string and assert on '{'.
 	- [ ] Cleanup.
 */
 
