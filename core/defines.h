@@ -112,6 +112,9 @@ struct is_unbounded_char_array<char[]> : std::true_type {};
 template <typename T>
 concept is_char_array_v = is_bounded_char_array<T>::value || is_unbounded_char_array<T>::value;
 
+template <typename T>
+concept is_c_string_v = std::is_same_v<T, char *> || std::is_same_v<T, const char *>;
+
 namespace memory { struct Allocator; }
 
 // TODO: Better name?

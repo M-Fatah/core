@@ -120,7 +120,7 @@ format2(char data)
 }
 
 template <typename T>
-requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
+requires (std::is_pointer_v<T> && !is_c_string_v<T>)
 inline static String
 format2(const T &data)
 {
@@ -145,7 +145,7 @@ string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
 }
 
 template <typename T>
-requires (std::is_array_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
+requires (std::is_array_v<T> && !is_c_string_v<T>)
 inline static String
 format2(const T &data)
 {
@@ -153,12 +153,11 @@ format2(const T &data)
 
 	if constexpr (is_char_array_v<T>)
 	{
-		for (u64 i = 0; i < count_of(data); ++i)
-		{
-			if (i == count_of(data) - 1 && data[i] == '\0')
-				break;
+		u64 count = count_of(data);
+		if (count > 0 && data[count - 1] == '\0')
+			--count;
+		for (u64 i = 0; i < count; ++i)
 			string_append(buffer, data[i]);
-		}
 	}
 	else
 	{
@@ -255,19 +254,18 @@ format2(const char *fmt, TArgs &&...args)
 						{
 							if constexpr (is_char_array_v<T>)
 							{
-								for (u64 i = 0; i < count_of(arg); ++i)
-								{
-									if (i == count_of(arg) - 1 && arg[i] == '\0')
-										break;
+								u64 count = count_of(arg);
+								if (count > 0 && arg[count - 1] == '\0')
+									--count;
+								for (u64 i = 0; i < count; ++i)
 									string_append(buffer, arg[i]);
-								}
 							}
 							else if constexpr (std::is_same_v<T, String>)
 							{
 								for (u64 i = 0; i < arg.count; ++i)
 									string_append(buffer, arg[i]);
 							}
-							else if constexpr (std::is_same_v<T, char *> || std::is_same_v<T, const char *>)
+							else if constexpr (is_c_string_v<T>)
 							{
 								for (u64 i = 0; i < ::strlen(arg); ++i)
 									string_append(buffer, arg[i]);
@@ -304,19 +302,18 @@ format2(const char *fmt, TArgs &&...args)
 						{
 							if constexpr (is_char_array_v<T>)
 							{
-								for (u64 i = 0; i < count_of(arg); ++i)
-								{
-									if (i == count_of(arg) - 1 && arg[i] == '\0')
-										break;
+								u64 count = count_of(arg);
+								if (count > 0 && arg[count - 1] == '\0')
+									--count;
+								for (u64 i = 0; i < count; ++i)
 									string_append(buffer, arg[i]);
-								}
 							}
 							else if constexpr (std::is_same_v<T, String>)
 							{
 								for (u64 i = 0; i < arg.count; ++i)
 									string_append(buffer, arg[i]);
 							}
-							else if constexpr (std::is_same_v<T, char *> || std::is_same_v<T, const char *>)
+							else if constexpr (is_c_string_v<T>)
 							{
 								for (u64 i = 0; i < ::strlen(arg); ++i)
 									string_append(buffer, arg[i]);

@@ -68,6 +68,9 @@ TEST_CASE("[CORE]: format")
 	buffer = format2("{}", test);
 	CHECK(buffer == "test");
 
+	buffer = format2(test);
+	CHECK(buffer == "test");
+
 	char abc[] = {'A', 'B', 'C'};
 	buffer = format2(abc);
 	CHECK(buffer == "ABC");
