@@ -109,6 +109,13 @@ TEST_CASE("[CORE]: format")
 	buffer = format("{}", string_literal("{{}}"));
 	CHECK(buffer == "{{}}");
 
+	buffer = format(string_literal("{}/{}/{}/{}/{}/{}"), "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6});
+	CHECK(buffer == "Hello/A/true/1.5/3/{4, 5, 6}");
+
+	char abc_curly_bracket[] = "ABC{{}}";
+	buffer = format(abc_curly_bracket);
+	CHECK(buffer == "ABC{}");
+
 	// buffer = format("{");
 	// CHECK(buffer == "");
 
