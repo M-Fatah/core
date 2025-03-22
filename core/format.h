@@ -12,6 +12,7 @@
 	- [ ] Compile time check string format.
 	- [ ] Should we provide format helpers for all of ours types here, or provide it in their files?
 	- [ ] Check why the string capacity is bigger than it needs to be.
+		- [ ] Try and optimize by avoiding creating many temporary allocated substrings, this will lead to many re-allocations and copies of the main buffer.
 	- [ ] Use formatting in validate messages.
 	- [ ] Cleanup.
 */
@@ -66,7 +67,7 @@ format(T data, u8 base = 10, bool uppercase = false)
 template <typename T>
 requires (std::is_floating_point_v<T>)
 inline static String
-format(T data)
+format(T data, u32 precision = 6, bool remove_trailing_zeros = true)
 {
 	String buffer = string_init(memory::temp_allocator());
 
@@ -81,11 +82,7 @@ format(T data)
 	string_append(buffer, format((u64)integer));
 	string_append(buffer, '.');
 
-	//
-	// NOTE:
-	// Default precision is 6.
-	//
-	for (u64 i = 0; i < 6; ++i)
+	for (u64 i = 0; i < precision; ++i)
 	{
 		fraction *= 10;
 		integer = (u64)fraction;
@@ -93,8 +90,9 @@ format(T data)
 		fraction = fraction - integer;
 	}
 
-	while (string_ends_with(buffer, '0'))
-		string_remove_last(buffer);
+	if (remove_trailing_zeros)
+		while (string_ends_with(buffer, '0'))
+			string_remove_last(buffer);
 
 	if (string_ends_with(buffer, '.'))
 		string_remove_last(buffer);
