@@ -257,13 +257,11 @@ format(const String &fmt, TArgs &&...args)
 							}
 							else if constexpr (std::is_same_v<T, String>)
 							{
-								for (u64 i = 0; i < arg.count; ++i)
-									string_append(buffer, arg[i]);
+								string_append(buffer, arg);
 							}
 							else if constexpr (is_c_string_v<T>)
 							{
-								for (u64 i = 0; i < ::strlen(arg); ++i)
-									string_append(buffer, arg[i]);
+								string_append(buffer, string_literal(arg));
 							}
 							else
 							{
@@ -305,13 +303,11 @@ format(const String &fmt, TArgs &&...args)
 							}
 							else if constexpr (std::is_same_v<T, String>)
 							{
-								for (u64 i = 0; i < arg.count; ++i)
-									string_append(buffer, arg[i]);
+								string_append(buffer, arg);
 							}
 							else if constexpr (is_c_string_v<T>)
 							{
-								for (u64 i = 0; i < ::strlen(arg); ++i)
-									string_append(buffer, arg[i]);
+								string_append(buffer, string_literal(arg));
 							}
 							else
 							{
