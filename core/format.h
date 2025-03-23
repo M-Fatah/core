@@ -11,7 +11,7 @@
 	- [ ] Support format specifiers.
 	- [ ] Compile time check string format.
 	- [ ] Should we provide format helpers for all of ours types here, or provide it in their files?
-	- [ ] Check why the string capacity is bigger than it needs to be.
+	- [ ] Try and optimize by avoiding creating many temporary allocated substrings, this will lead to many re-allocations and copies of the main buffer.
 	- [ ] Use formatting in validate messages.
 	- [ ] Cleanup.
 */
@@ -66,7 +66,7 @@ format(T data, u8 base = 10, bool uppercase = false)
 template <typename T>
 requires (std::is_floating_point_v<T>)
 inline static String
-format(T data)
+format(T data, u32 precision = 6, bool remove_trailing_zeros = true)
 {
 	String buffer = string_init(memory::temp_allocator());
 
@@ -81,11 +81,7 @@ format(T data)
 	string_append(buffer, format((u64)integer));
 	string_append(buffer, '.');
 
-	//
-	// NOTE:
-	// Default precision is 6.
-	//
-	for (u64 i = 0; i < 6; ++i)
+	for (u64 i = 0; i < precision; ++i)
 	{
 		fraction *= 10;
 		integer = (u64)fraction;
@@ -93,8 +89,9 @@ format(T data)
 		fraction = fraction - integer;
 	}
 
-	while (string_ends_with(buffer, '0'))
-		string_remove_last(buffer);
+	if (remove_trailing_zeros)
+		while (string_ends_with(buffer, '0'))
+			string_remove_last(buffer);
 
 	if (string_ends_with(buffer, '.'))
 		string_remove_last(buffer);
@@ -105,9 +102,7 @@ format(T data)
 inline static String
 format(bool data)
 {
-	String buffer = string_init(memory::temp_allocator());
-	string_append(buffer, data ? string_literal("true") : string_literal("false")); // TODO: use c string.
-	return buffer;
+	return format("{}", data ? "true" : "false");
 }
 
 inline static String
@@ -124,23 +119,6 @@ inline static String
 format(const T &data)
 {
 	return format((uptr)data, 16, true);
-}
-
-// TODO: Remove.
-template <typename ...TArgs>
-inline static void
-string_append(String &self, const char *fmt, const TArgs &...args)
-{
-	validate(self.allocator, "[STRING]: Cannot append to a string literal.");
-	string_append(self, format(fmt, args...));
-}
-
-// TODO: Remove.
-template <typename ...TArgs>
-inline static String
-string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
-{
-	return string_copy(format(fmt, args...), allocator);
 }
 
 template <typename T>
@@ -172,7 +150,7 @@ format(const T &data)
 				string_append(buffer, ", ");
 			string_append(buffer, format(data[i]));
 		}
-		string_append(buffer, " }}"); // TODO: This is formatted.
+		string_append(buffer, " }");
 	}
 
 	return buffer;
@@ -191,7 +169,7 @@ format(const Array<T> &data)
 			string_append(buffer, ", ");
 		string_append(buffer, format("{}", data[i]));
 	}
-	string_append(buffer, " }}"); // TODO: This is formatted.
+	string_append(buffer, " }");
 	return buffer;
 }
 
@@ -210,7 +188,7 @@ format(const Hash_Table<K, V> &data)
 		string_append(buffer, format("{}: {}", key, value));
 		++i;
 	}
-	string_append(buffer, " }}"); // TODO: This is formatted.
+	string_append(buffer, " }");
 	return buffer;
 }
 
@@ -218,10 +196,6 @@ template <typename ...TArgs>
 inline static String
 format(const String &fmt, TArgs &&...args)
 {
-	// 1. Validate that the format string is correct, and loop over all the replacement fields and match them against the arguments.
-	// 2. Format each argument into the corresponding replacement field.
-	// 3. Append the result string into the output buffer.
-
 	if (string_is_empty(fmt))
 		return string_literal("");
 
@@ -356,4 +330,13 @@ inline static String
 to_string(const T &data)
 {
 	return format("{}", data);
+}
+
+
+// TODO: Remove.
+template <typename ...TArgs>
+inline static String
+string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
+{
+	return string_copy(format(fmt, args...), allocator);
 }

@@ -116,6 +116,12 @@ TEST_CASE("[CORE]: format")
 	buffer = format(abc_curly_bracket);
 	CHECK(buffer == "ABC{}");
 
+	buffer = format("{}", format(1.52, 3, false));
+	CHECK(buffer == "1.520");
+
+	buffer = format("{}", format(1.0, 2));
+	CHECK(buffer == "1");
+
 	// buffer = format("{");
 	// CHECK(buffer == "");
 

@@ -308,7 +308,7 @@ TEST_CASE("[CONTAINERS]: String")
 		DEFER(string_deinit(s4));
 
 		string_append(s4, "Hello");
-		string_append(s4, "{}", ", World!");
+		string_append(s4, format("{}", ", World!"));
 		CHECK(s4.count == 13);
 		CHECK(s4.capacity == 14);
 		for (size_t i = 0; i < s4.count; ++i)

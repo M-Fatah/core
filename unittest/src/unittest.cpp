@@ -5,7 +5,7 @@
 
 /*
 	TODO:
-	- [ ] Add print overload for easier console printing (while debugging).
+	- [ ] Add print overload for clearer console message (while debugging).
 */
 
 i32
