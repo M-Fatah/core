@@ -331,12 +331,3 @@ to_string(const T &data)
 {
 	return format("{}", data);
 }
-
-
-// TODO: Remove.
-template <typename ...TArgs>
-inline static String
-string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
-{
-	return string_copy(format(fmt, args...), allocator);
-}

@@ -4,6 +4,11 @@
 #include "core/format.h"
 #include "core/containers/string.h"
 
+/*
+	TODO:
+	- [ ] Use temp allocator here?
+*/
+
 struct Error
 {
 	String message;
@@ -18,7 +23,7 @@ struct Error
 	Error(const char *fmt, TArgs &&...args)
 	{
 		Error *self = this;
-		self->message = string_from(memory::heap_allocator(), fmt, std::forward<TArgs>(args)...);
+		self->message = string_copy(format(fmt, std::forward<TArgs>(args)...));
 	}
 
 	Error(const Error &other)

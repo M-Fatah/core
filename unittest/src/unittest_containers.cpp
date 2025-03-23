@@ -259,7 +259,7 @@ TEST_CASE("[CONTAINERS]: String")
 		string_deinit(s);
 
 		auto literal2 = "Hello, agent 007";
-		s = string_from(memory::heap_allocator(), "{}{}", "Hello, agent 00", 7);
+		s = string_copy(format("{}{}", "Hello, agent 00", 7));
 		CHECK(s.count == 16);
 		CHECK(s.capacity == 17);
 		for (size_t i = 0; i < s.count; ++i)
@@ -453,7 +453,7 @@ TEST_CASE("[CONTAINERS]: String")
 
 	SUBCASE("replace")
 	{
-		auto s = string_from(memory::temp_allocator(), "Helloxxx, xxxWorld!xxx");
+		auto s = string_from("Helloxxx, xxxWorld!xxx", memory::temp_allocator());
 		DEFER(string_deinit(s));
 
 		string_replace(s, string_literal("xxx"), string_literal(""));
@@ -464,7 +464,7 @@ TEST_CASE("[CONTAINERS]: String")
 			CHECK(s[i] == expected[i]);
 		CHECK(s.data[s.count] == '\0');
 
-		auto s2 = string_from(memory::temp_allocator(), "Helloxxx, xxxWorld!xxx");
+		auto s2 = string_from("Helloxxx, xxxWorld!xxx", memory::temp_allocator());
 		string_replace_first_occurance(s2, "xxx", "", 5);
 		CHECK(s2 == "Hello, xxxWorld!xxx");
 		string_replace_first_occurance(s2, "xxx", "", 10);
