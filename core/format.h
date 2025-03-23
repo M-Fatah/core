@@ -196,13 +196,44 @@ template <typename ...TArgs>
 inline static String
 format(const String &fmt, TArgs &&...args)
 {
+	constexpr auto append_field_data = []<typename T>(String &buffer, const T &data, u32 &argument_index, u32 replacement_field_index) {
+		if (argument_index == replacement_field_index)
+		{
+			if constexpr (std::is_same_v<T, char>)
+			{
+				string_append(buffer, data);
+			}
+			else if constexpr (is_char_array_v<T>)
+			{
+				u64 count = count_of(data);
+				if (count > 0 && data[count - 1] == '\0')
+					--count;
+				for (u64 i = 0; i < count; ++i)
+					string_append(buffer, data[i]);
+			}
+			else if constexpr (std::is_same_v<T, String>)
+			{
+				string_append(buffer, data);
+			}
+			else if constexpr (is_c_string_v<T>)
+			{
+				string_append(buffer, string_literal(data));
+			}
+			else
+			{
+				string_append(buffer, format(data));
+			}
+		}
+		++argument_index;
+	};
+
 	if (string_is_empty(fmt))
 		return string_literal("");
 
 	String buffer = string_init(memory::temp_allocator());
 
-	u64 replacement_field_count = 0;
-	u64 replacement_field_largest_index = 0;
+	u32 replacement_field_count = 0;
+	u32 replacement_field_largest_index = 0;
 	for (u64 i = 0; i < fmt.count; ++i)
 	{
 		if (fmt[i] == '{')
@@ -218,34 +249,8 @@ format(const String &fmt, TArgs &&...args)
 			{
 				if constexpr (sizeof...(args) > 0)
 				{
-					u64 index = 0;
-					([&]<typename T>(const T &arg)
-					{
-						if (index == replacement_field_count)
-						{
-							if constexpr (is_char_array_v<T>)
-							{
-								u64 count = count_of(arg);
-								if (count > 0 && arg[count - 1] == '\0')
-									--count;
-								for (u64 i = 0; i < count; ++i)
-									string_append(buffer, arg[i]);
-							}
-							else if constexpr (std::is_same_v<T, String>)
-							{
-								string_append(buffer, arg);
-							}
-							else if constexpr (is_c_string_v<T>)
-							{
-								string_append(buffer, string_literal(arg));
-							}
-							else
-							{
-								string_append(buffer, format(arg));
-							}
-						}
-						++index;
-					}(args), ...);
+					u32 index = 0;
+					(append_field_data(buffer, args, index, replacement_field_count), ...);
 				}
 
 				++i;
@@ -256,7 +261,7 @@ format(const String &fmt, TArgs &&...args)
 				// TODO: Doesn't handle more than 10 indices.
 				validate(fmt[i + 2] == '}', "[FORMAT]: Missing '}' for indexed replacement field.");
 
-				u64 replacement_field_index = fmt[i + 1] - '0';
+				u32 replacement_field_index = fmt[i + 1] - '0';
 				if (replacement_field_index > replacement_field_largest_index)
 					replacement_field_largest_index = replacement_field_index;
 
@@ -264,34 +269,8 @@ format(const String &fmt, TArgs &&...args)
 
 				if constexpr (sizeof...(args) > 0)
 				{
-					u64 index = 0;
-					([&]<typename T>(const T &arg)
-					{
-						if (index == replacement_field_index)
-						{
-							if constexpr (is_char_array_v<T>)
-							{
-								u64 count = count_of(arg);
-								if (count > 0 && arg[count - 1] == '\0')
-									--count;
-								for (u64 i = 0; i < count; ++i)
-									string_append(buffer, arg[i]);
-							}
-							else if constexpr (std::is_same_v<T, String>)
-							{
-								string_append(buffer, arg);
-							}
-							else if constexpr (is_c_string_v<T>)
-							{
-								string_append(buffer, string_literal(arg));
-							}
-							else
-							{
-								string_append(buffer, format(arg));
-							}
-						}
-						++index;
-					}(args), ...);
+					u32 index = 0;
+					(append_field_data(buffer, args, index, replacement_field_index), ...);
 				}
 
 				i += 2;
