@@ -371,7 +371,7 @@ platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 		return string_from(buffer, allocator);
 
 	String full_path = platform_path_get_current_working_directory(allocator);
-	string_append(full_path, "/{}", path);
+	string_append(full_path, format("/{}", path));
 	return full_path;
 }
 
