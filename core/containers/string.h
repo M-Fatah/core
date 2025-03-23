@@ -137,6 +137,12 @@ string_append(String &self, const String &other)
 	self.data[self.count] = '\0';
 }
 
+inline static void
+string_append(String &self, const char *c_string)
+{
+	string_append(self, string_literal(c_string));
+}
+
 inline static char
 string_to_lowercase(char c)
 {

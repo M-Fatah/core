@@ -1,5 +1,6 @@
 #include "core/json.h"
 
+#include "core/format.h"
 #include "core/platform/platform.h"
 
 #include <errno.h>
@@ -366,10 +367,7 @@ _json_value_array_to_string(const JSON_Value &self, String &json_string, i32 ind
 	for (u64 i = 0; i < self.as_array.count; ++i)
 	{
 		if (i > 0)
-		{
-			string_append(json_string, ',');
-			string_append(json_string, '\n');
-		}
+			string_append(json_string, ",\n");
 
 		string_append(json_string, '\t', indent_level + 1);
 
@@ -382,13 +380,13 @@ _json_value_array_to_string(const JSON_Value &self, String &json_string, i32 ind
 				string_append(json_string, "null");
 				break;
 			case JSON_VALUE_KIND_BOOL:
-				string_append(json_string, "{}", value.as_bool);
+				string_append(json_string, format("{}", value.as_bool));
 				break;
 			case JSON_VALUE_KIND_NUMBER:
-				string_append(json_string, "{}", value.as_number);
+				string_append(json_string, format("{}", value.as_number));
 				break;
 			case JSON_VALUE_KIND_STRING:
-				string_append(json_string, "\"{}\"", value.as_string.data);
+				string_append(json_string, format("\"{}\"", value.as_string.data));
 				break;
 			case JSON_VALUE_KIND_ARRAY:
 				_json_value_array_to_string(value, json_string, indent_level + 1);
@@ -406,7 +404,7 @@ _json_value_array_to_string(const JSON_Value &self, String &json_string, i32 ind
 inline static void
 _json_value_object_to_string(const JSON_Value &self, String &json_string, i32 indent_level = 0)
 {
-	string_append(json_string, "{{\n");
+	string_append(json_string, "{\n");
 	i32 i = 0;
 	for (const auto &[key, value] : self.as_object)
 	{
@@ -414,7 +412,7 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, i32 in
 			string_append(json_string, ",\n");
 
 		string_append(json_string, '\t', indent_level + 1);
-		string_append(json_string, "\"{}\": ", key.data);
+		string_append(json_string, format("\"{}\": ", key.data));
 		switch (value.kind)
 		{
 			case JSON_VALUE_KIND_INVALID:
@@ -423,13 +421,13 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, i32 in
 				string_append(json_string, "null");
 				break;
 			case JSON_VALUE_KIND_BOOL:
-				string_append(json_string, "{}", value.as_bool);
+				string_append(json_string, format("{}", value.as_bool));
 				break;
 			case JSON_VALUE_KIND_NUMBER:
-				string_append(json_string, "{}", value.as_number);
+				string_append(json_string, format("{}", value.as_number));
 				break;
 			case JSON_VALUE_KIND_STRING:
-				string_append(json_string, "\"{}\"", value.as_string.data);
+				string_append(json_string, format("\"{}\"", value.as_string.data));
 				break;
 			case JSON_VALUE_KIND_ARRAY:
 				_json_value_array_to_string(value, json_string, indent_level + 1);
@@ -443,7 +441,7 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, i32 in
 	}
 	string_append(json_string, "\n");
 	string_append(json_string, '\t', indent_level);
-	string_append(json_string, "}}");
+	string_append(json_string, "}");
 }
 
 // API.
