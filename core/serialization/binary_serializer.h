@@ -9,7 +9,6 @@
 
 struct Binary_Serializer
 {
-	memory::Allocator *allocator;
 	Array<u8> buffer;
 	u64 offset;
 	bool is_valid;
@@ -27,7 +26,6 @@ inline static Binary_Serializer
 binary_serializer_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	return Binary_Serializer {
-		.allocator = allocator,
 		.buffer = array_init<u8>(allocator),
 		.offset = 0,
 		.is_valid = false
@@ -368,10 +366,10 @@ inline static Result<Array<u8>>
 to_binary(const T &data, memory::Allocator *allocator = memory::heap_allocator())
 {
 	Binary_Serializer self = binary_serializer_init(allocator);
-	DEFER(binary_serializer_deinit(self));
+	DEFER(self = Binary_Serializer{});
 	if (Error error = serialize(self, data))
 		return error;
-	return array_copy(self.buffer, allocator);
+	return self.buffer;
 }
 
 template <typename T>
