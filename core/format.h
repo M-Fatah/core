@@ -39,7 +39,7 @@ format(T data, u8 base = 10, bool uppercase = false)
 	u64 count = 0;
 	do
 	{
-		temp[count++] = digits[(data % base)];
+		temp[count++] = digits[data % base];
 		data /= base;
 	} while (data != 0);
 
@@ -227,10 +227,30 @@ format(const String &fmt, TArgs &&...args)
 		++argument_index;
 	};
 
+	constexpr auto set_allocator = []<typename T>(memory::Allocator *&allocator, const T &data, u32 &argument_index, u32 &argument_count) {
+		if constexpr (std::is_base_of_v<memory::Allocator, T> || std::is_same_v<T, memory::Allocator *>)
+		{
+			if (argument_index == argument_count - 1)
+			{
+				allocator = data;
+				--argument_count;
+			}
+		}
+		++argument_index;
+	};
+
 	if (string_is_empty(fmt))
 		return string_literal("");
 
-	String buffer = string_init(memory::temp_allocator());
+	memory::Allocator *allocator = memory::temp_allocator();
+	u32 argument_count = sizeof...(args);
+	if constexpr (sizeof...(args) > 0)
+	{
+		u32 argument_index = 0;
+		(set_allocator(allocator, args, argument_index, argument_count), ...);
+	}
+
+	String buffer = string_init(allocator);
 
 	u32 replacement_field_count = 0;
 	u32 replacement_field_largest_index = 0;
@@ -265,7 +285,7 @@ format(const String &fmt, TArgs &&...args)
 				if (replacement_field_index > replacement_field_largest_index)
 					replacement_field_largest_index = replacement_field_index;
 
-				validate(replacement_field_index < sizeof...(args), "[FORMAT]: Replacement field index exceeds the total number of arguments passed.");
+				validate(replacement_field_index < argument_count, "[FORMAT]: Replacement field index exceeds the total number of arguments passed.");
 
 				if constexpr (sizeof...(args) > 0)
 				{
@@ -290,7 +310,7 @@ format(const String &fmt, TArgs &&...args)
 	}
 
 	validate(replacement_field_count == 0 || replacement_field_largest_index == 0, "[FORMATTER]: Cannot mix between automatic and manual replacement field indexing.");
-	validate(replacement_field_count == sizeof...(args) || (replacement_field_largest_index + 1) == sizeof...(args), "[FORMAT]: Replacement field count does not match argument count.");
+	validate(replacement_field_count == argument_count || (replacement_field_largest_index + 1) == argument_count, "[FORMAT]: Replacement field count does not match argument count.");
 
 	return buffer;
 }
@@ -306,7 +326,7 @@ format(const char *fmt, TArgs &&...args)
 template <typename T>
 requires (!std::is_same_v<T, String>)
 inline static String
-to_string(const T &data)
+to_string(const T &data, memory::Allocator *allocator = memory::heap_allocator())
 {
-	return format("{}", data);
+	return format("{}", data, allocator);
 }

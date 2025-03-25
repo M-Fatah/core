@@ -151,21 +151,21 @@ TEST_CASE("[CORE]: format")
 
 TEST_CASE("[CORE]: to_string")
 {
-	String buffer = to_string(1);
+	String buffer = to_string(1, memory::temp_allocator());
 	CHECK(buffer == "1");
 
-	buffer = to_string(1.5f);
+	buffer = to_string(1.5f, memory::temp_allocator());
 	CHECK(buffer == "1.5");
 
-	buffer = to_string(2.5);
+	buffer = to_string(2.5, memory::temp_allocator());
 	CHECK(buffer == "2.5");
 
-	buffer = to_string('A');
+	buffer = to_string('A', memory::temp_allocator());
 	CHECK(buffer == "A");
 
-	buffer = to_string(true);
+	buffer = to_string(true, memory::temp_allocator());
 	CHECK(buffer == "true");
 
-	buffer = to_string(array_from({1, 2, 3}, memory::temp_allocator()));
+	buffer = to_string(array_from({1, 2, 3}, memory::temp_allocator()), memory::temp_allocator());
 	CHECK(buffer == "[3] { 1, 2, 3 }");
 }
