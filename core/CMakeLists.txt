@@ -3,7 +3,7 @@ set(HEADER_FILES
     defer.h
     defines.h
     ecs.h
-    format.h
+    formatter.h
     hash.h
     json.h
     log.h

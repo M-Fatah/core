@@ -10,20 +10,43 @@
 	- [ ] Implement 100% correct floating point formatting.
 	- [ ] Support format specifiers.
 	- [ ] Compile time check string format.
-	- [ ] Should we provide format helpers for all of ours types here, or provide it in their files?
-	- [ ] Try and optimize by avoiding creating many temporary allocated substrings, this will lead to many re-allocations and copies of the main buffer.
 	- [ ] Use formatting in validate messages.
+	- [ ] Positional replacement fields doesn't handle more than 10 indices.
+	- [ ] Experiment with std::tuple for the TArgs.
 	- [ ] Cleanup.
+	- [ ] Properly format arrays, ...etc like fmt lib.
 */
 
-template <typename ...TArgs>
-inline static String
-format(const char *fmt, TArgs &&...args);
+struct Formatter
+{
+	String buffer;
+};
+
+inline static Formatter
+formatter_init(memory::Allocator *allocator = memory::heap_allocator())
+{
+	return Formatter {
+		.buffer = string_init(allocator)
+	};
+}
+
+inline static void
+formatter_deinit(Formatter &self)
+{
+	string_deinit(self.buffer);
+	self = Formatter{};
+}
+
+inline static void
+formatter_clear(Formatter &self)
+{
+	string_clear(self.buffer);
+}
 
 template <typename T>
 requires (std::is_integral_v<T> && !std::is_floating_point_v<T>)
 inline static String
-format(T data, u8 base = 10, bool uppercase = false)
+format(Formatter &self, T data, u8 base = 10, bool uppercase = false)
 {
 	const char *digits = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
 
@@ -43,165 +66,139 @@ format(T data, u8 base = 10, bool uppercase = false)
 		data /= base;
 	} while (data != 0);
 
-	String buffer = string_init(memory::temp_allocator());
-
 	if (base == 16)
 	{
-		string_append(buffer, '0');
-		string_append(buffer, 'x');
+		string_append(self.buffer, '0');
+		string_append(self.buffer, 'x');
 		for (u64 i = 0; i < (base - count); ++i)
-			string_append(buffer, '0');
+			string_append(self.buffer, '0');
 	}
 	else if (is_negative)
 	{
-		string_append(buffer, '-');
+		string_append(self.buffer, '-');
 	}
 
 	for (i64 i = count - 1; i >= 0; --i)
-		string_append(buffer, temp[i]);
+		string_append(self.buffer, temp[i]);
 
-	return buffer;
+	return self.buffer;
 }
 
 template <typename T>
 requires (std::is_floating_point_v<T>)
 inline static String
-format(T data, u32 precision = 6, bool remove_trailing_zeros = true)
+format(Formatter &self, T data, u32 precision = 6, bool remove_trailing_zeros = true)
 {
-	String buffer = string_init(memory::temp_allocator());
-
 	if (data < 0)
 	{
-		string_append(buffer, '-');
+		string_append(self.buffer, '-');
 		data = -data;
 	}
 
 	u64 integer = (u64)data;
 	f64 fraction = data - integer;
-	string_append(buffer, format((u64)integer));
-	string_append(buffer, '.');
+	format(self, (u64)integer);
+	string_append(self.buffer, '.');
 
 	for (u64 i = 0; i < precision; ++i)
 	{
 		fraction *= 10;
 		integer = (u64)fraction;
-		string_append(buffer, format(integer));
+		format(self, integer);
 		fraction = fraction - integer;
 	}
 
 	if (remove_trailing_zeros)
-		while (string_ends_with(buffer, '0'))
-			string_remove_last(buffer);
+		while (string_ends_with(self.buffer, '0'))
+			string_remove_last(self.buffer);
 
-	if (string_ends_with(buffer, '.'))
-		string_remove_last(buffer);
+	if (string_ends_with(self.buffer, '.'))
+		string_remove_last(self.buffer);
 
-	return buffer;
+	return self.buffer;
 }
 
 inline static String
-format(bool data)
+format(Formatter &self, bool data)
 {
-	return format("{}", data ? "true" : "false");
+	string_append(self.buffer, data ? "true" : "false");
+	return self.buffer;
 }
 
 inline static String
-format(char data)
+format(Formatter &self, char data)
 {
-	String buffer = string_init(memory::temp_allocator());
-	string_append(buffer, data);
-	return buffer;
+	string_append(self.buffer, data);
+	return self.buffer;
 }
 
 template <typename T>
 requires (std::is_pointer_v<T> && !is_c_string_v<T>)
 inline static String
-format(const T &data)
+format(Formatter &self, const T &data)
 {
-	return format((uptr)data, 16, true);
+	return format(self, (uptr)data, 16, true);
 }
 
 template <typename T>
-requires (std::is_array_v<T> && !is_c_string_v<T>)
+requires (std::is_array_v<T> && !is_char_array_v<T> && !is_c_string_v<T>)
 inline static String
-format(const T &data)
+format(Formatter &self, const T &data)
 {
-	String buffer = string_init(memory::temp_allocator());
-
-	if constexpr (is_char_array_v<T>)
+	format(self, "[{}] {{ ", count_of(data));
+	for (u64 i = 0; i < count_of(data); ++i)
 	{
-		u64 count = count_of(data);
-		if (count > 0 && data[count - 1] == '\0')
-			--count;
-
-		String char_array_copy = string_init(memory::temp_allocator());
-		string_resize(char_array_copy, count);
-		for (u64 i = 0; i < count; ++i)
-			char_array_copy[i] = data[i];
-
-		string_append(buffer, format(char_array_copy.data));
+		if (i != 0)
+			string_append(self.buffer, ", ");
+		format(self, data[i]);
 	}
-	else
-	{
-		string_append(buffer, format("[{}] {{ ", count_of(data)));
-		for (u64 i = 0; i < count_of(data); ++i)
-		{
-			if (i != 0)
-				string_append(buffer, ", ");
-			string_append(buffer, format(data[i]));
-		}
-		string_append(buffer, " }");
-	}
+	string_append(self.buffer, " }");
 
-	return buffer;
+	return self.buffer;
 }
 
 template <typename T>
 inline static String
-format(const Array<T> &data)
+format(Formatter &self, const Array<T> &data)
 {
-	String buffer = string_init(memory::temp_allocator());
-
-	string_append(buffer, format("[{}] {{ ", data.count));
+	format(self, "[{}] {{ ", data.count);
 	for (u64 i = 0; i < data.count; ++i)
 	{
 		if (i != 0)
-			string_append(buffer, ", ");
-		string_append(buffer, format("{}", data[i]));
+			string_append(self.buffer, ", ");
+		format(self, "{}", data[i]);
 	}
-	string_append(buffer, " }");
-	return buffer;
+	string_append(self.buffer, " }");
+	return self.buffer;
 }
 
 template <typename K, typename V>
 inline static String
-format(const Hash_Table<K, V> &data)
+format(Formatter &self, const Hash_Table<K, V> &data)
 {
-	String buffer = string_init(memory::temp_allocator());
-
-	string_append(buffer, format("[{}] {{ ", data.count));
+	format(self, "[{}] {{ ", data.count);
 	u64 i = 0;
 	for (const auto &[key, value] : data)
 	{
 		if (i != 0)
-			string_append(buffer, ", ");
-		string_append(buffer, format("{}: {}", key, value));
+			string_append(self.buffer, ", ");
+		format(self, "{}: {}", key, value);
 		++i;
 	}
-	string_append(buffer, " }");
-	return buffer;
+	string_append(self.buffer, " }");
+	return self.buffer;
 }
 
 template <typename ...TArgs>
 inline static String
-format(const String &fmt, TArgs &&...args)
+format(Formatter &self, const String &fmt, TArgs &&...args)
 {
-	constexpr auto append_field_data = []<typename T>(String &buffer, const T &data, u32 &argument_index, u32 replacement_field_index) {
+	constexpr auto append_field_data = []<typename T>(Formatter &self, const T &data, u32 &argument_index, u32 replacement_field_index) {
 		if (argument_index == replacement_field_index)
 		{
 			if constexpr (std::is_same_v<T, char>)
 			{
-				string_append(buffer, data);
+				string_append(self.buffer, data);
 			}
 			else if constexpr (is_char_array_v<T>)
 			{
@@ -209,48 +206,40 @@ format(const String &fmt, TArgs &&...args)
 				if (count > 0 && data[count - 1] == '\0')
 					--count;
 				for (u64 i = 0; i < count; ++i)
-					string_append(buffer, data[i]);
+					string_append(self.buffer, data[i]);
 			}
 			else if constexpr (std::is_same_v<T, String>)
 			{
-				string_append(buffer, data);
+				string_append(self.buffer, data);
 			}
 			else if constexpr (is_c_string_v<T>)
 			{
-				string_append(buffer, string_literal(data));
+				string_append(self.buffer, string_literal(data));
 			}
 			else
 			{
-				string_append(buffer, format(data));
+				format(self, data);
 			}
 		}
 		++argument_index;
 	};
 
-	constexpr auto set_allocator = []<typename T>(memory::Allocator *&allocator, const T &data, u32 &argument_index, u32 &argument_count) {
+	constexpr auto set_argument_count = []<typename T>(const T &, u32 &argument_index, u32 &argument_count) {
 		if constexpr (std::is_base_of_v<memory::Allocator, T> || std::is_same_v<T, memory::Allocator *>)
-		{
 			if (argument_index == argument_count - 1)
-			{
-				allocator = data;
 				--argument_count;
-			}
-		}
 		++argument_index;
 	};
 
 	if (string_is_empty(fmt))
 		return string_literal("");
 
-	memory::Allocator *allocator = memory::temp_allocator();
 	u32 argument_count = sizeof...(args);
 	if constexpr (sizeof...(args) > 0)
 	{
 		u32 argument_index = 0;
-		(set_allocator(allocator, args, argument_index, argument_count), ...);
+		(set_argument_count(args, argument_index, argument_count), ...);
 	}
-
-	String buffer = string_init(allocator);
 
 	u32 replacement_field_count = 0;
 	u32 replacement_field_largest_index = 0;
@@ -262,7 +251,7 @@ format(const String &fmt, TArgs &&...args)
 
 			if (fmt[i + 1] == '{')
 			{
-				string_append(buffer, '{');
+				string_append(self.buffer, '{');
 				++i;
 			}
 			else if (fmt[i + 1] == '}')
@@ -270,7 +259,7 @@ format(const String &fmt, TArgs &&...args)
 				if constexpr (sizeof...(args) > 0)
 				{
 					u32 index = 0;
-					(append_field_data(buffer, args, index, replacement_field_count), ...);
+					(append_field_data(self, args, index, replacement_field_count), ...);
 				}
 
 				++i;
@@ -278,7 +267,6 @@ format(const String &fmt, TArgs &&...args)
 			}
 			else if (fmt[i + 1] >= '0' && fmt[i + 1] <= '9')
 			{
-				// TODO: Doesn't handle more than 10 indices.
 				validate(fmt[i + 2] == '}', "[FORMAT]: Missing '}' for indexed replacement field.");
 
 				u32 replacement_field_index = fmt[i + 1] - '0';
@@ -290,7 +278,7 @@ format(const String &fmt, TArgs &&...args)
 				if constexpr (sizeof...(args) > 0)
 				{
 					u32 index = 0;
-					(append_field_data(buffer, args, index, replacement_field_index), ...);
+					(append_field_data(self, args, index, replacement_field_index), ...);
 				}
 
 				i += 2;
@@ -300,22 +288,48 @@ format(const String &fmt, TArgs &&...args)
 		{
 			validate(i + 1 < fmt.count && fmt[i + 1] == '}', "[FORMAT]: '}' must have a matching '}'.");
 
-			string_append(buffer, '}');
+			string_append(self.buffer, '}');
 			++i;
 		}
 		else
 		{
-			string_append(buffer, fmt[i]);
+			string_append(self.buffer, fmt[i]);
 		}
 	}
 
 	validate(replacement_field_count == 0 || replacement_field_largest_index == 0, "[FORMATTER]: Cannot mix between automatic and manual replacement field indexing.");
 	validate(replacement_field_count == argument_count || (replacement_field_largest_index + 1) == argument_count, "[FORMAT]: Replacement field count does not match argument count.");
 
-	return buffer;
+	return self.buffer;
 }
 
-// TODO: Pass as reference and check if char[] won't get decayed into pointers.
+template <typename ...TArgs>
+inline static String
+format(Formatter &self, const char *fmt, TArgs &&...args)
+{
+	return format(self, string_literal(fmt), std::forward<TArgs>(args)...);
+}
+
+template <typename ...TArgs>
+inline static String
+format(const String &fmt, TArgs &&...args)
+{
+	constexpr auto set_allocator = []<typename T>(memory::Allocator *&allocator, const T &data, u32 &argument_index, u32 argument_count) {
+		if constexpr (std::is_base_of_v<memory::Allocator, T> || std::is_same_v<T, memory::Allocator *>)
+			if (argument_index == argument_count - 1)
+				allocator = data;
+		++argument_index;
+	};
+
+	memory::Allocator *allocator = memory::heap_allocator();
+	u32 argument_index = 0;
+	(set_allocator(allocator, args, argument_index, sizeof...(args)), ...);
+
+	Formatter self = formatter_init(allocator);
+	DEFER(self = Formatter{});
+	return format(self, fmt, std::forward<TArgs>(args)...);
+}
+
 template <typename ...TArgs>
 inline static String
 format(const char *fmt, TArgs &&...args)
@@ -328,5 +342,7 @@ requires (!std::is_same_v<T, String>)
 inline static String
 to_string(const T &data, memory::Allocator *allocator = memory::heap_allocator())
 {
-	return format("{}", data, allocator);
+	Formatter self = formatter_init(allocator);
+	DEFER(self = Formatter{});
+	return format(self, "{}", data);
 }

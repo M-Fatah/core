@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/defines.h"
-#include "core/format.h"
+#include "core/formatter.h"
 #include "core/containers/string.h"
 
 /*
@@ -23,7 +23,7 @@ struct Error
 	Error(const char *fmt, TArgs &&...args)
 	{
 		Error *self = this;
-		self->message = string_copy(format(fmt, std::forward<TArgs>(args)...));
+		self->message = format(fmt, std::forward<TArgs>(args)..., memory::heap_allocator());
 	}
 
 	Error(const Error &other)
@@ -117,7 +117,7 @@ struct Result
 };
 
 inline static String
-format(const Error &self)
+format(Formatter &formatter, const Error &self)
 {
-	return format(self.message);
+	return format(formatter, "{}", self.message);
 }

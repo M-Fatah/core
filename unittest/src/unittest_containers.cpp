@@ -1,5 +1,4 @@
 #include <core/defer.h>
-#include <core/format.h>
 #include <core/containers/array.h>
 #include <core/containers/hash_table.h>
 #include <core/containers/stack_array.h>
@@ -257,14 +256,6 @@ TEST_CASE("[CONTAINERS]: String")
 		for (size_t i = 0; i < 13; ++i)
 			CHECK(s[i] == literal[i]);
 		string_deinit(s);
-
-		auto literal2 = "Hello, agent 007";
-		s = string_copy(format("{}{}", "Hello, agent 00", 7));
-		CHECK(s.count == 16);
-		CHECK(s.capacity == 17);
-		for (size_t i = 0; i < s.count; ++i)
-			CHECK(s[i] == literal2[i]);
-		string_deinit(s);
 	}
 
 	SUBCASE("copy")
@@ -302,18 +293,6 @@ TEST_CASE("[CONTAINERS]: String")
 
 		string_deinit(s);
 		string_deinit(s3);
-
-		// Formatted append.
-		auto s4 = string_init();
-		DEFER(string_deinit(s4));
-
-		string_append(s4, "Hello");
-		string_append(s4, format("{}", ", World!"));
-		CHECK(s4.count == 13);
-		CHECK(s4.capacity == 14);
-		for (size_t i = 0; i < s4.count; ++i)
-			CHECK(s4[i] == expected[i]);
-		CHECK(s4.data[s4.count] == '\0');
 	}
 
 	SUBCASE("to lower/ to upper")

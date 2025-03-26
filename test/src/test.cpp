@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#include <core/format.h>
+#include <core/formatter.h>
 
 // inline static void
 // print(Value v)
@@ -343,9 +343,9 @@ struct vec3
 };
 
 inline static String
-format(const vec3 &data)
+format(Formatter &self, const vec3 &data)
 {
-	return format("{{{}, {}, {}}}", data.x, data.y, data.z);;
+	return format(self, "{{{}, {}, {}}}", data.x, data.y, data.z);;
 }
 
 i32
