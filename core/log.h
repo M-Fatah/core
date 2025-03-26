@@ -2,7 +2,7 @@
 
 #include "core/export.h"
 #include "core/defines.h"
-#include "core/format.h"
+#include "core/formatter.h"
 #include "core/containers/string.h"
 
 enum LOG_TAG

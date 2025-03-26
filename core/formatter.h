@@ -326,13 +326,12 @@ format(Formatter &self, const char *fmt, TArgs &&...args)
 	return format(self, string_literal(fmt), std::forward<TArgs>(args)...);
 }
 
-// TODO: Remove deinit.
 template <typename ...TArgs>
 inline static String
 format(const String &fmt, TArgs &&...args)
 {
 	Formatter self = formatter_init(memory::temp_allocator());
-	DEFER(formatter_deinit(self));
+	DEFER(self = Formatter{});
 	return format(self, fmt, std::forward<TArgs>(args)...);
 }
 
@@ -341,9 +340,7 @@ template <typename ...TArgs>
 inline static String
 format(const char *fmt, TArgs &&...args)
 {
-	Formatter self = formatter_init(memory::temp_allocator());
-	DEFER(formatter_deinit(self));
-	return format(self, string_literal(fmt), std::forward<TArgs>(args)...);
+	return format(string_literal(fmt), std::forward<TArgs>(args)...);
 }
 
 template <typename T>
@@ -352,6 +349,6 @@ inline static String
 to_string(const T &data, memory::Allocator *allocator = memory::heap_allocator())
 {
 	Formatter self = formatter_init(allocator);
-	DEFER(formatter_deinit(self));
+	DEFER(self = Formatter{});
 	return format(self, "{}", data);
 }

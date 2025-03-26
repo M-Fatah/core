@@ -1,4 +1,4 @@
-#include <core/format.h>
+#include <core/formatter.h>
 
 #include <doctest/doctest.h>
 
@@ -117,6 +117,20 @@ TEST_CASE("[CORE]: format")
 	buffer = format(abc_curly_bracket);
 	CHECK(buffer == "ABC{}");
 
+	const char *fmt_null_c_string = nullptr;
+	buffer = format(fmt_null_c_string);
+	CHECK(buffer == "");
+
+	String fmt_null_string = {};
+	buffer = format(fmt_null_string);
+	CHECK(buffer == "");
+
+	buffer = format("{}", fmt_null_c_string);
+	CHECK(buffer == "");
+
+	buffer = format("{}", fmt_null_string);
+	CHECK(buffer == "");
+
 	// TODO:
 	// buffer = format("{}", format(1.52, 3, false));
 	// CHECK(buffer == "1.520");
@@ -140,14 +154,6 @@ TEST_CASE("[CORE]: format")
 	// CHECK(buffer == "");
 
 	// buffer = format("{}", "A", "B", "C");
-	// CHECK(buffer == "");
-
-	// const char *fmt_null_c_string = nullptr;
-	// buffer = format(fmt_string, fmt_null_c_string);
-	// CHECK(buffer == "");
-
-	// String fmt_null_string = {};
-	// buffer = format(fmt_string, fmt_null_string);
 	// CHECK(buffer == "");
 }
 

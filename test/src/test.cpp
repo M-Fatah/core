@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#include <core/format.h>
+#include <core/formatter.h>
 
 // inline static void
 // print(Value v)

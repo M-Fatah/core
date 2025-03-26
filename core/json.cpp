@@ -1,6 +1,6 @@
 #include "core/json.h"
 
-#include "core/format.h"
+#include "core/formatter.h"
 #include "core/platform/platform.h"
 
 #include <errno.h>
