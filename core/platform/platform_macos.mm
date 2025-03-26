@@ -3,7 +3,7 @@
 #include "core/validate.h"
 #include "core/defer.h"
 #include "core/log.h"
-#include "core/format.h"
+#include "core/formatter.h"
 #include "core/memory/memory.h"
 
 #include <dlfcn.h>

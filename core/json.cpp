@@ -1,10 +1,15 @@
 #include "core/json.h"
 
-#include "core/format.h"
+#include "core/formatter.h"
 #include "core/platform/platform.h"
 
 #include <errno.h>
 #include <stdlib.h>
+
+/*
+	TODO:
+	- [ ] Instead of calling format(...); each time, use Formatter API and build JSON string with it.
+*/
 
 struct JSON_Parser
 {
@@ -380,13 +385,13 @@ _json_value_array_to_string(const JSON_Value &self, String &json_string, i32 ind
 				string_append(json_string, "null");
 				break;
 			case JSON_VALUE_KIND_BOOL:
-				string_append(json_string, format("{}", value.as_bool));
+				string_append(json_string, format("{}", value.as_bool, memory::temp_allocator()));
 				break;
 			case JSON_VALUE_KIND_NUMBER:
-				string_append(json_string, format("{}", value.as_number));
+				string_append(json_string, format("{}", value.as_number, memory::temp_allocator()));
 				break;
 			case JSON_VALUE_KIND_STRING:
-				string_append(json_string, format("\"{}\"", value.as_string.data));
+				string_append(json_string, format("\"{}\"", value.as_string.data, memory::temp_allocator()));
 				break;
 			case JSON_VALUE_KIND_ARRAY:
 				_json_value_array_to_string(value, json_string, indent_level + 1);
@@ -412,7 +417,7 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, i32 in
 			string_append(json_string, ",\n");
 
 		string_append(json_string, '\t', indent_level + 1);
-		string_append(json_string, format("\"{}\": ", key.data));
+		string_append(json_string, format("\"{}\": ", key.data, memory::temp_allocator()));
 		switch (value.kind)
 		{
 			case JSON_VALUE_KIND_INVALID:
@@ -421,13 +426,13 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, i32 in
 				string_append(json_string, "null");
 				break;
 			case JSON_VALUE_KIND_BOOL:
-				string_append(json_string, format("{}", value.as_bool));
+				string_append(json_string, format("{}", value.as_bool, memory::temp_allocator()));
 				break;
 			case JSON_VALUE_KIND_NUMBER:
-				string_append(json_string, format("{}", value.as_number));
+				string_append(json_string, format("{}", value.as_number, memory::temp_allocator()));
 				break;
 			case JSON_VALUE_KIND_STRING:
-				string_append(json_string, format("\"{}\"", value.as_string.data));
+				string_append(json_string, format("\"{}\"", value.as_string.data, memory::temp_allocator()));
 				break;
 			case JSON_VALUE_KIND_ARRAY:
 				_json_value_array_to_string(value, json_string, indent_level + 1);
