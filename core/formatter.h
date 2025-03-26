@@ -11,6 +11,8 @@
 	- [ ] Support format specifiers.
 	- [ ] Compile time check string format.
 	- [ ] Use formatting in validate messages.
+	- [ ] Positional replacement fields doesn't handle more than 10 indices.
+	- [ ] Experiment with std::tuple for the TArgs.
 	- [ ] Cleanup.
 	- [ ] Properly format arrays, ...etc like fmt lib.
 */
@@ -33,6 +35,12 @@ formatter_deinit(Formatter &self)
 {
 	string_deinit(self.buffer);
 	self = Formatter{};
+}
+
+inline static void
+formatter_clear(Formatter &self)
+{
+	string_clear(self.buffer);
 }
 
 template <typename T>
@@ -133,35 +141,18 @@ format(Formatter &self, const T &data)
 }
 
 template <typename T>
-requires (std::is_array_v<T> && !is_c_string_v<T>)
+requires (std::is_array_v<T> && !is_char_array_v<T> && !is_c_string_v<T>)
 inline static String
 format(Formatter &self, const T &data)
 {
-	if constexpr (is_char_array_v<T>)
+	format(self, "[{}] {{ ", count_of(data));
+	for (u64 i = 0; i < count_of(data); ++i)
 	{
-		u64 count = count_of(data);
-		if (count > 0 && data[count - 1] == '\0')
-			--count;
-
-		// TODO: Use string_from(char *begin, char *end);
-		String char_array_copy = string_init(memory::temp_allocator());
-		string_resize(char_array_copy, count);
-		for (u64 i = 0; i < count; ++i)
-			char_array_copy[i] = data[i];
-
-		format(self, char_array_copy.data);
+		if (i != 0)
+			string_append(self.buffer, ", ");
+		format(self, data[i]);
 	}
-	else
-	{
-		format(self, "[{}] {{ ", count_of(data));
-		for (u64 i = 0; i < count_of(data); ++i)
-		{
-			if (i != 0)
-				string_append(self.buffer, ", ");
-			format(self, data[i]);
-		}
-		string_append(self.buffer, " }");
-	}
+	string_append(self.buffer, " }");
 
 	return self.buffer;
 }
@@ -233,27 +224,21 @@ format(Formatter &self, const String &fmt, TArgs &&...args)
 		++argument_index;
 	};
 
-	constexpr auto set_allocator = []<typename T>(memory::Allocator *&allocator, const T &data, u32 &argument_index, u32 &argument_count) {
+	constexpr auto set_argument_count = []<typename T>(const T &, u32 &argument_index, u32 &argument_count) {
 		if constexpr (std::is_base_of_v<memory::Allocator, T> || std::is_same_v<T, memory::Allocator *>)
-		{
 			if (argument_index == argument_count - 1)
-			{
-				allocator = data;
 				--argument_count;
-			}
-		}
 		++argument_index;
 	};
 
 	if (string_is_empty(fmt))
 		return string_literal("");
 
-	memory::Allocator *allocator = memory::temp_allocator();
 	u32 argument_count = sizeof...(args);
 	if constexpr (sizeof...(args) > 0)
 	{
 		u32 argument_index = 0;
-		(set_allocator(allocator, args, argument_index, argument_count), ...);
+		(set_argument_count(args, argument_index, argument_count), ...);
 	}
 
 	u32 replacement_field_count = 0;
@@ -282,7 +267,6 @@ format(Formatter &self, const String &fmt, TArgs &&...args)
 			}
 			else if (fmt[i + 1] >= '0' && fmt[i + 1] <= '9')
 			{
-				// TODO: Doesn't handle more than 10 indices.
 				validate(fmt[i + 2] == '}', "[FORMAT]: Missing '}' for indexed replacement field.");
 
 				u32 replacement_field_index = fmt[i + 1] - '0';
@@ -330,12 +314,22 @@ template <typename ...TArgs>
 inline static String
 format(const String &fmt, TArgs &&...args)
 {
-	Formatter self = formatter_init(memory::temp_allocator());
+	constexpr auto set_allocator = []<typename T>(memory::Allocator *&allocator, const T &data, u32 &argument_index, u32 argument_count) {
+		if constexpr (std::is_base_of_v<memory::Allocator, T> || std::is_same_v<T, memory::Allocator *>)
+			if (argument_index == argument_count - 1)
+				allocator = data;
+		++argument_index;
+	};
+
+	memory::Allocator *allocator = memory::heap_allocator();
+	u32 argument_index = 0;
+	(set_allocator(allocator, args, argument_index, sizeof...(args)), ...);
+
+	Formatter self = formatter_init(allocator);
 	DEFER(self = Formatter{});
 	return format(self, fmt, std::forward<TArgs>(args)...);
 }
 
-// TODO: Pass as reference and check if char[] won't get decayed into pointers.
 template <typename ...TArgs>
 inline static String
 format(const char *fmt, TArgs &&...args)
