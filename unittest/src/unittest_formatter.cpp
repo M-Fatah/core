@@ -35,6 +35,11 @@ TEST_CASE("[CORE]: Formatter")
 
 		format(formatter, 1.0, 2);
 		CHECK(formatter.buffer == "1.5201");
+
+		formatter_clear(formatter);
+
+		format(formatter, "{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}{10}", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
+		CHECK(formatter.buffer == "1234567891011");
 	}
 
 	SUBCASE("Helpers")

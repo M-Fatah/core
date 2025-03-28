@@ -11,7 +11,6 @@
 	- [ ] Support format specifiers.
 	- [ ] Compile time check string format.
 	- [ ] Use formatting in validate messages.
-	- [ ] Positional replacement fields doesn't handle more than 10 indices.
 	- [ ] Experiment with std::tuple for the TArgs.
 	- [ ] Cleanup.
 	- [ ] Properly format arrays, ...etc like fmt lib.
@@ -243,11 +242,11 @@ format(Formatter &self, const String &fmt, TArgs &&...args)
 
 	u32 replacement_field_count = 0;
 	u32 replacement_field_largest_index = 0;
-	for (u64 i = 0; i < fmt.count; ++i)
+	for (u32 i = 0; i < fmt.count; ++i)
 	{
 		if (fmt[i] == '{')
 		{
-			validate((i + 1 < fmt.count && (fmt[i + 1] == '{' || fmt[i + 1] == '}')) || (i + 2 < fmt.count && fmt[i + 1] >= '0' && fmt[i + 1] <= '9' && fmt[i + 2] == '}'), "[FORMAT]: '{' must have a matching '{' or '}'.");
+			validate(i + 1 < fmt.count && ((fmt[i + 1] == '{' || fmt[i + 1] == '}') || (fmt[i + 1] >= '0' && fmt[i + 1] <= '9')), "[FORMAT]: '{' must have a matching '{' or '}'.");
 
 			if (fmt[i + 1] == '{')
 			{
@@ -267,11 +266,12 @@ format(Formatter &self, const String &fmt, TArgs &&...args)
 			}
 			else if (fmt[i + 1] >= '0' && fmt[i + 1] <= '9')
 			{
-				validate(fmt[i + 2] == '}', "[FORMAT]: Missing '}' for indexed replacement field.");
+				// TODO: Cleanup.
+				char *end = nullptr;
 
-				u32 replacement_field_index = fmt[i + 1] - '0';
+				u32 replacement_field_index = ::strtoul(&fmt[i + 1], &end, 10);
 				if (replacement_field_index > replacement_field_largest_index)
-					replacement_field_largest_index = replacement_field_index;
+				replacement_field_largest_index = replacement_field_index;
 
 				validate(replacement_field_index < argument_count, "[FORMAT]: Replacement field index exceeds the total number of arguments passed.");
 
@@ -281,7 +281,11 @@ format(Formatter &self, const String &fmt, TArgs &&...args)
 					(append_field_data(self, args, index, replacement_field_index), ...);
 				}
 
-				i += 2;
+				i64 length = end - &fmt[i + 1];
+
+				i += (u32)length;
+				validate(fmt[i + 1] == '}', "[FORMAT]: Missing '}' for indexed replacement field.");
+				i += 1;
 			}
 		}
 		else if (fmt[i] == '}')
