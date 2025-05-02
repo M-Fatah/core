@@ -21,8 +21,7 @@ template <typename ...TArgs>
 inline static void
 log_to_console(LOG_TAG tag, const char *fmt, TArgs &&...args)
 {
-	auto buffer = format(fmt, std::forward<TArgs>(args)...);
-	log_to_console(tag, string_literal(buffer));
+	log_to_console(tag, format(fmt, std::forward<TArgs>(args)..., memory::temp_allocator()));
 }
 
 template <typename ...TArgs>

@@ -256,14 +256,6 @@ TEST_CASE("[CONTAINERS]: String")
 		for (size_t i = 0; i < 13; ++i)
 			CHECK(s[i] == literal[i]);
 		string_deinit(s);
-
-		auto literal2 = "Hello, agent 007";
-		s = string_from(memory::heap_allocator(), "{}{}", "Hello, agent 00", 7);
-		CHECK(s.count == 16);
-		CHECK(s.capacity == 17);
-		for (size_t i = 0; i < s.count; ++i)
-			CHECK(s[i] == literal2[i]);
-		string_deinit(s);
 	}
 
 	SUBCASE("copy")
@@ -301,18 +293,6 @@ TEST_CASE("[CONTAINERS]: String")
 
 		string_deinit(s);
 		string_deinit(s3);
-
-		// Formatted append.
-		auto s4 = string_init();
-		DEFER(string_deinit(s4));
-
-		string_append(s4, "Hello");
-		string_append(s4, "{}", ", World!");
-		CHECK(s4.count == 13);
-		CHECK(s4.capacity == 14);
-		for (size_t i = 0; i < s4.count; ++i)
-			CHECK(s4[i] == expected[i]);
-		CHECK(s4.data[s4.count] == '\0');
 	}
 
 	SUBCASE("to lower/ to upper")
@@ -452,7 +432,7 @@ TEST_CASE("[CONTAINERS]: String")
 
 	SUBCASE("replace")
 	{
-		auto s = string_from(memory::temp_allocator(), "Helloxxx, xxxWorld!xxx");
+		auto s = string_from("Helloxxx, xxxWorld!xxx", memory::temp_allocator());
 		DEFER(string_deinit(s));
 
 		string_replace(s, string_literal("xxx"), string_literal(""));
@@ -463,7 +443,7 @@ TEST_CASE("[CONTAINERS]: String")
 			CHECK(s[i] == expected[i]);
 		CHECK(s.data[s.count] == '\0');
 
-		auto s2 = string_from(memory::temp_allocator(), "Helloxxx, xxxWorld!xxx");
+		auto s2 = string_from("Helloxxx, xxxWorld!xxx", memory::temp_allocator());
 		string_replace_first_occurance(s2, "xxx", "", 5);
 		CHECK(s2 == "Hello, xxxWorld!xxx");
 		string_replace_first_occurance(s2, "xxx", "", 10);

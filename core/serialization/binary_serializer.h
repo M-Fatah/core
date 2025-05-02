@@ -9,7 +9,6 @@
 
 struct Binary_Serializer
 {
-	memory::Allocator *allocator;
 	Array<u8> buffer;
 	u64 offset;
 	bool is_valid;
@@ -27,7 +26,6 @@ inline static Binary_Serializer
 binary_serializer_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	return Binary_Serializer {
-		.allocator = allocator,
 		.buffer = array_init<u8>(allocator),
 		.offset = 0,
 		.is_valid = false
@@ -56,7 +54,7 @@ serialize(Binary_Serializer &self, const T &data)
 }
 
 template <typename T>
-requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
+requires (std::is_pointer_v<T> && !is_c_string_v<T>)
 inline static Error
 serialize(Binary_Serializer& self, const T &data)
 {
@@ -192,7 +190,7 @@ serialize(Binary_Deserializer &self, T &data)
 }
 
 template <typename T>
-requires (std::is_pointer_v<T> && !std::is_same_v<T, char *> && !std::is_same_v<T, const char *>)
+requires (std::is_pointer_v<T> && !is_c_string_v<T>)
 inline static Error
 serialize(Binary_Deserializer& self, T &data)
 {
@@ -368,10 +366,10 @@ inline static Result<Array<u8>>
 to_binary(const T &data, memory::Allocator *allocator = memory::heap_allocator())
 {
 	Binary_Serializer self = binary_serializer_init(allocator);
-	DEFER(binary_serializer_deinit(self));
+	DEFER(self = Binary_Serializer{});
 	if (Error error = serialize(self, data))
 		return error;
-	return array_copy(self.buffer, allocator);
+	return self.buffer;
 }
 
 template <typename T>

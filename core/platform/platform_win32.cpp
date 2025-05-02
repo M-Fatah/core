@@ -2,7 +2,6 @@
 
 #include "core/defer.h"
 #include "core/validate.h"
-#include "core/formatter.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
 
@@ -14,13 +13,6 @@
 #include <math.h>
 #include <atomic>
 #include <inttypes.h>
-
-// TODO: Remove.
-inline static void
-format(Formatter *formatter, DWORD value)
-{
-	format(formatter, (u64)value);
-}
 
 // TODO: Remove from here.
 inline static void

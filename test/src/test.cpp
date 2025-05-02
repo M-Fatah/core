@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <inttypes.h>
 
+#include <core/formatter.h>
+
 // inline static void
 // print(Value v)
 // {
@@ -335,6 +337,17 @@
 
 // TYPE_OF(P, x, y, z, w)
 
+struct vec3
+{
+	f32 x, y, z;
+};
+
+inline static String
+format(Formatter &self, const vec3 &data)
+{
+	return format(self, "{{{}, {}, {}}}", data.x, data.y, data.z);;
+}
+
 i32
 main(i32, char **)
 {
@@ -354,18 +367,38 @@ main(i32, char **)
 
 	// print(value_of(1));
 
+	auto b1 = format("{}{}", 1, 2);
 
-	// Platform_Window window = platform_window_init(800, 600, "Test");
-	// while (platform_window_poll(&window))
-	// {
-	// 	if (window.input.keys[PLATFORM_KEY_C].pressed)
-	// 		platform_window_close(&window);
+	auto b5 = format("{}", 1.5f);
+	auto b6 = format("{}", 2.5);
 
-	// 	if (window.input.keys[PLATFORM_KEY_T].pressed)
-	// 		platform_window_set_title(&window, "Test with T");
-	// }
+	i32 array[] = {1, 2, 3};
+	auto b7 = format("{}", array);
 
-	// platform_window_deinit(&window);
+	auto b8 = format("{}", "Hello, World!");
+
+	i32 i = 5;
+	auto b9 = format("{}", &i);
+
+	auto b10 = format("{}", 'A');
+	auto b11 = format("{}", false);
+
+	char array2[] = {'A', 'B', 'C'};
+	auto b12 = format("{}", array2);
+
+	vec3 v = {1, 2, 3};
+	auto b13 = format("{}", v);
+
+	Array<i32> a = array_from({1, 2, 3}, memory::temp_allocator());
+	auto b14 = format("{}", a);
+
+	String b = string_from("BB", memory::temp_allocator());
+	auto b15 = format("{}", b);
+
+	Hash_Table<i32, i32> c = hash_table_from<i32, i32>({{1, 2}, {3, 4}}, memory::temp_allocator());
+	auto b16 = format("{}", c);
+
+	unused(b1, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16);
 
 	return 0;
 }

@@ -1,4 +1,5 @@
 #include <core/defines.h>
+#include <core/formatter.h>
 #include <core/reflect.h>
 #include <core/containers/array.h>
 #include <core/containers/string.h>
@@ -520,7 +521,7 @@ TEST_CASE("[CORE]: Reflect")
 		for (u64 i = 0; i < reflect_enum_type->as_enum.value_count; ++i)
 		{
 			CHECK(reflect_enum_type->as_enum.values[i].index == i);
-			CHECK(reflect_enum_type->as_enum.values[i].name == string_from(memory::temp_allocator(), "REFLECT_ENUM_{}", i));
+			CHECK(reflect_enum_type->as_enum.values[i].name == format("REFLECT_ENUM_{}", i, memory::temp_allocator()));
 		}
 
 		const Type *unordered_enum_type = type_of<UNORDERED_ENUM>();

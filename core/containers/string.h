@@ -4,7 +4,6 @@
 #include "core/validate.h"
 #include "core/defer.h"
 #include "core/hash.h"
-#include "core/formatter.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
 
@@ -32,16 +31,12 @@ string_from(const char *c_string, memory::Allocator *allocator = memory::heap_al
 {
 	auto length_of = [](const char *string) -> u64 {
 		u64 count = 0;
-
-		if (string == nullptr)
-			return count;
-
 		const char *ptr = string;
 		while (*ptr++) ++count;
 		return count;
 	};
 
-	u64 length = length_of(c_string);
+	u64 length = c_string == nullptr ? 0 : length_of(c_string);
 	String self = array_with_capacity<char>(length + 1, allocator);
 	self.count = length;
 	for (u64 i = 0; i < length; ++i)
@@ -61,14 +56,6 @@ string_from(const char *first, const char *last, memory::Allocator *allocator = 
 	return self;
 }
 
-template <typename ...TArgs>
-inline static String
-string_from(memory::Allocator *allocator, const char *fmt, const TArgs &...args)
-{
-	auto buffer = format(fmt, args...);
-	return string_from(buffer, allocator);
-}
-
 inline static String
 string_copy(const String &self, memory::Allocator *allocator = memory::heap_allocator())
 {
@@ -84,10 +71,6 @@ string_literal(const char *c_string)
 {
 	auto length_of = [](const char *string) -> u64 {
 		u64 count = 0;
-
-		if (string == nullptr)
-			return count;
-
 		const char *ptr = string;
 		while (*ptr++) ++count;
 		return count;
@@ -95,8 +78,8 @@ string_literal(const char *c_string)
 
 	String self = {};
 	self.data = (char *)c_string;
-	self.count = length_of(c_string);
-	self.capacity = self.count + 1;
+	self.count = c_string == nullptr ? 0 : length_of(c_string);
+	self.capacity = c_string == nullptr ? 0 : self.count + 1;
 	return self;
 }
 
@@ -154,13 +137,10 @@ string_append(String &self, const String &other)
 	self.data[self.count] = '\0';
 }
 
-template <typename ...TArgs>
 inline static void
-string_append(String &self, const char *fmt, const TArgs &...args)
+string_append(String &self, const char *c_string)
 {
-	validate(self.allocator, "[STRING]: Cannot append to a string literal.");
-	auto buffer = format(fmt, args...);
-	string_append(self, string_literal(buffer));
+	string_append(self, string_literal(c_string));
 }
 
 inline static char
@@ -782,11 +762,4 @@ inline static u64
 hash(const String &self)
 {
 	return hash_fnv_x32(self.data, self.count);
-}
-
-inline static void
-format(Formatter *formatter, const String &self)
-{
-	for (char c : self)
-		format(formatter, c);
 }

@@ -3,6 +3,11 @@
 
 #include <core/platform/platform.h>
 
+/*
+	TODO:
+	- [ ] Add print overload for clearer console message (while debugging).
+*/
+
 i32
 main(i32 argc, char **argv)
 {

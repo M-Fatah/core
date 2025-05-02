@@ -2,6 +2,7 @@
 
 #include "core/validate.h"
 #include "core/defer.h"
+#include "core/formatter.h"
 #include "core/memory/memory.h"
 
 #include <stdio.h>
@@ -178,7 +179,7 @@ platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 		return string_from(buffer, allocator);
 
 	String full_path = platform_path_get_current_working_directory(allocator);
-	string_append(full_path, "/{}", path);
+	string_append(full_path, format("/{}", path));
 	return full_path;
 }
 
