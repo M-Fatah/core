@@ -5,6 +5,8 @@
 #include "core/containers/string.h"
 #include "core/containers/hash_table.h"
 
+#include <stdlib.h>
+
 /*
 	TODO:
 	- [ ] Implement 100% correct floating point formatting.
