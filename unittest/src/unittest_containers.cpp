@@ -1,5 +1,6 @@
 #include <core/defer.h>
 #include <core/containers/array.h>
+#include <core/containers/hash_set.h>
 #include <core/containers/hash_table.h>
 #include <core/containers/stack_array.h>
 #include <core/containers/string.h>
@@ -848,5 +849,281 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 			CHECK(entry.key == Foo{j++});
 			CHECK(entry.value == j);
 		}
+	}
+}
+
+TEST_CASE("[CONTAINERS]: Hash_Set")
+{
+	SUBCASE("init")
+	{
+		{
+			Hash_Set<const char *> set = hash_set_init<const char *>();
+			DEFER(hash_set_deinit(set));
+
+			CHECK(set.count    == 0);
+			CHECK(set.capacity == 0);
+
+			CHECK(set.slots.data     == nullptr);
+			CHECK(set.slots.count    == 0);
+			CHECK(set.slots.capacity == 0);
+		}
+
+		{
+			auto set = hash_set_init_with_capacity<i32>(62, memory::temp_allocator());
+			CHECK(set.count == 0);
+			CHECK(set.capacity == 64);
+
+			CHECK(set.slots.data     != nullptr);
+			CHECK(set.slots.count    == 64);
+			CHECK(set.slots.capacity == 64);
+
+			hash_set_insert(set, 1);
+			hash_set_insert(set, 2);
+
+			CHECK(set.count == 2);
+			CHECK(set.capacity == 64);
+		}
+
+		{
+			auto set = hash_set_init_from<i32>({1, 2}, memory::temp_allocator());
+
+			CHECK(set.count == 2);
+			CHECK(set.capacity == 8);
+
+			CHECK(set.slots.data     != nullptr);
+			CHECK(set.slots.count    == 8);
+			CHECK(set.slots.capacity == 8);
+
+			CHECK(set.entries[0].key == 1);
+			CHECK(set.entries[1].key == 2);
+		}
+	}
+
+	SUBCASE("const char *")
+	{
+		Hash_Set<const char *> set = hash_set_init<const char *>();
+		DEFER(hash_set_deinit(set));
+
+		CHECK(set.count    == 0);
+		CHECK(set.capacity == 0);
+
+		const char *key = "Hello";
+		hash_set_insert(set, key);
+
+		CHECK(set.entry_slot_indices.count == 1);
+		CHECK(set.entries.count == 1);
+
+		CHECK(set.count == 1);
+		auto *k1 = hash_set_find(set, key);
+		CHECK(k1 != nullptr);
+		CHECK(*k1 != nullptr);
+		CHECK(*k1 == key);
+		CHECK(*k1 == string_literal("Hello"));
+
+		hash_set_insert(set, key);
+
+		CHECK(set.entry_slot_indices.count == 1);
+		CHECK(set.entries.count == 1);
+
+		CHECK(set.count == 1);
+		CHECK(*hash_set_find(set, key) == string_literal("Hello"));
+
+		const char *key2 = "Hi";
+		hash_set_insert(set, key2);
+		CHECK(set.count == 2);
+
+		CHECK(set.entry_slot_indices.count == 2);
+		CHECK(set.entries.count == 2);
+
+		const char *k2 = "hi";
+		CHECK(hash_set_find(set, key) != nullptr);
+		CHECK(hash_set_find(set, key2) != nullptr);
+		CHECK(hash_set_find(set, k2) == nullptr);
+
+		CHECK(hash_set_remove(set, key));
+		CHECK(set.count == 1);
+		CHECK(hash_set_find(set, key) == nullptr);
+
+		CHECK(set.entry_slot_indices.count == 1);
+		CHECK(set.entries.count == 1);
+
+		CHECK(hash_set_find(set, key2) != nullptr);
+		CHECK(hash_set_remove(set, key2));
+		CHECK(set.count == 0);
+		CHECK(hash_set_find(set, key2) == nullptr);
+
+		CHECK(set.entry_slot_indices.count == 0);
+		CHECK(set.entries.count == 0);
+	}
+
+	SUBCASE("i32, Foo")
+	{
+		Hash_Set<i32> set = hash_set_init<i32>();
+		DEFER(hash_set_deinit(set));
+
+		i32 key = 1;
+		hash_set_insert(set, key);
+
+		CHECK(set.count == 1);
+		CHECK(hash_set_find(set, key) != nullptr);
+
+		CHECK(hash_set_find(set, key) != nullptr);
+		CHECK(*hash_set_find(set, key) == 1);
+
+		hash_set_insert(set, key);
+		CHECK(set.count == 1);
+		CHECK(hash_set_find(set, key) != nullptr);
+		CHECK(*hash_set_find(set, key) == 1);
+
+		i32 key2   = 2;
+		hash_set_insert(set, key2);
+		CHECK(set.count == 2);
+
+		CHECK(hash_set_find(set, key) != nullptr);
+		CHECK(hash_set_find(set, key2) != nullptr);
+
+		CHECK(hash_set_remove(set, key));
+		CHECK(set.count == 1);
+		CHECK(hash_set_find(set, key) == nullptr);
+		CHECK(hash_set_find(set, key2) != nullptr);
+		CHECK(hash_set_remove(set, key2));
+		CHECK(set.count == 0);
+		CHECK(hash_set_find(set, key2) == nullptr);
+	}
+
+	SUBCASE("resize")
+	{
+		Hash_Set<i32> set = hash_set_init<i32>(memory::temp_allocator());
+
+		for (i32 i = 0; i < 100; ++i)
+			hash_set_insert(set, i);
+
+		CHECK(set.count == 100);
+		CHECK(set.capacity == 256);
+
+		::printf("%zu\n", sizeof(Hash_Table_Entry<i32, Hash_Set_Value>));
+		::printf("%zu\n", sizeof(Hash_Set_Value));
+
+		i32 j = 0;
+		for (const auto &entry : set)
+			CHECK(entry == j++);
+
+		for (i32 i = 0; i < 100; ++i)
+		{
+			auto entry = hash_set_find(set, i);
+			CHECK(entry != nullptr);
+			CHECK(*entry == i);
+		}
+
+		for (i32 i = 0; i < 100; ++i)
+		{
+			CHECK(hash_set_remove(set, i) == true);
+			CHECK(hash_set_find(set, i) == nullptr);
+			CHECK(set.count == (99 - i));
+		}
+
+		for (i32 i = 0; i < 100; ++i)
+		{
+			CHECK(hash_set_remove(set, i) == false);
+			CHECK(hash_set_find(set, i) == nullptr);
+		}
+
+		CHECK(set.count == 0);
+		CHECK(set.capacity == 8);
+	}
+
+	SUBCASE("clear")
+	{
+		Hash_Set<i32> set = hash_set_init<i32>(memory::temp_allocator());
+
+		for (i32 i = 0; i < 10; ++i)
+			hash_set_insert(set, i);
+
+		CHECK(set.count == 10);
+		CHECK(set.capacity == 16);
+
+		i32 j = 0;
+		for (const auto &entry : set)
+			CHECK(entry == j++);
+
+		hash_set_clear(set);
+
+		CHECK(set.count == 0);
+		CHECK(set.capacity == 16);
+
+		for (i32 i = 0; i < 10; ++i)
+			CHECK(hash_set_find(set, i) == nullptr);
+	}
+
+	SUBCASE("copy/clone/destroy")
+	{
+		Hash_Set<i32> set1 = hash_set_init<i32>();
+		DEFER(destroy(set1));
+
+		CHECK(set1.count    == 0);
+		CHECK(set1.capacity == 0);
+
+		for (i32 i = 0; i < 10; ++i)
+			hash_set_insert(set1, i);
+
+		CHECK(set1.count    == 10);
+		CHECK(set1.capacity == 16);
+
+		auto set2 = hash_set_copy(set1);
+		DEFER(destroy(set2));
+
+		CHECK(set2.count == 10);
+		CHECK(set2.capacity == 16);
+
+		i32 j = 0;
+		for (const auto &entry : set2)
+			CHECK(entry == j++);
+
+		auto set3 = hash_set_init<Foo>();
+		DEFER(destroy(set3));
+
+		for (i32 i = 0; i < 10; ++i)
+			hash_set_insert(set3, Foo{i});
+
+		CHECK(set3.count == 10);
+		CHECK(set3.capacity == 16);
+
+		i32 k = 0;
+		for (const auto &entry : set3)
+		{
+			CHECK(entry == Foo{k});
+			++k;
+		}
+
+		auto set4 = clone(set3);
+		DEFER(destroy(set4));
+
+		CHECK(set4.count == 10);
+		CHECK(set4.capacity == 16);
+
+		k = 0;
+		for (const auto &entry : set4)
+		{
+			CHECK(entry == Foo{k});
+			++k;
+		}
+	}
+
+	SUBCASE("user defined entry [Foo]")
+	{
+		Hash_Set<Foo> table = hash_set_init<Foo>(memory::temp_allocator());
+
+		CHECK(table.count    == 0);
+		CHECK(table.capacity == 0);
+
+		for (i32 i = 0; i < 10; ++i)
+			hash_set_insert(table, Foo{i});
+
+		CHECK(table.count == 10);
+		CHECK(table.capacity == 16);
+
+		i32 j = 0;
+		for (const auto &entry : table)
+			CHECK(entry == Foo{j++});
 	}
 }

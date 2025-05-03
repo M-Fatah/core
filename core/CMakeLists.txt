@@ -12,6 +12,7 @@ set(HEADER_FILES
     source_location.h
     utils.h
     containers/array.h
+    containers/hash_set.h
     containers/hash_table.h
     containers/stack_array.h
     containers/string.h

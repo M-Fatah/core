@@ -9,13 +9,20 @@
 
 #include <initializer_list>
 
+/*
+	TODO:
+	- [ ] Add hash_table_reserve() function.
+	- [ ] Properly allocate the correct capactiy when calling resize with respect to load ratio.
+	- [ ] Remove auto keyword.
+*/
+
 inline static constexpr u64 HASH_TABLE_INITIAL_CAPACITY = 8;
 
 enum HASH_TABLE_SLOT_FLAGS
 {
 	HASH_TABLE_SLOT_FLAGS_EMPTY,
 	HASH_TABLE_SLOT_FLAGS_USED,
-	HASH_TABLE_SLOT_FLAGS_DELETED,
+	HASH_TABLE_SLOT_FLAGS_DELETED
 };
 
 struct Hash_Table_Slot
@@ -74,8 +81,8 @@ inline static Hash_Table<K, V>
 hash_table_from(std::initializer_list<Hash_Table_Entry<K, V>> entries, memory::Allocator *allocator = memory::heap_allocator())
 {
 	Hash_Table<K, V> self = hash_table_init<K, V>(allocator);
-	for (const Hash_Table_Entry<K, V> *it = entries.begin(); it != entries.end(); ++it)
-		hash_table_insert(self, it->key, it->value);
+	for (const Hash_Table_Entry<K, V> &entry : entries)
+		hash_table_insert(self, entry.key, entry.value);
 	return self;
 }
 
@@ -105,7 +112,7 @@ inline static void
 hash_table_resize(Hash_Table<K, V> &self, u64 count)
 {
 	Hash_Table<K, V> new_table = hash_table_with_capacity<K, V>(count, self.entries.allocator);
-	for (const auto &entry : self.entries)
+	for (const Hash_Table_Entry<K, V> &entry : self.entries)
 		hash_table_insert(new_table, entry.key, entry.value);
 	hash_table_deinit(self);
 	self = new_table;
@@ -292,13 +299,13 @@ inline static Hash_Table<K, V>
 clone(const Hash_Table<K, V> &self, memory::Allocator *allocator = memory::heap_allocator())
 {
 	auto copy = hash_table_copy(self, allocator);
-	if constexpr (std::is_compound_v<K> || std::is_compound_v<V>)
+	if constexpr (std::is_class_v<K> || std::is_class_v<V>)
 	{
 		for (u64 i = 0; i < self.entries.count; ++i)
 		{
-			if constexpr (std::is_compound_v<K>)
+			if constexpr (std::is_class_v<K>)
 				copy.entries[i].key = clone(self.entries[i].key, allocator);
-			if constexpr (std::is_compound_v<V>)
+			if constexpr (std::is_class_v<V>)
 				copy.entries[i].value = clone(self.entries[i].value, allocator);
 		}
 	}
@@ -309,13 +316,13 @@ template <typename K, typename V>
 inline static void
 destroy(Hash_Table<K, V> &self)
 {
-	if constexpr (std::is_compound_v<K> || std::is_compound_v<V>)
+	if constexpr (std::is_class_v<K> || std::is_class_v<V>)
 	{
 		for (auto &entry : self.entries)
 		{
-			if constexpr (std::is_compound_v<K>)
+			if constexpr (std::is_class_v<K>)
 				destroy(entry.key);
-			if constexpr (std::is_compound_v<V>)
+			if constexpr (std::is_class_v<V>)
 				destroy(entry.value);
 		}
 	}

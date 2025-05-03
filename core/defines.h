@@ -53,6 +53,12 @@
 #define _FOR_EACH02(ACTION, ARG, ...) ACTION(ARG), _FOR_EACH01(ACTION, __VA_ARGS__)
 #define _FOR_EACH01(ACTION, ARG, ...) ACTION(ARG)
 
+#if COMPILER_MSVC
+	#define NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
+#else
+	#define NO_UNIQUE_ADDRESS [[no_unique_address]]
+#endif
+
 #define I8_MIN  INT8_MIN
 #define I8_MAX  INT8_MAX
 #define I16_MIN INT16_MIN
