@@ -13,7 +13,7 @@ namespace memory
 		Context()
 		{
 			heap_allocator = heap_allocator_init();
-			temp_allocator = arena_allocator_init(ARENA_ALLOCATOR_INITIAL_CAPACITY, heap_allocator);
+			temp_allocator = arena_allocator_init(4 * 1024 * 1024 * 1024ULL, heap_allocator);
 		}
 
 		~Context()
