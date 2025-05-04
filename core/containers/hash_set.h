@@ -127,7 +127,7 @@ template <typename K>
 inline static Hash_Set<K>
 clone(const Hash_Set<K> &self, memory::Allocator *allocator = memory::heap_allocator())
 {
-	auto copy = hash_table_copy(self, allocator);
+	Hash_Set<K> copy = hash_table_copy(self, allocator);
 	if constexpr (std::is_class_v<K>)
 		for (u64 i = 0; i < self.entries.count; ++i)
 			copy.entries[i].key = clone(self.entries[i].key, allocator);

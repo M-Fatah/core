@@ -1001,9 +1001,6 @@ TEST_CASE("[CONTAINERS]: Hash_Set")
 		CHECK(set.count == 100);
 		CHECK(set.capacity == 256);
 
-		::printf("%zu\n", sizeof(Hash_Table_Entry<i32, Hash_Set_Value>));
-		::printf("%zu\n", sizeof(Hash_Set_Value));
-
 		i32 j = 0;
 		for (const auto &entry : set)
 			CHECK(entry == j++);
