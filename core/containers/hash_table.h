@@ -62,6 +62,7 @@ hash_table_with_capacity(u64 capacity, memory::Allocator *allocator = memory::he
 		.slots              = array_with_count<Hash_Table_Slot>(next_power_of_two((i32)(capacity > 8 ? capacity : 8)), allocator),
 		.entry_slot_indices = array_init<u64>(allocator),
 		.entries            = array_init<Hash_Table_Entry<K, V>>(allocator),
+		.count              = 0,
 		.capacity           = self.slots.count
 	};
 	array_fill(self.slots, Hash_Table_Slot{});
