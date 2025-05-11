@@ -2,6 +2,7 @@
 
 #include "core/defines.h"
 
+// TODO: Add variant for u32, u64, ..etc
 inline static u64
 next_power_of_two(i32 value)
 {

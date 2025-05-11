@@ -2,11 +2,6 @@
 
 #include "core/containers/hash_table.h"
 
-/*
-	TODO:
-	- [ ] Add hash_set_reserve() function.
-*/
-
 struct Hash_Set_Value
 {
 
@@ -60,11 +55,12 @@ hash_set_deinit(Hash_Set<K> &self)
 	hash_table_deinit(self);
 }
 
+// TODO: Add unittests.
 template <typename K>
 inline static void
-hash_set_resize(Hash_Set<K> &self, u64 count)
+hash_set_reserve(Hash_Set<K> &self, u64 added_capacity)
 {
-	hash_table_resize(self, count);
+	hash_table_reserve(self, added_capacity);
 }
 
 template <typename K>

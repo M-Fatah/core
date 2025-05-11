@@ -9,15 +9,6 @@
 
 #include <initializer_list>
 
-/*
-	TODO:
-	- [ ] Add hash_table_reserve() function.
-	- [ ] Properly allocate the correct capactiy when calling resize with respect to load ratio.
-	- [ ] Remove auto keyword.
-*/
-
-inline static constexpr u64 HASH_TABLE_INITIAL_CAPACITY = 8;
-
 enum HASH_TABLE_SLOT_FLAGS
 {
 	HASH_TABLE_SLOT_FLAGS_EMPTY,
@@ -43,35 +34,34 @@ template <typename K, typename V>
 struct Hash_Table
 {
 	Array<Hash_Table_Slot> slots;
-	Array<u16> entry_slot_indices;
+	Array<u64> entry_slot_indices;
 	Array<Hash_Table_Entry<K, V>> entries;
 	u64 count;
 	u64 capacity;
 };
 
+// TODO: Add unittests for inserting after no init.
 template <typename K, typename V>
 inline static Hash_Table<K, V>
 hash_table_init(memory::Allocator *allocator = memory::heap_allocator())
 {
-	Hash_Table<K, V> self = {};
-	self.slots              = array_init<Hash_Table_Slot>(allocator);
-	self.entry_slot_indices = array_init<u16>(allocator);
-	self.entries            = array_init<Hash_Table_Entry<K, V>>(allocator);
-	self.capacity           = self.slots.count;
-	array_fill(self.slots, Hash_Table_Slot{});
-	return self;
+	return Hash_Table<K, V> {
+		.slots              = array_init<Hash_Table_Slot>(allocator),
+		.entry_slot_indices = array_init<u64>(allocator),
+		.entries            = array_init<Hash_Table_Entry<K, V>>(allocator)
+	};
 }
 
 template <typename K, typename V>
 inline static Hash_Table<K, V>
 hash_table_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
-	capacity = capacity > HASH_TABLE_INITIAL_CAPACITY ? capacity : HASH_TABLE_INITIAL_CAPACITY;
-	Hash_Table<K, V> self = {};
-	self.slots              = array_with_count<Hash_Table_Slot>(next_power_of_two((i32)capacity), allocator);
-	self.entry_slot_indices = array_init<u16>(allocator);
-	self.entries            = array_init<Hash_Table_Entry<K, V>>(allocator);
-	self.capacity           = self.slots.count;
+	Hash_Table<K, V> self = {
+		.slots              = array_with_count<Hash_Table_Slot>(next_power_of_two((i32)(capacity > 8 ? capacity : 8)), allocator),
+		.entry_slot_indices = array_init<u64>(allocator),
+		.entries            = array_init<Hash_Table_Entry<K, V>>(allocator),
+		.capacity           = self.slots.count
+	};
 	array_fill(self.slots, Hash_Table_Slot{});
 	return self;
 }
@@ -90,11 +80,13 @@ template <typename K, typename V>
 inline static Hash_Table<K, V>
 hash_table_copy(const Hash_Table<K, V> &self, memory::Allocator *allocator = memory::heap_allocator())
 {
-	Hash_Table<K, V> copy   = self;
-	copy.slots              = array_copy(self.slots, allocator);
-	copy.entry_slot_indices = array_copy(self.entry_slot_indices, allocator);
-	copy.entries            = array_copy(self.entries, allocator);
-	return copy;
+	return Hash_Table<K, V> {
+		.slots              = array_copy(self.slots, allocator),
+		.entry_slot_indices = array_copy(self.entry_slot_indices, allocator),
+		.entries            = array_copy(self.entries, allocator),
+		.count              = self.count,
+		.capacity           = self.capacity
+	};
 }
 
 template <typename K, typename V>
@@ -104,18 +96,49 @@ hash_table_deinit(Hash_Table<K, V> &self)
 	array_deinit(self.slots);
 	array_deinit(self.entry_slot_indices);
 	array_deinit(self.entries);
-	self = {};
+	self = Hash_Table<K, V>{};
 }
 
+// TODO: Add unittests.
 template <typename K, typename V>
 inline static void
-hash_table_resize(Hash_Table<K, V> &self, u64 count)
+hash_table_reserve(Hash_Table<K, V> &self, u64 added_capacity)
 {
-	Hash_Table<K, V> new_table = hash_table_with_capacity<K, V>(count, self.entries.allocator);
-	for (const Hash_Table_Entry<K, V> &entry : self.entries)
-		hash_table_insert(new_table, entry.key, entry.value);
-	hash_table_deinit(self);
-	self = new_table;
+	if (added_capacity == 0)
+		return;
+
+	// TODO: Guard against load ratio.
+	u64 new_capacity = self.count + added_capacity;
+	if (new_capacity <= self.slots.count)
+		return;
+
+	// TODO: Get the next of next power of 2 in case it was so close to its value, for example if we need 15 as capacity,
+	// next power of 2 would be 16, but really it better should be 32 or 64.
+
+	array_clear(self.slots);
+	array_resize(self.slots, next_power_of_two((i32)new_capacity));
+	for (u64 i = 0; i < self.entries.count; ++i)
+	{
+		u64 hash_value       = hash(self.entries[i].key);
+		u64 slot_index       = hash_value & (self.slots.count - 1);
+		Hash_Table_Slot slot = self.slots[slot_index];
+		while (slot.flags == HASH_TABLE_SLOT_FLAGS_USED)
+		{
+			++slot_index;
+			slot_index = slot_index & (self.slots.count - 1);
+			slot = self.slots[slot_index];
+		}
+
+		self.entry_slot_indices[i] = slot_index;
+
+		self.slots[slot_index] = Hash_Table_Slot {
+			.entry_index = i,
+			.hash_value  = hash_value,
+			.flags       = HASH_TABLE_SLOT_FLAGS_USED
+		};
+	}
+
+	self.capacity = self.slots.count;
 }
 
 template <typename K, typename V>
@@ -123,11 +146,11 @@ inline static const Hash_Table_Entry<const K, V> *
 hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 {
 	if (self.capacity == 0)
-		hash_table_resize(self, HASH_TABLE_INITIAL_CAPACITY);
+		hash_table_reserve(self, 8);
 
 	f32 load_ratio = ((f32)self.count / (f32)self.capacity) * 100.0f;
 	if (load_ratio > 70.0f)
-		hash_table_resize(self, self.capacity * 2);
+		hash_table_reserve(self, self.capacity);
 
 	u64 hash_value       = hash(key);
 	u64 slot_index       = hash_value & (self.capacity - 1);
@@ -150,11 +173,11 @@ hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 	array_push(self.entries, Hash_Table_Entry<K, V>{key, value});
 	array_push(self.entry_slot_indices, slot_index);
 
-	Hash_Table_Slot new_slot = {};
-	new_slot.flags       = HASH_TABLE_SLOT_FLAGS_USED;
-	new_slot.entry_index = self.entries.count - 1;
-	new_slot.hash_value  = hash_value;
-	self.slots[slot_index] = new_slot;
+	self.slots[slot_index] = Hash_Table_Slot {
+		.entry_index = self.entries.count - 1,
+		.hash_value  = hash_value,
+		.flags       = HASH_TABLE_SLOT_FLAGS_USED
+	};
 
 	++self.count;
 
@@ -209,9 +232,16 @@ template <typename K, typename V>
 inline static bool
 hash_table_remove(Hash_Table<K, V> &self, const K &key)
 {
-	u64 load_ratio = (u64)(((f32)self.count / (f32)self.capacity) * 100);
-	if (load_ratio < 10)
-		hash_table_resize(self, self.capacity / 2);
+	f32 load_ratio = ((f32)self.count / (f32)self.capacity) * 100.0f;
+	if (load_ratio < 10.0f)
+	{
+		// TODO: Cleanup.
+		Hash_Table<K, V> new_table = hash_table_with_capacity<K, V>(self.capacity / 2, self.entries.allocator);
+		for (const Hash_Table_Entry<K, V> &entry : self.entries)
+			hash_table_insert(new_table, entry.key, entry.value);
+		hash_table_deinit(self);
+		self = new_table;
+	}
 
 	u64 hash_value       = hash(key);
 	u64 slot_index       = hash_value & (self.capacity - 1);
@@ -229,7 +259,7 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 					self.slots[slot_index].entry_index = self.entries.count - 1;
 					--self.count;
 
-					auto old_entry_index = slot.entry_index;
+					u64 old_entry_index = slot.entry_index;
 					array_remove(self.entries, slot.entry_index);
 					self.slots[array_last(self.entry_slot_indices)].entry_index = old_entry_index;
 					array_remove(self.entry_slot_indices, slot.entry_index);
@@ -298,7 +328,7 @@ template <typename K, typename V>
 inline static Hash_Table<K, V>
 clone(const Hash_Table<K, V> &self, memory::Allocator *allocator = memory::heap_allocator())
 {
-	auto copy = hash_table_copy(self, allocator);
+	Hash_Table<K, V> copy = hash_table_copy(self, allocator);
 	if constexpr (std::is_class_v<K> || std::is_class_v<V>)
 	{
 		for (u64 i = 0; i < self.entries.count; ++i)
@@ -318,7 +348,7 @@ destroy(Hash_Table<K, V> &self)
 {
 	if constexpr (std::is_class_v<K> || std::is_class_v<V>)
 	{
-		for (auto &entry : self.entries)
+		for (Hash_Table_Entry<K, V> &entry : self.entries)
 		{
 			if constexpr (std::is_class_v<K>)
 				destroy(entry.key);
