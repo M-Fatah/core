@@ -63,7 +63,7 @@ inline static Hash_Table<K, V>
 hash_table_init_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
 	Hash_Table<K, V> self = {
-		.slots              = array_with_count<Hash_Table_Slot>(next_power_of_two((i32)(capacity > 8 ? capacity : 8)), allocator),
+		.slots              = array_with_count<Hash_Table_Slot>(capacity > 8 ? next_power_of_two((i32)capacity) : 8, allocator),
 		.entry_slot_indices = array_init<u64>(allocator),
 		.entries            = array_init<Hash_Table_Entry<K, V>>(allocator),
 		.count              = 0,
@@ -113,16 +113,13 @@ hash_table_reserve(Hash_Table<K, V> &self, u64 added_capacity)
 	if (added_capacity == 0)
 		return;
 
-	// TODO: Guard against load ratio.
 	u64 new_capacity = self.count + added_capacity;
-	if (new_capacity <= self.slots.count)
+	if (new_capacity < self.slots.count)
 		return;
-
-	// TODO: Get the next of next power of 2 in case it was so close to its value, for example if we need 15 as capacity,
-	// next power of 2 would be 16, but really it better should be 32 or 64.
 
 	array_resize(self.slots, next_power_of_two((i32)new_capacity));
 	array_fill(self.slots, Hash_Table_Slot{});
+
 	for (u64 i = 0; i < self.entries.count; ++i)
 	{
 		u64 hash_value       = hash(self.entries[i].key);
