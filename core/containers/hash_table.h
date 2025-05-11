@@ -48,7 +48,9 @@ hash_table_init(memory::Allocator *allocator = memory::heap_allocator())
 	return Hash_Table<K, V> {
 		.slots              = array_init<Hash_Table_Slot>(allocator),
 		.entry_slot_indices = array_init<u64>(allocator),
-		.entries            = array_init<Hash_Table_Entry<K, V>>(allocator)
+		.entries            = array_init<Hash_Table_Entry<K, V>>(allocator),
+		.count              = 0,
+		.capacity           = 0
 	};
 }
 
