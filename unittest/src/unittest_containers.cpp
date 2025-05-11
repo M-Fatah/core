@@ -572,7 +572,7 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 		}
 
 		{
-			auto table = hash_table_with_capacity<i32, const char *>(62, memory::temp_allocator());
+			auto table = hash_table_init_with_capacity<i32, const char *>(62, memory::temp_allocator());
 			CHECK(table.count == 0);
 			CHECK(table.capacity == 64);
 
@@ -588,7 +588,7 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 		}
 
 		{
-			auto table = hash_table_from<i32, const char *>({ {1, "Hello"}, {2, "World!"} }, memory::temp_allocator());
+			auto table = hash_table_init_from<i32, const char *>({ {1, "Hello"}, {2, "World!"} }, memory::temp_allocator());
 
 			CHECK(table.count == 2);
 			CHECK(table.capacity == 8);
@@ -602,6 +602,27 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 
 			CHECK(table.entries[1].key == 2);
 			CHECK(::strcmp(table.entries[1].value, "World!") == 0);
+		}
+
+		{
+			Hash_Table<i32, i32> table = {};
+			DEFER(hash_table_deinit(table));
+
+			hash_table_insert(table, 1, 1);
+			hash_table_insert(table, 2, 2);
+
+			CHECK(table.count == 2);
+			CHECK(table.capacity == 8);
+
+			CHECK(table.slots.data     != nullptr);
+			CHECK(table.slots.count    == 8);
+			CHECK(table.slots.capacity == 8);
+
+			CHECK(table.entries[0].key == 1);
+			CHECK(table.entries[0].value == 1);
+
+			CHECK(table.entries[1].key == 2);
+			CHECK(table.entries[1].value == 2);
 		}
 	}
 
@@ -886,6 +907,24 @@ TEST_CASE("[CONTAINERS]: Hash_Set")
 
 		{
 			auto set = hash_set_init_from<i32>({1, 2}, memory::temp_allocator());
+
+			CHECK(set.count == 2);
+			CHECK(set.capacity == 8);
+
+			CHECK(set.slots.data     != nullptr);
+			CHECK(set.slots.count    == 8);
+			CHECK(set.slots.capacity == 8);
+
+			CHECK(set.entries[0].key == 1);
+			CHECK(set.entries[1].key == 2);
+		}
+
+		{
+			Hash_Set<i32> set = {};
+			DEFER(hash_set_deinit(set));
+
+			hash_set_insert(set, 1);
+			hash_set_insert(set, 2);
 
 			CHECK(set.count == 2);
 			CHECK(set.capacity == 8);

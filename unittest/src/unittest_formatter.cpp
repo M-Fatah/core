@@ -111,7 +111,7 @@ TEST_CASE("[CORE]: Formatter")
 		buffer = format("{}", array_from<i32>({1, 2, 3}, memory::temp_allocator()), memory::temp_allocator());
 		CHECK(buffer == "[3] { 1, 2, 3 }");
 
-		buffer = format("{}", hash_table_from<i32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()), memory::temp_allocator());
+		buffer = format("{}", hash_table_init_from<i32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()), memory::temp_allocator());
 		CHECK(buffer == "[3] { 1: 1, 2: 2, 3: 3 }");
 
 		buffer = format("{}{}{}{}{}", 1, 2, 3, "{}", 4, memory::temp_allocator());

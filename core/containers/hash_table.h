@@ -9,6 +9,11 @@
 
 #include <initializer_list>
 
+/*
+	TODO:
+	- [ ] Iterate over hash table functions and clean it up.
+*/
+
 enum HASH_TABLE_SLOT_FLAGS
 {
 	HASH_TABLE_SLOT_FLAGS_EMPTY,
@@ -40,7 +45,6 @@ struct Hash_Table
 	u64 capacity;
 };
 
-// TODO: Add unittests for inserting after no init.
 template <typename K, typename V>
 inline static Hash_Table<K, V>
 hash_table_init(memory::Allocator *allocator = memory::heap_allocator())
@@ -56,7 +60,7 @@ hash_table_init(memory::Allocator *allocator = memory::heap_allocator())
 
 template <typename K, typename V>
 inline static Hash_Table<K, V>
-hash_table_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
+hash_table_init_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
 	Hash_Table<K, V> self = {
 		.slots              = array_with_count<Hash_Table_Slot>(next_power_of_two((i32)(capacity > 8 ? capacity : 8)), allocator),
@@ -71,9 +75,9 @@ hash_table_with_capacity(u64 capacity, memory::Allocator *allocator = memory::he
 
 template <typename K, typename V>
 inline static Hash_Table<K, V>
-hash_table_from(std::initializer_list<Hash_Table_Entry<K, V>> entries, memory::Allocator *allocator = memory::heap_allocator())
+hash_table_init_from(std::initializer_list<Hash_Table_Entry<K, V>> entries, memory::Allocator *allocator = memory::heap_allocator())
 {
-	Hash_Table<K, V> self = hash_table_init<K, V>(allocator);
+	Hash_Table<K, V> self = hash_table_init_with_capacity<K, V>(entries.size(), allocator);
 	for (const Hash_Table_Entry<K, V> &entry : entries)
 		hash_table_insert(self, entry.key, entry.value);
 	return self;
@@ -161,8 +165,11 @@ hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 	Hash_Table_Slot slot = self.slots[slot_index];
 	while (slot.flags == HASH_TABLE_SLOT_FLAGS_USED)
 	{
-		// NOTE: Update entry's value.
-		auto entry = (Hash_Table_Entry<const K, V> *)&self.entries[slot.entry_index];
+		//
+		// NOTE:
+		// Update entry's value.
+		//
+		Hash_Table_Entry<const K, V> *entry = (Hash_Table_Entry<const K, V> *)&self.entries[slot.entry_index];
 		if (entry->key == key)
 		{
 			entry->value = value;
@@ -207,7 +214,7 @@ hash_table_find(const Hash_Table<K, V> &self, const K &key)
 			{
 				if (slot.hash_value == hash_value)
 				{
-					const auto *entry = (Hash_Table_Entry<const K, V> *)&self.entries[slot.entry_index];
+					const Hash_Table_Entry<const K, V> *entry = (const Hash_Table_Entry<const K, V> *)&self.entries[slot.entry_index];
 					if (entry->key == key)
 						return entry;
 				}
@@ -240,7 +247,7 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 	if (load_ratio < 10.0f)
 	{
 		// TODO: Cleanup.
-		Hash_Table<K, V> new_table = hash_table_with_capacity<K, V>(self.capacity / 2, self.entries.allocator);
+		Hash_Table<K, V> new_table = hash_table_init_with_capacity<K, V>(self.capacity / 2, self.entries.allocator);
 		for (const Hash_Table_Entry<K, V> &entry : self.entries)
 			hash_table_insert(new_table, entry.key, entry.value);
 		hash_table_deinit(self);

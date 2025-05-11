@@ -28,7 +28,7 @@ template <typename K>
 inline static Hash_Set<K>
 hash_set_init_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
-	return hash_table_with_capacity<K, Hash_Set_Value>(capacity, allocator);
+	return hash_table_init_with_capacity<K, Hash_Set_Value>(capacity, allocator);
 }
 
 template <typename K>
