@@ -106,7 +106,6 @@ hash_table_deinit(Hash_Table<K, V> &self)
 	self = Hash_Table<K, V>{};
 }
 
-// TODO: Add unittests.
 template <typename K, typename V>
 inline static void
 hash_table_reserve(Hash_Table<K, V> &self, u64 added_capacity)
@@ -122,7 +121,6 @@ hash_table_reserve(Hash_Table<K, V> &self, u64 added_capacity)
 	// TODO: Get the next of next power of 2 in case it was so close to its value, for example if we need 15 as capacity,
 	// next power of 2 would be 16, but really it better should be 32 or 64.
 
-	array_clear(self.slots);
 	array_resize(self.slots, next_power_of_two((i32)new_capacity));
 	array_fill(self.slots, Hash_Table_Slot{});
 	for (u64 i = 0; i < self.entries.count; ++i)
@@ -147,6 +145,50 @@ hash_table_reserve(Hash_Table<K, V> &self, u64 added_capacity)
 	}
 
 	self.capacity = self.slots.count;
+}
+
+template <typename K, typename V>
+inline static const Hash_Table_Entry<const K, V> *
+hash_table_find(const Hash_Table<K, V> &self, const K &key)
+{
+	if (self.count == 0)
+		return nullptr;
+
+	u64 hash_value       = hash(key);
+	u64 slot_index       = hash_value & (self.capacity - 1);
+	u64 start_slot_index = slot_index;
+	Hash_Table_Slot slot = self.slots[slot_index];
+	while (true)
+	{
+		switch (slot.flags)
+		{
+			case HASH_TABLE_SLOT_FLAGS_USED:
+			{
+				if (slot.hash_value == hash_value)
+				{
+					const Hash_Table_Entry<const K, V> *entry = (const Hash_Table_Entry<const K, V> *)&self.entries[slot.entry_index];
+					if (entry->key == key)
+						return entry;
+				}
+				break;
+			}
+			case HASH_TABLE_SLOT_FLAGS_EMPTY:
+			{
+				return nullptr;
+			}
+			case HASH_TABLE_SLOT_FLAGS_DELETED:
+			{
+				break;
+			}
+		}
+
+		++slot_index;
+		slot_index = slot_index & (self.capacity - 1);
+		if (slot_index == start_slot_index)
+			return nullptr;
+		slot = self.slots[slot_index];
+	}
+	return nullptr;
 }
 
 template <typename K, typename V>
@@ -193,50 +235,6 @@ hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 	++self.count;
 
 	return (Hash_Table_Entry<const K, V> *)&self.entries[self.entries.count - 1];
-}
-
-template <typename K, typename V>
-inline static const Hash_Table_Entry<const K, V> *
-hash_table_find(const Hash_Table<K, V> &self, const K &key)
-{
-	if (self.count == 0)
-		return nullptr;
-
-	u64 hash_value       = hash(key);
-	u64 slot_index       = hash_value & (self.capacity - 1);
-	u64 start_slot_index = slot_index;
-	Hash_Table_Slot slot = self.slots[slot_index];
-	while (true)
-	{
-		switch (slot.flags)
-		{
-			case HASH_TABLE_SLOT_FLAGS_USED:
-			{
-				if (slot.hash_value == hash_value)
-				{
-					const Hash_Table_Entry<const K, V> *entry = (const Hash_Table_Entry<const K, V> *)&self.entries[slot.entry_index];
-					if (entry->key == key)
-						return entry;
-				}
-				break;
-			}
-			case HASH_TABLE_SLOT_FLAGS_EMPTY:
-			{
-				return nullptr;
-			}
-			case HASH_TABLE_SLOT_FLAGS_DELETED:
-			{
-				break;
-			}
-		}
-
-		++slot_index;
-		slot_index = slot_index & (self.capacity - 1);
-		if (slot_index == start_slot_index)
-			return nullptr;
-		slot = self.slots[slot_index];
-	}
-	return nullptr;
 }
 
 template <typename K, typename V>

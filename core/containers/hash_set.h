@@ -55,7 +55,6 @@ hash_set_deinit(Hash_Set<K> &self)
 	hash_table_deinit(self);
 }
 
-// TODO: Add unittests.
 template <typename K>
 inline static void
 hash_set_reserve(Hash_Set<K> &self, u64 added_capacity)
@@ -65,16 +64,16 @@ hash_set_reserve(Hash_Set<K> &self, u64 added_capacity)
 
 template <typename K>
 inline static const K *
-hash_set_insert(Hash_Set<K> &self, const K &entry)
+hash_set_find(const Hash_Set<K> &self, const K &entry)
 {
-	return (const K *)hash_table_insert(self, entry, Hash_Set_Value{});
+	return (const K *)hash_table_find(self, entry);
 }
 
 template <typename K>
 inline static const K *
-hash_set_find(const Hash_Set<K> &self, const K &entry)
+hash_set_insert(Hash_Set<K> &self, const K &entry)
 {
-	return (const K *)hash_table_find(self, entry);
+	return (const K *)hash_table_insert(self, entry, Hash_Set_Value{});
 }
 
 template <typename K>

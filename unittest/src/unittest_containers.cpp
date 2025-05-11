@@ -727,6 +727,41 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 		CHECK(hash_table_find(table, key2) == nullptr);
 	}
 
+	SUBCASE("reserve")
+	{
+		Hash_Table<i32, i32> table = hash_table_init<i32, i32>(memory::temp_allocator());
+
+		hash_table_reserve(table, 100);
+
+		CHECK(table.count == 0);
+		CHECK(table.capacity == 128);
+
+		CHECK(table.slots.data     != nullptr);
+		CHECK(table.slots.count    == 128);
+		CHECK(table.slots.capacity == 128);
+
+		hash_table_reserve(table, 100);
+
+		CHECK(table.count == 0);
+		CHECK(table.capacity == 128);
+
+		CHECK(table.slots.data     != nullptr);
+		CHECK(table.slots.count    == 128);
+		CHECK(table.slots.capacity == 128);
+
+		for (i32 i = 0; i < 50; ++i)
+			hash_table_insert(table, i, i);
+
+		hash_table_reserve(table, 100);
+
+		CHECK(table.count == 50);
+		CHECK(table.capacity == 256);
+
+		CHECK(table.slots.data     != nullptr);
+		CHECK(table.slots.count    == 256);
+		CHECK(table.slots.capacity == 256);
+	}
+
 	SUBCASE("resize")
 	{
 		Hash_Table<i32, f32> table = hash_table_init<i32, f32>(memory::temp_allocator());
@@ -1028,6 +1063,41 @@ TEST_CASE("[CONTAINERS]: Hash_Set")
 		CHECK(hash_set_remove(set, key2));
 		CHECK(set.count == 0);
 		CHECK(hash_set_find(set, key2) == nullptr);
+	}
+
+	SUBCASE("reserve")
+	{
+		Hash_Set<i32> set = hash_set_init<i32>(memory::temp_allocator());
+
+		hash_set_reserve(set, 100);
+
+		CHECK(set.count == 0);
+		CHECK(set.capacity == 128);
+
+		CHECK(set.slots.data     != nullptr);
+		CHECK(set.slots.count    == 128);
+		CHECK(set.slots.capacity == 128);
+
+		hash_set_reserve(set, 100);
+
+		CHECK(set.count == 0);
+		CHECK(set.capacity == 128);
+
+		CHECK(set.slots.data     != nullptr);
+		CHECK(set.slots.count    == 128);
+		CHECK(set.slots.capacity == 128);
+
+		for (i32 i = 0; i < 50; ++i)
+			hash_set_insert(set, i);
+
+		hash_set_reserve(set, 100);
+
+		CHECK(set.count == 50);
+		CHECK(set.capacity == 256);
+
+		CHECK(set.slots.data     != nullptr);
+		CHECK(set.slots.count    == 256);
+		CHECK(set.slots.capacity == 256);
 	}
 
 	SUBCASE("resize")
