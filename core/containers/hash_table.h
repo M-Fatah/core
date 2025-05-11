@@ -120,6 +120,7 @@ hash_table_reserve(Hash_Table<K, V> &self, u64 added_capacity)
 
 	array_clear(self.slots);
 	array_resize(self.slots, next_power_of_two((i32)new_capacity));
+	array_fill(self.slots, Hash_Table_Slot{});
 	for (u64 i = 0; i < self.entries.count; ++i)
 	{
 		u64 hash_value       = hash(self.entries[i].key);
