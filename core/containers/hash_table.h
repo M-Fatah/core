@@ -9,11 +9,6 @@
 
 #include <initializer_list>
 
-/*
-	TODO:
-	- [ ] Iterate over hash table functions and clean it up.
-*/
-
 enum HASH_TABLE_SLOT_FLAGS
 {
 	HASH_TABLE_SLOT_FLAGS_EMPTY,
@@ -159,6 +154,10 @@ hash_table_find(const Hash_Table<K, V> &self, const K &key)
 	{
 		switch (slot.flags)
 		{
+			case HASH_TABLE_SLOT_FLAGS_EMPTY:
+			{
+				return nullptr;
+			}
 			case HASH_TABLE_SLOT_FLAGS_USED:
 			{
 				if (slot.hash_value == hash_value)
@@ -167,11 +166,8 @@ hash_table_find(const Hash_Table<K, V> &self, const K &key)
 					if (entry->key == key)
 						return entry;
 				}
+
 				break;
-			}
-			case HASH_TABLE_SLOT_FLAGS_EMPTY:
-			{
-				return nullptr;
 			}
 			case HASH_TABLE_SLOT_FLAGS_DELETED:
 			{
@@ -183,8 +179,10 @@ hash_table_find(const Hash_Table<K, V> &self, const K &key)
 		slot_index = slot_index & (self.capacity - 1);
 		if (slot_index == start_slot_index)
 			return nullptr;
+
 		slot = self.slots[slot_index];
 	}
+
 	return nullptr;
 }
 
@@ -194,9 +192,7 @@ hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 {
 	if (self.capacity == 0)
 		hash_table_reserve(self, 8);
-
-	f32 load_ratio = ((f32)self.count / (f32)self.capacity) * 100.0f;
-	if (load_ratio > 70.0f)
+	else if ((f32)self.count / (f32)self.capacity * 100.0f > 75.0f)
 		hash_table_reserve(self, self.capacity);
 
 	u64 hash_value       = hash(key);
@@ -234,15 +230,14 @@ hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 	return (Hash_Table_Entry<const K, V> *)&self.entries[self.entries.count - 1];
 }
 
+//
 template <typename K, typename V>
 inline static bool
 hash_table_remove(Hash_Table<K, V> &self, const K &key)
 {
-	f32 load_ratio = ((f32)self.count / (f32)self.capacity) * 100.0f;
-	if (load_ratio < 10.0f)
+	if ((f32)self.count / (f32)self.capacity * 100.0f < 20.0f)
 	{
-		// TODO: Cleanup.
-		Hash_Table<K, V> new_table = hash_table_init_with_capacity<K, V>(self.capacity / 2, self.entries.allocator);
+		Hash_Table<K, V> new_table = hash_table_init_with_capacity<K, V>(self.capacity >> 1, self.slots.allocator);
 		for (const Hash_Table_Entry<K, V> &entry : self.entries)
 			hash_table_insert(new_table, entry.key, entry.value);
 		hash_table_deinit(self);
@@ -256,6 +251,10 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 	{
 		switch (slot.flags)
 		{
+			case HASH_TABLE_SLOT_FLAGS_EMPTY:
+			{
+				return false;
+			}
 			case HASH_TABLE_SLOT_FLAGS_USED:
 			{
 				if (self.entries[slot.entry_index].key == key)
@@ -265,6 +264,8 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 					self.slots[slot_index].entry_index = self.entries.count - 1;
 					--self.count;
 
+					// TODO: Does not handle the ordering of inserted object.
+					// Either we get rid of the ordering itself (performance cost on removal), or maintain it here.
 					u64 old_entry_index = slot.entry_index;
 					array_remove(self.entries, slot.entry_index);
 					self.slots[array_last(self.entry_slot_indices)].entry_index = old_entry_index;
@@ -273,10 +274,6 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 					return true;
 				}
 				break;
-			}
-			case HASH_TABLE_SLOT_FLAGS_EMPTY:
-			{
-				return false;
 			}
 			case HASH_TABLE_SLOT_FLAGS_DELETED:
 			{
@@ -337,12 +334,12 @@ clone(const Hash_Table<K, V> &self, memory::Allocator *allocator = memory::heap_
 	Hash_Table<K, V> copy = hash_table_copy(self, allocator);
 	if constexpr (std::is_class_v<K> || std::is_class_v<V>)
 	{
-		for (u64 i = 0; i < self.entries.count; ++i)
+		for (Hash_Table_Entry<K, V> &entry : copy.entries)
 		{
 			if constexpr (std::is_class_v<K>)
-				copy.entries[i].key = clone(self.entries[i].key, allocator);
+				entry.key = clone(entry.key, allocator);
 			if constexpr (std::is_class_v<V>)
-				copy.entries[i].value = clone(self.entries[i].value, allocator);
+				entry.value = clone(entry.value, allocator);
 		}
 	}
 	return copy;
