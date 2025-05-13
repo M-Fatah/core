@@ -34,7 +34,6 @@ template <typename K, typename V>
 struct Hash_Table
 {
 	Array<Hash_Table_Slot> slots;
-	Array<u64> entry_slot_indices;
 	Array<Hash_Table_Entry<K, V>> entries;
 	u64 count;
 	u64 capacity;
@@ -45,11 +44,10 @@ inline static Hash_Table<K, V>
 hash_table_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	return Hash_Table<K, V> {
-		.slots              = array_init<Hash_Table_Slot>(allocator),
-		.entry_slot_indices = array_init<u64>(allocator),
-		.entries            = array_init<Hash_Table_Entry<K, V>>(allocator),
-		.count              = 0,
-		.capacity           = 0
+		.slots    = array_init<Hash_Table_Slot>(allocator),
+		.entries  = array_init<Hash_Table_Entry<K, V>>(allocator),
+		.count    = 0,
+		.capacity = 0
 	};
 }
 
@@ -58,11 +56,10 @@ inline static Hash_Table<K, V>
 hash_table_init_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
 	Hash_Table<K, V> self = {
-		.slots              = array_with_count<Hash_Table_Slot>(capacity > 8 ? next_power_of_two((i32)capacity) : 8, allocator),
-		.entry_slot_indices = array_init<u64>(allocator),
-		.entries            = array_init<Hash_Table_Entry<K, V>>(allocator),
-		.count              = 0,
-		.capacity           = self.slots.count
+		.slots    = array_with_count<Hash_Table_Slot>(capacity > 8 ? next_power_of_two((i32)capacity) : 8, allocator),
+		.entries  = array_init<Hash_Table_Entry<K, V>>(allocator),
+		.count    = 0,
+		.capacity = self.slots.count
 	};
 	array_fill(self.slots, Hash_Table_Slot{});
 	return self;
@@ -83,11 +80,10 @@ inline static Hash_Table<K, V>
 hash_table_copy(const Hash_Table<K, V> &self, memory::Allocator *allocator = memory::heap_allocator())
 {
 	return Hash_Table<K, V> {
-		.slots              = array_copy(self.slots, allocator),
-		.entry_slot_indices = array_copy(self.entry_slot_indices, allocator),
-		.entries            = array_copy(self.entries, allocator),
-		.count              = self.count,
-		.capacity           = self.capacity
+		.slots    = array_copy(self.slots, allocator),
+		.entries  = array_copy(self.entries, allocator),
+		.count    = self.count,
+		.capacity = self.capacity
 	};
 }
 
@@ -96,7 +92,6 @@ inline static void
 hash_table_deinit(Hash_Table<K, V> &self)
 {
 	array_deinit(self.slots);
-	array_deinit(self.entry_slot_indices);
 	array_deinit(self.entries);
 	self = Hash_Table<K, V>{};
 }
@@ -115,6 +110,7 @@ hash_table_reserve(Hash_Table<K, V> &self, u64 added_capacity)
 	array_resize(self.slots, next_power_of_two((i32)new_capacity));
 	array_fill(self.slots, Hash_Table_Slot{});
 
+	// TODO: Guard against full circle.
 	for (u64 i = 0; i < self.entries.count; ++i)
 	{
 		u64 hash_value       = hash(self.entries[i].key);
@@ -126,8 +122,6 @@ hash_table_reserve(Hash_Table<K, V> &self, u64 added_capacity)
 			slot_index = slot_index & (self.slots.count - 1);
 			slot = self.slots[slot_index];
 		}
-
-		self.entry_slot_indices[i] = slot_index;
 
 		self.slots[slot_index] = Hash_Table_Slot {
 			.entry_index = i,
@@ -195,6 +189,7 @@ hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 	else if ((f32)self.count / (f32)self.capacity * 100.0f > 75.0f)
 		hash_table_reserve(self, self.capacity);
 
+	// TODO: Guard against full circle.
 	u64 hash_value       = hash(key);
 	u64 slot_index       = hash_value & (self.capacity - 1);
 	Hash_Table_Slot slot = self.slots[slot_index];
@@ -217,7 +212,6 @@ hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 	}
 
 	array_push(self.entries, Hash_Table_Entry<K, V>{key, value});
-	array_push(self.entry_slot_indices, slot_index);
 
 	self.slots[slot_index] = Hash_Table_Slot {
 		.entry_index = self.entries.count - 1,
@@ -230,11 +224,57 @@ hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 	return (Hash_Table_Entry<const K, V> *)&self.entries[self.entries.count - 1];
 }
 
-//
+// TODO: Add unittests for removing from an empty hash table or a table with very few elements.
 template <typename K, typename V>
 inline static bool
 hash_table_remove(Hash_Table<K, V> &self, const K &key)
 {
+	struct Hash_Table_Slot_With_Index
+	{
+		Hash_Table_Slot slot;
+		u64 index;
+	};
+
+	constexpr auto find_slot_index = [](Hash_Table<K, V> &self, const K &key) -> Hash_Table_Slot_With_Index {
+		u64 hash_value       = hash(key);
+		u64 slot_index       = hash_value & (self.capacity - 1);
+		u64 start_slot_index = slot_index;
+		Hash_Table_Slot slot = self.slots[slot_index];
+		while (true)
+		{
+			switch (slot.flags)
+			{
+				case HASH_TABLE_SLOT_FLAGS_EMPTY:
+				{
+					return Hash_Table_Slot_With_Index{Hash_Table_Slot{}, U64_MAX};
+				}
+				case HASH_TABLE_SLOT_FLAGS_USED:
+				{
+					if (self.entries[slot.entry_index].key == key)
+						return Hash_Table_Slot_With_Index{slot, slot_index};
+
+					break;
+				}
+				case HASH_TABLE_SLOT_FLAGS_DELETED:
+				{
+					break;
+				}
+			}
+
+			++slot_index;
+			slot_index = slot_index & (self.capacity - 1);
+			if (slot_index == start_slot_index)
+				return Hash_Table_Slot_With_Index{Hash_Table_Slot{}, U64_MAX};
+
+			slot = self.slots[slot_index];
+		}
+
+		return Hash_Table_Slot_With_Index{Hash_Table_Slot{}, U64_MAX};
+	};
+
+	if (self.count == 0)
+		return false;
+
 	if ((f32)self.count / (f32)self.capacity * 100.0f < 20.0f)
 	{
 		Hash_Table<K, V> new_table = hash_table_init_with_capacity<K, V>(self.capacity >> 1, self.slots.allocator);
@@ -244,46 +284,29 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 		self = new_table;
 	}
 
-	u64 hash_value       = hash(key);
-	u64 slot_index       = hash_value & (self.capacity - 1);
-	Hash_Table_Slot slot = self.slots[slot_index];
-	while (true)
+	if (Hash_Table_Slot_With_Index slot_with_index = find_slot_index(self, key); slot_with_index.index != U64_MAX)
 	{
-		switch (slot.flags)
+		if (Hash_Table_Slot_With_Index last_slot_with_index = find_slot_index(self, array_last(self.entries).key); last_slot_with_index.index != U64_MAX)
 		{
-			case HASH_TABLE_SLOT_FLAGS_EMPTY:
-			{
-				return false;
-			}
-			case HASH_TABLE_SLOT_FLAGS_USED:
-			{
-				if (self.entries[slot.entry_index].key == key)
-				{
-					self.slots[slot_index].hash_value  = hash_value;
-					self.slots[slot_index].flags       = HASH_TABLE_SLOT_FLAGS_DELETED;
-					self.slots[slot_index].entry_index = self.entries.count - 1;
-					--self.count;
+			self.slots[last_slot_with_index.index].entry_index = slot_with_index.slot.entry_index;
+			array_remove(self.entries, slot_with_index.slot.entry_index);
 
-					// TODO: Does not handle the ordering of inserted object.
-					// Either we get rid of the ordering itself (performance cost on removal), or maintain it here.
-					u64 old_entry_index = slot.entry_index;
-					array_remove(self.entries, slot.entry_index);
-					self.slots[array_last(self.entry_slot_indices)].entry_index = old_entry_index;
-					array_remove(self.entry_slot_indices, slot.entry_index);
+			self.slots[slot_with_index.index] = Hash_Table_Slot {
+				.entry_index = self.entries.count - 1,
+				.hash_value = slot_with_index.slot.hash_value,
+				.flags = HASH_TABLE_SLOT_FLAGS_DELETED
+			};
+			--self.count;
 
-					return true;
-				}
-				break;
-			}
-			case HASH_TABLE_SLOT_FLAGS_DELETED:
-			{
-				break;
-			}
+			return true;
 		}
 
-		++slot_index;
-		slot_index = slot_index & (self.capacity - 1);
-		slot = self.slots[slot_index];
+		//
+		// TODO: Does not handle the ordering of inserted object.
+		// Either we get rid of the ordering itself (performance cost on removal), or maintain it here.
+		// Might try with LinkedList that is backed by array (arena) memory.
+		//
+
 	}
 
 	return false;
@@ -294,7 +317,6 @@ inline static void
 hash_table_clear(Hash_Table<K, V> &self)
 {
 	array_fill(self.slots, Hash_Table_Slot{});
-	array_clear(self.entry_slot_indices);
 	array_clear(self.entries);
 	self.count = 0;
 }
@@ -370,4 +392,4 @@ template <typename K, typename V>
 TYPE_OF((Hash_Table_Entry<K, V>), key, value)
 
 template <typename K, typename V>
-TYPE_OF((Hash_Table<K, V>), slots, entry_slot_indices, entries, count, capacity)
+TYPE_OF((Hash_Table<K, V>), slots, entries, count, capacity)

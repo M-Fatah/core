@@ -638,7 +638,6 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 		const char *value = "World!";
 		hash_table_insert(table, key, value);
 
-		CHECK(table.entry_slot_indices.count == 1);
 		CHECK(table.entries.count == 1);
 
 		CHECK(table.count == 1);
@@ -651,7 +650,6 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 		const char *dumb_value = "new world!";
 		hash_table_insert(table, key, dumb_value);
 
-		CHECK(table.entry_slot_indices.count == 1);
 		CHECK(table.entries.count == 1);
 
 		CHECK(table.count == 1);
@@ -664,7 +662,6 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 		hash_table_insert(table, key2, value2);
 		CHECK(table.count == 2);
 
-		CHECK(table.entry_slot_indices.count == 2);
 		CHECK(table.entries.count == 2);
 
 		CHECK(hash_table_find(table, key) != nullptr);
@@ -675,7 +672,6 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 		CHECK(table.count == 1);
 		CHECK(hash_table_find(table, key) == nullptr);
 
-		CHECK(table.entry_slot_indices.count == 1);
 		CHECK(table.entries.count == 1);
 
 		CHECK(hash_table_find(table, key2) != nullptr);
@@ -683,7 +679,6 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 		CHECK(table.count == 0);
 		CHECK(hash_table_find(table, key2) == nullptr);
 
-		CHECK(table.entry_slot_indices.count == 0);
 		CHECK(table.entries.count == 0);
 	}
 
@@ -984,7 +979,6 @@ TEST_CASE("[CONTAINERS]: Hash_Set")
 		const char *key = "Hello";
 		hash_set_insert(set, key);
 
-		CHECK(set.entry_slot_indices.count == 1);
 		CHECK(set.entries.count == 1);
 
 		CHECK(set.count == 1);
@@ -996,7 +990,6 @@ TEST_CASE("[CONTAINERS]: Hash_Set")
 
 		hash_set_insert(set, key);
 
-		CHECK(set.entry_slot_indices.count == 1);
 		CHECK(set.entries.count == 1);
 
 		CHECK(set.count == 1);
@@ -1006,7 +999,6 @@ TEST_CASE("[CONTAINERS]: Hash_Set")
 		hash_set_insert(set, key2);
 		CHECK(set.count == 2);
 
-		CHECK(set.entry_slot_indices.count == 2);
 		CHECK(set.entries.count == 2);
 
 		const char *k2 = "hi";
@@ -1018,7 +1010,6 @@ TEST_CASE("[CONTAINERS]: Hash_Set")
 		CHECK(set.count == 1);
 		CHECK(hash_set_find(set, key) == nullptr);
 
-		CHECK(set.entry_slot_indices.count == 1);
 		CHECK(set.entries.count == 1);
 
 		CHECK(hash_set_find(set, key2) != nullptr);
@@ -1026,7 +1017,6 @@ TEST_CASE("[CONTAINERS]: Hash_Set")
 		CHECK(set.count == 0);
 		CHECK(hash_set_find(set, key2) == nullptr);
 
-		CHECK(set.entry_slot_indices.count == 0);
 		CHECK(set.entries.count == 0);
 	}
 

@@ -140,3 +140,6 @@ destroy(Hash_Set<K> &self)
 }
 
 TYPE_OF(Hash_Set_Value)
+
+template <typename K>
+TYPE_OF(Hash_Set<K>, slots, entries, count, capacity)
