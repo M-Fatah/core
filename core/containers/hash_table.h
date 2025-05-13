@@ -195,10 +195,6 @@ hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 	Hash_Table_Slot slot = self.slots[slot_index];
 	while (slot.flags == HASH_TABLE_SLOT_FLAGS_USED)
 	{
-		//
-		// NOTE:
-		// Update entry's value.
-		//
 		Hash_Table_Entry<const K, V> *entry = (Hash_Table_Entry<const K, V> *)&self.entries[slot.entry_index];
 		if (entry->key == key)
 		{
@@ -229,13 +225,7 @@ template <typename K, typename V>
 inline static bool
 hash_table_remove(Hash_Table<K, V> &self, const K &key)
 {
-	struct Hash_Table_Slot_With_Index
-	{
-		Hash_Table_Slot slot;
-		u64 index;
-	};
-
-	constexpr auto find_slot_index = [](Hash_Table<K, V> &self, const K &key) -> Hash_Table_Slot_With_Index {
+	constexpr auto find_slot_index = [](Hash_Table<K, V> &self, const K &key) -> u64 {
 		u64 hash_value       = hash(key);
 		u64 slot_index       = hash_value & (self.capacity - 1);
 		u64 start_slot_index = slot_index;
@@ -246,13 +236,12 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 			{
 				case HASH_TABLE_SLOT_FLAGS_EMPTY:
 				{
-					return Hash_Table_Slot_With_Index{Hash_Table_Slot{}, U64_MAX};
+					return U64_MAX;
 				}
 				case HASH_TABLE_SLOT_FLAGS_USED:
 				{
 					if (self.entries[slot.entry_index].key == key)
-						return Hash_Table_Slot_With_Index{slot, slot_index};
-
+						return slot_index;
 					break;
 				}
 				case HASH_TABLE_SLOT_FLAGS_DELETED:
@@ -264,12 +253,11 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 			++slot_index;
 			slot_index = slot_index & (self.capacity - 1);
 			if (slot_index == start_slot_index)
-				return Hash_Table_Slot_With_Index{Hash_Table_Slot{}, U64_MAX};
+				return U64_MAX;
 
 			slot = self.slots[slot_index];
 		}
-
-		return Hash_Table_Slot_With_Index{Hash_Table_Slot{}, U64_MAX};
+		return U64_MAX;
 	};
 
 	if (self.count == 0)
@@ -284,18 +272,16 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 		self = new_table;
 	}
 
-	if (Hash_Table_Slot_With_Index slot_with_index = find_slot_index(self, key); slot_with_index.index != U64_MAX)
+	if (u64 deleted_slot_index = find_slot_index(self, key); deleted_slot_index != U64_MAX)
 	{
-		if (Hash_Table_Slot_With_Index last_slot_with_index = find_slot_index(self, array_last(self.entries).key); last_slot_with_index.index != U64_MAX)
+		if (u64 last_slot_index = find_slot_index(self, array_last(self.entries).key); last_slot_index != U64_MAX)
 		{
-			self.slots[last_slot_with_index.index].entry_index = slot_with_index.slot.entry_index;
-			array_remove(self.entries, slot_with_index.slot.entry_index);
+			Hash_Table_Slot &slot = self.slots[deleted_slot_index];
+			self.slots[last_slot_index].entry_index = slot.entry_index;
+			array_remove(self.entries, slot.entry_index);
 
-			self.slots[slot_with_index.index] = Hash_Table_Slot {
-				.entry_index = self.entries.count - 1,
-				.hash_value = slot_with_index.slot.hash_value,
-				.flags = HASH_TABLE_SLOT_FLAGS_DELETED
-			};
+			slot.entry_index = self.entries.count - 1;
+			slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
 			--self.count;
 
 			return true;
