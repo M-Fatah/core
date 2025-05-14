@@ -110,7 +110,6 @@ hash_table_reserve(Hash_Table<K, V> &self, u64 added_capacity)
 	array_resize(self.slots, next_power_of_two((i32)new_capacity));
 	array_fill(self.slots, Hash_Table_Slot{});
 
-	// TODO: Guard against full circle.
 	for (u64 i = 0; i < self.entries.count; ++i)
 	{
 		u64 hash_value       = hash(self.entries[i].key);
@@ -160,7 +159,6 @@ hash_table_find(const Hash_Table<K, V> &self, const K &key)
 					if (entry->key == key)
 						return entry;
 				}
-
 				break;
 			}
 			case HASH_TABLE_SLOT_FLAGS_DELETED:
@@ -186,17 +184,15 @@ hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 {
 	if (self.capacity == 0)
 		hash_table_reserve(self, 8);
-	else if ((f32)self.count / (f32)self.capacity * 100.0f > 75.0f)
+	else if ((f32)(self.count + 1) / (f32)self.capacity * 100.0f > 75.0f)
 		hash_table_reserve(self, self.capacity);
 
-	// TODO: Guard against full circle.
 	u64 hash_value       = hash(key);
 	u64 slot_index       = hash_value & (self.capacity - 1);
 	Hash_Table_Slot slot = self.slots[slot_index];
 	while (slot.flags == HASH_TABLE_SLOT_FLAGS_USED)
 	{
-		Hash_Table_Entry<const K, V> *entry = (Hash_Table_Entry<const K, V> *)&self.entries[slot.entry_index];
-		if (entry->key == key)
+		if (auto *entry = (Hash_Table_Entry<const K, V> *)&self.entries[slot.entry_index]; entry->key == key)
 		{
 			entry->value = value;
 			return entry;
@@ -220,7 +216,13 @@ hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 	return (Hash_Table_Entry<const K, V> *)&self.entries[self.entries.count - 1];
 }
 
-// TODO: Add unittests for removing from an empty hash table or a table with very few elements.
+template <typename K, typename V>
+inline static const Hash_Table_Entry<const K, V> *
+hash_table_insert(Hash_Table<K, V> &self, const Hash_Table_Entry<K, V> &entry)
+{
+	return hash_table_insert(self, entry.key, entry.value);
+}
+
 template <typename K, typename V>
 inline static bool
 hash_table_remove(Hash_Table<K, V> &self, const K &key)
@@ -263,11 +265,11 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 	if (self.count == 0)
 		return false;
 
-	if ((f32)self.count / (f32)self.capacity * 100.0f < 20.0f)
+	if ((f32)(self.count - 1) / (f32)self.capacity * 100.0f < 20.0f)
 	{
 		Hash_Table<K, V> new_table = hash_table_init_with_capacity<K, V>(self.capacity >> 1, self.slots.allocator);
 		for (const Hash_Table_Entry<K, V> &entry : self.entries)
-			hash_table_insert(new_table, entry.key, entry.value);
+			hash_table_insert(new_table, entry);
 		hash_table_deinit(self);
 		self = new_table;
 	}
@@ -276,12 +278,12 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 	{
 		if (u64 last_slot_index = find_slot_index(self, array_last(self.entries).key); last_slot_index != U64_MAX)
 		{
-			Hash_Table_Slot &slot = self.slots[deleted_slot_index];
-			self.slots[last_slot_index].entry_index = slot.entry_index;
-			array_remove(self.entries, slot.entry_index);
+			Hash_Table_Slot &deleted_slot = self.slots[deleted_slot_index];
+			array_remove(self.entries, deleted_slot.entry_index);
+			self.slots[last_slot_index].entry_index = deleted_slot.entry_index;
 
-			slot.entry_index = self.entries.count - 1;
-			slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
+			deleted_slot.entry_index = self.entries.count - 1;
+			deleted_slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
 			--self.count;
 
 			return true;
@@ -292,7 +294,6 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 		// Either we get rid of the ordering itself (performance cost on removal), or maintain it here.
 		// Might try with LinkedList that is backed by array (arena) memory.
 		//
-
 	}
 
 	return false;

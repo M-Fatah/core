@@ -757,6 +757,16 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 		CHECK(table.slots.capacity == 256);
 	}
 
+	SUBCASE("remove")
+	{
+		Hash_Table<i32, i32> table = {};
+		DEFER(hash_table_deinit(table));
+
+		CHECK(hash_table_remove(table, 0) == false);
+		hash_table_insert(table, 1, 1);
+		CHECK(hash_table_remove(table, 1) == true);
+	}
+
 	SUBCASE("resize")
 	{
 		Hash_Table<i32, f32> table = hash_table_init<i32, f32>(memory::temp_allocator());
@@ -1088,6 +1098,16 @@ TEST_CASE("[CONTAINERS]: Hash_Set")
 		CHECK(set.slots.data     != nullptr);
 		CHECK(set.slots.count    == 256);
 		CHECK(set.slots.capacity == 256);
+	}
+
+	SUBCASE("remove")
+	{
+		Hash_Set<i32> set = {};
+		DEFER(hash_set_deinit(set));
+
+		CHECK(hash_set_remove(set, 0) == false);
+		hash_set_insert(set, 1);
+		CHECK(hash_set_remove(set, 1) == true);
 	}
 
 	SUBCASE("resize")
