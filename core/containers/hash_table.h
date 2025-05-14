@@ -184,7 +184,7 @@ hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 {
 	if (self.capacity == 0)
 		hash_table_reserve(self, 8);
-	else if ((f32)(self.count + 1) / (f32)self.capacity * 100.0f > 75.0f)
+	else if (self.count + 1 > self.capacity - (self.capacity >> 2))
 		hash_table_reserve(self, self.capacity);
 
 	u64 hash_value       = hash(key);
@@ -265,38 +265,42 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 	if (self.count == 0)
 		return false;
 
-	if ((f32)(self.count - 1) / (f32)self.capacity * 100.0f < 20.0f)
-	{
-		Hash_Table<K, V> new_table = hash_table_init_with_capacity<K, V>(self.capacity >> 1, self.slots.allocator);
-		for (const Hash_Table_Entry<K, V> &entry : self.entries)
-			hash_table_insert(new_table, entry);
-		hash_table_deinit(self);
-		self = new_table;
-	}
-
 	if (u64 deleted_slot_index = find_slot_index(self, key); deleted_slot_index != U64_MAX)
 	{
-		if (u64 last_slot_index = find_slot_index(self, array_last(self.entries).key); last_slot_index != U64_MAX)
+		Hash_Table_Slot &deleted_slot = self.slots[deleted_slot_index];
+		if (deleted_slot.entry_index == self.entries.count - 1)
 		{
-			Hash_Table_Slot &deleted_slot = self.slots[deleted_slot_index];
 			array_remove(self.entries, deleted_slot.entry_index);
-			self.slots[last_slot_index].entry_index = deleted_slot.entry_index;
-
-			deleted_slot.entry_index = self.entries.count - 1;
-			deleted_slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
-			--self.count;
-
-			return true;
+		}
+		else
+		{
+			self.slots[find_slot_index(self, array_last(self.entries).key)].entry_index = deleted_slot.entry_index;
+			array_remove(self.entries, deleted_slot.entry_index);
 		}
 
-		//
-		// TODO: Does not handle the ordering of inserted object.
-		// Either we get rid of the ordering itself (performance cost on removal), or maintain it here.
-		// Might try with LinkedList that is backed by array (arena) memory.
-		//
+		deleted_slot.entry_index = self.entries.count - 1;
+		deleted_slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
+		--self.count;
+
+		// TODO: Do rehashing instead of inserting?
+		if ((self.count < (self.capacity >> 2)) && self.capacity > 8)
+		{
+			Hash_Table<K, V> new_table = hash_table_init_with_capacity<K, V>(self.capacity >> 1, self.slots.allocator);
+			for (const Hash_Table_Entry<K, V> &entry : self.entries)
+				hash_table_insert(new_table, entry);
+			hash_table_deinit(self);
+			self = new_table;
+		}
+
+		return true;
 	}
 
 	return false;
+	//
+	// TODO: Does not handle the ordering of inserted object.
+	// Either we get rid of the ordering itself (performance cost on removal), or maintain it here.
+	// Might try with LinkedList that is backed by array (arena) memory.
+	//
 }
 
 template <typename K, typename V>
