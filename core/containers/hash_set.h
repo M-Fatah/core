@@ -84,6 +84,13 @@ hash_set_remove(Hash_Set<K> &self, const K &entry)
 }
 
 template <typename K>
+inline static bool
+hash_set_remove_ordered(Hash_Set<K> &self, const K &entry)
+{
+	return hash_table_remove_ordered(self, entry);
+}
+
+template <typename K>
 inline static void
 hash_set_clear(Hash_Set<K> &self)
 {

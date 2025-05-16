@@ -223,6 +223,7 @@ hash_table_insert(Hash_Table<K, V> &self, const Hash_Table_Entry<K, V> &entry)
 	return hash_table_insert(self, entry.key, entry.value);
 }
 
+// TODO: Do rehash on too many deleted entries?
 template <typename K, typename V>
 inline static bool
 hash_table_remove(Hash_Table<K, V> &self, const K &key)
@@ -296,11 +297,85 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 	}
 
 	return false;
-	//
-	// TODO: Does not handle the ordering of inserted object.
-	// Either we get rid of the ordering itself (performance cost on removal), or maintain it here.
-	// Might try with LinkedList that is backed by array (arena) memory.
-	//
+}
+
+template <typename K, typename V>
+inline static bool
+hash_table_remove_ordered(Hash_Table<K, V> &self, const K &key)
+{
+	constexpr auto find_slot_index = [](Hash_Table<K, V> &self, const K &key) -> u64 {
+		u64 hash_value       = hash(key);
+		u64 slot_index       = hash_value & (self.capacity - 1);
+		u64 start_slot_index = slot_index;
+		Hash_Table_Slot slot = self.slots[slot_index];
+		while (true)
+		{
+			switch (slot.flags)
+			{
+				case HASH_TABLE_SLOT_FLAGS_EMPTY:
+				{
+					return U64_MAX;
+				}
+				case HASH_TABLE_SLOT_FLAGS_USED:
+				{
+					if (self.entries[slot.entry_index].key == key)
+						return slot_index;
+					break;
+				}
+				case HASH_TABLE_SLOT_FLAGS_DELETED:
+				{
+					break;
+				}
+			}
+
+			++slot_index;
+			slot_index = slot_index & (self.capacity - 1);
+			if (slot_index == start_slot_index)
+				return U64_MAX;
+
+			slot = self.slots[slot_index];
+		}
+		return U64_MAX;
+	};
+
+	if (self.count == 0)
+		return false;
+
+	if (u64 deleted_slot_index = find_slot_index(self, key); deleted_slot_index != U64_MAX)
+	{
+		Hash_Table_Slot &deleted_slot = self.slots[deleted_slot_index];
+		if (deleted_slot.entry_index == self.entries.count - 1)
+		{
+			array_remove(self.entries, deleted_slot.entry_index);
+		}
+		else
+		{
+			for (u64 i = deleted_slot.entry_index + 1; i < self.entries.count; ++i)
+			{
+				self.slots[find_slot_index(self, self.entries[i].key)].entry_index = i - 1;
+			}
+			array_remove_ordered(self.entries, deleted_slot.entry_index);
+		}
+
+		// TODO: Should we really update entry_index here.
+		// deleted_slot.entry_index = self.entries.count - 1;
+		deleted_slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
+		--self.count;
+
+		// TODO: Do rehashing instead of inserting?
+		if ((self.count < (self.capacity >> 2)) && self.capacity > 8)
+		{
+			Hash_Table<K, V> new_table = hash_table_init_with_capacity<K, V>(self.capacity >> 1, self.slots.allocator);
+			for (const Hash_Table_Entry<K, V> &entry : self.entries)
+				hash_table_insert(new_table, entry);
+			hash_table_deinit(self);
+			self = new_table;
+		}
+
+		return true;
+	}
+
+	return false;
 }
 
 template <typename K, typename V>

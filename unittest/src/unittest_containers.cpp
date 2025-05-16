@@ -759,12 +759,59 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 
 	SUBCASE("remove")
 	{
-		Hash_Table<i32, i32> table = {};
-		DEFER(hash_table_deinit(table));
+		SUBCASE("unordered")
+		{
+			Hash_Table<i32, i32> table = {};
+			DEFER(hash_table_deinit(table));
 
-		CHECK(hash_table_remove(table, 0) == false);
-		hash_table_insert(table, 1, 1);
-		CHECK(hash_table_remove(table, 1) == true);
+			CHECK(hash_table_remove(table, 0) == false);
+			hash_table_insert(table, 1, 1);
+			CHECK(hash_table_remove(table, 1) == true);
+		}
+
+		SUBCASE("ordered")
+		{
+			Hash_Table<i32, i32> table = {};
+			DEFER(hash_table_deinit(table));
+			hash_table_insert(table, 1, 1);
+			hash_table_insert(table, 2, 2);
+			hash_table_insert(table, 3, 3);
+			hash_table_insert(table, 4, 4);
+			hash_table_insert(table, 5, 5);
+			hash_table_insert(table, 6, 6);
+
+			CHECK(hash_table_remove_ordered(table, 0) == false);
+			CHECK(hash_table_remove_ordered(table, 1) == true);
+			CHECK(hash_table_remove_ordered(table, 3) == true);
+			CHECK(hash_table_remove_ordered(table, 5) == true);
+
+			CHECK(table.entries.count == 3);
+
+			CHECK(table.entries[0].key   == 2);
+			CHECK(table.entries[0].value == 2);
+
+			CHECK(table.entries[1].key   == 4);
+			CHECK(table.entries[1].value == 4);
+
+			CHECK(table.entries[2].key   == 6);
+			CHECK(table.entries[2].value == 6);
+
+			CHECK(hash_table_find(table, 1) == nullptr);
+			CHECK(hash_table_find(table, 3) == nullptr);
+			CHECK(hash_table_find(table, 5) == nullptr);
+
+			CHECK(hash_table_find(table, 2) != nullptr);
+			CHECK(hash_table_find(table, 2)->key == 2);
+			CHECK(hash_table_find(table, 2)->value == 2);
+
+			CHECK(hash_table_find(table, 4) != nullptr);
+			CHECK(hash_table_find(table, 4)->key == 4);
+			CHECK(hash_table_find(table, 4)->value == 4);
+
+			CHECK(hash_table_find(table, 6) != nullptr);
+			CHECK(hash_table_find(table, 6)->key == 6);
+			CHECK(hash_table_find(table, 6)->value == 6);
+		}
 	}
 
 	SUBCASE("resize")
@@ -1102,12 +1149,51 @@ TEST_CASE("[CONTAINERS]: Hash_Set")
 
 	SUBCASE("remove")
 	{
-		Hash_Set<i32> set = {};
-		DEFER(hash_set_deinit(set));
+		SUBCASE("unordered")
+		{
+			Hash_Set<i32> set = {};
+			DEFER(hash_set_deinit(set));
 
-		CHECK(hash_set_remove(set, 0) == false);
-		hash_set_insert(set, 1);
-		CHECK(hash_set_remove(set, 1) == true);
+			CHECK(hash_set_remove(set, 0) == false);
+			hash_set_insert(set, 1);
+			CHECK(hash_set_remove(set, 1) == true);
+		}
+
+		SUBCASE("ordered")
+		{
+			Hash_Set<i32> set = {};
+			DEFER(hash_set_deinit(set));
+			hash_set_insert(set, 1);
+			hash_set_insert(set, 2);
+			hash_set_insert(set, 3);
+			hash_set_insert(set, 4);
+			hash_set_insert(set, 5);
+			hash_set_insert(set, 6);
+
+			CHECK(hash_set_remove_ordered(set, 0) == false);
+			CHECK(hash_set_remove_ordered(set, 1) == true);
+			CHECK(hash_set_remove_ordered(set, 3) == true);
+			CHECK(hash_set_remove_ordered(set, 5) == true);
+
+			CHECK(set.entries.count == 3);
+
+			CHECK(set.entries[0].key == 2);
+			CHECK(set.entries[1].key == 4);
+			CHECK(set.entries[2].key == 6);
+
+			CHECK(hash_set_find(set, 1) == nullptr);
+			CHECK(hash_set_find(set, 3) == nullptr);
+			CHECK(hash_set_find(set, 5) == nullptr);
+
+			CHECK(hash_set_find(set, 2) != nullptr);
+			CHECK(*hash_set_find(set, 2) == 2);
+
+			CHECK(hash_set_find(set, 4) != nullptr);
+			CHECK(*hash_set_find(set, 4) == 4);
+
+			CHECK(hash_set_find(set, 6) != nullptr);
+			CHECK(*hash_set_find(set, 6) == 6);
+		}
 	}
 
 	SUBCASE("resize")

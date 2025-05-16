@@ -190,6 +190,15 @@ array_remove_if(Array<T> &self, P &&predicate)
 
 template <typename T>
 inline static void
+array_remove_ordered(Array<T> &self, u64 index)
+{
+	validate(index < self.count, "[ARRAY]: Access out of range.");
+	::memmove(self.data + index, self.data + index + 1, (self.count - index - 1) * sizeof(T));
+	--self.count;
+}
+
+template <typename T>
+inline static void
 array_append(Array<T> &self, const Array<T> &other)
 {
 	auto old_count = self.count;
