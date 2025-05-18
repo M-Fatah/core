@@ -266,21 +266,14 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 	if (self.count == 0)
 		return false;
 
-	if (u64 deleted_slot_index = find_slot_index(self, key); deleted_slot_index != U64_MAX)
+	if (u64 slot_index = find_slot_index(self, key); slot_index != U64_MAX)
 	{
-		Hash_Table_Slot &deleted_slot = self.slots[deleted_slot_index];
-		if (deleted_slot.entry_index == self.entries.count - 1)
-		{
-			array_remove(self.entries, deleted_slot.entry_index);
-		}
-		else
-		{
-			self.slots[find_slot_index(self, array_last(self.entries).key)].entry_index = deleted_slot.entry_index;
-			array_remove(self.entries, deleted_slot.entry_index);
-		}
+		Hash_Table_Slot &slot = self.slots[slot_index];
+		if (slot.entry_index < self.entries.count - 1)
+			self.slots[find_slot_index(self, array_last(self.entries).key)].entry_index = slot.entry_index;
 
-		deleted_slot.entry_index = self.entries.count - 1;
-		deleted_slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
+		array_remove(self.entries, slot.entry_index);
+		slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
 		--self.count;
 
 		// TODO: Do rehashing instead of inserting?
@@ -341,25 +334,15 @@ hash_table_remove_ordered(Hash_Table<K, V> &self, const K &key)
 	if (self.count == 0)
 		return false;
 
-	if (u64 deleted_slot_index = find_slot_index(self, key); deleted_slot_index != U64_MAX)
+	if (u64 slot_index = find_slot_index(self, key); slot_index != U64_MAX)
 	{
-		Hash_Table_Slot &deleted_slot = self.slots[deleted_slot_index];
-		if (deleted_slot.entry_index == self.entries.count - 1)
-		{
-			array_remove(self.entries, deleted_slot.entry_index);
-		}
-		else
-		{
-			for (u64 i = deleted_slot.entry_index + 1; i < self.entries.count; ++i)
-			{
+		Hash_Table_Slot &slot = self.slots[slot_index];
+		if (slot.entry_index < self.entries.count - 1)
+			for (u64 i = slot.entry_index + 1; i < self.entries.count; ++i)
 				self.slots[find_slot_index(self, self.entries[i].key)].entry_index = i - 1;
-			}
-			array_remove_ordered(self.entries, deleted_slot.entry_index);
-		}
 
-		// TODO: Should we really update entry_index here.
-		// deleted_slot.entry_index = self.entries.count - 1;
-		deleted_slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
+		array_remove_ordered(self.entries, slot.entry_index);
+		slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
 		--self.count;
 
 		// TODO: Do rehashing instead of inserting?
