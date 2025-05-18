@@ -276,10 +276,11 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 		slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
 		--self.count;
 
-		// TODO: Do rehashing instead of inserting?
+		// IMPORTANT: Can be optimized by re-hashing the slots and then copying the entire entries array separately aftewards (better cache locality).
 		if ((self.count < (self.capacity >> 2)) && self.capacity > 8)
 		{
 			Hash_Table<K, V> new_table = hash_table_init_with_capacity<K, V>(self.capacity >> 1, self.slots.allocator);
+			array_reserve(new_table.entries, self.entries.count);
 			for (const Hash_Table_Entry<K, V> &entry : self.entries)
 				hash_table_insert(new_table, entry);
 			hash_table_deinit(self);
@@ -345,10 +346,11 @@ hash_table_remove_ordered(Hash_Table<K, V> &self, const K &key)
 		slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
 		--self.count;
 
-		// TODO: Do rehashing instead of inserting?
+		// IMPORTANT: Can be optimized by re-hashing the slots and then copying the entire entries array separately aftewards (better cache locality).
 		if ((self.count < (self.capacity >> 2)) && self.capacity > 8)
 		{
 			Hash_Table<K, V> new_table = hash_table_init_with_capacity<K, V>(self.capacity >> 1, self.slots.allocator);
+			array_reserve(new_table.entries, self.entries.count);
 			for (const Hash_Table_Entry<K, V> &entry : self.entries)
 				hash_table_insert(new_table, entry);
 			hash_table_deinit(self);
