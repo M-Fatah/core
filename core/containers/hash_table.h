@@ -9,6 +9,11 @@
 
 #include <initializer_list>
 
+/*
+	TODO:
+	- [ ] Do rehash on too many deleted entries.
+*/
+
 enum HASH_TABLE_SLOT_FLAGS
 {
 	HASH_TABLE_SLOT_FLAGS_EMPTY,
@@ -223,7 +228,6 @@ hash_table_insert(Hash_Table<K, V> &self, const Hash_Table_Entry<K, V> &entry)
 	return hash_table_insert(self, entry.key, entry.value);
 }
 
-// TODO: Do rehash on too many deleted entries?
 template <typename K, typename V>
 inline static bool
 hash_table_remove(Hash_Table<K, V> &self, const K &key)
