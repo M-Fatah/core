@@ -200,7 +200,7 @@ TEST_CASE("[CORE]: Binary_Serializer")
 
 	SUBCASE("Hash tables")
 	{
-		Hash_Table<i32, String> a1 = hash_table_from<i32, String>({
+		Hash_Table<i32, String> a1 = hash_table_init_from<i32, String>({
 			{1, string_literal("A")},
 			{2, string_literal("B")},
 			{3, string_literal("C")},
@@ -511,7 +511,7 @@ TEST_CASE("[CORE]: JSON_Serializer")
 
 	SUBCASE("Hash tables")
 	{
-		Hash_Table<i32, String> a1 = hash_table_from<i32, String>({
+		Hash_Table<i32, String> a1 = hash_table_init_from<i32, String>({
 			{1, string_literal("A")},
 			{2, string_literal("B")},
 			{3, string_literal("C")},

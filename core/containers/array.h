@@ -137,7 +137,7 @@ template <typename T, typename R>
 inline static void
 array_push(Array<T> &self, const R &value)
 {
-	if((self.count + 1) >= self.capacity)
+	if ((self.count + 1) >= self.capacity)
 		array_reserve(self, self.capacity > 1 ? self.capacity / 2 : 8);
 	self.data[self.count++] = (T)value;
 }
@@ -148,7 +148,7 @@ array_push(Array<T> &self, const T &value, u64 count)
 {
 	u64 i = self.count;
 	array_resize(self, self.count + count);
-	for(; i < self.count; ++i)
+	for (; i < self.count; ++i)
 		self.data[i] = value;
 }
 
@@ -165,7 +165,7 @@ inline static void
 array_remove(Array<T> &self, u64 index)
 {
 	validate(index < self.count, "[ARRAY]: Access out of range.");
-	if((index + 1) != self.count)
+	if ((index + 1) != self.count)
 	{
 		T temp = self.data[self.count - 1];
 		self.data[self.count - 1] = self.data[index];
@@ -186,6 +186,15 @@ array_remove_if(Array<T> &self, P &&predicate)
 			--i;
 		}
 	}
+}
+
+template <typename T>
+inline static void
+array_remove_ordered(Array<T> &self, u64 index)
+{
+	validate(index < self.count, "[ARRAY]: Access out of range.");
+	::memmove(self.data + index, self.data + index + 1, (self.count - index - 1) * sizeof(T));
+	--self.count;
 }
 
 template <typename T>
