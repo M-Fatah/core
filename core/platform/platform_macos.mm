@@ -582,6 +582,34 @@ platform_allocator_deinit(Platform_Allocator *self)
 }
 
 Platform_Memory
+platform_virtual_memory_reserve(void *address, u64 size)
+{
+	void *memory = ::mmap(address, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	return Platform_Memory {
+		.ptr = (u8 *)memory,
+		.size = memory ? size : 0
+	};
+}
+
+void
+platform_virtual_memory_commit(Platform_Memory memory)
+{
+	validate(::mprotect(memory.ptr, memory.size, PROT_READ | PROT_WRITE) != 0);
+}
+
+void
+platform_virtual_memory_decommit(Platform_Memory memory)
+{
+	validate(::mprotect(memory.ptr, memory.size, PROT_NONE) != 0);
+}
+
+void
+platform_virtual_memory_release(Platform_Memory memory)
+{
+	::munmap(memory.ptr, memory.size);
+}
+
+Platform_Memory
 platform_allocator_alloc(Platform_Allocator *self, u64 size_in_bytes)
 {
 	Platform_Memory res = {};
