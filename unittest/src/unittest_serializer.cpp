@@ -149,7 +149,7 @@ TEST_CASE("[CORE]: Binary_Serializer")
 	SUBCASE("Arrays")
 	{
 		i32 a1[5]    = {1, 2, 3, 4, 5};
-		Array<i8> b1 = array_from<i8>({1, 2, 3, 4, 5});
+		Array<i8> b1 = array_init_from<i8>({1, 2, 3, 4, 5});
 		DEFER(array_deinit(b1));
 
 		serialize(serializer, {"a1", a1});
@@ -460,7 +460,7 @@ TEST_CASE("[CORE]: JSON_Serializer")
 	{
 
 		i32 a1[3]    = {1, 2, 3};
-		Array<i8> b1 = array_from<i8>({1, 2, 3});
+		Array<i8> b1 = array_init_from<i8>({1, 2, 3});
 		DEFER(array_deinit(b1));
 
 		serialize(serializer, {"a1", a1});

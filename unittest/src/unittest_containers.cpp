@@ -22,7 +22,7 @@ TEST_CASE("[CONTAINERS]: Array")
 		}
 
 		{
-			auto array = array_with_capacity<i32>(100);
+			auto array = array_init_with_capacity<i32>(100);
 			DEFER(array_deinit(array));
 
 			CHECK(array.data != nullptr);
@@ -32,7 +32,7 @@ TEST_CASE("[CONTAINERS]: Array")
 		}
 
 		{
-			auto array = array_with_count<i32>(100);
+			auto array = array_init_with_count<i32>(100);
 			DEFER(array_deinit(array));
 
 			CHECK(array.data != nullptr);
@@ -42,7 +42,7 @@ TEST_CASE("[CONTAINERS]: Array")
 		}
 
 		{
-			auto array = array_from({1, 2, 3, 4, 5});
+			auto array = array_init_from({1, 2, 3, 4, 5});
 			DEFER(array_deinit(array));
 
 			CHECK(array.data != nullptr);
@@ -59,7 +59,7 @@ TEST_CASE("[CONTAINERS]: Array")
 
 	SUBCASE("copy")
 	{
-		auto array1 = array_from({1, 2, 3});
+		auto array1 = array_init_from({1, 2, 3});
 		DEFER(array_deinit(array1));
 
 		auto array2 = array_copy(array1);
@@ -73,7 +73,7 @@ TEST_CASE("[CONTAINERS]: Array")
 
 	SUBCASE("fill")
 	{
-		auto array = array_with_count<f32>(50);
+		auto array = array_init_with_count<f32>(50);
 		DEFER(array_deinit(array));
 
 		array_fill(array, 5.0f);
@@ -83,7 +83,7 @@ TEST_CASE("[CONTAINERS]: Array")
 
 	SUBCASE("reserve")
 	{
-		auto array = array_with_capacity<i32>(10);
+		auto array = array_init_with_capacity<i32>(10);
 		DEFER(array_deinit(array));
 
 		CHECK(array.data != nullptr);
@@ -113,12 +113,73 @@ TEST_CASE("[CONTAINERS]: Array")
 		CHECK(array.count == 0);
 	}
 
+	SUBCASE("remove")
+	{
+		auto array = array_init<i32>();
+		DEFER(array_deinit(array));
+
+		for (size_t i = 0; i < 100; ++i)
+			array_push(array, i32(i));
+		CHECK(array.count == 100);
+
+		array_remove(array, array.count - 1);
+		CHECK(array.count == 99);
+		for (size_t i = 0; i < 99; ++i)
+			CHECK(array[i] == i);
+
+		array_remove(array, 0);
+		CHECK(array[0] == 98);
+		CHECK(array.count == 98);
+
+		array_remove_ordered(array, 0);
+		for (size_t i = 0; i < 97; ++i)
+			CHECK(array[i] == i + 1);
+		CHECK(array.count == 97);
+		array_remove(array, 0);
+
+		array_remove_if(array, [](i32 element) {
+			return element % 2 == 0;
+		});
+		CHECK(array.count == 48);
+	}
+
+	SUBCASE("remove_ordered")
+	{
+		auto array = array_init<i32>();
+		DEFER(array_deinit(array));
+
+		for (size_t i = 0; i < 100; ++i)
+			array_push(array, i32(i));
+		CHECK(array.count == 100);
+
+		array_remove_ordered_if(array, [](i32 element) {
+			return element % 2 == 0;
+		});
+
+		i32 j = 1;
+		for (size_t i = 0; i < 50; ++i)
+		{
+			CHECK(array[i] == j);
+			j += 2;
+		}
+		CHECK(array.count == 50);
+
+		array_remove_ordered(array, 0);
+		j = 3;
+		for (size_t i = 0; i < 49; ++i)
+		{
+			CHECK(array[i] == j);
+			j += 2;
+		}
+		CHECK(array.count == 49);
+	}
+
 	SUBCASE("append")
 	{
-		auto array1 = array_from({0, 1, 2, 3, 4});
+		auto array1 = array_init_from({0, 1, 2, 3, 4});
 		DEFER(array_deinit(array1));
 
-		auto array2 = array_from({5, 6, 7, 8, 9});
+		auto array2 = array_init_from({5, 6, 7, 8, 9});
 		DEFER(array_deinit(array2));
 
 		array_append(array1, array2);
@@ -130,7 +191,7 @@ TEST_CASE("[CONTAINERS]: Array")
 
 	SUBCASE("iterators")
 	{
-		auto array = array_from<i32>({0, 1, 2, 3, 4});
+		auto array = array_init_from<i32>({0, 1, 2, 3, 4});
 		DEFER(array_deinit(array));
 
 		CHECK(begin(array) == array.data);
@@ -156,7 +217,7 @@ TEST_CASE("[CONTAINERS]: Array")
 	{
 		auto array1 = array_init<Array<i32>>();
 		DEFER(destroy(array1));
-		array_push(array1, array_from<i32>({1, 2, 3}));
+		array_push(array1, array_init_from<i32>({1, 2, 3}));
 
 		auto array2 = clone(array1);
 		DEFER(destroy(array2));
@@ -178,8 +239,8 @@ TEST_CASE("[CONTAINERS]: Array")
 		auto v = array_init<Array<i32>>();
 		DEFER(destroy(v));
 
-		array_push(v, array_from<i32>({1, 2, 3}));
-		array_push(v, array_from<i32>({4, 5, 6}));
+		array_push(v, array_init_from<i32>({1, 2, 3}));
+		array_push(v, array_init_from<i32>({4, 5, 6}));
 	}
 }
 

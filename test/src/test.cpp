@@ -389,7 +389,7 @@ main(i32, char **)
 	vec3 v = {1, 2, 3};
 	auto b13 = format("{}", v);
 
-	Array<i32> a = array_from({1, 2, 3}, memory::temp_allocator());
+	Array<i32> a = array_init_from({1, 2, 3}, memory::temp_allocator());
 	auto b14 = format("{}", a);
 
 	String b = string_from("BB", memory::temp_allocator());
