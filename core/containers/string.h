@@ -12,7 +12,7 @@ using String = Array<char>;
 inline static String
 string_init(memory::Allocator *allocator = memory::heap_allocator())
 {
-	String self = array_with_capacity<char>(1, allocator);
+	String self = array_init_with_capacity<char>(1, allocator);
 	self.data[0] = '\0';
 	return self;
 }
@@ -21,7 +21,7 @@ string_init(memory::Allocator *allocator = memory::heap_allocator())
 inline static String
 string_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
-	String self = array_with_capacity<char>(capacity, allocator);
+	String self = array_init_with_capacity<char>(capacity, allocator);
 	self.data[0] = '\0';
 	return self;
 }
@@ -37,7 +37,7 @@ string_from(const char *c_string, memory::Allocator *allocator = memory::heap_al
 	};
 
 	u64 length = c_string == nullptr ? 0 : length_of(c_string);
-	String self = array_with_capacity<char>(length + 1, allocator);
+	String self = array_init_with_capacity<char>(length + 1, allocator);
 	self.count = length;
 	for (u64 i = 0; i < length; ++i)
 		self[i] = c_string[i];
@@ -49,7 +49,7 @@ inline static String
 string_from(const char *first, const char *last, memory::Allocator *allocator = memory::heap_allocator())
 {
 	auto length = last - first;
-	auto self = array_with_capacity<char>(length + 1, allocator);
+	auto self = array_init_with_capacity<char>(length + 1, allocator);
 	for (const char *it = first; it != last; ++it)
 		self[self.count++] = *it;
 	self.data[self.count] = '\0';
@@ -59,7 +59,7 @@ string_from(const char *first, const char *last, memory::Allocator *allocator = 
 inline static String
 string_copy(const String &self, memory::Allocator *allocator = memory::heap_allocator())
 {
-	auto copy = array_with_capacity<char>(self.count + 1, allocator);
+	auto copy = array_init_with_capacity<char>(self.count + 1, allocator);
 	for (auto c : self)
 		array_push(copy, c);
 	copy.data[copy.count] = '\0';

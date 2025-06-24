@@ -108,7 +108,7 @@ TEST_CASE("[CORE]: Formatter")
 		buffer = format("{}", array_of_strings, memory::temp_allocator());
 		CHECK(buffer == "[2] { Hello, World }");
 
-		buffer = format("{}", array_from<i32>({1, 2, 3}, memory::temp_allocator()), memory::temp_allocator());
+		buffer = format("{}", array_init_from<i32>({1, 2, 3}, memory::temp_allocator()), memory::temp_allocator());
 		CHECK(buffer == "[3] { 1, 2, 3 }");
 
 		buffer = format("{}", hash_table_init_from<i32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()), memory::temp_allocator());
@@ -192,6 +192,6 @@ TEST_CASE("[CORE]: to_string")
 	buffer = to_string(true, memory::temp_allocator());
 	CHECK(buffer == "true");
 
-	buffer = to_string(array_from({1, 2, 3}, memory::temp_allocator()), memory::temp_allocator());
+	buffer = to_string(array_init_from({1, 2, 3}, memory::temp_allocator()), memory::temp_allocator());
 	CHECK(buffer == "[3] { 1, 2, 3 }");
 }

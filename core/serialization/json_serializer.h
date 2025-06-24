@@ -28,7 +28,7 @@ json_serializer_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	return Json_Serializer {
 		.allocator = allocator,
-		.values = array_from({json_value_init_as_object(allocator)}, allocator),
+		.values = array_init_from({json_value_init_as_object(allocator)}, allocator),
 		.is_valid = false
 	};
 }

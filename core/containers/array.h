@@ -11,7 +11,7 @@
 template <typename T>
 struct Array
 {
-	memory::Allocator *allocator; // TODO: This was moved from down to here.
+	memory::Allocator *allocator;
 	T *data;
 	u64 count;
 	u64 capacity;
@@ -35,44 +35,41 @@ template <typename T>
 inline static Array<T>
 array_init(memory::Allocator *allocator = memory::heap_allocator())
 {
-	Array<T> self = {};
-	self.allocator = allocator;
-
-	if (self.allocator == nullptr)
-		self.allocator = memory::heap_allocator();
-
-	return self;
+	return Array<T> {
+		.allocator = allocator ? allocator : memory::heap_allocator(),
+	};
 }
 
 template <typename T>
 inline static Array<T>
-array_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
+array_init_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
-	Array<T> self = {};
-	self.allocator = allocator;
-
-	if (self.allocator == nullptr)
-		self.allocator = memory::heap_allocator();
-
-	self.data = (T*)memory::allocate(self.allocator, capacity * sizeof(T));
-	self.capacity = capacity;
-	return self;
+	allocator = allocator ? allocator : memory::heap_allocator();
+	return Array<T> {
+		.allocator = allocator,
+		.data = (T *)memory::allocate(allocator, capacity * sizeof(T)),
+		.capacity = capacity
+	};
 }
 
 template <typename T>
 inline static Array<T>
-array_with_count(u64 count, memory::Allocator *allocator = memory::heap_allocator())
+array_init_with_count(u64 count, memory::Allocator *allocator = memory::heap_allocator())
 {
-	Array<T> self = array_with_capacity<T>(count, allocator);
-	self.count = count;
-	return self;
+	allocator = allocator ? allocator : memory::heap_allocator();
+	return Array<T> {
+		.allocator = allocator,
+		.data = (T *)memory::allocate(allocator, count * sizeof(T)),
+		.count = count,
+		.capacity = count
+	};
 }
 
 template <typename T>
 inline static Array<T>
-array_from(const T *first, const T *last, memory::Allocator *allocator = memory::heap_allocator())
+array_init_from(const T *first, const T *last, memory::Allocator *allocator = memory::heap_allocator())
 {
-	Array<T> self = array_with_capacity<T>(last - first, allocator);
+	Array<T> self = array_init_with_capacity<T>(last - first, allocator);
 	for (const T *it = first; it != last; ++it)
 		self[self.count++] = *it;
 	return self;
@@ -80,16 +77,16 @@ array_from(const T *first, const T *last, memory::Allocator *allocator = memory:
 
 template <typename T>
 inline static Array<T>
-array_from(std::initializer_list<T> values, memory::Allocator *allocator = memory::heap_allocator())
+array_init_from(std::initializer_list<T> values, memory::Allocator *allocator = memory::heap_allocator())
 {
-	return array_from(values.begin(), values.end(), allocator);
+	return array_init_from(values.begin(), values.end(), allocator);
 }
 
 template <typename T>
 inline static Array<T>
 array_copy(const Array<T> &self, memory::Allocator *allocator = memory::heap_allocator())
 {
-	auto copy = array_with_count<T>(self.count, allocator);
+	Array<T> copy = array_init_with_count<T>(self.count, allocator);
 	for (u64 i = 0; i < self.count; ++i)
 		copy[i] = self[i];
 	return copy;
@@ -101,27 +98,27 @@ array_deinit(Array<T> &self)
 {
 	if (self.capacity && self.allocator)
 		memory::deallocate(self.allocator, self.data);
-	self.data = nullptr;
-	self.count = 0;
-	self.capacity = 0;
+	self = Array<T>{.allocator = self.allocator};
 }
 
 template <typename T>
 inline static void
 array_reserve(Array<T> &self, u64 added_capacity)
 {
-	if(self.count + added_capacity < self.capacity)
+	if (self.count + added_capacity < self.capacity)
 		return;
 
 	if (self.allocator == nullptr)
 		self.allocator = memory::heap_allocator();
 
 	self.capacity += added_capacity;
-	auto old_data = self.data;
-	self.data = (T *)memory::allocate(self.allocator, self.capacity * sizeof(T));
+
+	T *data = (T *)memory::allocate(self.allocator, self.capacity * sizeof(T));
 	for (u64 i = 0; i < self.count; ++i)
-		self[i] = old_data[i];
-	memory::deallocate(self.allocator, old_data);
+		data[i] = self[i];
+	memory::deallocate(self.allocator, self.data);
+
+	self.data = data;
 }
 
 template <typename T>
@@ -139,7 +136,7 @@ array_push(Array<T> &self, const R &value)
 {
 	if ((self.count + 1) >= self.capacity)
 		array_reserve(self, self.capacity > 1 ? self.capacity / 2 : 8);
-	self.data[self.count++] = (T)value;
+	self[self.count++] = (T)value;
 }
 
 template <typename T>
@@ -149,15 +146,17 @@ array_push(Array<T> &self, const T &value, u64 count)
 	u64 i = self.count;
 	array_resize(self, self.count + count);
 	for (; i < self.count; ++i)
-		self.data[i] = value;
+		self[i] = value;
 }
 
 template <typename T>
 inline static T
 array_pop(Array<T> &self)
 {
-	validate(self.count > 0, "[ARRAY]: Trying to pop from a 0 count array.");
-	return self.data[--self.count];
+	validate(self.count > 0, "[ARRAY]: Trying to pop from an empty array.");
+	T last = self[self.count - 1];
+	--self.count;
+	return last;
 }
 
 template <typename T>
@@ -167,9 +166,9 @@ array_remove(Array<T> &self, u64 index)
 	validate(index < self.count, "[ARRAY]: Access out of range.");
 	if ((index + 1) != self.count)
 	{
-		T temp = self.data[self.count - 1];
-		self.data[self.count - 1] = self.data[index];
-		self.data[index] = temp;
+		T temp = self[self.count - 1];
+		self[self.count - 1] = self[index];
+		self[index] = temp;
 	}
 	--self.count;
 }
@@ -180,7 +179,7 @@ array_remove_if(Array<T> &self, P &&predicate)
 {
 	for (u64 i = 0; i < self.count; ++i)
 	{
-		if (predicate(self[i]) == true)
+		if (predicate(self[i]))
 		{
 			array_remove(self, i);
 			--i;
@@ -197,11 +196,25 @@ array_remove_ordered(Array<T> &self, u64 index)
 	--self.count;
 }
 
+template <typename T, typename P>
+inline static void
+array_remove_ordered_if(Array<T> &self, P &&predicate)
+{
+	for (u64 i = 0; i < self.count; ++i)
+	{
+		if (predicate(self[i]))
+		{
+			array_remove_ordered(self, i);
+			--i;
+		}
+	}
+}
+
 template <typename T>
 inline static void
 array_append(Array<T> &self, const Array<T> &other)
 {
-	auto old_count = self.count;
+	u64 old_count = self.count;
 	array_resize(self, self.count + other.count);
 	for (u64 i = 0; i < other.count; ++i)
 		self[old_count + i] = other[i];
@@ -211,8 +224,8 @@ template <typename T, typename R>
 inline static void
 array_fill(Array<T> &self, const R &value)
 {
-	for(u64 i = 0; i < self.count; ++i)
-		self.data[i] = value;
+	for (u64 i = 0; i < self.count; ++i)
+		self[i] = (T)value;
 }
 
 template <typename T>
@@ -224,7 +237,7 @@ array_clear(Array<T> &self)
 
 template <typename T>
 inline static bool
-array_is_empty(Array<T> &self)
+array_is_empty(const Array<T> &self)
 {
 	return self.count == 0;
 }
@@ -246,13 +259,6 @@ array_last(Array<T> &self)
 }
 
 template <typename T>
-inline static const T *
-begin(const Array<T> &self)
-{
-	return self.data;
-}
-
-template <typename T>
 inline static T *
 begin(Array<T> &self)
 {
@@ -261,9 +267,9 @@ begin(Array<T> &self)
 
 template <typename T>
 inline static const T *
-end(const Array<T> &self)
+begin(const Array<T> &self)
 {
-	return self.data + self.count;
+	return self.data;
 }
 
 template <typename T>
@@ -274,31 +280,30 @@ end(Array<T> &self)
 }
 
 template <typename T>
+inline static const T *
+end(const Array<T> &self)
+{
+	return self.data + self.count;
+}
+
+template <typename T>
 inline static Array<T>
 clone(const Array<T> &self, memory::Allocator *allocator = memory::heap_allocator())
 {
-	if constexpr (std::is_compound_v<T>)
-	{
-		auto copy = array_with_count<T>(self.count, allocator);
-		for (u64 i = 0; i < self.count; ++i)
-			copy[i] = clone(self[i], allocator);
-		return copy;
-	}
-	else
-	{
-		return array_copy(self, allocator);
-	}
+	Array<T> copy = array_copy(self, allocator);
+	if constexpr (std::is_class_v<T>)
+		for (T &element : copy)
+			element = clone(element);
+	return copy;
 }
 
 template <typename T>
 inline static void
 destroy(Array<T> &self)
 {
-	if constexpr (std::is_compound_v<T>)
-	{
-		for (u64 i = 0; i < self.count; ++i)
-			destroy(self[i]);
-	}
+	if constexpr (std::is_class_v<T>)
+		for (T &element : self)
+			destroy(element);
 	array_deinit(self);
 }
 
