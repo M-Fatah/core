@@ -37,6 +37,9 @@ array_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	return Array<T> {
 		.allocator = allocator ? allocator : memory::heap_allocator(),
+		.data = nullptr,
+		.count = 0,
+		.capacity = 0
 	};
 }
 
@@ -48,6 +51,7 @@ array_init_with_capacity(u64 capacity, memory::Allocator *allocator = memory::he
 	return Array<T> {
 		.allocator = allocator,
 		.data = (T *)memory::allocate(allocator, capacity * sizeof(T)),
+		.count = 0,
 		.capacity = capacity
 	};
 }
@@ -98,7 +102,7 @@ array_deinit(Array<T> &self)
 {
 	if (self.capacity && self.allocator)
 		memory::deallocate(self.allocator, self.data);
-	self = Array<T>{.allocator = self.allocator};
+	self = Array<T>{self.allocator};
 }
 
 template <typename T>

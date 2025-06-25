@@ -687,6 +687,47 @@ TEST_CASE("[CONTAINERS]: Hash_Table")
 		}
 	}
 
+	SUBCASE("operator[]")
+	{
+		Hash_Table<i32, i32> table = {};
+		DEFER(hash_table_deinit(table));
+
+		hash_table_insert(table, 1, 1);
+		hash_table_insert(table, 2, 2);
+
+		table[1] = 3;
+
+		CHECK(table.count == 2);
+		CHECK(table.capacity == 8);
+		CHECK(hash_table_find(table, 1)->value == 3);
+
+		CHECK(table.entries[0].key == 1);
+		CHECK(table.entries[0].value == 3);
+
+		CHECK(table.entries[1].key == 2);
+		CHECK(table.entries[1].value == 2);
+
+		CHECK(table[1] == 3);
+
+		i32 x = table[1];
+		CHECK(x == 3);
+
+		const i32 &xx = table[1];
+		CHECK(xx == 3);
+
+		i32 &y = table[1];
+		y = 1;
+
+		CHECK(table.entries[0].key == 1);
+		CHECK(table.entries[0].value == 1);
+
+		table[5] = 0;
+		CHECK(table[5] == 0);
+
+		CHECK(table.entries[2].key == 5);
+		CHECK(table.entries[2].value == 0);
+	}
+
 	SUBCASE("const char *")
 	{
 		Hash_Table<const char *, const char *> table = hash_table_init<const char *, const char *>();
