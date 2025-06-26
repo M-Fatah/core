@@ -81,7 +81,10 @@ struct Hash_Table
 	{
 		static_assert(!std::is_same_v<V, struct Hash_Set_Value>, "[HASH_TABLE]: operator[] is disabled for Hash_Set<K>.");
 		Hash_Table<K, V> &self = *this;
-		return Hash_Table_Entry_Proxy<K, V>{self, key};
+		return Hash_Table_Entry_Proxy<K, V> {
+			.table = self,
+			.key = key
+		};
 	}
 };
 
