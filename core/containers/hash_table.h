@@ -14,6 +14,9 @@
 	- [ ] Do rehash on too many deleted entries.
 */
 
+template <typename K, typename V>
+struct Hash_Table;
+
 enum HASH_TABLE_SLOT_FLAGS
 {
 	HASH_TABLE_SLOT_FLAGS_EMPTY,
@@ -36,12 +39,53 @@ struct Hash_Table_Entry
 };
 
 template <typename K, typename V>
+struct Hash_Table_Entry_Proxy
+{
+	Hash_Table<K, V> &table;
+	const K &key;
+
+	inline V &
+	operator=(const V &value) const
+	{
+		Hash_Table_Entry<const K, V> *entry = (Hash_Table_Entry<const K, V> *)hash_table_insert(table, key, value);
+		return entry->value;
+	}
+
+	inline bool
+	operator==(const V &other) const
+	{
+		const Hash_Table_Entry<const K, V> *entry = hash_table_find(table, key);
+		validate(entry, "[HASH_TABLE]: Entry not found.");
+		return entry->value == other;
+	}
+
+	inline
+	operator V &() const
+	{
+		const Hash_Table_Entry<const K, V> *entry = hash_table_find(table, key);
+		validate(entry, "[HASH_TABLE]: Entry not found.");
+		return (V &)entry->value;
+	}
+};
+
+template <typename K, typename V>
 struct Hash_Table
 {
 	Array<Hash_Table_Slot> slots;
 	Array<Hash_Table_Entry<K, V>> entries;
 	u64 count;
 	u64 capacity;
+
+	inline Hash_Table_Entry_Proxy<K, V>
+	operator[](const K &key)
+	{
+		static_assert(!std::is_same_v<V, struct Hash_Set_Value>, "[HASH_TABLE]: operator[] is disabled for Hash_Set<K>.");
+		Hash_Table<K, V> &self = *this;
+		return Hash_Table_Entry_Proxy<K, V> {
+			.table = self,
+			.key = key
+		};
+	}
 };
 
 template <typename K, typename V>
@@ -184,6 +228,13 @@ hash_table_find(const Hash_Table<K, V> &self, const K &key)
 }
 
 template <typename K, typename V>
+inline static bool
+hash_table_contains(const Hash_Table<K, V> &self, const K &key)
+{
+	return hash_table_find(self, key) != nullptr;
+}
+
+template <typename K, typename V>
 inline static const Hash_Table_Entry<const K, V> *
 hash_table_insert(Hash_Table<K, V> &self, const K &key, const V &value)
 {
@@ -280,7 +331,7 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 		slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
 		--self.count;
 
-		// IMPORTANT: Can be optimized by re-hashing the slots and then copying the entire entries array separately aftewards (better cache locality).
+		// IMPORTANT: Can be optimized by re-hashing the slots and then copying the entire entries array separately afterward (better cache locality)?
 		if ((self.count < (self.capacity >> 2)) && self.capacity > 8)
 		{
 			Hash_Table<K, V> new_table = hash_table_init_with_capacity<K, V>(self.capacity >> 1, self.slots.allocator);
@@ -350,7 +401,7 @@ hash_table_remove_ordered(Hash_Table<K, V> &self, const K &key)
 		slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;
 		--self.count;
 
-		// IMPORTANT: Can be optimized by re-hashing the slots and then copying the entire entries array separately aftewards (better cache locality).
+		// IMPORTANT: Can be optimized by re-hashing the slots and then copying the entire entries array separately afterward (better cache locality).
 		if ((self.count < (self.capacity >> 2)) && self.capacity > 8)
 		{
 			Hash_Table<K, V> new_table = hash_table_init_with_capacity<K, V>(self.capacity >> 1, self.slots.allocator);
@@ -377,13 +428,6 @@ hash_table_clear(Hash_Table<K, V> &self)
 }
 
 template <typename K, typename V>
-inline static const Hash_Table_Entry<const K, V> *
-begin(const Hash_Table<K, V> &self)
-{
-	return (const Hash_Table_Entry<const K, V> *)begin(self.entries);
-}
-
-template <typename K, typename V>
 inline static Hash_Table_Entry<const K, V> *
 begin(Hash_Table<K, V> &self)
 {
@@ -392,9 +436,9 @@ begin(Hash_Table<K, V> &self)
 
 template <typename K, typename V>
 inline static const Hash_Table_Entry<const K, V> *
-end(const Hash_Table<K, V> &self)
+begin(const Hash_Table<K, V> &self)
 {
-	return (const Hash_Table_Entry<const K, V> *)end(self.entries);
+	return (const Hash_Table_Entry<const K, V> *)begin(self.entries);
 }
 
 template <typename K, typename V>
@@ -402,6 +446,13 @@ inline static Hash_Table_Entry<const K, V> *
 end(Hash_Table<K, V> &self)
 {
 	return (Hash_Table_Entry<const K, V> *)end(self.entries);
+}
+
+template <typename K, typename V>
+inline static const Hash_Table_Entry<const K, V> *
+end(const Hash_Table<K, V> &self)
+{
+	return (const Hash_Table_Entry<const K, V> *)end(self.entries);
 }
 
 template <typename K, typename V>
@@ -445,6 +496,9 @@ TYPE_OF(Hash_Table_Slot, entry_index, hash_value, flags)
 
 template <typename K, typename V>
 TYPE_OF((Hash_Table_Entry<K, V>), key, value)
+
+template <typename K, typename V>
+TYPE_OF((Hash_Table_Entry_Proxy<K, V>), table, key)
 
 template <typename K, typename V>
 TYPE_OF((Hash_Table<K, V>), slots, entries, count, capacity)

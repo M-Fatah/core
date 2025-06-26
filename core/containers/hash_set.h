@@ -70,6 +70,13 @@ hash_set_find(const Hash_Set<K> &self, const K &entry)
 }
 
 template <typename K>
+inline static bool
+hash_set_contains(const Hash_Set<K> &self, const K &entry)
+{
+	return hash_table_find(self, entry) != nullptr;
+}
+
+template <typename K>
 inline static const K *
 hash_set_insert(Hash_Set<K> &self, const K &entry)
 {
