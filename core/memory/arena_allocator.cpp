@@ -83,7 +83,7 @@ namespace memory
 			if (node == nullptr)
 				log_fatal("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", size);
 			node->capacity  = capacity;
-			node->used      = 0;
+			node->used      = size;
 			node->next      = self->ctx->head;
 			self->ctx->head = node;
 
