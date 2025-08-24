@@ -22,6 +22,7 @@
 #include <pthread.h>
 #include <atomic>
 #include <inttypes.h>
+#include <dirent.h>
 
 static char current_executable_directory[PATH_MAX] = {};
 
@@ -279,6 +280,49 @@ platform_path_write_file(const String &path, Block block)
 	if (bytes_written == -1)
 		return 0;
 	return bytes_written;
+}
+
+Array<String>
+platform_path_list_files(const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	Array<String> files = array_init<String>(allocator);
+
+	String directory_temp = string_copy(directory, memory::temp_allocator());
+	string_replace(directory_temp, "\\", "/");
+
+	if (!platform_path_is_directory(directory_temp))
+		return files;
+
+	DIR *dir = ::opendir(directory_temp.data);
+	if (!dir)
+		return files;
+	DEFER(validate(::closedir(dir) == 0, "[PLATFORM][LINUX]: Failed to close directory."););
+
+	struct dirent *entry = nullptr;
+	while ((entry = ::readdir(dir)) != nullptr)
+	{
+		if (entry->d_type == DT_DIR)
+			continue;
+
+		String file_name = string_from(entry->d_name, memory::temp_allocator());
+		if (extension_filter.count > 0)
+		{
+			u64 extension_position = string_find_last_of(file_name, '.');
+			if (extension_position == u64(-1))
+				continue;
+
+			String file_extension = string_with_capacity(file_name.count - extension_position - 1, memory::temp_allocator());
+			for (u64 i = extension_position + 1; i < file_name.count; ++i)
+				string_append(file_extension, file_name.data[i]);
+
+			if (file_extension != extension_filter)
+				continue;
+		}
+
+		array_push(files, string_copy(file_name, allocator));
+	}
+
+	return files;
 }
 
 // C.
