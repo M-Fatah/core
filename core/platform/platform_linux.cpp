@@ -22,6 +22,7 @@
 #include <pthread.h>
 #include <atomic>
 #include <inttypes.h>
+#include <dirent.h>
 
 static char current_executable_directory[PATH_MAX] = {};
 

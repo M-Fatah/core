@@ -22,6 +22,7 @@
 #include <Carbon/Carbon.h>
 #include <mach-o/dyld.h>
 #include <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#include <dirent.h>
 
 static char current_executable_directory[PATH_MAX] = {};
 
