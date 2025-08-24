@@ -108,6 +108,27 @@ platform_path_write_file(const char *path, const char *content)
 	return platform_path_write_file(path, string_literal(content));
 }
 
+CORE_API Array<String>
+platform_path_list_files(const String &directory, const String &extension_filter, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static Array<String>
+platform_path_list_files(const String &directory, const char *extension_filter, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_list_files(directory, string_literal(extension_filter), allocator);
+}
+
+inline static Array<String>
+platform_path_list_files(const char *directory, const String &extension_filter, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_list_files(string_literal(directory), extension_filter, allocator);
+}
+
+inline static Array<String>
+platform_path_list_files(const char *directory, const char *extension_filter, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_list_files(string_literal(directory), string_literal(extension_filter), allocator);
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif
