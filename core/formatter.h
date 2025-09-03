@@ -238,7 +238,7 @@ format(Formatter &self, const String &fmt, TArgs &&...args)
 	u32 argument_count = sizeof...(args);
 	if constexpr (sizeof...(args) > 0)
 	{
-		u32 argument_index = 0;
+		[[maybe_unused]] u32 argument_index = 0;
 		(set_argument_count(args, argument_index, argument_count), ...);
 	}
 
