@@ -328,7 +328,7 @@ format(const String &fmt, TArgs &&...args)
 	};
 
 	memory::Allocator *allocator = memory::heap_allocator();
-	u32 argument_index = 0;
+	[[maybe_unused]] u32 argument_index = 0;
 	(set_allocator(allocator, args, argument_index, sizeof...(args)), ...);
 
 	Formatter self = formatter_init(allocator);
