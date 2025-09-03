@@ -320,7 +320,7 @@ template <typename ...TArgs>
 inline static String
 format(const String &fmt, TArgs &&...args)
 {
-	constexpr auto set_allocator = []<typename T>(memory::Allocator *&allocator, const T &data, u32 &argument_index, u32 argument_count) {
+	[[maybe_unused]] constexpr auto set_allocator = []<typename T>(memory::Allocator *&allocator, const T &data, u32 &argument_index, u32 argument_count) {
 		if constexpr (std::is_base_of_v<memory::Allocator, T> || std::is_same_v<T, memory::Allocator *>)
 			if (argument_index == argument_count - 1)
 				allocator = data;
