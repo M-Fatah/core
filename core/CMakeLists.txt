@@ -7,6 +7,7 @@ set(HEADER_FILES
     hash.h
     json.h
     log.h
+    print.h
     reflect.h
     result.h
     source_location.h
@@ -30,7 +31,6 @@ set(SOURCE_FILES
     base64.cpp
     ecs.cpp
     json.cpp
-    log.cpp
     memory/memory.cpp
     memory/heap_allocator.cpp
     memory/arena_allocator.cpp
