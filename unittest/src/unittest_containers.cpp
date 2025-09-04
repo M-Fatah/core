@@ -4,6 +4,7 @@
 #include <core/containers/hash_table.h>
 #include <core/containers/stack_array.h>
 #include <core/containers/string.h>
+#include <core/containers/string_interner.h>
 
 #include <doctest/doctest.h>
 
@@ -1430,4 +1431,19 @@ TEST_CASE("[CONTAINERS]: Hash_Set")
 		for (const auto &entry : table)
 			CHECK(entry == Foo{j++});
 	}
+}
+
+TEST_CASE("[CONTAINERS]: String Interner")
+{
+	String_Interner interner = string_interner_init(memory::temp_allocator());
+	DEFER(string_interner_deinit(interner));
+
+	const char *s = string_interner_intern(interner, "STRING");
+	CHECK(s != nullptr);
+	CHECK(s == string_interner_intern(interner, "STRING"));
+
+	const char *test_string = "This is a test STRING";
+	const char *begin = test_string + 15;
+	const char *end = begin + 6;
+	CHECK(s == string_interner_intern(interner, begin, end));
 }

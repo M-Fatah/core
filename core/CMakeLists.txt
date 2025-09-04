@@ -16,6 +16,7 @@ set(HEADER_FILES
     containers/hash_set.h
     containers/hash_table.h
     containers/stack_array.h
+    containers/string_interner.h
     containers/string.h
     memory/memory.h
     memory/heap_allocator.h
@@ -28,6 +29,7 @@ set(HEADER_FILES
 )
 
 set(SOURCE_FILES
+    containers/string_interner.cpp
     base64.cpp
     ecs.cpp
     json.cpp
