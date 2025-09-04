@@ -11,7 +11,7 @@ validate(bool expression, const char *message, Source_Location source_location)
 		if (expression)
 			return;
 
-		log_to_console(LOG_TAG_FATAL, "[{}:{}]: Validation failure with message '{}'.", source_location.file_name, source_location.line_number, message);
+		log_error("[{}:{}]: Validation failure with message '{}'.", source_location.file_name, source_location.line_number, message);
 
 		#if COMPILER_MSVC
 			__debugbreak();
