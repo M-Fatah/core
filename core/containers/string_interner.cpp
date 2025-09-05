@@ -34,3 +34,9 @@ string_interner_intern(String_Interner &self, const char *begin, const char *end
 {
 	return string_interner_intern(self, string_from(begin, end, memory::temp_allocator()));
 }
+
+const char *
+string_interner_intern(String_Interner &self, const char *begin, u64 count)
+{
+	return string_interner_intern(self, begin, begin + count);
+}
