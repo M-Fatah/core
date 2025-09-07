@@ -97,6 +97,18 @@ CORE_API u64
 platform_path_write_file(const String &path, Block block);
 
 inline static u64
+platform_path_write_file(const String &path, const String &content)
+{
+	return platform_path_write_file(path, Block{(void *)content.data, content.count});
+}
+
+inline static u64
+platform_path_write_file(const String &path, const char *content)
+{
+	return platform_path_write_file(path, string_literal(content));
+}
+
+inline static u64
 platform_path_write_file(const char *path, const String &content)
 {
 	return platform_path_write_file(string_literal(path), Block{(void *)content.data, content.count});
@@ -105,7 +117,7 @@ platform_path_write_file(const char *path, const String &content)
 inline static u64
 platform_path_write_file(const char *path, const char *content)
 {
-	return platform_path_write_file(path, string_literal(content));
+	return platform_path_write_file(string_literal(path), string_literal(content));
 }
 
 CORE_API Array<String>
