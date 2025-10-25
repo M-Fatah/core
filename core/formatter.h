@@ -134,7 +134,7 @@ format(Formatter &self, char data)
 }
 
 template <typename T>
-requires (std::is_pointer_v<T> && !is_c_string_v<T>)
+requires (std::is_pointer_v<T> && !is_c_string_v<T> && !format(Formatter{}, T{}))
 inline static String
 format(Formatter &self, const T &data)
 {
