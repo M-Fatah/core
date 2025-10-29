@@ -10,7 +10,6 @@
 /*
 	TODO:
 	- [ ] Implement 100% correct floating point formatting.
-	- [ ] Support more format specifiers (width, padding, alignment).
 	- [ ] Compile time check string format.
 	- [ ] Use formatting in validate messages.
 	- [ ] Cleanup.
@@ -33,10 +32,21 @@ enum Format_Specifier
 	FORMAT_SPECIFIER_CHAR_UPPER,
 };
 
+enum Format_Alignment
+{
+	FORMAT_ALIGNMENT_NONE,
+	FORMAT_ALIGNMENT_LEFT,
+	FORMAT_ALIGNMENT_RIGHT,
+	FORMAT_ALIGNMENT_CENTER,
+};
+
 struct Format_Options
 {
 	Format_Specifier specifier = FORMAT_SPECIFIER_NONE;
+	Format_Alignment alignment = FORMAT_ALIGNMENT_NONE;
+	u32 width = 0;
 	u32 precision = 6;
+	bool zero_pad = false;
 	bool remove_trailing_zeros = true;
 };
 
@@ -66,6 +76,108 @@ formatter_clear(Formatter &self)
 	string_clear(self.buffer);
 }
 
+inline static void
+format_apply_width_alignment(Formatter &self, const String &content, const Format_Options &options)
+{
+	if (options.width == 0 || content.count >= options.width)
+	{
+		string_append(self.buffer, content);
+		return;
+	}
+
+	u64 padding = options.width - content.count;
+
+	// Special handling for zero-padding with negative numbers or prefixes
+	if (options.zero_pad && (options.alignment == FORMAT_ALIGNMENT_NONE || options.alignment == FORMAT_ALIGNMENT_RIGHT))
+	{
+		// Check if content starts with a sign or prefix
+		bool has_sign = content.count > 0 && (content[0] == '-' || content[0] == '+');
+		bool has_prefix = content.count > 1 && content[0] == '0' && (content[1] == 'x' || content[1] == 'X' ||
+																	   content[1] == 'b' || content[1] == 'B' ||
+																	   content[1] == 'o' || content[1] == 'O');
+
+		if (has_sign)
+		{
+			// Output sign first
+			string_append(self.buffer, content[0]);
+
+			// Check if there's also a prefix after the sign (e.g., "-0x")
+			if (content.count > 3 && content[1] == '0' && (content[2] == 'x' || content[2] == 'X' ||
+															content[2] == 'b' || content[2] == 'B' ||
+															content[2] == 'o' || content[2] == 'O'))
+			{
+				// Output prefix
+				string_append(self.buffer, content[1]);
+				string_append(self.buffer, content[2]);
+				// Output padding
+				for (u64 i = 0; i < padding; ++i)
+					string_append(self.buffer, '0');
+				// Output rest of content
+				for (u64 i = 3; i < content.count; ++i)
+					string_append(self.buffer, content[i]);
+			}
+			else
+			{
+				// Output padding
+				for (u64 i = 0; i < padding; ++i)
+					string_append(self.buffer, '0');
+				// Output rest of content (skip the sign we already added)
+				for (u64 i = 1; i < content.count; ++i)
+					string_append(self.buffer, content[i]);
+			}
+		}
+		else if (has_prefix)
+		{
+			// Output prefix first (e.g., "0x")
+			string_append(self.buffer, content[0]);
+			string_append(self.buffer, content[1]);
+			// Output padding
+			for (u64 i = 0; i < padding; ++i)
+				string_append(self.buffer, '0');
+			// Output rest of content
+			for (u64 i = 2; i < content.count; ++i)
+				string_append(self.buffer, content[i]);
+		}
+		else
+		{
+			// No sign or prefix, just pad normally
+			for (u64 i = 0; i < padding; ++i)
+				string_append(self.buffer, '0');
+			string_append(self.buffer, content);
+		}
+		return;
+	}
+
+	// Regular padding (space padding or non-right alignment)
+	char pad_char = ' '; // Always use space for non-zero padding or non-right alignment
+
+	if (options.alignment == FORMAT_ALIGNMENT_LEFT)
+	{
+		// Left align: content then padding
+		string_append(self.buffer, content);
+		for (u64 i = 0; i < padding; ++i)
+			string_append(self.buffer, pad_char);
+	}
+	else if (options.alignment == FORMAT_ALIGNMENT_CENTER)
+	{
+		// Center align: padding/2, content, padding/2
+		u64 left_pad = padding / 2;
+		u64 right_pad = padding - left_pad;
+		for (u64 i = 0; i < left_pad; ++i)
+			string_append(self.buffer, pad_char);
+		string_append(self.buffer, content);
+		for (u64 i = 0; i < right_pad; ++i)
+			string_append(self.buffer, pad_char);
+	}
+	else // FORMAT_ALIGNMENT_RIGHT or NONE (default right for numbers)
+	{
+		// Right align: padding then content
+		for (u64 i = 0; i < padding; ++i)
+			string_append(self.buffer, pad_char);
+		string_append(self.buffer, content);
+	}
+}
+
 template <typename T>
 requires (std::is_integral_v<T> && !std::is_floating_point_v<T>)
 inline static String
@@ -76,20 +188,24 @@ format(Formatter &self, T data, u8 base = 10, bool uppercase = false)
 	bool is_negative = false;
 	if constexpr (std::is_signed_v<T>)
 	{
-		is_negative = data < 0;
+		is_negative = (data < 0);
 		if (is_negative)
-			data = -data;
+			data = (T)(-data);
 	}
 
 	char temp[64] = {};
 	u64 count = 0;
 	do
 	{
-		temp[count++] = digits[data % base];
-		data /= base;
+		temp[count++] = digits[(uptr)(data % base)];
+		data = (T)(data / base);
 	} while (data != 0);
 
-	// Add prefix based on base
+	// Always emit sign first (if negative) so prefix follows the sign (C++-style)
+	if (is_negative)
+		string_append(self.buffer, '-');
+
+	// Add prefix based on base (prefix comes after sign)
 	if (base == 16)
 	{
 		string_append(self.buffer, '0');
@@ -111,10 +227,7 @@ format(Formatter &self, T data, u8 base = 10, bool uppercase = false)
 		string_append(self.buffer, '0');
 		string_append(self.buffer, uppercase ? 'O' : 'o');
 	}
-	else if (is_negative)
-	{
-		string_append(self.buffer, '-');
-	}
+	// for base == 10 there's no prefix; sign already emitted
 
 	for (i64 i = count - 1; i >= 0; --i)
 		string_append(self.buffer, temp[i]);
@@ -127,6 +240,10 @@ requires (std::is_integral_v<T> && !std::is_floating_point_v<T>)
 inline static String
 format(Formatter &self, T data, const Format_Options &options)
 {
+	// Create temporary formatter for content
+	Formatter temp = formatter_init(self.buffer.allocator);
+	DEFER(formatter_deinit(temp));
+
 	u8 base = 10;
 	bool uppercase = false;
 
@@ -177,7 +294,9 @@ format(Formatter &self, T data, const Format_Options &options)
 			break;
 	}
 
-	return format(self, data, base, uppercase);
+	format(temp, data, base, uppercase);
+	format_apply_width_alignment(self, temp.buffer, options);
+	return self.buffer;
 }
 
 template <typename T>
@@ -214,10 +333,129 @@ format(Formatter &self, T data, u32 precision = 6, bool remove_trailing_zeros = 
 	return self.buffer;
 }
 
+template <typename T>
+requires (std::is_floating_point_v<T>)
+inline static String
+format(Formatter &self, T data, const Format_Options &options)
+{
+	// Create temporary formatter for content
+	Formatter temp = formatter_init(self.buffer.allocator);
+	DEFER(formatter_deinit(temp));
+
+	format(temp, data, options.precision, options.remove_trailing_zeros);
+	format_apply_width_alignment(self, temp.buffer, options);
+	return self.buffer;
+}
+
 inline static String
 format(Formatter &self, bool data)
 {
 	string_append(self.buffer, data ? "true" : "false");
+	return self.buffer;
+}
+
+inline static String
+format(Formatter &self, bool data, const Format_Options &options)
+{
+	Formatter temp = formatter_init(self.buffer.allocator);
+	DEFER(formatter_deinit(temp));
+
+	format(temp, data);
+	format_apply_width_alignment(self, temp.buffer, options);
+	return self.buffer;
+}
+
+inline static String
+format(Formatter &self, char data)
+{
+	string_append(self.buffer, data);
+	return self.buffer;
+}
+
+inline static String
+format(Formatter &self, char data, const Format_Options &options)
+{
+	if (options.specifier == FORMAT_SPECIFIER_CHAR_LOWER ||
+		options.specifier == FORMAT_SPECIFIER_CHAR_UPPER ||
+		options.specifier == FORMAT_SPECIFIER_NONE)
+	{
+		// Format as character with width/alignment
+		Formatter temp = formatter_init(self.buffer.allocator);
+		DEFER(formatter_deinit(temp));
+
+		if (options.specifier == FORMAT_SPECIFIER_CHAR_LOWER)
+			string_append(temp.buffer, (char)(data | 0x20)); // to lowercase
+		else if (options.specifier == FORMAT_SPECIFIER_CHAR_UPPER)
+			string_append(temp.buffer, (char)(data & ~0x20)); // to uppercase
+		else
+			string_append(temp.buffer, data);
+
+		format_apply_width_alignment(self, temp.buffer, options);
+	}
+	else
+	{
+		// Format as integer
+		format(self, (u8)data, options);
+	}
+	return self.buffer;
+}
+
+template <typename T>
+requires (std::is_pointer_v<T> && !is_c_string_v<T>)
+inline static String
+format(Formatter &self, const T &data)
+{
+	return format(self, (uptr)data, 16, false);
+}
+
+template <typename T>
+requires (std::is_pointer_v<T> && !is_c_string_v<T>)
+inline static String
+format(Formatter &self, const T &data, const Format_Options &options)
+{
+	Formatter temp = formatter_init(self.buffer.allocator);
+	DEFER(formatter_deinit(temp));
+
+	bool uppercase = (options.specifier == FORMAT_SPECIFIER_POINTER_UPPER);
+	format(temp, (uptr)data, 16, uppercase);
+	format_apply_width_alignment(self, temp.buffer, options);
+	return self.buffer;
+}
+
+inline static String
+format(Formatter &self, const char *data)
+{
+	if (data == nullptr)
+		return self.buffer;
+	string_append(self.buffer, string_literal(data));
+	return self.buffer;
+}
+
+inline static String
+format(Formatter &self, const char *data, const Format_Options &options)
+{
+	if (data == nullptr)
+		return self.buffer;
+
+	Formatter temp = formatter_init(self.buffer.allocator);
+	DEFER(formatter_deinit(temp));
+
+	string_append(temp.buffer, string_literal(data));
+	format_apply_width_alignment(self, temp.buffer, options);
+	return self.buffer;
+}
+
+inline static String
+format(Formatter &self, const String &data)
+{
+	string_append(self.buffer, data);
+	return self.buffer;
+}
+
+inline static String
+format(Formatter &self, const String &data, const Format_Options &options)
+{
+	format_apply_width_alignment(self, data, options);
 	return self.buffer;
 }
 
@@ -284,7 +522,10 @@ parse_format_field(const String &fmt, u32 &i)
 {
 	Format_Field field = {};
 	field.options.specifier = FORMAT_SPECIFIER_NONE;
+	field.options.alignment = FORMAT_ALIGNMENT_NONE;
+	field.options.width = 0;
 	field.options.precision = 6;
+	field.options.zero_pad = false;
 	field.options.remove_trailing_zeros = true;
 	field.has_index = false;
 
@@ -306,25 +547,75 @@ parse_format_field(const String &fmt, u32 &i)
 	if (i < fmt.count && fmt[i] == ':')
 	{
 		++i; // Move past ':'
+
+		// Parse alignment (optional)
+		if (i < fmt.count)
+		{
+			if (fmt[i] == '<')
+			{
+				field.options.alignment = FORMAT_ALIGNMENT_LEFT;
+				++i;
+			}
+			else if (fmt[i] == '>')
+			{
+				field.options.alignment = FORMAT_ALIGNMENT_RIGHT;
+				++i;
+			}
+			else if (fmt[i] == '^')
+			{
+				field.options.alignment = FORMAT_ALIGNMENT_CENTER;
+				++i;
+			}
+		}
+
+		// Parse zero-padding (optional)
+		if (i < fmt.count && fmt[i] == '0')
+		{
+			field.options.zero_pad = true;
+			++i;
+		}
+
+		// Parse width (optional)
+		if (i < fmt.count && fmt[i] >= '0' && fmt[i] <= '9')
+		{
+			char *end = nullptr;
+			field.options.width = ::strtoul(&fmt[i], &end, 10);
+			i64 length = end - &fmt[i];
+			i += (u32)length;
+		}
+
+		// Parse type specifier (optional)
 		if (i < fmt.count)
 		{
 			switch (fmt[i])
 			{
-				case 'd': field.options.specifier = FORMAT_SPECIFIER_DECIMAL_LOWER; break;
-				case 'D': field.options.specifier = FORMAT_SPECIFIER_DECIMAL_UPPER; break;
-				case 'x': field.options.specifier = FORMAT_SPECIFIER_HEX_LOWER; break;
-				case 'X': field.options.specifier = FORMAT_SPECIFIER_HEX_UPPER; break;
-				case 'b': field.options.specifier = FORMAT_SPECIFIER_BINARY_LOWER; break;
-				case 'B': field.options.specifier = FORMAT_SPECIFIER_BINARY_UPPER; break;
-				case 'o': field.options.specifier = FORMAT_SPECIFIER_OCTAL_LOWER; break;
-				case 'O': field.options.specifier = FORMAT_SPECIFIER_OCTAL_UPPER; break;
-				case 'p': field.options.specifier = FORMAT_SPECIFIER_POINTER_LOWER; break;
-				case 'P': field.options.specifier = FORMAT_SPECIFIER_POINTER_UPPER; break;
-				case 'c': field.options.specifier = FORMAT_SPECIFIER_CHAR_LOWER; break;
-				case 'C': field.options.specifier = FORMAT_SPECIFIER_CHAR_UPPER; break;
-				default: validate("[FORMAT]: Unsupported format specifier."); break;
+				case 'd': case 'D':
+					field.options.specifier = (fmt[i] == 'd') ? FORMAT_SPECIFIER_DECIMAL_LOWER : FORMAT_SPECIFIER_DECIMAL_UPPER;
+					++i;
+					break;
+				case 'x': case 'X':
+					field.options.specifier = (fmt[i] == 'x') ? FORMAT_SPECIFIER_HEX_LOWER : FORMAT_SPECIFIER_HEX_UPPER;
+					++i;
+					break;
+				case 'b': case 'B':
+					field.options.specifier = (fmt[i] == 'b') ? FORMAT_SPECIFIER_BINARY_LOWER : FORMAT_SPECIFIER_BINARY_UPPER;
+					++i;
+					break;
+				case 'o': case 'O':
+					field.options.specifier = (fmt[i] == 'o') ? FORMAT_SPECIFIER_OCTAL_LOWER : FORMAT_SPECIFIER_OCTAL_UPPER;
+					++i;
+					break;
+				case 'p': case 'P':
+					field.options.specifier = (fmt[i] == 'p') ? FORMAT_SPECIFIER_POINTER_LOWER : FORMAT_SPECIFIER_POINTER_UPPER;
+					++i;
+					break;
+				case 'c': case 'C':
+					field.options.specifier = (fmt[i] == 'c') ? FORMAT_SPECIFIER_CHAR_LOWER : FORMAT_SPECIFIER_CHAR_UPPER;
+					++i;
+					break;
+				default:
+					break;
 			}
-			++i; // Move past specifier
 		}
 	}
 
@@ -341,48 +632,49 @@ format(Formatter &self, const String &fmt, TArgs &&...args)
 		{
 			if constexpr (std::is_same_v<T, char>)
 			{
-				if (options.specifier == FORMAT_SPECIFIER_CHAR_LOWER)
-					string_append(self.buffer, data | 0x20);
-				else if (options.specifier == FORMAT_SPECIFIER_CHAR_UPPER)
-					string_append(self.buffer, data & ~0x20);
-				else if (options.specifier != FORMAT_SPECIFIER_NONE)
-					format(self, data, options);
-				else
-					string_append(self.buffer, data);
+				format(self, data, options);
 			}
 			else if constexpr (is_char_array_v<T>)
 			{
+				Formatter temp = formatter_init(self.buffer.allocator);
+				DEFER(formatter_deinit(temp));
 				u64 count = count_of(data);
 				if (count > 0 && data[count - 1] == '\0')
 					--count;
 				for (u64 i = 0; i < count; ++i)
-					string_append(self.buffer, data[i]);
+					string_append(temp.buffer, data[i]);
+				format_apply_width_alignment(self, temp.buffer, options);
 			}
 			else if constexpr (std::is_same_v<T, String>)
 			{
-				string_append(self.buffer, data);
+				format(self, data, options);
 			}
 			else if constexpr (is_c_string_v<T>)
 			{
-				string_append(self.buffer, string_literal(data));
+				format(self, data, options);
 			}
-			else if constexpr (std::is_pointer_v<T>)
+			else if constexpr (std::is_pointer_v<T> && !is_c_string_v<T>)
 			{
-				if (options.specifier != FORMAT_SPECIFIER_NONE)
-					format(self, (uptr)data, options);
-				else
-					format(self, data);
+				format(self, data, options);
 			}
 			else if constexpr (std::is_integral_v<T> && !std::is_floating_point_v<T> && !std::is_same_v<T, bool>)
 			{
-				if (options.specifier != FORMAT_SPECIFIER_NONE)
-					format(self, data, options);
-				else
-					format(self, data);
+				format(self, data, options);
+			}
+			else if constexpr (std::is_floating_point_v<T>)
+			{
+				format(self, data, options);
+			}
+			else if constexpr (std::is_same_v<T, bool>)
+			{
+				format(self, data, options);
 			}
 			else
 			{
-				format(self, data);
+				Formatter temp = formatter_init(self.buffer.allocator);
+				DEFER(formatter_deinit(temp));
+				format(temp, data);
+				format_apply_width_alignment(self, temp.buffer, options);
 			}
 		}
 		++argument_index;
