@@ -428,6 +428,262 @@ TESTER_TEST("[CORE]: Formatter")
 	{
 		TESTER_CHECK(format("{:020}", -1, memory::temp_allocator()) == "-0000000000000000001");
 	}
+
+	SUBCASE("decimal formatting")
+	{
+		SUBCASE("decimal lowercase")
+		{
+			CHECK(format("{:d}", 0, memory::temp_allocator()) == "0");
+			CHECK(format("{:d}", 15, memory::temp_allocator()) == "15");
+			CHECK(format("{:d}", 255, memory::temp_allocator()) == "255");
+			CHECK(format("{:d}", 4095, memory::temp_allocator()) == "4095");
+			CHECK(format("{:d}", 65535, memory::temp_allocator()) == "65535");
+			CHECK(format("{:d}", 16777215, memory::temp_allocator()) == "16777215");
+		}
+
+		SUBCASE("decimal uppercase")
+		{
+			CHECK(format("{:D}", 0, memory::temp_allocator()) == "0");
+			CHECK(format("{:D}", 15, memory::temp_allocator()) == "15");
+			CHECK(format("{:D}", 255, memory::temp_allocator()) == "255");
+			CHECK(format("{:D}", 4095, memory::temp_allocator()) == "4095");
+			CHECK(format("{:D}", 65535, memory::temp_allocator()) == "65535");
+			CHECK(format("{:D}", 16777215, memory::temp_allocator()) == "16777215");
+		}
+	}
+
+	SUBCASE("hex formatting")
+	{
+		SUBCASE("hex lowercase")
+		{
+			CHECK(format("{:x}", 0, memory::temp_allocator()) == "0x00");
+			CHECK(format("{:x}", 15, memory::temp_allocator()) == "0x0f");
+			CHECK(format("{:x}", 255, memory::temp_allocator()) == "0xff");
+			CHECK(format("{:x}", 4095, memory::temp_allocator()) == "0xfff");
+			CHECK(format("{:x}", 65535, memory::temp_allocator()) == "0xffff");
+			CHECK(format("{:x}", 16777215, memory::temp_allocator()) == "0xffffff");
+		}
+
+		SUBCASE("hex uppercase")
+		{
+			CHECK(format("{:X}", 0, memory::temp_allocator()) == "0X00");
+			CHECK(format("{:X}", 15, memory::temp_allocator()) == "0X0F");
+			CHECK(format("{:X}", 255, memory::temp_allocator()) == "0XFF");
+			CHECK(format("{:X}", 4095, memory::temp_allocator()) == "0XFFF");
+			CHECK(format("{:X}", 65535, memory::temp_allocator()) == "0XFFFF");
+			CHECK(format("{:X}", 16777215, memory::temp_allocator()) == "0XFFFFFF");
+		}
+
+		SUBCASE("hex with indexed fields")
+		{
+			CHECK(format("{0:x}", 255, memory::temp_allocator()) == "0xff");
+			CHECK(format("{0:X}", 255, memory::temp_allocator()) == "0XFF");
+			CHECK(format("{0:x} {1:x}", 255, 16, memory::temp_allocator()) == "0xff 0x10");
+			CHECK(format("{1:x} {0:X}", 255, 16, memory::temp_allocator()) == "0x10 0XFF");
+		}
+
+		SUBCASE("hex mixed with other types")
+		{
+			CHECK(format("Value: {:x}", 42, memory::temp_allocator()) == "Value: 0x2a");
+			CHECK(format("Hex: {:x}, Dec: {}", 255, 255, memory::temp_allocator()) == "Hex: 0xff, Dec: 255");
+			CHECK(format("{:x} + {} = {}", 10, 5, 15, memory::temp_allocator()) == "0x0a + 5 = 15");
+		}
+
+		SUBCASE("hex with different integer types")
+		{
+			CHECK(format("{:x}", (u8)255, memory::temp_allocator()) == "0xff");
+			CHECK(format("{:x}", (u16)65535, memory::temp_allocator()) == "0xffff");
+			CHECK(format("{:x}", (u32)4294967295, memory::temp_allocator()) == "0xffffffff");
+			CHECK(format("{:x}", (u64)18446744073709551615ULL, memory::temp_allocator()) == "0xffffffffffffffff");
+			CHECK(format("{:x}", (u8)-1, memory::temp_allocator()) == "0xff");
+			CHECK(format("{:x}", (u16)-1, memory::temp_allocator()) == "0xffff");
+		}
+	}
+
+	SUBCASE("binary formatting")
+	{
+		CHECK(format("{:b}", 0, memory::temp_allocator()) == "0b0");
+		CHECK(format("{:b}", 1, memory::temp_allocator()) == "0b1");
+		CHECK(format("{:b}", 15, memory::temp_allocator()) == "0b1111");
+		CHECK(format("{:b}", 255, memory::temp_allocator()) == "0b11111111");
+		CHECK(format("{:b}", 7, memory::temp_allocator()) == "0b111");
+		CHECK(format("Binary: {:b}", 10, memory::temp_allocator()) == "Binary: 0b1010");
+
+		SUBCASE("binary uppercase")
+		{
+			CHECK(format("{:B}", 15, memory::temp_allocator()) == "0B1111");
+			CHECK(format("{:B}", 255, memory::temp_allocator()) == "0B11111111");
+		}
+	}
+
+	SUBCASE("octal formatting")
+	{
+		CHECK(format("{:o}", 0, memory::temp_allocator()) == "0o0");
+		CHECK(format("{:o}", 7, memory::temp_allocator()) == "0o7");
+		CHECK(format("{:o}", 8, memory::temp_allocator()) == "0o10");
+		CHECK(format("{:o}", 64, memory::temp_allocator()) == "0o100");
+		CHECK(format("{:o}", 511, memory::temp_allocator()) == "0o777");
+		CHECK(format("Octal: {:o}", 100, memory::temp_allocator()) == "Octal: 0o144");
+
+		SUBCASE("octal uppercase")
+		{
+			CHECK(format("{:O}", 64, memory::temp_allocator()) == "0O100");
+			CHECK(format("{:O}", 511, memory::temp_allocator()) == "0O777");
+		}
+	}
+
+	SUBCASE("mixed format specifiers")
+	{
+		CHECK(format("{:x} {:b} {:o} {}", 15, 15, 15, 15, memory::temp_allocator()) == "0x0f 0b1111 0o17 15");
+		CHECK(format("{0:x} {0:b} {0:o} {0}", 15, memory::temp_allocator()) == "0x0f 0b1111 0o17 15");
+		CHECK(format("Hex: {:X}, Bin: {:b}, Oct: {:o}", 42, 42, 42, memory::temp_allocator()) == "Hex: 0X2A, Bin: 0b101010, Oct: 0o52");
+	}
+
+	SUBCASE("pointer")
+	{
+		CHECK(format("Pointer: {:p}", (void *)0x1234ABCD, memory::temp_allocator()) == "Pointer: 0x1234abcd");
+		CHECK(format("Pointer: {:P}", (void *)0x1234ABCD, memory::temp_allocator()) == "Pointer: 0X1234ABCD");
+	}
+
+	SUBCASE("character formatting")
+	{
+		CHECK(format("{}", 'A', memory::temp_allocator()) == "A");
+		CHECK(format("{:c}", 'A', memory::temp_allocator()) == "a");
+		CHECK(format("{:C}", 'A', memory::temp_allocator()) == "A");
+		CHECK(format("{:x}", 'A', memory::temp_allocator()) == "0x41");
+		CHECK(format("{:X}", 'A', memory::temp_allocator()) == "0X41");
+		CHECK(format("{:b}", 'A', memory::temp_allocator()) == "0b1000001");
+		CHECK(format("{:B}", 'A', memory::temp_allocator()) == "0B1000001");
+		CHECK(format("{:o}", 'A', memory::temp_allocator()) == "0o101");
+		CHECK(format("{:O}", 'A', memory::temp_allocator()) == "0O101");
+		CHECK(format("{:d}", 'a', memory::temp_allocator()) == "97");
+		CHECK(format("{:d}", 'A', memory::temp_allocator()) == "65");
+		CHECK(format("Char: {:c}, Hex: {:x}", 'Z', 'Z', memory::temp_allocator()) == "Char: z, Hex: 0x5a");
+	}
+
+	SUBCASE("width and alignment")
+	{
+		SUBCASE("right alignment (default)")
+		{
+			CHECK(format("{:>10}", 42, memory::temp_allocator()) == "        42");
+			CHECK(format("{:10}", 42, memory::temp_allocator()) == "        42");
+			CHECK(format("{:>10}", "Hello", memory::temp_allocator()) == "     Hello");
+		}
+
+		SUBCASE("left alignment")
+		{
+			CHECK(format("{:<10}", 42, memory::temp_allocator()) == "42        ");
+			CHECK(format("{:<10}", "Hello", memory::temp_allocator()) == "Hello     ");
+		}
+
+		SUBCASE("center alignment")
+		{
+			CHECK(format("{:^10}", 42, memory::temp_allocator()) == "    42    ");
+			CHECK(format("{:^10}", "Hello", memory::temp_allocator()) == "  Hello   ");
+			CHECK(format("{:^11}", "Hello", memory::temp_allocator()) == "   Hello   ");
+		}
+
+		SUBCASE("zero padding")
+		{
+			CHECK(format("{:010}", 42, memory::temp_allocator()) == "0000000042");
+			CHECK(format("{:>010}", 42, memory::temp_allocator()) == "0000000042");
+			CHECK(format("{:010}", -42, memory::temp_allocator()) == "-000000042");
+		}
+
+		SUBCASE("width with hex")
+		{
+			CHECK(format("{:>10x}", 255, memory::temp_allocator()) == "      0xff");
+			CHECK(format("{:<10x}", 255, memory::temp_allocator()) == "0xff      ");
+			CHECK(format("{:^10x}", 255, memory::temp_allocator()) == "   0xff   ");
+			CHECK(format("{:010x}", 255, memory::temp_allocator()) == "0x000000ff");
+			CHECK(format("{:010x}", -42, memory::temp_allocator()) == "-0x000002a");
+		}
+
+		SUBCASE("width with binary")
+		{
+			CHECK(format("{:>15b}", 15, memory::temp_allocator()) == "         0b1111");
+			CHECK(format("{:<15b}", 15, memory::temp_allocator()) == "0b1111         ");
+		}
+
+		SUBCASE("width with floats")
+		{
+			CHECK(format("{:>10}", 3.14f, memory::temp_allocator()) == "      3.14");
+			CHECK(format("{:<10}", 3.14f, memory::temp_allocator()) == "3.14      ");
+		}
+
+		SUBCASE("width with indexed fields")
+		{
+			CHECK(format("{0:>10} {1:<10}", 42, "test", memory::temp_allocator()) == "        42 test      ");
+		}
+	}
+
+	SUBCASE("negative integers with zero padding")
+	{
+		// Bug: Should be "-000000042" but outputs "0000000-42"
+		CHECK(format("{:010}", -42, memory::temp_allocator()) == "-000000042");
+		CHECK(format("{:05}", -1, memory::temp_allocator()) == "-0001");
+		CHECK(format("{:08}", -123, memory::temp_allocator()) == "-0000123");
+		CHECK(format("{:012}", -987654321, memory::temp_allocator()) == "-00987654321");
+	}
+
+	SUBCASE("positive integers with zero padding (should work)")
+	{
+		CHECK(format("{:010}", 42, memory::temp_allocator()) == "0000000042");
+		CHECK(format("{:05}", 1, memory::temp_allocator()) == "00001");
+		CHECK(format("{:08}", 123, memory::temp_allocator()) == "00000123");
+	}
+
+	SUBCASE("negative floats with zero padding")
+	{
+		CHECK(format("{:010}", -3.14f, memory::temp_allocator()) == "-000003.14");
+		CHECK(format("{:012}", -123.456f, memory::temp_allocator()) == "-0123.456001");
+	}
+
+	SUBCASE("negative hex with zero padding")
+	{
+		CHECK(format("{:010x}", -42, memory::temp_allocator()) == "-0x000002a");
+	}
+
+	SUBCASE("zero padding with alignment specifiers")
+	{
+		// Zero padding with explicit right alignment
+		CHECK(format("{:>010}", -42, memory::temp_allocator()) == "-000000042");
+
+		// Left and center alignment should ignore zero padding
+		CHECK(format("{:<010}", -42, memory::temp_allocator()) == "-42       ");
+		CHECK(format("{:^010}", -42, memory::temp_allocator()) == "   -42    ");
+	}
+
+	SUBCASE("edge cases for zero padding")
+	{
+		CHECK(format("{:010}", 0, memory::temp_allocator()) == "0000000000");
+		CHECK(format("{:010}", -0, memory::temp_allocator()) == "0000000000");
+
+		// Width smaller than number length
+		CHECK(format("{:03}", -1234, memory::temp_allocator()) == "-1234");
+		CHECK(format("{:02}", -99, memory::temp_allocator()) == "-99");
+
+		// Width exactly matches number length
+		CHECK(format("{:03}", -42, memory::temp_allocator()) == "-42");
+	}
+
+	SUBCASE("negative numbers with different format specifiers")
+	{
+		CHECK(format("{:010d}", -42, memory::temp_allocator()) == "-000000042");
+		CHECK(format("{:010b}", -8, memory::temp_allocator()) == "-0b0001000");
+		CHECK(format("{:010o}", -64, memory::temp_allocator()) == "-0o0000100");
+	}
+
+	SUBCASE("indexed fields with zero padding and negatives")
+	{
+		CHECK(format("{0:010}", -42, memory::temp_allocator()) == "-000000042");
+		CHECK(format("{0:010} {1:010}", -42, 42, memory::temp_allocator()) == "-000000042 0000000042");
+	}
+
+	SUBCASE("very large widths with negatives")
+	{
+		CHECK(format("{:020}", -1, memory::temp_allocator()) == "-0000000000000000001");
+	}
 }
 
 TESTER_TEST("[CORE]: to_string")
