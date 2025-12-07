@@ -95,11 +95,11 @@ TESTER_TEST("[CONTAINERS]: Array")
 
 	// ("push/pop/last")
 	{
-		auto array = array_init<i32>();
+		auto array = array_init<u64>();
 		DEFER(array_deinit(array));
 
 		for (u64 i = 0; i < 100; ++i)
-			array_push(array, i32(i));
+			array_push(array, i);
 		TESTER_CHECK(array.count == 100);
 
 		for (u64 i = 0; i < array.count; ++i)
@@ -107,7 +107,7 @@ TESTER_TEST("[CONTAINERS]: Array")
 
 		TESTER_CHECK(array_last(array) == 99);
 
-		for (i32 i = 0; i < 100; ++i)
+		for (u64 i = 0; i < 100; ++i)
 			TESTER_CHECK(array_pop(array) == 99 - i);
 
 		TESTER_CHECK(array.count == 0);
@@ -115,11 +115,11 @@ TESTER_TEST("[CONTAINERS]: Array")
 
 	// ("remove")
 	{
-		auto array = array_init<i32>();
+		auto array = array_init<u64>();
 		DEFER(array_deinit(array));
 
 		for (u64 i = 0; i < 100; ++i)
-			array_push(array, i32(i));
+			array_push(array, i);
 		TESTER_CHECK(array.count == 100);
 
 		array_remove(array, array.count - 1);
@@ -137,7 +137,7 @@ TESTER_TEST("[CONTAINERS]: Array")
 		TESTER_CHECK(array.count == 97);
 		array_remove(array, 0);
 
-		array_remove_if(array, [](i32 element) {
+		array_remove_if(array, [](u64 element) {
 			return element % 2 == 0;
 		});
 		TESTER_CHECK(array.count == 48);
@@ -249,20 +249,20 @@ TESTER_TEST("[CONTAINERS]: Stack_Array")
 	// ("init")
 	{
 		{
-			Stack_Array<i32, 4> array{};
+			Stack_Array<u64, 4> array{};
 			TESTER_CHECK(array.count == 0);
 		}
 
 		{
 			Stack_Array array{{1, 2, 3}};
-			for (i32 i = 0; i < array.count; ++i)
+			for (u64 i = 0; i < array.count; ++i)
 				TESTER_CHECK(array[i] == i + 1);
 			TESTER_CHECK(array.count == 3);
 		}
 
 		{
-			Stack_Array<i32, 3> array{{1, 2, 3}};
-			for (i32 i = 0; i < array.count; ++i)
+			Stack_Array<u64, 3> array{{1, 2, 3}};
+			for (u64 i = 0; i < array.count; ++i)
 				TESTER_CHECK(array[i] == i + 1);
 			TESTER_CHECK(array.count == 3);
 		}
