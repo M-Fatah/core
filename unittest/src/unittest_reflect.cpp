@@ -519,7 +519,7 @@ TESTER_TEST("[CORE]: Reflect")
 
 		for (u64 i = 0; i < reflect_enum_type->as_enum.value_count; ++i)
 		{
-			TESTER_CHECK(reflect_enum_type->as_enum.values[i].index == i);
+			TESTER_CHECK(reflect_enum_type->as_enum.values[i].index == (i32)i);
 			TESTER_CHECK(reflect_enum_type->as_enum.values[i].name == format("REFLECT_ENUM_{}", i, memory::temp_allocator()));
 		}
 

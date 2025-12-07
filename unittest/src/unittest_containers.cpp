@@ -67,7 +67,7 @@ TESTER_TEST("[CONTAINERS]: Array")
 
 		TESTER_CHECK(array2.count == array1.count);
 		TESTER_CHECK(array2.capacity == array1.capacity);
-		for (size_t i = 0; i < array2.count; ++i)
+		for (u64 i = 0; i < array2.count; ++i)
 			TESTER_CHECK(array2[i] == array1[i]);
 	}
 
@@ -77,7 +77,7 @@ TESTER_TEST("[CONTAINERS]: Array")
 		DEFER(array_deinit(array));
 
 		array_fill(array, 5.0f);
-		for (size_t i = 0; i < array.count; ++i)
+		for (u64 i = 0; i < array.count; ++i)
 			TESTER_CHECK(array[i] == 5.0f);
 	}
 
@@ -98,11 +98,11 @@ TESTER_TEST("[CONTAINERS]: Array")
 		auto array = array_init<i32>();
 		DEFER(array_deinit(array));
 
-		for (size_t i = 0; i < 100; ++i)
+		for (u64 i = 0; i < 100; ++i)
 			array_push(array, i32(i));
 		TESTER_CHECK(array.count == 100);
 
-		for (size_t i = 0; i < array.count; ++i)
+		for (u64 i = 0; i < array.count; ++i)
 			TESTER_CHECK(array[i] == i);
 
 		TESTER_CHECK(array_last(array) == 99);
@@ -118,13 +118,13 @@ TESTER_TEST("[CONTAINERS]: Array")
 		auto array = array_init<i32>();
 		DEFER(array_deinit(array));
 
-		for (size_t i = 0; i < 100; ++i)
+		for (u64 i = 0; i < 100; ++i)
 			array_push(array, i32(i));
 		TESTER_CHECK(array.count == 100);
 
 		array_remove(array, array.count - 1);
 		TESTER_CHECK(array.count == 99);
-		for (size_t i = 0; i < 99; ++i)
+		for (u64 i = 0; i < 99; ++i)
 			TESTER_CHECK(array[i] == i);
 
 		array_remove(array, 0);
@@ -132,7 +132,7 @@ TESTER_TEST("[CONTAINERS]: Array")
 		TESTER_CHECK(array.count == 98);
 
 		array_remove_ordered(array, 0);
-		for (size_t i = 0; i < 97; ++i)
+		for (u64 i = 0; i < 97; ++i)
 			TESTER_CHECK(array[i] == i + 1);
 		TESTER_CHECK(array.count == 97);
 		array_remove(array, 0);
@@ -148,7 +148,7 @@ TESTER_TEST("[CONTAINERS]: Array")
 		auto array = array_init<i32>();
 		DEFER(array_deinit(array));
 
-		for (size_t i = 0; i < 100; ++i)
+		for (u64 i = 0; i < 100; ++i)
 			array_push(array, i32(i));
 		TESTER_CHECK(array.count == 100);
 
@@ -157,7 +157,7 @@ TESTER_TEST("[CONTAINERS]: Array")
 		});
 
 		i32 j = 1;
-		for (size_t i = 0; i < 50; ++i)
+		for (u64 i = 0; i < 50; ++i)
 		{
 			TESTER_CHECK(array[i] == j);
 			j += 2;
@@ -166,7 +166,7 @@ TESTER_TEST("[CONTAINERS]: Array")
 
 		array_remove_ordered(array, 0);
 		j = 3;
-		for (size_t i = 0; i < 49; ++i)
+		for (u64 i = 0; i < 49; ++i)
 		{
 			TESTER_CHECK(array[i] == j);
 			j += 2;
@@ -222,10 +222,10 @@ TESTER_TEST("[CONTAINERS]: Array")
 		auto array2 = clone(array1);
 		DEFER(destroy(array2));
 
-		for (size_t i = 0; i < array2.count; ++i)
+		for (u64 i = 0; i < array2.count; ++i)
 		{
 			TESTER_CHECK(array2.count == array1.count);
-			for (size_t j = 0; j < array2[i].count; ++j)
+			for (u64 j = 0; j < array2[i].count; ++j)
 			{
 				auto v1 = array1[i][j];
 				auto v2 = array2[i][j];
@@ -255,14 +255,14 @@ TESTER_TEST("[CONTAINERS]: Stack_Array")
 
 		{
 			Stack_Array array{{1, 2, 3}};
-			for (u64 i = 0; i < array.count; ++i)
+			for (i32 i = 0; i < array.count; ++i)
 				TESTER_CHECK(array[i] == i + 1);
 			TESTER_CHECK(array.count == 3);
 		}
 
 		{
 			Stack_Array<i32, 3> array{{1, 2, 3}};
-			for (u64 i = 0; i < array.count; ++i)
+			for (i32 i = 0; i < array.count; ++i)
 				TESTER_CHECK(array[i] == i + 1);
 			TESTER_CHECK(array.count == 3);
 		}
@@ -315,7 +315,7 @@ TESTER_TEST("[CONTAINERS]: String")
 		s = string_from(literal, literal + 13);
 		TESTER_CHECK(s.count == 13);
 		TESTER_CHECK(s.capacity == 14);
-		for (size_t i = 0; i < 13; ++i)
+		for (u64 i = 0; i < 13; ++i)
 			TESTER_CHECK(s[i] == literal[i]);
 		string_deinit(s);
 	}
@@ -330,7 +330,7 @@ TESTER_TEST("[CONTAINERS]: String")
 
 		TESTER_CHECK(s2.count == s1.count);
 		TESTER_CHECK(s2.capacity == s1.capacity);
-		for (size_t i = 0; i < s2.count; ++i)
+		for (u64 i = 0; i < s2.count; ++i)
 			TESTER_CHECK(s2[i] == s1[i]);
 	}
 
@@ -349,7 +349,7 @@ TESTER_TEST("[CONTAINERS]: String")
 		TESTER_CHECK(s.capacity == 14);
 
 		auto expected = "Hello, World!";
-		for (size_t i = 0; i < s.count; ++i)
+		for (u64 i = 0; i < s.count; ++i)
 			TESTER_CHECK(s[i] == expected[i]);
 		TESTER_CHECK(s.data[s.count] == '\0');
 
@@ -373,7 +373,7 @@ TESTER_TEST("[CONTAINERS]: String")
 
 		TESTER_CHECK(string_find_first_of(s, string_literal("Hello")) == 0);
 		TESTER_CHECK(string_find_first_of(s, string_literal("World!")) == 6);
-		TESTER_CHECK(string_find_first_of(s, string_literal("olleH")) == -1);
+		TESTER_CHECK(string_find_first_of(s, string_literal("olleH")) == U64_MAX);
 
 		TESTER_CHECK(string_find_first_of(s, 'H', 0) == 0);
 		TESTER_CHECK(string_find_first_of(s, 'W', 0) == 6);
@@ -400,7 +400,7 @@ TESTER_TEST("[CONTAINERS]: String")
 		auto expected = "Hello, World!";
 		TESTER_CHECK(s1.count == 13);
 		TESTER_CHECK(s1.capacity == 14);
-		for (size_t i = 0; i < s1.count; ++i)
+		for (u64 i = 0; i < s1.count; ++i)
 			TESTER_CHECK(s1[i] == expected[i]);
 		TESTER_CHECK(s1.data[s1.count] == '\0');
 
@@ -408,7 +408,7 @@ TESTER_TEST("[CONTAINERS]: String")
 		string_trim_left(s1, string_literal("H"));
 		TESTER_CHECK(s1.count == 12);
 		TESTER_CHECK(s1.capacity == 13);
-		for (size_t i = 1; i < s1.count; ++i)
+		for (u64 i = 1; i < s1.count; ++i)
 			TESTER_CHECK(s1[i - 1] == expected[i]);
 		TESTER_CHECK(s1.data[s1.count] == '\0');
 
@@ -416,7 +416,7 @@ TESTER_TEST("[CONTAINERS]: String")
 		string_trim_right(s1, string_literal("!"));
 		TESTER_CHECK(s1.count == 11);
 		TESTER_CHECK(s1.capacity == 12);
-		for (size_t i = 1; i < s1.count; ++i)
+		for (u64 i = 1; i < s1.count; ++i)
 			TESTER_CHECK(s1[i - 1] == expected[i]);
 		TESTER_CHECK(s1.data[s1.count] == '\0');
 
@@ -428,7 +428,7 @@ TESTER_TEST("[CONTAINERS]: String")
 
 		TESTER_CHECK(s2.count == 13);
 		TESTER_CHECK(s2.capacity == 14);
-		for (size_t i = 0; i < s2.count; ++i)
+		for (u64 i = 0; i < s2.count; ++i)
 			TESTER_CHECK(s2[i] == expected[i]);
 		TESTER_CHECK(s2.data[s2.count] == '\0');
 	}
@@ -501,7 +501,7 @@ TESTER_TEST("[CONTAINERS]: String")
 
 		auto expected = "Hello, World!";
 		TESTER_CHECK(s.count == 13);
-		for (size_t i = 0; i < s.count; ++i)
+		for (u64 i = 0; i < s.count; ++i)
 			TESTER_CHECK(s[i] == expected[i]);
 		TESTER_CHECK(s.data[s.count] == '\0');
 
@@ -942,7 +942,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 		{
 			TESTER_CHECK(hash_table_remove(table, i) == true);
 			TESTER_CHECK(hash_table_find(table, i) == nullptr);
-			TESTER_CHECK(table.count == (99 - i));
+			TESTER_CHECK(table.count == u64(99 - i));
 		}
 
 		for (i32 i = 0; i < 100; ++i)
@@ -1323,7 +1323,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 		{
 			TESTER_CHECK(hash_set_remove(set, i) == true);
 			TESTER_CHECK(hash_set_find(set, i) == nullptr);
-			TESTER_CHECK(set.count == (99 - i));
+			TESTER_CHECK(set.count == u64(99 - i));
 		}
 
 		for (i32 i = 0; i < 100; ++i)
