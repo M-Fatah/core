@@ -256,7 +256,7 @@ TESTER_TEST("[CONTAINERS]: Stack_Array")
 		{
 			Stack_Array array{{1, 2, 3}};
 			for (u64 i = 0; i < array.count; ++i)
-				TESTER_CHECK(array[i] == i + 1);
+				TESTER_CHECK(array[i] == i32(i + 1));
 			TESTER_CHECK(array.count == 3);
 		}
 
