@@ -1,26 +1,9 @@
-#define DOCTEST_CONFIG_IMPLEMENT
-#include <doctest/doctest.h>
-
-#include <core/platform/platform.h>
-
-/*
-	TODO:
-	- [ ] Add print overload for clearer console message (while debugging).
-*/
+#include <core/tester.h>
 
 i32
-main(i32 argc, char **argv)
+main(i32, char **)
 {
-	doctest::Context context;
-
-	context.applyCommandLine(argc, argv);
-
-	// Don't break in the debugger when assertions fail.
-	context.setOption("no-breaks", true);
-
-	i32 res = context.run();
-	if (context.shouldExit())
-		return res;
-
-	return res;
+	if (!tester_run(tester()))
+		return EXIT_FAILURE;
+	return EXIT_SUCCESS;
 }

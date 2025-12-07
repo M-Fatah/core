@@ -1,3 +1,4 @@
+#pragma once
 
 #include "core/formatter.h"
 #include "core/containers/string.h"
@@ -8,10 +9,11 @@
 enum PRINT_COLOR
 {
 	PRINT_COLOR_DEFAULT,
+	PRINT_COLOR_FG_RED,
+	PRINT_COLOR_FG_GREEN,
+	PRINT_COLOR_FG_YELLOW,
 	PRINT_COLOR_FG_BLUE,
 	PRINT_COLOR_FG_WHITE_DIMMED,
-	PRINT_COLOR_FG_YELLOW,
-	PRINT_COLOR_FG_RED,
 	PRINT_COLOR_BG_RED,
 };
 
@@ -49,10 +51,11 @@ print_to(FILE *file, PRINT_COLOR color, const char *fmt, TArgs &&...args)
 		switch(color)
 		{
 			case PRINT_COLOR_DEFAULT:         return "0";
+			case PRINT_COLOR_FG_RED:          return "1;31";
+			case PRINT_COLOR_FG_GREEN:        return "1;32";
+			case PRINT_COLOR_FG_YELLOW:       return "1;33";
 			case PRINT_COLOR_FG_BLUE:         return "1;34";
 			case PRINT_COLOR_FG_WHITE_DIMMED: return "0;37";
-			case PRINT_COLOR_FG_YELLOW:       return "1;33";
-			case PRINT_COLOR_FG_RED:          return "1;31";
 			case PRINT_COLOR_BG_RED:          return "1;41";
 			default:                          return "0";
 		}

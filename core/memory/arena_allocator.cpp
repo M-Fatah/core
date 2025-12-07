@@ -49,7 +49,7 @@ namespace memory
 
 	#if DEBUG
 		// TODO: Use logger.
-		::printf("[ARENA_ALLOCATOR]: %" PRIu64 " bytes used at exit, %" PRIu64 " bytes peak size.\n", self->ctx->used_size, self->ctx->peak_size);
+		// ::printf("[ARENA_ALLOCATOR]: %" PRIu64 " bytes used at exit, %" PRIu64 " bytes peak size.\n", self->ctx->used_size, self->ctx->peak_size);
 	#endif
 
 		auto node = self->ctx->head;
@@ -87,7 +87,7 @@ namespace memory
 			node->next      = self->ctx->head;
 			self->ctx->head = node;
 
-			log_debug("[ARENA_ALLOCATOR]: Allocated a new node with given capacity {}.", capacity);
+			// log_debug("[ARENA_ALLOCATOR]: Allocated a new node with given capacity {}.", capacity);
 
 			return node + 1;
 		}
