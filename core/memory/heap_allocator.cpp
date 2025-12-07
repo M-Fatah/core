@@ -59,7 +59,7 @@ namespace memory
 		while (node)
 		{
 			// TODO: Use logger.
-			::printf("size: %" PRIu64 "byte%s\n", node->size, node->size > 1 ? "s" : "");
+			::printf("size: %" PRIu64 " byte%s\n", node->size, node->size > 1 ? "s" : "");
 
 			platform_callstack_log(node->callstack, node->callstack_frame_count);
 

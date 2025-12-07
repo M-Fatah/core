@@ -11,6 +11,7 @@ set(HEADER_FILES
     reflect.h
     result.h
     source_location.h
+    tester.h
     utils.h
     containers/array.h
     containers/hash_set.h
@@ -33,6 +34,7 @@ set(SOURCE_FILES
     base64.cpp
     ecs.cpp
     json.cpp
+    tester.cpp
     memory/memory.cpp
     memory/heap_allocator.cpp
     memory/arena_allocator.cpp

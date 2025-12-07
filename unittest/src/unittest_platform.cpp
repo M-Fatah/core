@@ -1,23 +1,22 @@
+#include <core/tester.h>
 #include <core/platform/platform.h>
 
-#include <doctest/doctest.h>
-
-TEST_CASE("[PLATFORM] memory")
+TESTER_TEST("[PLATFORM] memory")
 {
 	Platform_Allocator allocator = platform_allocator_init(1024 * 1024);
-	CHECK(allocator.ptr != nullptr);
-	CHECK(allocator.size == 1024 * 1024);
-	CHECK(allocator.used == 0);
+	TESTER_CHECK(allocator.ptr != nullptr);
+	TESTER_CHECK(allocator.size == 1024 * 1024);
+	TESTER_CHECK(allocator.used == 0);
 
 	Platform_Memory memory = platform_allocator_alloc(&allocator, 512);
-	CHECK(allocator.used == 512);
-	CHECK(memory.ptr == allocator.ptr + 512);
-	CHECK(memory.size == 512);
+	TESTER_CHECK(allocator.used == 512);
+	TESTER_CHECK(memory.ptr == allocator.ptr + 512);
+	TESTER_CHECK(memory.size == 512);
 
 	platform_allocator_deinit(&allocator);
 }
 
-TEST_CASE("[PLATFORM] file")
+TESTER_TEST("[PLATFORM] file")
 {
 	u32 write_data[1024] = {};
 	for (u32 i = 0; i < 1024; ++i)
@@ -30,10 +29,10 @@ TEST_CASE("[PLATFORM] file")
 	const char *filepath = "test.platform";
 
 	u64 written_size = platform_file_write(filepath, write_mem);
-	CHECK(written_size == write_mem.size);
+	TESTER_CHECK(written_size == write_mem.size);
 
 	u64 file_size = platform_file_size(filepath);
-	CHECK(file_size == write_mem.size);
+	TESTER_CHECK(file_size == write_mem.size);
 
 	u32 read_data[1024] = {};
 	Platform_Memory read_mem = {};
@@ -41,8 +40,8 @@ TEST_CASE("[PLATFORM] file")
 	read_mem.size = sizeof(read_data);
 
 	u64 read_size = platform_file_read(filepath, read_mem);
-	CHECK(read_size == written_size);
-	CHECK(read_size == read_mem.size);
+	TESTER_CHECK(read_size == written_size);
+	TESTER_CHECK(read_size == read_mem.size);
 
 	bool same = true;
 	for (u32 i = 0; i < 1024; ++i)
@@ -53,14 +52,14 @@ TEST_CASE("[PLATFORM] file")
 			break;
 		}
 	}
-	CHECK(same == true);
+	TESTER_CHECK(same == true);
 
 	bool copy_result = platform_file_copy(filepath, "test_copy.platform");
-	CHECK(copy_result == true);
+	TESTER_CHECK(copy_result == true);
 
 	read_size = platform_file_read("test_copy.platform", read_mem);
-	CHECK(read_size == written_size);
-	CHECK(read_size == read_mem.size);
+	TESTER_CHECK(read_size == written_size);
+	TESTER_CHECK(read_size == read_mem.size);
 
 	same = true;
 	for (u32 i = 0; i < 1024; ++i)
@@ -71,14 +70,14 @@ TEST_CASE("[PLATFORM] file")
 			break;
 		}
 	}
-	CHECK(same == true);
+	TESTER_CHECK(same == true);
 
-	CHECK(platform_file_delete("test.platform"));
-	CHECK(platform_file_delete("test_copy.platform"));
+	TESTER_CHECK(platform_file_delete("test.platform"));
+	TESTER_CHECK(platform_file_delete("test_copy.platform"));
 }
 
 // TODO: For some reason this on github actions fails every single time (time on github actions is 124.5f ms) which is very weird.
-TEST_CASE("[PLATFORM] time")
+TESTER_TEST("[PLATFORM] time")
 {
 	// platform_sleep_set_period(1);
 	// u64 begin_time = platform_query_microseconds();
@@ -87,5 +86,5 @@ TEST_CASE("[PLATFORM] time")
 
 	// f32 delta_time = (end_time - begin_time) * MICROSECOND_TO_MILLISECOND;
 
-	// CHECK(delta_time == doctest::Approx(16).epsilon(0.25));
+	// TESTER_CHECK(delta_time == doctest::Approx(16).epsilon(0.25));
 }
