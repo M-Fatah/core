@@ -80,8 +80,26 @@ set(BUILD_TYPE SHARED)
 if(${CORE_BUILD_STATIC})
     set(BUILD_TYPE STATIC)
 endif()
-add_library(core ${BUILD_TYPE} ${HEADER_FILES} ${SOURCE_FILES})
-target_link_libraries(core PUBLIC ${LIBS})
+
+if(APPLE)
+    # Build Objective-C++ file separately, not in unity build
+    add_library(core-platform-macos OBJECT platform/platform_macos.mm)
+    target_link_libraries(core-platform-macos PUBLIC ${LIBS})
+    target_compile_options(core-platform-macos PRIVATE ${GLOBAL_COMPILE_OPTIONS})
+    target_compile_definitions(core-platform-macos PRIVATE ${GLOBAL_COMPILE_DEFINITIONS})
+    target_include_directories(core-platform-macos PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../)
+
+    # Remove platform_macos.mm from main source list
+    list(REMOVE_ITEM SOURCE_FILES platform/platform_macos.mm)
+
+    # Create main library with unity build enabled
+    add_library(core ${BUILD_TYPE} ${HEADER_FILES} ${SOURCE_FILES})
+    target_link_libraries(core PUBLIC ${LIBS} core-platform-macos)
+else()
+    add_library(core ${BUILD_TYPE} ${HEADER_FILES} ${SOURCE_FILES})
+    target_link_libraries(core PUBLIC ${LIBS})
+endif()
+
 target_compile_options(core PRIVATE ${GLOBAL_COMPILE_OPTIONS})
 target_compile_definitions(core PRIVATE ${GLOBAL_COMPILE_DEFINITIONS})
 # TODO: Put headers into its own folder?
