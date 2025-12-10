@@ -39,6 +39,7 @@ target_compile_options(core-options INTERFACE
     $<$<CXX_COMPILER_ID:GNU>: -Werror -Wall -Wextra -std=c++2b -Wno-invalid-offsetof -Wno-missing-field-initializers>
     $<$<CXX_COMPILER_ID:MSVC>: -WX -W4 -Zc:preprocessor>
 )
+target_include_directories(core-options INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/)
 
 add_subdirectory(core)
 add_subdirectory(test)
