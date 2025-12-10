@@ -67,11 +67,6 @@ elseif(UNIX AND NOT APPLE)
         pthread
     )
 elseif(APPLE)
-    set_source_files_properties(
-        platform/platform_macos.mm
-        PROPERTIES
-        SKIP_UNITY_BUILD ON
-    )
     list(APPEND SOURCE_FILES
         platform/platform_macos.mm
     )
@@ -91,6 +86,14 @@ target_compile_options(core PRIVATE ${GLOBAL_COMPILE_OPTIONS})
 target_compile_definitions(core PRIVATE ${GLOBAL_COMPILE_DEFINITIONS})
 # TODO: Put headers into its own folder?
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../)
+
+if(APPLE)
+    set_source_files_properties(
+        platform/platform_macos.mm
+        PROPERTIES
+        SKIP_UNITY_BUILD ON
+    )
+endif()
 
 set_target_properties(core
     PROPERTIES
