@@ -37,7 +37,7 @@ jobs:
             sudo apt-get install -y libx11-dev libxkbcommon-x11-dev libx11-xcb-dev
 
       - name: Configuring
-        run: cmake -B build -DCMAKE_BUILD_TYPE=${{matrix.build-variant}} -DCORE_BUILD_UNITY=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 # TODO: For doctest compatibility. # TODO: Re-enable unity build.
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{matrix.build-variant}} -DCORE_BUILD_UNITY=ON
 
       - name: Building
         run: cmake --build build --clean-first --config ${{matrix.build-variant}} -j
