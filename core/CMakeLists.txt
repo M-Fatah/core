@@ -69,10 +69,10 @@ elseif(UNIX AND NOT APPLE)
 elseif(APPLE)
     # Build Objective-C++ file separately, not in unity build.
     add_library(core-platform-macos OBJECT platform/platform_macos.mm)
-    target_link_libraries(core-platform-macos PUBLIC "-framework Cocoa" "-framework UniformTypeIdentifiers")
+    target_link_libraries(core-platform-macos PUBLIC core-options "-framework Cocoa" "-framework UniformTypeIdentifiers")
     target_compile_options(core-platform-macos PRIVATE ${GLOBAL_COMPILE_OPTIONS})
     target_compile_definitions(core-platform-macos PRIVATE ${GLOBAL_COMPILE_DEFINITIONS})
-    target_include_directories(core-platform-macos PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../)
+    target_include_directories(core-platform-macos PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../)
 
     list(APPEND LIBS
         core-platform-macos
