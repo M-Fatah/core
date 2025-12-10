@@ -1,11 +1,3 @@
-#include "core/platform/platform.h"
-
-#include "core/validate.h"
-#include "core/defer.h"
-#include "core/log.h"
-#include "core/formatter.h"
-#include "core/memory/memory.h"
-
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +15,14 @@
 #include <mach-o/dyld.h>
 #include <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <dirent.h>
+
+#include "core/platform/platform.h"
+
+#include "core/validate.h"
+#include "core/defer.h"
+#include "core/log.h"
+#include "core/formatter.h"
+#include "core/memory/memory.h"
 
 static char current_executable_directory[PATH_MAX] = {};
 
