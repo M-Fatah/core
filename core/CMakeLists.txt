@@ -68,7 +68,7 @@ elseif(UNIX AND NOT APPLE)
     )
 elseif(APPLE)
     set_source_files_properties(
-        core/platform/platform_macos.mm
+        platform/platform_macos.mm
         PROPERTIES
         SKIP_UNITY_BUILD ON
     )
