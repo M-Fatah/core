@@ -67,6 +67,11 @@ elseif(UNIX AND NOT APPLE)
         pthread
     )
 elseif(APPLE)
+    set_source_files_properties(
+        core/platform/platform_macos.mm
+        PROPERTIES
+        SKIP_UNITY_BUILD ON
+    )
     list(APPEND SOURCE_FILES
         platform/platform_macos.mm
     )
