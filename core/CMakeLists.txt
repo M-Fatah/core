@@ -67,9 +67,8 @@ elseif(UNIX AND NOT APPLE)
         pthread
     )
 elseif(APPLE)
-    # Build Objective-C++ file separately, not in unity build.
     add_library(core-platform-macos OBJECT platform/platform_macos.mm)
-    target_link_libraries(core-platform-macos PRIVATE core-options "-framework Cocoa" "-framework UniformTypeIdentifiers")
+    target_link_libraries(core-platform-macos PRIVATE ${LIBS} "-framework Cocoa" "-framework UniformTypeIdentifiers")
 
     list(APPEND LIBS
         core-platform-macos
