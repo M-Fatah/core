@@ -13,12 +13,8 @@
 #define TESTER_CHECK(expr)                                                                                                                     \
 	do                                                                                                                                         \
 	{                                                                                                                                          \
-		if ((expr))                                                                                                                            \
-			array_push(tester()->passed_checks, Tester_Check(#expr, __FILE__, __LINE__));                                                      \
-		else                                                                                                                                   \
-			array_push(tester()->failed_checks, Tester_Check(#expr, __FILE__, __LINE__));                                                      \
+		array_push((expr) ? tester()->passed_checks : tester()->failed_checks, Tester_Check{#expr, __FILE__, __LINE__});                       \
 	} while (false)
-
 
 struct Tester_Check
 {

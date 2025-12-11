@@ -97,14 +97,14 @@ template <typename T>
 TYPE_OF(Point<T>, x, y, z)
 
 template <typename T, typename R>
-struct Foo
+struct Foo_Struct
 {
 	T x;
 	R y;
 };
 
 template <typename T, typename R>
-TYPE_OF((Foo<T, R>), x, y)
+TYPE_OF((Foo_Struct<T, R>), x, y)
 
 template <typename T, typename R, typename E>
 struct Bar
@@ -266,7 +266,7 @@ TESTER_TEST("[CORE]: Reflect")
 		auto point_vec3_name = name_of<Point<Vector3>>();
 		auto point_const_vec3_name = name_of<Point<const Vector3>>();
 
-		auto foo_i32_f32_name = name_of<Foo<i32, f32>>();
+		auto foo_i32_f32_name = name_of<Foo_Struct<i32, f32>>();
 		auto bar_i32_f32_vec3_name = name_of<Bar<i32, f32, Vector3>>();
 		auto bar_const_i32_const_f32_const_vec3_name = name_of<Bar<const i32, const f32, const Vector3>>();
 		auto bar_const_point_const_i32_const_f32_const_vec3_name = name_of<Bar<const Point<const i32>, const f32, const Vector3>>();
@@ -297,7 +297,7 @@ TESTER_TEST("[CORE]: Reflect")
 		TESTER_CHECK(string_literal(point_vec3_name) == "Point<Vector3>");
 		TESTER_CHECK(string_literal(point_const_vec3_name) == "Point<const Vector3>");
 
-		TESTER_CHECK(string_literal(foo_i32_f32_name) == "Foo<i32,f32>");
+		TESTER_CHECK(string_literal(foo_i32_f32_name) == "Foo_Struct<i32,f32>");
 		TESTER_CHECK(string_literal(bar_i32_f32_vec3_name) == "Bar<i32,f32,Vector3>");
 		TESTER_CHECK(string_literal(bar_const_i32_const_f32_const_vec3_name) == "Bar<const i32,const f32,const Vector3>");
 		TESTER_CHECK(string_literal(bar_const_point_const_i32_const_f32_const_vec3_name) == "Bar<const Point<const i32>,const f32,const Vector3>");
@@ -649,19 +649,19 @@ TESTER_TEST("[CORE]: Reflect")
 		TESTER_CHECK(point_i32_type->as_struct.fields != nullptr);
 		TESTER_CHECK(point_i32_type->as_struct.field_count == 3);
 
-		Foo<f32, i32> foo = {1.5f, 1};
-		auto foo_f32_i32_type = type_of<Foo<f32, i32>>();
+		Foo_Struct<f32, i32> foo = {1.5f, 1};
+		auto foo_f32_i32_type = type_of<Foo_Struct<f32, i32>>();
 		TESTER_CHECK(foo_f32_i32_type == type_of(foo));
 
-		auto foo_point_vector3_type = type_of<Foo<Point<i32>, Vector3>>();
-		TESTER_CHECK(string_literal(foo_point_vector3_type->name) == "Foo<Point<i32>,Vector3>");
+		auto foo_point_vector3_type = type_of<Foo_Struct<Point<i32>, Vector3>>();
+		TESTER_CHECK(string_literal(foo_point_vector3_type->name) == "Foo_Struct<Point<i32>,Vector3>");
 		TESTER_CHECK(foo_point_vector3_type->kind == TYPE_KIND_STRUCT);
-		TESTER_CHECK(foo_point_vector3_type->size == sizeof(Foo<Point<i32>, Vector3>));
-		TESTER_CHECK(foo_point_vector3_type->align == alignof(Foo<Point<i32>, Vector3>));
+		TESTER_CHECK(foo_point_vector3_type->size == sizeof(Foo_Struct<Point<i32>, Vector3>));
+		TESTER_CHECK(foo_point_vector3_type->align == alignof(Foo_Struct<Point<i32>, Vector3>));
 		TESTER_CHECK(foo_point_vector3_type->as_struct.fields != nullptr);
 		TESTER_CHECK(foo_point_vector3_type->as_struct.field_count == 2);
 
-		using foo_point_vector3_templated_type = Foo<Point<i32>, Vector3>;
+		using foo_point_vector3_templated_type = Foo_Struct<Point<i32>, Vector3>;
 		auto foo_point_vector3_field_x = foo_point_vector3_type->as_struct.fields[0];
 		TESTER_CHECK(string_literal(foo_point_vector3_field_x.name) == "x");
 		TESTER_CHECK(foo_point_vector3_field_x.offset == offsetof(foo_point_vector3_templated_type, x));

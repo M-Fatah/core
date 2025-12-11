@@ -67,12 +67,11 @@ elseif(UNIX AND NOT APPLE)
         pthread
     )
 elseif(APPLE)
-    list(APPEND SOURCE_FILES
-        platform/platform_macos.mm
-    )
+    add_library(core-platform-macos OBJECT platform/platform_macos.mm)
+    target_link_libraries(core-platform-macos PRIVATE ${LIBS} "-framework Cocoa" "-framework UniformTypeIdentifiers")
+
     list(APPEND LIBS
-        "-framework Cocoa"
-        "-framework UniformTypeIdentifiers"
+        core-platform-macos
     )
 endif()
 
@@ -80,12 +79,9 @@ set(BUILD_TYPE SHARED)
 if(${CORE_BUILD_STATIC})
     set(BUILD_TYPE STATIC)
 endif()
+
 add_library(core ${BUILD_TYPE} ${HEADER_FILES} ${SOURCE_FILES})
 target_link_libraries(core PUBLIC ${LIBS})
-target_compile_options(core PRIVATE ${GLOBAL_COMPILE_OPTIONS})
-target_compile_definitions(core PRIVATE ${GLOBAL_COMPILE_DEFINITIONS})
-# TODO: Put headers into its own folder?
-target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../)
 
 set_target_properties(core
     PROPERTIES
