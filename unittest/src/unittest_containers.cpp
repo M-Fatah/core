@@ -3,6 +3,7 @@
 #include <core/containers/array.h>
 #include <core/containers/hash_set.h>
 #include <core/containers/hash_table.h>
+#include <core/containers/span.h>
 #include <core/containers/stack_array.h>
 #include <core/containers/string.h>
 #include <core/containers/string_interner.h>
@@ -1445,4 +1446,112 @@ TESTER_TEST("[CONTAINERS]: String Interner")
 	const char *begin = test_string + 15;
 	const char *end = begin + 6;
 	TESTER_CHECK(s == string_interner_intern(interner, begin, end));
+}
+
+TESTER_TEST("[CONTAINERS]: Span")
+{
+	// ("span_init from pointer + count")
+	{
+		i32 values[] = {10, 20, 30};
+		auto span = span_init(values, 3);
+		TESTER_CHECK(span.data == values);
+		TESTER_CHECK(span.count == 3);
+	}
+
+	// ("span_init from two pointers")
+	{
+		i32 values[] = {1, 2, 3, 4, 5};
+		auto span = span_init(values, values + 5);
+		TESTER_CHECK(span.data == values);
+		TESTER_CHECK(span.count == 5);
+	}
+
+	// ("span_init from C array")
+	{
+		i32 values[4] = {7, 8, 9, 10};
+		auto span = span_init(values);
+		TESTER_CHECK(span.data == values);
+		TESTER_CHECK(span.count == 4);
+	}
+
+	// ("span_init from Array")
+	{
+		auto array = array_init_from<i32>({1, 2, 3});
+		DEFER(array_deinit(array));
+
+		auto span = span_init(array);
+		TESTER_CHECK(span.data == array.data);
+		TESTER_CHECK(span.count == array.count);
+	}
+
+	// ("span_init from Stack_Array")
+	{
+		Stack_Array<i32, 3> array{{1, 2, 3}};
+		auto span = span_init(array);
+		TESTER_CHECK(span.data == array.data);
+		TESTER_CHECK(span.count == 3);
+	}
+
+	// ("span_init from c-string")
+	{
+		Span<const char> span = span_init("hello");
+		TESTER_CHECK(span.count == 5);
+		TESTER_CHECK(span[0] == 'h');
+		TESTER_CHECK(span[4] == 'o');
+	}
+
+	// ("span_init from initializer_list")
+	{
+		Span<const i32> span = span_init({1, 2, 3, 4});
+		TESTER_CHECK(span.count == 4);
+		TESTER_CHECK(span[0] == 1);
+		TESTER_CHECK(span[3] == 4);
+	}
+
+	// ("operator[]")
+	{
+		i32 values[] = {10, 20, 30};
+		auto span = span_init(values, 3);
+		TESTER_CHECK(span[0] == 10);
+		TESTER_CHECK(span[1] == 20);
+		TESTER_CHECK(span[2] == 30);
+	}
+
+	// ("mutation through span")
+	{
+		i32 values[] = {1, 2, 3};
+		auto span = span_init(values, 3);
+		span[0] = 99;
+		TESTER_CHECK(values[0] == 99);
+	}
+
+	// ("span_is_empty")
+	{
+		i32 values[] = {1};
+		TESTER_CHECK(span_is_empty(span_init((i32 *)nullptr, (u64)0)) == true);
+		TESTER_CHECK(span_is_empty(span_init(values, 1)) == false);
+	}
+
+	// ("span_first / span_last")
+	{
+		i32 values[] = {10, 20, 30};
+		auto span = span_init(values, 3);
+		TESTER_CHECK(span_first(span) == 10);
+		TESTER_CHECK(span_last(span) == 30);
+
+		span_first(span) = 99;
+		span_last(span) = 77;
+		TESTER_CHECK(values[0] == 99);
+		TESTER_CHECK(values[2] == 77);
+	}
+
+	// ("range-based for")
+	{
+		i32 values[] = {1, 2, 3, 4, 5};
+		auto span = span_init(values, 5);
+		i32 sum = 0;
+		for (i32 v : span)
+			sum += v;
+		TESTER_CHECK(sum == 15);
+	}
 }
