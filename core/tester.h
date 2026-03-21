@@ -5,10 +5,11 @@
 #include "core/print.h"
 #include "core/containers/array.h"
 
-#define TESTER_TEST(name)                                                                                                                      \
-	static void CONCATENATE(tester_test_function_, __LINE__)();                                                                                \
-	static u64 CONCATENATE(registrar_, __LINE__) = tester_add_test(tester(), Tester_Test{name, CONCATENATE(tester_test_function_, __LINE__)}); \
-	static void CONCATENATE(tester_test_function_, __LINE__)()
+#define TESTER_TEST(name) _TESTER_TEST_IMPL(name, __COUNTER__)
+#define _TESTER_TEST_IMPL(name, id)                                                                                                                \
+	static void CONCATENATE(tester_test_function_, id)();                                                                                          \
+	static u64 CONCATENATE(registrar_, id) = tester_add_test(tester(), Tester_Test{name, CONCATENATE(tester_test_function_, id)});                 \
+	static void CONCATENATE(tester_test_function_, id)()
 
 #define TESTER_CHECK(expr)                                                                                                                     \
 	do                                                                                                                                         \
