@@ -1500,12 +1500,14 @@ TESTER_TEST("[CONTAINERS]: Span")
 		TESTER_CHECK(span[4] == 'o');
 	}
 
-	// ("span_init from initializer_list")
+	// ("span_init from initializer_list — used inline as function argument")
 	{
-		Span<const i32> span = span_init({1, 2, 3, 4});
-		TESTER_CHECK(span.count == 4);
-		TESTER_CHECK(span[0] == 1);
-		TESTER_CHECK(span[3] == 4);
+		auto check = [](Span<const i32> span) {
+			TESTER_CHECK(span.count == 4);
+			TESTER_CHECK(span[0] == 1);
+			TESTER_CHECK(span[3] == 4);
+		};
+		check(span_init({1, 2, 3, 4}));
 	}
 
 	// ("operator[]")

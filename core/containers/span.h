@@ -61,7 +61,7 @@ template <typename T>
 inline static Span<const T>
 span_init(std::initializer_list<T> list)
 {
-	return span_init(list.begin(), list.size());
+	return Span<const T>{ .data = list.begin(), .count = list.size() };
 }
 
 template <typename T>
