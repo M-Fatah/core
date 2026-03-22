@@ -433,7 +433,7 @@ platform_path_get_file_name(const String &path, memory::Allocator *allocator)
 	String path_temp = string_copy(path, memory::temp_allocator());
 	string_replace(path_temp, "\\", "/");
 	Array<String> splits = string_split(path_temp, "/", true, memory::temp_allocator());
-	return string_copy(array_last(splits), allocator);
+	return string_copy(array_back(splits), allocator);
 }
 
 String

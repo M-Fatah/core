@@ -67,8 +67,8 @@ arr[0] = 99;               // bounds-checked in Debug
 | Function | Description |
 |---|---|
 | `array_is_empty(arr)` | `count == 0` |
-| `array_first(arr)` | Reference to first element |
-| `array_last(arr)` | Reference to last element |
+| `array_front(arr)` | Reference to first element |
+| `array_back(arr)` | Reference to last element |
 
 ---
 
@@ -90,6 +90,14 @@ stack_array_clear(arr);
 ```
 
 Supports range-based `for` via `begin()` / `end()`.
+
+### Functions
+
+| Function | Description |
+|---|---|
+| `stack_array_push(arr, value)` | Append element (asserts if at capacity) |
+| `stack_array_pop(arr)` | Remove and return last element |
+| `stack_array_clear(arr)` | Set count = 0 |
 
 ---
 
@@ -129,6 +137,8 @@ Span<const int> cview = span_init((const Array<int>&)arr); // read-only view
 | `span_is_empty(span)` | `count == 0` |
 | `span_first(span)` | Reference to first element |
 | `span_last(span)` | Reference to last element |
+
+Supports range-based `for` via `begin()` / `end()`.
 
 > **Lifetime rule for initializer\_list:** The backing array of `std::initializer_list` is a temporary. It lives only for the duration of the enclosing full-expression. Never store a `Span` constructed from `{}` in a named variable — pass it directly as a function argument.
 
@@ -209,6 +219,29 @@ for (auto &entry : table)
 
 Custom types need a `hash()` overload — see [Hash](hash.md).
 
+### Construction
+
+| Function | Description |
+|---|---|
+| `hash_table_init<K,V>(allocator)` | Empty table |
+| `hash_table_init_with_capacity<K,V>(n, allocator)` | Pre-allocated capacity |
+| `hash_table_init_from<K,V>({...}, allocator)` | From initializer list of `Hash_Table_Entry<K,V>` |
+| `hash_table_copy(table, allocator)` | Shallow copy |
+| `clone(table, allocator)` | Deep copy (recursively clones class-type keys and values) |
+
+### Functions
+
+| Function | Description |
+|---|---|
+| `hash_table_insert(table, key, value)` | Insert or update |
+| `hash_table_find(table, key)` | Returns `const Hash_Table_Entry<const K, V> *` or `nullptr` |
+| `hash_table_contains(table, key)` | `true` if key exists |
+| `hash_table_remove(table, key)` | Swap-remove (O(1), entry order not preserved) |
+| `hash_table_remove_ordered(table, key)` | Ordered remove (O(n), preserves insertion order) |
+| `hash_table_reserve(table, extra)` | Reserve additional capacity |
+| `hash_table_clear(table)` | Remove all entries (keep allocation) |
+| `destroy(table)` | Calls `destroy()` on class-type keys/values, then deinits |
+
 ---
 
 ## Hash\_Set\<K\>
@@ -229,6 +262,29 @@ hash_set_insert(set, 99);
 bool has = hash_set_contains(set, 42);  // true
 hash_set_remove(set, 42);
 ```
+
+### Construction
+
+| Function | Description |
+|---|---|
+| `hash_set_init<K>(allocator)` | Empty set |
+| `hash_set_init_with_capacity<K>(n, allocator)` | Pre-allocated capacity |
+| `hash_set_init_from<K>({...}, allocator)` | From initializer list |
+| `hash_set_copy(set, allocator)` | Shallow copy |
+| `clone(set, allocator)` | Deep copy (recursively clones class-type keys) |
+
+### Functions
+
+| Function | Description |
+|---|---|
+| `hash_set_insert(set, key)` | Insert (no-op if already present) |
+| `hash_set_find(set, key)` | Returns `const K *` or `nullptr` |
+| `hash_set_contains(set, key)` | `true` if key exists |
+| `hash_set_remove(set, key)` | Swap-remove (O(1)) |
+| `hash_set_remove_ordered(set, key)` | Ordered remove (O(n)) |
+| `hash_set_reserve(set, extra)` | Reserve additional capacity |
+| `hash_set_clear(set)` | Remove all entries (keep allocation) |
+| `destroy(set)` | Calls `destroy()` on class-type keys, then deinits |
 
 ---
 
@@ -255,3 +311,59 @@ Also accepts a pointer range:
 ```cpp
 const char *s = string_interner_intern(interner, first, last);
 ```
+
+---
+
+## Ring\_Buffer\<T\>
+
+**Header:** `core/containers/ring_buffer.h`
+
+A heap-allocated growable double-ended circular buffer. Supports efficient push and pop from both ends. Grows automatically (×1.5) by linearising its internal layout on reallocation.
+
+Indexed access via `rb[i]` operates in logical order (`0` = front element) regardless of the internal `head` offset.
+
+```cpp
+#include <core/containers/ring_buffer.h>
+
+auto rb = ring_buffer_init<int>();
+DEFER(ring_buffer_deinit(rb));
+
+ring_buffer_push_back(rb, 1);
+ring_buffer_push_back(rb, 2);
+ring_buffer_push_back(rb, 3);
+
+ring_buffer_pop_front(rb);          // remove from front (FIFO)
+
+int front = ring_buffer_front(rb);  // 2
+int back  = ring_buffer_back(rb);   // 3
+```
+
+> Range-based `for` is **not** supported — the data is circular and raw pointer iteration would yield incorrect results.  
+> Use indexed access instead: `for (u64 i = 0; i < rb.count; ++i) rb[i]`
+
+### Construction
+
+| Function | Description |
+|---|---|
+| `ring_buffer_init<T>(allocator)` | Empty, zero capacity |
+| `ring_buffer_copy(rb, allocator)` | Shallow copy, linearised (`head = 0`) |
+| `clone(rb, allocator)` | Deep copy (recursively clones class-type elements) |
+
+### Modification
+
+| Function | Description |
+|---|---|
+| `ring_buffer_push_back(rb, value)` | Append element at back |
+| `ring_buffer_push_front(rb, value)` | Prepend element at front |
+| `ring_buffer_pop_front(rb)` | Remove element from front |
+| `ring_buffer_pop_back(rb)` | Remove element from back |
+| `ring_buffer_reserve(rb, extra)` | Reserve additional capacity (linearises on reallocation) |
+| `ring_buffer_clear(rb)` | Set count = 0, reset head (no deallocation) |
+
+### Query
+
+| Function | Description |
+|---|---|
+| `ring_buffer_front(rb)` | Reference to front element (`rb[0]`) |
+| `ring_buffer_back(rb)` | Reference to back element (`rb[count-1]`) |
+| `ring_buffer_is_empty(rb)` | `count == 0` |

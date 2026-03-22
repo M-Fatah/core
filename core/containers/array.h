@@ -16,14 +16,14 @@ struct Array
 	u64 count;
 	u64 capacity;
 
-	T &
+	inline T &
 	operator[](u64 index)
 	{
 		validate(index < count, "[ARRAY]: Access out of range.");
 		return data[index];
 	}
 
-	const T &
+	inline const T &
 	operator[](u64 index) const
 	{
 		validate(index < count, "[ARRAY]: Access out of range.");
@@ -102,7 +102,7 @@ array_deinit(Array<T> &self)
 {
 	if (self.capacity && self.allocator)
 		memory::deallocate(self.allocator, self.data);
-	self = Array<T>{self.allocator};
+	self = Array<T>{.allocator = self.allocator};
 }
 
 template <typename T>
@@ -248,7 +248,7 @@ array_is_empty(const Array<T> &self)
 
 template <typename T>
 inline static T &
-array_first(Array<T> &self)
+array_front(Array<T> &self)
 {
 	validate(self.count > 0, "[ARRAY]: Count is 0.");
 	return self[0];
@@ -256,7 +256,7 @@ array_first(Array<T> &self)
 
 template <typename T>
 inline static T &
-array_last(Array<T> &self)
+array_back(Array<T> &self)
 {
 	validate(self.count > 0, "[ARRAY]: Count is 0.");
 	return self[self.count - 1];

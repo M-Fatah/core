@@ -48,7 +48,7 @@ serialize(Json_Serializer &self, const T &data)
 	if (!self.is_valid)
 		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
 
-	JSON_Value &value = array_last(self.values);
+	JSON_Value &value = array_back(self.values);
 	value = json_value_init_as_number((f64)data);
 	return Error{};
 }
@@ -59,7 +59,7 @@ serialize(Json_Serializer &self, const bool &data)
 	if (!self.is_valid)
 		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
 
-	JSON_Value &value = array_last(self.values);
+	JSON_Value &value = array_back(self.values);
 	value = json_value_init_as_bool(data);
 	return Error{};
 }
@@ -80,7 +80,7 @@ serialize(Json_Serializer &self, const T &data)
 	if (!self.is_valid)
 		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
 
-	JSON_Value &value = array_last(self.values);
+	JSON_Value &value = array_back(self.values);
 	value = json_value_init_as_array(self.allocator);
 
 	for (u64 i = 0; i < count_of(data); ++i)
@@ -100,7 +100,7 @@ serialize(Json_Serializer &self, const Block &block)
 	if (!self.is_valid)
 		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
 
-	JSON_Value &value = array_last(self.values);
+	JSON_Value &value = array_back(self.values);
 	value.kind = JSON_VALUE_KIND_STRING;
 	value.as_string = base64_encode((const u8 *)block.data, (u32)block.size, self.allocator);
 	return Error{};
@@ -113,7 +113,7 @@ serialize(Json_Serializer &self, const Array<T> &data)
 	if (!self.is_valid)
 		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
 
-	JSON_Value &value = array_last(self.values);
+	JSON_Value &value = array_back(self.values);
 	value = json_value_init_as_array(self.allocator);
 
 	for (u64 i = 0; i < data.count; ++i)
@@ -134,7 +134,7 @@ serialize(Json_Serializer &self, const String &data)
 	if (!self.is_valid)
 		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
 
-	JSON_Value &value = array_last(self.values);
+	JSON_Value &value = array_back(self.values);
 	value.kind = JSON_VALUE_KIND_STRING;
 	value.as_string = string_copy(data, self.allocator);
 	return Error{};
@@ -153,7 +153,7 @@ serialize(Json_Serializer &self, const Hash_Table<K, V> &data)
 	if (!self.is_valid)
 		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
 
-	JSON_Value &array = array_last(self.values);
+	JSON_Value &array = array_back(self.values);
 	array = json_value_init_as_array(self.allocator);
 
 	for (const Hash_Table_Entry<const K, V> &entry : data)
@@ -191,10 +191,10 @@ serialize(Json_Serializer &self, const char *name, const T &data)
 
 	JSON_Value object = array_pop(self.values);
 
-	if (json_value_object_find(array_last(self.values), name))
+	if (json_value_object_find(array_back(self.values), name))
 		log_warning("[SERIALIZER][JSON]: Overwrite of duplicate json object with name '{}'.", name);
 
-	json_value_object_insert(array_last(self.values), name, object);
+	json_value_object_insert(array_back(self.values), name, object);
 
 	return Error{};
 }
@@ -248,7 +248,7 @@ serialize(Json_Deserializer &self, T &data)
 	if (!self.is_valid)
 		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
 
-	data = (T)json_value_get_as_number(array_last(self.values));
+	data = (T)json_value_get_as_number(array_back(self.values));
 	return Error{};
 }
 
@@ -258,7 +258,7 @@ serialize(Json_Deserializer &self, bool &data)
 	if (!self.is_valid)
 		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
 
-	data = json_value_get_as_bool(array_last(self.values));
+	data = json_value_get_as_bool(array_back(self.values));
 	return Error{};
 }
 
@@ -287,7 +287,7 @@ serialize(Json_Deserializer &self, T &data)
 	if (!self.is_valid)
 		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
 
-	Array<JSON_Value> array_values = json_value_get_as_array(array_last(self.values));
+	Array<JSON_Value> array_values = json_value_get_as_array(array_back(self.values));
 	if (array_values.count != count_of(data))
 		return Error{"[DESERIALIZER][JSON]: Passed array count does not match the deserialized count."};
 
@@ -310,7 +310,7 @@ serialize(Json_Deserializer &self, Block &block)
 	if (!self.is_valid)
 		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
 
-	String str = json_value_get_as_string(array_last(self.values));
+	String str = json_value_get_as_string(array_back(self.values));
 
 	String o = base64_decode(str, memory::temp_allocator());
 	DEFER(string_deinit(o));
@@ -340,7 +340,7 @@ serialize(Json_Deserializer &self, Array<T> &data)
 		data = array_init<T>(self.allocator);
 	}
 
-	Array<JSON_Value> array_values = json_value_get_as_array(array_last(self.values));
+	Array<JSON_Value> array_values = json_value_get_as_array(array_back(self.values));
 	array_resize(data, array_values.count);
 	for (u64 i = 0; i < data.count; ++i)
 	{
@@ -365,7 +365,7 @@ serialize(Json_Deserializer &self, String &data)
 		data = string_init(self.allocator);
 	}
 
-	String str = json_value_get_as_string(array_last(self.values));
+	String str = json_value_get_as_string(array_back(self.values));
 	string_clear(data);
 	string_append(data, str);
 
@@ -401,7 +401,7 @@ serialize(Json_Deserializer &self, Hash_Table<K, V> &data)
 		data = hash_table_init<K, V>(self.allocator);
 	}
 
-	Array<JSON_Value> array_values = array_last(self.values).as_array;
+	Array<JSON_Value> array_values = array_back(self.values).as_array;
 
 	hash_table_clear(data);
 	for (u64 i = 0; i < array_values.count; ++i)
@@ -434,7 +434,7 @@ serialize(Json_Deserializer &self, const char *name, T &data)
 	self.is_valid = true;
 	DEFER(self.is_valid = false);
 
-	JSON_Value json_value = json_value_object_find(array_last(self.values), name);
+	JSON_Value json_value = json_value_object_find(array_back(self.values), name);
 	if (!json_value)
 		return Error{"[DESERIALIZER][JSON]: Could not find JSON value with the provided name."};
 
@@ -465,7 +465,7 @@ to_json(const T &data, memory::Allocator *allocator = memory::heap_allocator())
 		if (Error error = serialize(self, {"data", data}))
 			return error;
 	}
-	return json_value_to_string(array_first(self.values), allocator);
+	return json_value_to_string(array_front(self.values), allocator);
 }
 
 template <typename T>

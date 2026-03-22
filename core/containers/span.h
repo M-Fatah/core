@@ -18,14 +18,14 @@ struct Span
 	T *data;
 	u64 count;
 
-	T &
+	inline T &
 	operator[](u64 index)
 	{
 		validate(index < count, "[SPAN]: Access out of range.");
 		return data[index];
 	}
 
-	const T &
+	inline const T &
 	operator[](u64 index) const
 	{
 		validate(index < count, "[SPAN]: Access out of range.");
