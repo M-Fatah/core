@@ -2,22 +2,17 @@
 
 #include "core/defines.h"
 
-// 32 bit Fowler-Noll-Vo hash.
+// FNV-1a 64-bit hash.
 inline static u64
-hash_fnv_x32(const void *key, u64 key_length)
+hash_fnv1a_64(const void *key, u64 key_length)
 {
-	const u32 p = 16777619U;
-	u32 hash    = 2166136261U;
+	const u64 prime = 1099511628211ULL;
+	u64 hash        = 14695981039346656037ULL;
 
 	const u8 *data = (const u8 *)key;
 	for (u64 i = 0; i < key_length; ++i)
-		hash = (hash ^ data[i]) * p;
+		hash = (hash ^ data[i]) * prime;
 
-	hash += hash << 13;
-	hash ^= hash >> 7;
-	hash += hash << 3;
-	hash ^= hash >> 17;
-	hash += hash << 5;
 	return hash;
 }
 
@@ -33,14 +28,14 @@ template <typename T>
 inline static u64
 hash(T *key)
 {
-	return u64(key);
+	return u64(key) >> 3;
 };
 
 template <typename T>
 inline static u64
 hash(const T *key)
 {
-	return u64(key);
+	return u64(key) >> 3;
 };
 
 inline static u64
@@ -52,25 +47,25 @@ hash(bool key)
 inline static u64
 hash(char key)
 {
-	return u64(key);
+	return u64((unsigned char)key);
 }
 
 inline static u64
 hash(i8 key)
 {
-	return u64(key);
+	return u64((u8)key);
 }
 
 inline static u64
 hash(i16 key)
 {
-	return u64(key);
+	return u64((u16)key);
 }
 
 inline static u64
 hash(i32 key)
 {
-	return u64(key);
+	return u64((u32)key);
 }
 
 inline static u64
@@ -106,11 +101,11 @@ hash(u64 key)
 inline static u64
 hash(f32 key)
 {
-	return hash_fnv_x32(&key, sizeof(f32));
+	return hash_fnv1a_64(&key, sizeof(f32));
 }
 
 inline static u64
 hash(f64 key)
 {
-	return hash_fnv_x32(&key, sizeof(f64));
+	return hash_fnv1a_64(&key, sizeof(f64));
 }

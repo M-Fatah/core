@@ -761,5 +761,5 @@ destroy(String &self)
 inline static u64
 hash(const String &self)
 {
-	return hash_fnv_x32(self.data, self.count);
+	return hash_fnv1a_64(self.data, self.count);
 }

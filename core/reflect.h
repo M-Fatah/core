@@ -47,7 +47,7 @@
 */
 
 inline static constexpr const u64 REFLECT_MAX_NAME_LENGTH      = 128;
-inline static constexpr const i32 REFLECT_MIN_ENUM_VALUE       = -32;
+inline static constexpr const i32 REFLECT_MIN_ENUM_VALUE       = -64;
 inline static constexpr const i32 REFLECT_MAX_ENUM_VALUE       =  64;
 inline static constexpr const i32 REFLECT_MAX_ENUM_VALUE_COUNT = REFLECT_MAX_ENUM_VALUE - REFLECT_MIN_ENUM_VALUE;
 
@@ -317,7 +317,7 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 			if (type_name.at(c) == '>')
 			{
 				--match;
-				if (match <= 0)
+				if (match == 0)
 				{
 					_reflect_append_name(name, count, type_name.substr(prev, c - prev));
 					name[count++] = '>';
@@ -427,6 +427,8 @@ kind_of()
 		return TYPE_KIND_ENUM;
 	else if constexpr (std::is_compound_v<Type>)
 		return TYPE_KIND_STRUCT;
+	else
+		static_assert(sizeof(Type) == 0, "[REFLECT]: Unsupported type in kind_of<T>().");
 }
 
 template <typename T>

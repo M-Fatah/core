@@ -44,5 +44,5 @@ hash_table_insert(table, Vec2{1.f, 2.f}, 42);
 For hashing arbitrary bytes directly:
 
 ```cpp
-u64 h = hash_fnv_x32(data_ptr, byte_count);
+u64 h = hash_fnv1a_64(data_ptr, byte_count);
 ```

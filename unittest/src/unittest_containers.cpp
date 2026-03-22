@@ -606,7 +606,7 @@ struct Foo
 inline static u64
 hash(const Foo &value)
 {
-	return hash_fnv_x32(&value.x, sizeof(value.x));
+	return hash_fnv1a_64(&value.x, sizeof(value.x));
 }
 
 inline static Foo
