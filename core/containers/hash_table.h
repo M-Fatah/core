@@ -325,7 +325,7 @@ hash_table_remove(Hash_Table<K, V> &self, const K &key)
 	{
 		Hash_Table_Slot &slot = self.slots[slot_index];
 		if (slot.entry_index < self.entries.count - 1)
-			self.slots[find_slot_index(self, array_last(self.entries).key)].entry_index = slot.entry_index;
+			self.slots[find_slot_index(self, array_back(self.entries).key)].entry_index = slot.entry_index;
 
 		array_remove(self.entries, slot.entry_index);
 		slot.flags = HASH_TABLE_SLOT_FLAGS_DELETED;

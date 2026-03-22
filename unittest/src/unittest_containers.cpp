@@ -3,6 +3,7 @@
 #include <core/containers/array.h>
 #include <core/containers/hash_set.h>
 #include <core/containers/hash_table.h>
+#include <core/containers/ring_buffer.h>
 #include <core/containers/span.h>
 #include <core/containers/stack_array.h>
 #include <core/containers/string.h>
@@ -106,7 +107,7 @@ TESTER_TEST("[CONTAINERS]: Array")
 		for (u64 i = 0; i < array.count; ++i)
 			TESTER_CHECK(array[i] == i);
 
-		TESTER_CHECK(array_last(array) == 99);
+		TESTER_CHECK(array_back(array) == 99);
 
 		for (u64 i = 0; i < 100; ++i)
 			TESTER_CHECK(array_pop(array) == 99 - i);
@@ -1555,5 +1556,169 @@ TESTER_TEST("[CONTAINERS]: Span")
 		for (i32 v : span)
 			sum += v;
 		TESTER_CHECK(sum == 15);
+	}
+}
+
+TESTER_TEST("[CONTAINERS]: Ring_Buffer")
+{
+	// ("init")
+	{
+		auto rb = ring_buffer_init<i32>();
+		DEFER(ring_buffer_deinit(rb));
+
+		TESTER_CHECK(rb.data     == nullptr);
+		TESTER_CHECK(rb.count    == 0);
+		TESTER_CHECK(rb.capacity == 0);
+		TESTER_CHECK(rb.head     == 0);
+		TESTER_CHECK(rb.allocator != nullptr);
+	}
+
+	// ("push_back / first / last")
+	{
+		auto rb = ring_buffer_init<i32>();
+		DEFER(ring_buffer_deinit(rb));
+
+		ring_buffer_push_back(rb, 1);
+		ring_buffer_push_back(rb, 2);
+		ring_buffer_push_back(rb, 3);
+
+		TESTER_CHECK(rb.count == 3);
+		TESTER_CHECK(ring_buffer_front(rb) == 1);
+		TESTER_CHECK(ring_buffer_back(rb)  == 3);
+		TESTER_CHECK(rb[0] == 1);
+		TESTER_CHECK(rb[1] == 2);
+		TESTER_CHECK(rb[2] == 3);
+	}
+
+	// ("push_front / first / last")
+	{
+		auto rb = ring_buffer_init<i32>();
+		DEFER(ring_buffer_deinit(rb));
+
+		ring_buffer_push_front(rb, 3);
+		ring_buffer_push_front(rb, 2);
+		ring_buffer_push_front(rb, 1);
+
+		TESTER_CHECK(rb.count == 3);
+		TESTER_CHECK(ring_buffer_front(rb) == 1);
+		TESTER_CHECK(ring_buffer_back(rb)  == 3);
+		TESTER_CHECK(rb[0] == 1);
+		TESTER_CHECK(rb[1] == 2);
+		TESTER_CHECK(rb[2] == 3);
+	}
+
+	// ("pop_front — FIFO behaviour")
+	{
+		auto rb = ring_buffer_init<i32>();
+		DEFER(ring_buffer_deinit(rb));
+
+		ring_buffer_push_back(rb, 10);
+		ring_buffer_push_back(rb, 20);
+		ring_buffer_push_back(rb, 30);
+
+		TESTER_CHECK(ring_buffer_front(rb) == 10);
+		ring_buffer_pop_front(rb);
+		TESTER_CHECK(rb.count == 2);
+		TESTER_CHECK(ring_buffer_front(rb) == 20);
+		ring_buffer_pop_front(rb);
+		TESTER_CHECK(ring_buffer_front(rb) == 30);
+		ring_buffer_pop_front(rb);
+		TESTER_CHECK(rb.count == 0);
+	}
+
+	// ("pop_back — stack behaviour")
+	{
+		auto rb = ring_buffer_init<i32>();
+		DEFER(ring_buffer_deinit(rb));
+
+		ring_buffer_push_back(rb, 10);
+		ring_buffer_push_back(rb, 20);
+		ring_buffer_push_back(rb, 30);
+
+		TESTER_CHECK(ring_buffer_back(rb) == 30);
+		ring_buffer_pop_back(rb);
+		TESTER_CHECK(rb.count == 2);
+		TESTER_CHECK(ring_buffer_back(rb) == 20);
+	}
+
+	// ("wrap-around: head advances past end, tail wraps")
+	{
+		auto rb = ring_buffer_init<i32>();
+		DEFER(ring_buffer_deinit(rb));
+
+		// fill to 8 (initial growth)
+		for (i32 i = 0; i < 8; ++i)
+			ring_buffer_push_back(rb, i);
+
+		// drain 4 from front → head=4
+		for (i32 i = 0; i < 4; ++i)
+			ring_buffer_pop_front(rb);
+
+		TESTER_CHECK(rb.count == 4);
+		TESTER_CHECK(rb.head  == 4);
+
+		// push 4 more → tail wraps past end
+		for (i32 i = 8; i < 12; ++i)
+			ring_buffer_push_back(rb, i);
+
+		TESTER_CHECK(rb.count == 8);
+		// logical order must be 4,5,6,7,8,9,10,11
+		for (u64 i = 0; i < rb.count; ++i)
+			TESTER_CHECK(rb[i] == i32(i + 4));
+	}
+
+	// ("reserve: linearizes wrapped buffer correctly")
+	{
+		auto rb = ring_buffer_init<i32>();
+		DEFER(ring_buffer_deinit(rb));
+
+		for (i32 i = 0; i < 8; ++i)
+			ring_buffer_push_back(rb, i);
+
+		// advance head to create a wrap condition on next pushes
+		for (i32 i = 0; i < 4; ++i)
+			ring_buffer_pop_front(rb);
+		for (i32 i = 8; i < 12; ++i)
+			ring_buffer_push_back(rb, i);  // wraps tail past index 0
+
+		// now force a grow (buffer is full at 8)
+		ring_buffer_push_back(rb, 12);
+
+		// after grow, head must be 0 and logical order preserved
+		TESTER_CHECK(rb.head == 0);
+		TESTER_CHECK(rb.count == 9);
+		for (u64 i = 0; i < rb.count; ++i)
+			TESTER_CHECK(rb[i] == i32(i + 4));
+	}
+
+	// ("is_empty / clear")
+	{
+		auto rb = ring_buffer_init<i32>();
+		DEFER(ring_buffer_deinit(rb));
+
+		TESTER_CHECK(ring_buffer_is_empty(rb) == true);
+		ring_buffer_push_back(rb, 1);
+		TESTER_CHECK(ring_buffer_is_empty(rb) == false);
+		ring_buffer_clear(rb);
+		TESTER_CHECK(rb.count == 0);
+		TESTER_CHECK(rb.head  == 0);
+		TESTER_CHECK(ring_buffer_is_empty(rb) == true);
+	}
+
+	// ("copy")
+	{
+		auto rb1 = ring_buffer_init<i32>();
+		DEFER(ring_buffer_deinit(rb1));
+
+		for (i32 i = 0; i < 5; ++i)
+			ring_buffer_push_back(rb1, i);
+
+		auto rb2 = ring_buffer_copy(rb1);
+		DEFER(ring_buffer_deinit(rb2));
+
+		TESTER_CHECK(rb2.count == rb1.count);
+		TESTER_CHECK(rb2.head  == 0);  // copy is always linearized
+		for (u64 i = 0; i < rb2.count; ++i)
+			TESTER_CHECK(rb2[i] == rb1[i]);
 	}
 }
