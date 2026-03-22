@@ -105,7 +105,7 @@ inline static Hash_Table<K, V>
 hash_table_init_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
 	Hash_Table<K, V> self = {
-		.slots    = array_init_with_count<Hash_Table_Slot>(capacity > 8 ? next_power_of_two((i32)capacity) : 8, allocator),
+		.slots    = array_init_with_count<Hash_Table_Slot>(capacity > 8 ? next_power_of_two(capacity) : 8, allocator),
 		.entries  = array_init<Hash_Table_Entry<K, V>>(allocator),
 		.count    = 0,
 		.capacity = self.slots.count
@@ -156,7 +156,7 @@ hash_table_reserve(Hash_Table<K, V> &self, u64 added_capacity)
 	if (new_capacity < self.slots.count)
 		return;
 
-	array_resize(self.slots, next_power_of_two((i32)new_capacity));
+	array_resize(self.slots, next_power_of_two(new_capacity));
 	array_fill(self.slots, Hash_Table_Slot{});
 
 	for (u64 i = 0; i < self.entries.count; ++i)

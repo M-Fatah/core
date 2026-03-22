@@ -255,8 +255,24 @@ array_front(Array<T> &self)
 }
 
 template <typename T>
+inline static const T &
+array_front(const Array<T> &self)
+{
+	validate(self.count > 0, "[ARRAY]: Count is 0.");
+	return self[0];
+}
+
+template <typename T>
 inline static T &
 array_back(Array<T> &self)
+{
+	validate(self.count > 0, "[ARRAY]: Count is 0.");
+	return self[self.count - 1];
+}
+
+template <typename T>
+inline static const T &
+array_back(const Array<T> &self)
 {
 	validate(self.count > 0, "[ARRAY]: Count is 0.");
 	return self[self.count - 1];

@@ -71,9 +71,23 @@ span_init(Array<T> &array)
 	return span_init(array.data, array.count);
 }
 
+template <typename T>
+inline static Span<const T>
+span_init(const Array<T> &array)
+{
+	return span_init(array.data, array.count);
+}
+
 template <typename T, u64 N>
 inline static Span<T>
 span_init(Stack_Array<T, N> &array)
+{
+	return span_init(array.data, array.count);
+}
+
+template <typename T, u64 N>
+inline static Span<const T>
+span_init(const Stack_Array<T, N> &array)
 {
 	return span_init(array.data, array.count);
 }
@@ -99,7 +113,7 @@ span_is_empty(const Span<T> &self)
 
 template <typename T>
 inline static T &
-span_first(Span<T> &self)
+span_front(Span<T> &self)
 {
 	validate(self.count > 0, "[SPAN]: Count is 0.");
 	return self[0];
@@ -107,7 +121,7 @@ span_first(Span<T> &self)
 
 template <typename T>
 inline static const T &
-span_first(const Span<T> &self)
+span_front(const Span<T> &self)
 {
 	validate(self.count > 0, "[SPAN]: Count is 0.");
 	return self[0];
@@ -115,7 +129,7 @@ span_first(const Span<T> &self)
 
 template <typename T>
 inline static T &
-span_last(Span<T> &self)
+span_back(Span<T> &self)
 {
 	validate(self.count > 0, "[SPAN]: Count is 0.");
 	return self[self.count - 1];
@@ -123,7 +137,7 @@ span_last(Span<T> &self)
 
 template <typename T>
 inline static const T &
-span_last(const Span<T> &self)
+span_back(const Span<T> &self)
 {
 	validate(self.count > 0, "[SPAN]: Count is 0.");
 	return self[self.count - 1];

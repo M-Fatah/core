@@ -67,8 +67,10 @@ arr[0] = 99;               // bounds-checked in Debug
 | Function | Description |
 |---|---|
 | `array_is_empty(arr)` | `count == 0` |
-| `array_front(arr)` | Reference to first element |
-| `array_back(arr)` | Reference to last element |
+| `array_front(arr)` | Reference to first element (mutable and const overloads) |
+| `array_back(arr)` | Reference to last element (mutable and const overloads) |
+| `clone(arr, allocator)` | Deep copy (recursively clones class elements) |
+| `destroy(arr)` | Calls `destroy()` on class elements, then deinits |
 
 ---
 
@@ -113,8 +115,9 @@ A **non-owning view** over a contiguous sequence. Never allocates. No `_deinit`.
 Array<int> arr = array_init_from<int>({1, 2, 3, 4, 5});
 DEFER(array_deinit(arr));
 
-Span<int>       view  = span_init(arr);           // mutable view
-Span<const int> cview = span_init((const Array<int>&)arr); // read-only view
+Span<int>       view  = span_init(arr);              // mutable view
+const auto     &carr  = arr;
+Span<const int> cview = span_init(carr);             // read-only view
 ```
 
 ### Construction
@@ -127,6 +130,7 @@ Span<const int> cview = span_init((const Array<int>&)arr); // read-only view
 | `span_init(Array<T> &)` | `Span<T>` | Mutable view of Array |
 | `span_init(const Array<T> &)` | `Span<const T>` | Read-only view of Array |
 | `span_init(Stack_Array<T,N> &)` | `Span<T>` | Mutable view of Stack\_Array |
+| `span_init(const Stack_Array<T,N> &)` | `Span<const T>` | Read-only view of Stack\_Array |
 | `span_init(const char *)` | `Span<const char>` | View of a C string (no null) |
 | `span_init({1,2,3})` | `Span<const T>` | From initializer\_list — **only safe as a function argument**, never store in a variable |
 
@@ -135,8 +139,8 @@ Span<const int> cview = span_init((const Array<int>&)arr); // read-only view
 | Function | Description |
 |---|---|
 | `span_is_empty(span)` | `count == 0` |
-| `span_first(span)` | Reference to first element |
-| `span_last(span)` | Reference to last element |
+| `span_front(span)` | Reference to first element (mutable and const overloads) |
+| `span_back(span)` | Reference to last element (mutable and const overloads) |
 
 Supports range-based `for` via `begin()` / `end()`.
 
@@ -170,16 +174,29 @@ print_to(stdout, "{}\n", s.data);   // "hello world"
 | `string_literal(c_string)` | Non-owning view (no allocation, no `_deinit`) |
 | `string_copy(str, allocator)` | Copy into a new allocation (byte-for-byte) |
 
-### Common operations
+### Modification
 
-```cpp
-string_append(s, other);          // append String
-string_append(s, "suffix");       // append c-string
-string_push(s, 'x');              // append single char
-string_clear(s);                  // reset count, keep allocation
-u64 len = string_length(s);       // same as s.count
-bool eq  = string_equal(s, other);
-```
+| Function | Description |
+|---|---|
+| `string_append(s, other)` | Append `String` or `const char *` |
+| `string_push(s, c)` | Append single `char` |
+| `string_clear(s)` | Reset count to 0, keep allocation |
+| `string_to_lowercase(s)` | Convert in-place, returns `String &` |
+| `string_to_uppercase(s)` | Convert in-place, returns `String &` |
+
+### Query
+
+| Function | Description |
+|---|---|
+| `string_length(s)` | Same as `s.count` |
+| `string_equal(a, b)` | Byte-for-byte equality |
+| `string_contains(s, needle, case_insensitive)` | Substring search |
+| `string_starts_with(s, prefix)` | Prefix check |
+| `string_ends_with(s, suffix)` | Suffix check |
+| `string_find_first_of(s, needle, start)` | Returns index or `u64(-1)` |
+| `string_find_last_of(s, needle)` | Returns index or `u64(-1)` |
+| `string_split(s, delim, skip_empty, allocator)` | Returns `Array<String>` — caller owns the result |
+| `clone(s, allocator)` | Deep copy (new allocation) |
 
 ---
 

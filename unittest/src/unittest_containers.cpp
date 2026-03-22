@@ -1535,15 +1535,15 @@ TESTER_TEST("[CONTAINERS]: Span")
 		TESTER_CHECK(span_is_empty(span_init(values, 1)) == false);
 	}
 
-	// ("span_first / span_last")
+	// ("span_front / span_back")
 	{
 		i32 values[] = {10, 20, 30};
 		auto span = span_init(values, 3);
-		TESTER_CHECK(span_first(span) == 10);
-		TESTER_CHECK(span_last(span) == 30);
+		TESTER_CHECK(span_front(span) == 10);
+		TESTER_CHECK(span_back(span) == 30);
 
-		span_first(span) = 99;
-		span_last(span) = 77;
+		span_front(span) = 99;
+		span_back(span) = 77;
 		TESTER_CHECK(values[0] == 99);
 		TESTER_CHECK(values[2] == 77);
 	}
