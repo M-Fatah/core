@@ -16,9 +16,9 @@ set(LIBS
     core
 )
 
-add_executable(core_unittest ${HEADER_FILES} ${SOURCE_FILES})
-target_link_libraries(core_unittest PRIVATE ${LIBS})
-set_target_properties(core_unittest
+add_executable(unittest ${HEADER_FILES} ${SOURCE_FILES})
+target_link_libraries(unittest PRIVATE ${LIBS})
+set_target_properties(unittest
     PROPERTIES
         UNITY_BUILD_BATCH_SIZE 8
         UNITY_BUILD ${CORE_BUILD_UNITY}

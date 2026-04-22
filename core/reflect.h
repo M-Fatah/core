@@ -543,9 +543,11 @@ constexpr inline static Enum_Value
 get_enum_value()
 {
 	#if defined(_MSC_VER) // TODO: PLATFORM_WIN32.
+		// MSVC formats: "struct Enum_Value __cdecl get_enum_value<enum T,VALUE>(void)"
+		// The enum value is the last template argument: after the last ',' up to the last '>'.
 		constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
-		constexpr auto type_name_prefix_length = type_function_name.find("()<") + 3;
-		constexpr auto type_name_length        = type_function_name.find(">", type_name_prefix_length) - type_name_prefix_length;
+		constexpr auto type_name_prefix_length = type_function_name.rfind(',') + 1;
+		constexpr auto type_name_length        = type_function_name.rfind('>') - type_name_prefix_length;
 	#elif defined(__GNUC__) // PLATFORM_LINUX/MACOS.
 		constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
 		constexpr auto type_name_prefix_length = type_function_name.rfind("= ") + 2;
