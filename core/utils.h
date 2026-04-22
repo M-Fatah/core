@@ -2,9 +2,9 @@
 
 #include "core/defines.h"
 
-// TODO: Add variant for u32, u64, ..etc
-inline static u64
-next_power_of_two(i32 value)
+// TODO: Add variant for U32, U64, ..etc
+inline static U64
+next_power_of_two(I32 value)
 {
 	--value;
 	value |= value >> 1;

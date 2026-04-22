@@ -8,7 +8,7 @@
 #include "core/containers/string.h"
 #include "core/containers/hash_table.h"
 
-enum JSON_VALUE_KIND : u8
+enum JSON_VALUE_KIND : U8
 {
 	JSON_VALUE_KIND_INVALID,
 	JSON_VALUE_KIND_NULL,
@@ -25,7 +25,7 @@ struct JSON_Value
 	union
 	{
 		bool as_bool;
-		f64 as_number;
+		F64 as_number;
 		String as_string;
 		Array<JSON_Value> as_array;
 		Hash_Table<String, JSON_Value> as_object;
@@ -42,7 +42,7 @@ CORE_API JSON_Value
 json_value_init_as_bool(bool value = false);
 
 CORE_API JSON_Value
-json_value_init_as_number(f64 value = 0.0f);
+json_value_init_as_number(F64 value = 0.0f);
 
 CORE_API JSON_Value
 json_value_init_as_string(memory::Allocator *allocator = memory::heap_allocator());
@@ -98,7 +98,7 @@ json_value_object_find(const JSON_Value &self, const char *name)
 CORE_API bool
 json_value_get_as_bool(const JSON_Value &self);
 
-CORE_API f64
+CORE_API F64
 json_value_get_as_number(const JSON_Value &self);
 
 CORE_API String

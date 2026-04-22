@@ -3,7 +3,7 @@
 
 struct vec3
 {
-	f32 x, y, z;
+	F32 x, y, z;
 };
 
 inline static String
@@ -89,7 +89,7 @@ TESTER_TEST("[CORE]: Formatter")
 		buffer = format("{}", "{{ \"name\": \"n\" }}", memory::temp_allocator());
 		TESTER_CHECK(buffer == "{{ \"name\": \"n\" }}");
 
-		i32 x = 1;
+		I32 x = 1;
 		buffer = format("{}", &x, memory::temp_allocator());
 
 		char test[] = "test";
@@ -107,10 +107,10 @@ TESTER_TEST("[CORE]: Formatter")
 		buffer = format("{}", array_of_strings, memory::temp_allocator());
 		TESTER_CHECK(buffer == "[2] { Hello, World }");
 
-		buffer = format("{}", array_init_from<i32>({1, 2, 3}, memory::temp_allocator()), memory::temp_allocator());
+		buffer = format("{}", array_init_from<I32>({1, 2, 3}, memory::temp_allocator()), memory::temp_allocator());
 		TESTER_CHECK(buffer == "[3] { 1, 2, 3 }");
 
-		buffer = format("{}", hash_table_init_from<i32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()), memory::temp_allocator());
+		buffer = format("{}", hash_table_init_from<I32, const char *>({{1, "1"}, {2, "2"}, {3, "3"}}, memory::temp_allocator()), memory::temp_allocator());
 		TESTER_CHECK(buffer == "[3] { 1: 1, 2: 2, 3: 3 }");
 
 		buffer = format("{}{}{}{}{}", 1, 2, 3, "{}", 4, memory::temp_allocator());
@@ -235,12 +235,12 @@ TESTER_TEST("[CORE]: Formatter")
 
 		// ("hex with different integer types")
 		{
-			TESTER_CHECK(format("{:x}", (u8)255, memory::temp_allocator()) == "0xff");
-			TESTER_CHECK(format("{:x}", (u16)65535, memory::temp_allocator()) == "0xffff");
-			TESTER_CHECK(format("{:x}", (u32)4294967295, memory::temp_allocator()) == "0xffffffff");
-			TESTER_CHECK(format("{:x}", (u64)18446744073709551615ULL, memory::temp_allocator()) == "0xffffffffffffffff");
-			TESTER_CHECK(format("{:x}", (u8)-1, memory::temp_allocator()) == "0xff");
-			TESTER_CHECK(format("{:x}", (u16)-1, memory::temp_allocator()) == "0xffff");
+			TESTER_CHECK(format("{:x}", (U8)255, memory::temp_allocator()) == "0xff");
+			TESTER_CHECK(format("{:x}", (U16)65535, memory::temp_allocator()) == "0xffff");
+			TESTER_CHECK(format("{:x}", (U32)4294967295, memory::temp_allocator()) == "0xffffffff");
+			TESTER_CHECK(format("{:x}", (U64)18446744073709551615ULL, memory::temp_allocator()) == "0xffffffffffffffff");
+			TESTER_CHECK(format("{:x}", (U8)-1, memory::temp_allocator()) == "0xff");
+			TESTER_CHECK(format("{:x}", (U16)-1, memory::temp_allocator()) == "0xffff");
 		}
 	}
 
@@ -491,12 +491,12 @@ TESTER_TEST("[CORE]: Formatter")
 
 		// ("hex with different integer types")
 		{
-			TESTER_CHECK(format("{:x}", (u8)255, memory::temp_allocator()) == "0xff");
-			TESTER_CHECK(format("{:x}", (u16)65535, memory::temp_allocator()) == "0xffff");
-			TESTER_CHECK(format("{:x}", (u32)4294967295, memory::temp_allocator()) == "0xffffffff");
-			TESTER_CHECK(format("{:x}", (u64)18446744073709551615ULL, memory::temp_allocator()) == "0xffffffffffffffff");
-			TESTER_CHECK(format("{:x}", (u8)-1, memory::temp_allocator()) == "0xff");
-			TESTER_CHECK(format("{:x}", (u16)-1, memory::temp_allocator()) == "0xffff");
+			TESTER_CHECK(format("{:x}", (U8)255, memory::temp_allocator()) == "0xff");
+			TESTER_CHECK(format("{:x}", (U16)65535, memory::temp_allocator()) == "0xffff");
+			TESTER_CHECK(format("{:x}", (U32)4294967295, memory::temp_allocator()) == "0xffffffff");
+			TESTER_CHECK(format("{:x}", (U64)18446744073709551615ULL, memory::temp_allocator()) == "0xffffffffffffffff");
+			TESTER_CHECK(format("{:x}", (U8)-1, memory::temp_allocator()) == "0xff");
+			TESTER_CHECK(format("{:x}", (U16)-1, memory::temp_allocator()) == "0xffff");
 		}
 	}
 

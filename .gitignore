@@ -7,3 +7,7 @@ packages
 .idea/
 .cache/
 cmake-build-debug-visual-studio/
+
+# macOS AppleDouble metadata sidecar files (created on non-HFS volumes)
+._*
+.DS_Store

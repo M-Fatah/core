@@ -882,6 +882,69 @@ platform_file_write(const char *filepath, Platform_Memory mem)
 	return bytes_written;
 }
 
+Platform_File_Handle
+platform_file_open(const String &path, Platform_File_Mode mode)
+{
+	int flags = 0;
+	switch (mode)
+	{
+		case PLATFORM_FILE_MODE_READ:       flags = O_RDONLY;                     break;
+		case PLATFORM_FILE_MODE_WRITE:      flags = O_WRONLY | O_CREAT | O_TRUNC; break;
+		case PLATFORM_FILE_MODE_READ_WRITE: flags = O_RDWR   | O_CREAT;           break;
+		case PLATFORM_FILE_MODE_APPEND:     flags = O_WRONLY | O_CREAT | O_APPEND; break;
+	}
+	int fd = ::open(path.data, flags, S_IRWXU);
+	return fd == -1 ? PLATFORM_FILE_HANDLE_INVALID : (Platform_File_Handle)(iptr)fd;
+}
+
+void
+platform_file_close(Platform_File_Handle handle)
+{
+	if (handle)
+		::close((int)(iptr)handle);
+}
+
+u64
+platform_file_read(Platform_File_Handle handle, void *data, u64 size)
+{
+	ssize_t bytes_read = ::read((int)(iptr)handle, data, size);
+	return bytes_read < 0 ? 0 : (u64)bytes_read;
+}
+
+u64
+platform_file_write(Platform_File_Handle handle, const void *data, u64 size)
+{
+	ssize_t bytes_written = ::write((int)(iptr)handle, data, size);
+	return bytes_written < 0 ? 0 : (u64)bytes_written;
+}
+
+bool
+platform_file_seek(Platform_File_Handle handle, i64 offset, Platform_File_Seek_Origin origin)
+{
+	int whence = SEEK_SET;
+	switch (origin)
+	{
+		case PLATFORM_FILE_SEEK_ORIGIN_BEGIN:   whence = SEEK_SET; break;
+		case PLATFORM_FILE_SEEK_ORIGIN_CURRENT: whence = SEEK_CUR; break;
+		case PLATFORM_FILE_SEEK_ORIGIN_END:     whence = SEEK_END; break;
+	}
+	return ::lseek((int)(iptr)handle, (off_t)offset, whence) != (off_t)-1;
+}
+
+u64
+platform_file_tell(Platform_File_Handle handle)
+{
+	return (u64)::lseek((int)(iptr)handle, 0, SEEK_CUR);
+}
+
+u64
+platform_file_size(Platform_File_Handle handle)
+{
+	struct stat st = {};
+	::fstat((int)(iptr)handle, &st);
+	return (u64)st.st_size;
+}
+
 bool
 platform_file_copy(const char *from, const char *to)
 {

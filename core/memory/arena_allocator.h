@@ -6,18 +6,18 @@
 
 namespace memory
 {
-	static constexpr const u64 ARENA_ALLOCATOR_INITIAL_CAPACITY = 4 * 1024 * 1024ULL;
+	static constexpr const U64 ARENA_ALLOCATOR_INITIAL_CAPACITY = 4 * 1024 * 1024ULL;
 
 	struct Arena_Allocator : Allocator
 	{
 		struct Arena_Allocator_Context *ctx;
 
-		Arena_Allocator(u64 initial_capacity = ARENA_ALLOCATOR_INITIAL_CAPACITY, Allocator *allocator = heap_allocator());
+		Arena_Allocator(U64 initial_capacity = ARENA_ALLOCATOR_INITIAL_CAPACITY, Allocator *allocator = heap_allocator());
 
 		~Arena_Allocator() override;
 
 		void *
-		allocate(u64 size) override;
+		allocate(U64 size, U64 alignment) override;
 
 		void
 		deallocate(void *data) override;
@@ -27,13 +27,13 @@ namespace memory
 	};
 
 	CORE_API Arena_Allocator *
-	arena_allocator_init(u64 initial_capacity = ARENA_ALLOCATOR_INITIAL_CAPACITY, Allocator *allocator = heap_allocator());
+	arena_allocator_init(U64 initial_capacity = ARENA_ALLOCATOR_INITIAL_CAPACITY, Allocator *allocator = heap_allocator());
 
 	CORE_API void
 	arena_allocator_deinit(Arena_Allocator *self);
 
 	CORE_API void *
-	arena_allocator_allocate(Arena_Allocator *self, u64 size);
+	arena_allocator_allocate(Arena_Allocator *self, U64 size, U64 alignment);
 
 	CORE_API void
 	arena_allocator_deallocate(Arena_Allocator *self, void *data);
@@ -41,9 +41,9 @@ namespace memory
 	CORE_API void
 	arena_allocator_clear(Arena_Allocator *self);
 
-	CORE_API u64
+	CORE_API U64
 	arena_allocator_get_used_size(Arena_Allocator *self);
 
-	CORE_API u64
+	CORE_API U64
 	arena_allocator_get_peak_size(Arena_Allocator *self);
 }

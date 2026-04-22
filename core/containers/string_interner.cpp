@@ -36,7 +36,7 @@ string_interner_intern(String_Interner &self, const char *begin, const char *end
 }
 
 const char *
-string_interner_intern(String_Interner &self, const char *begin, u64 count)
+string_interner_intern(String_Interner &self, const char *begin, U64 count)
 {
 	return string_interner_intern(self, begin, begin + count);
 }

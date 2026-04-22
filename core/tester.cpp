@@ -11,7 +11,7 @@ tester()
 	return &instance;
 }
 
-u64
+U64
 tester_add_test(Tester *self, Tester_Test test)
 {
 	array_push(self->tests, test);
@@ -31,7 +31,7 @@ tester_run(Tester *self)
 		print_to_stdout(PRINT_COLOR_BG_RED, " GLOBAL CHECK FAILED ");
 		print_to_stdout("\n\n");
 
-		for (u64 i = 0; i < self->failed_checks.count; i++)
+		for (U64 i = 0; i < self->failed_checks.count; i++)
 		{
 			const Tester_Check &check = self->failed_checks[i];
 			print_to_stdout("  ");
@@ -46,13 +46,13 @@ tester_run(Tester *self)
 		}
 	}
 
-	u32 tests_passed = 0;
-	u32 tests_failed = 0;
-	for (u64 i = 0; i < self->tests.count; i++)
+	U32 tests_passed = 0;
+	U32 tests_failed = 0;
+	for (U64 i = 0; i < self->tests.count; i++)
 	{
-		u64 failed_checks_before = self->failed_checks.count;
+		U64 failed_checks_before = self->failed_checks.count;
 		self->tests[i].function();
-		u64 failed_checks_after = self->failed_checks.count;
+		U64 failed_checks_after = self->failed_checks.count;
 
 		if (failed_checks_after > failed_checks_before)
 		{
@@ -60,7 +60,7 @@ tester_run(Tester *self)
 			print_to_stdout(PRINT_COLOR_BG_RED, " TEST FAILED ");
 			print_to_stdout(" {}\n\n", self->tests[i].name);
 
-			for (u64 j = failed_checks_before; j < failed_checks_after; j++)
+			for (U64 j = failed_checks_before; j < failed_checks_after; j++)
 			{
 				const Tester_Check &check = self->failed_checks[j];
 				print_to_stdout("  ");

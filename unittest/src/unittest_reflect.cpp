@@ -6,7 +6,7 @@
 #include <core/containers/string.h>
 #include <core/containers/hash_table.h>
 
-enum REFLECT
+enum REFLECT : int
 {
 	REFLECT_ENUM_0,
 	REFLECT_ENUM_1,
@@ -17,14 +17,14 @@ enum REFLECT
 	REFLECT_ENUM_6,
 };
 
-enum class ENUM_CLASS
+enum class ENUM_CLASS : int
 {
 	NEG_ONE = -1,
 	ZERO,
 	ONE
 };
 
-enum ENUM_WITH_FLAGS
+enum ENUM_WITH_FLAGS : int
 {
 	ONE          = 1 << 0,
 	TWO          = 1 << 1,
@@ -34,7 +34,7 @@ enum ENUM_WITH_FLAGS
 
 TYPE_OF_ENUM(ENUM_WITH_FLAGS, ONE, TWO, FOUR, TWO_POWER_16)
 
-enum UNORDERED_ENUM
+enum UNORDERED_ENUM : int
 {
 	UNORDERED_ENUM_ONE = 1,
 	UNORDERED_ENUM_MINUS_ONE = -1,
@@ -43,14 +43,14 @@ enum UNORDERED_ENUM
 
 TYPE_OF_ENUM(UNORDERED_ENUM, UNORDERED_ENUM_ONE, UNORDERED_ENUM_MINUS_ONE, UNORDERED_ENUM_ZERO)
 
-enum EMPTY_ENUM
+enum EMPTY_ENUM : int
 {
 
 };
 
 TYPE_OF_ENUM(EMPTY_ENUM)
 
-enum ENUM_WITH_SAME_VALUES
+enum ENUM_WITH_SAME_VALUES : int
 {
 	ZERO,
 	ONE_MINUS_ONE = 0
@@ -67,7 +67,7 @@ TYPE_OF(Empty)
 
 struct Vector3
 {
-	f32 x, y, z;
+	F32 x, y, z;
 };
 
 TYPE_OF(Vector3, x, y, z)
@@ -128,44 +128,44 @@ TESTER_TEST("[CORE]: Reflect")
 {
 	// ("name_of<T> primitives")
 	{
-		auto i08_name = name_of<i8>();
-		auto i16_name = name_of<i16>();
-		auto i32_name = name_of<i32>();
-		auto i64_name = name_of<i64>();
+		auto i08_name = name_of<I8>();
+		auto i16_name = name_of<I16>();
+		auto i32_name = name_of<I32>();
+		auto i64_name = name_of<I64>();
 
-		auto u08_name = name_of<u8>();
-		auto u16_name = name_of<u16>();
-		auto u32_name = name_of<u32>();
-		auto u64_name = name_of<u64>();
+		auto u08_name = name_of<U8>();
+		auto u16_name = name_of<U16>();
+		auto u32_name = name_of<U32>();
+		auto u64_name = name_of<U64>();
 
-		auto f32_name = name_of<f32>();
-		auto f64_name = name_of<f64>();
+		auto f32_name = name_of<F32>();
+		auto f64_name = name_of<F64>();
 
 		auto bool_name = name_of<bool>();
 		auto char_name = name_of<char>();
 
 		auto void_name = name_of<void>();
 
-		auto const_i08_name = name_of<const i8>();
-		auto const_i16_name = name_of<const i16>();
-		auto const_i32_name = name_of<const i32>();
-		auto const_i64_name = name_of<const i64>();
+		auto const_i08_name = name_of<const I8>();
+		auto const_i16_name = name_of<const I16>();
+		auto const_i32_name = name_of<const I32>();
+		auto const_i64_name = name_of<const I64>();
 
-		auto const_u08_name = name_of<const u8>();
-		auto const_u16_name = name_of<const u16>();
-		auto const_u32_name = name_of<const u32>();
-		auto const_u64_name = name_of<const u64>();
+		auto const_u08_name = name_of<const U8>();
+		auto const_u16_name = name_of<const U16>();
+		auto const_u32_name = name_of<const U32>();
+		auto const_u64_name = name_of<const U64>();
 
-		auto const_f32_name = name_of<const f32>();
-		auto const_f64_name = name_of<const f64>();
+		auto const_f32_name = name_of<const F32>();
+		auto const_f64_name = name_of<const F64>();
 
 		auto const_bool_name = name_of<const bool>();
 		auto const_char_name = name_of<const char>();
 
 		auto const_void_name = name_of<const void>();
 
-		auto i08_ref_name = name_of<i8 &>();
-		auto const_i08_ref_name = name_of<const i8 &>();
+		auto i08_ref_name = name_of<I8 &>();
+		auto const_i08_ref_name = name_of<const I8 &>();
 
 		TESTER_CHECK(string_literal(i08_name) == "i8");
 		TESTER_CHECK(string_literal(i16_name) == "i16");
@@ -227,10 +227,10 @@ TESTER_TEST("[CORE]: Reflect")
 		auto const_vec3_ptr_const_ref_name = name_of<const Vector3 * const &>();
 		TESTER_CHECK(string_literal(const_vec3_ptr_const_ref_name) == "const Vector3* const&");
 
-		auto const_point_ref_const_i32_ptr_const_ref_name = name_of<const Point<const i32 * const &> &>();
+		auto const_point_ref_const_i32_ptr_const_ref_name = name_of<const Point<const I32 * const &> &>();
 		TESTER_CHECK(string_literal(const_point_ref_const_i32_ptr_const_ref_name) == "const Point<const i32* const&>&");
 
-		auto const_point_const_i32_ptr_name = name_of<const Point<const i32 *>>();
+		auto const_point_const_i32_ptr_name = name_of<const Point<const I32 *>>();
 		TESTER_CHECK(string_literal(const_point_const_i32_ptr_name) == "const Point<const i32*>");
 	}
 
@@ -245,18 +245,18 @@ TESTER_TEST("[CORE]: Reflect")
 
 	// ("name_of<T> template struct")
 	{
-		auto point_i08_name = name_of<Point<i8>>();
-		auto point_i16_name = name_of<Point<i16>>();
-		auto point_i32_name = name_of<Point<i32>>();
-		auto point_i64_name = name_of<Point<i64>>();
+		auto point_i08_name = name_of<Point<I8>>();
+		auto point_i16_name = name_of<Point<I16>>();
+		auto point_i32_name = name_of<Point<I32>>();
+		auto point_i64_name = name_of<Point<I64>>();
 
-		auto point_u08_name = name_of<Point<u8>>();
-		auto point_u16_name = name_of<Point<u16>>();
-		auto point_u32_name = name_of<Point<u32>>();
-		auto point_u64_name = name_of<Point<u64>>();
+		auto point_u08_name = name_of<Point<U8>>();
+		auto point_u16_name = name_of<Point<U16>>();
+		auto point_u32_name = name_of<Point<U32>>();
+		auto point_u64_name = name_of<Point<U64>>();
 
-		auto point_f32_name = name_of<Point<f32>>();
-		auto point_f64_name = name_of<Point<f64>>();
+		auto point_f32_name = name_of<Point<F32>>();
+		auto point_f64_name = name_of<Point<F64>>();
 
 		auto point_bool_name = name_of<Point<bool>>();
 		auto point_char_name = name_of<Point<char>>();
@@ -266,15 +266,15 @@ TESTER_TEST("[CORE]: Reflect")
 		auto point_vec3_name = name_of<Point<Vector3>>();
 		auto point_const_vec3_name = name_of<Point<const Vector3>>();
 
-		auto foo_i32_f32_name = name_of<Foo_Struct<i32, f32>>();
-		auto bar_i32_f32_vec3_name = name_of<Bar<i32, f32, Vector3>>();
-		auto bar_const_i32_const_f32_const_vec3_name = name_of<Bar<const i32, const f32, const Vector3>>();
-		auto bar_const_point_const_i32_const_f32_const_vec3_name = name_of<Bar<const Point<const i32>, const f32, const Vector3>>();
+		auto foo_i32_f32_name = name_of<Foo_Struct<I32, F32>>();
+		auto bar_i32_f32_vec3_name = name_of<Bar<I32, F32, Vector3>>();
+		auto bar_const_i32_const_f32_const_vec3_name = name_of<Bar<const I32, const F32, const Vector3>>();
+		auto bar_const_point_const_i32_const_f32_const_vec3_name = name_of<Bar<const Point<const I32>, const F32, const Vector3>>();
 
-		auto point_nested = name_of<const Point<const Point<const Point<const Point<Point<i32>>>>>>();
-		auto point_nested_ptr = name_of<const Point<const Point<const Point<const Point<Point<i32 *> *> *> *> *> *>();
-		auto point_nested_ptr2 = name_of<const Point<const Point<const Point<const Point<Point<i32 const *> *> *> *> *> *>();
-		auto point_nested_const_ptr_const = name_of<const Point<const Point<i32> * const>>();
+		auto point_nested = name_of<const Point<const Point<const Point<const Point<Point<I32>>>>>>();
+		auto point_nested_ptr = name_of<const Point<const Point<const Point<const Point<Point<I32 *> *> *> *> *> *>();
+		auto point_nested_ptr2 = name_of<const Point<const Point<const Point<const Point<Point<I32 const *> *> *> *> *> *>();
+		auto point_nested_const_ptr_const = name_of<const Point<const Point<I32> * const>>();
 
 		TESTER_CHECK(string_literal(point_i08_name) == "Point<i8>");
 		TESTER_CHECK(string_literal(point_i16_name) == "Point<i16>");
@@ -309,37 +309,37 @@ TESTER_TEST("[CORE]: Reflect")
 
 	// ("kind_of<T>")
 	{
-		TESTER_CHECK(kind_of<i8>() == TYPE_KIND_I8);
-		TESTER_CHECK(kind_of<const i8>() == TYPE_KIND_I8);
-		TESTER_CHECK(kind_of<const i8 &>() == TYPE_KIND_I8);
+		TESTER_CHECK(kind_of<I8>() == TYPE_KIND_I8);
+		TESTER_CHECK(kind_of<const I8>() == TYPE_KIND_I8);
+		TESTER_CHECK(kind_of<const I8 &>() == TYPE_KIND_I8);
 
-		TESTER_CHECK(kind_of<i16>() == TYPE_KIND_I16);
-		TESTER_CHECK(kind_of<const i16>() == TYPE_KIND_I16);
-		TESTER_CHECK(kind_of<const i16 &>() == TYPE_KIND_I16);
+		TESTER_CHECK(kind_of<I16>() == TYPE_KIND_I16);
+		TESTER_CHECK(kind_of<const I16>() == TYPE_KIND_I16);
+		TESTER_CHECK(kind_of<const I16 &>() == TYPE_KIND_I16);
 
-		TESTER_CHECK(kind_of<i32>() == TYPE_KIND_I32);
-		TESTER_CHECK(kind_of<const i32>() == TYPE_KIND_I32);
-		TESTER_CHECK(kind_of<const i32 &>() == TYPE_KIND_I32);
+		TESTER_CHECK(kind_of<I32>() == TYPE_KIND_I32);
+		TESTER_CHECK(kind_of<const I32>() == TYPE_KIND_I32);
+		TESTER_CHECK(kind_of<const I32 &>() == TYPE_KIND_I32);
 
-		TESTER_CHECK(kind_of<i64>() == TYPE_KIND_I64);
-		TESTER_CHECK(kind_of<const i64>() == TYPE_KIND_I64);
-		TESTER_CHECK(kind_of<const i64 &>() == TYPE_KIND_I64);
+		TESTER_CHECK(kind_of<I64>() == TYPE_KIND_I64);
+		TESTER_CHECK(kind_of<const I64>() == TYPE_KIND_I64);
+		TESTER_CHECK(kind_of<const I64 &>() == TYPE_KIND_I64);
 
-		TESTER_CHECK(kind_of<u8>() == TYPE_KIND_U8);
-		TESTER_CHECK(kind_of<const u8>() == TYPE_KIND_U8);
-		TESTER_CHECK(kind_of<const u8 &>() == TYPE_KIND_U8);
+		TESTER_CHECK(kind_of<U8>() == TYPE_KIND_U8);
+		TESTER_CHECK(kind_of<const U8>() == TYPE_KIND_U8);
+		TESTER_CHECK(kind_of<const U8 &>() == TYPE_KIND_U8);
 
-		TESTER_CHECK(kind_of<u16>() == TYPE_KIND_U16);
-		TESTER_CHECK(kind_of<const u16>() == TYPE_KIND_U16);
-		TESTER_CHECK(kind_of<const u16 &>() == TYPE_KIND_U16);
+		TESTER_CHECK(kind_of<U16>() == TYPE_KIND_U16);
+		TESTER_CHECK(kind_of<const U16>() == TYPE_KIND_U16);
+		TESTER_CHECK(kind_of<const U16 &>() == TYPE_KIND_U16);
 
-		TESTER_CHECK(kind_of<u32>() == TYPE_KIND_U32);
-		TESTER_CHECK(kind_of<const u32>() == TYPE_KIND_U32);
-		TESTER_CHECK(kind_of<const u32 &>() == TYPE_KIND_U32);
+		TESTER_CHECK(kind_of<U32>() == TYPE_KIND_U32);
+		TESTER_CHECK(kind_of<const U32>() == TYPE_KIND_U32);
+		TESTER_CHECK(kind_of<const U32 &>() == TYPE_KIND_U32);
 
-		TESTER_CHECK(kind_of<u64>() == TYPE_KIND_U64);
-		TESTER_CHECK(kind_of<const u64>() == TYPE_KIND_U64);
-		TESTER_CHECK(kind_of<const u64 &>() == TYPE_KIND_U64);
+		TESTER_CHECK(kind_of<U64>() == TYPE_KIND_U64);
+		TESTER_CHECK(kind_of<const U64>() == TYPE_KIND_U64);
+		TESTER_CHECK(kind_of<const U64 &>() == TYPE_KIND_U64);
 
 		TESTER_CHECK(kind_of<bool>() == TYPE_KIND_BOOL);
 		TESTER_CHECK(kind_of<const bool>() == TYPE_KIND_BOOL);
@@ -369,29 +369,29 @@ TESTER_TEST("[CORE]: Reflect")
 
 	// ("type_of<T> primitives")
 	{
-		i32 i32_v = -1;
-		const Type *i32_type = type_of<i32>();
+		I32 i32_v = -1;
+		const Type *i32_type = type_of<I32>();
 		TESTER_CHECK(i32_type == type_of(i32_v));
 		TESTER_CHECK(string_literal(i32_type->name) == "i32");
 		TESTER_CHECK(i32_type->kind == TYPE_KIND_I32);
-		TESTER_CHECK(i32_type->size == sizeof(i32));
-		TESTER_CHECK(i32_type->align == alignof(i32));
+		TESTER_CHECK(i32_type->size == sizeof(I32));
+		TESTER_CHECK(i32_type->align == alignof(I32));
 
-		u32 u32_v = 1;
-		const Type *u32_type = type_of<u32>();
+		U32 u32_v = 1;
+		const Type *u32_type = type_of<U32>();
 		TESTER_CHECK(u32_type == type_of(u32_v));
 		TESTER_CHECK(string_literal(u32_type->name) == "u32");
 		TESTER_CHECK(u32_type->kind == TYPE_KIND_U32);
-		TESTER_CHECK(u32_type->size == sizeof(u32));
-		TESTER_CHECK(u32_type->align == alignof(u32));
+		TESTER_CHECK(u32_type->size == sizeof(U32));
+		TESTER_CHECK(u32_type->align == alignof(U32));
 
-		f32 f32_v = 1.0f;
-		const Type *f32_type = type_of<f32>();
+		F32 f32_v = 1.0f;
+		const Type *f32_type = type_of<F32>();
 		TESTER_CHECK(f32_type == type_of(f32_v));
 		TESTER_CHECK(string_literal(f32_type->name) == "f32");
 		TESTER_CHECK(f32_type->kind == TYPE_KIND_F32);
-		TESTER_CHECK(f32_type->size == sizeof(f32));
-		TESTER_CHECK(f32_type->align == alignof(f32));
+		TESTER_CHECK(f32_type->size == sizeof(F32));
+		TESTER_CHECK(f32_type->align == alignof(F32));
 
 		bool bool_v = true;
 		const Type *bool_type = type_of<bool>();
@@ -441,24 +441,24 @@ TESTER_TEST("[CORE]: Reflect")
 		TESTER_CHECK(field_x.offset == offsetof(Vector3, x));
 		TESTER_CHECK(string_literal(field_x.type->name) == "f32");
 		TESTER_CHECK(field_x.type->kind == TYPE_KIND_F32);
-		TESTER_CHECK(field_x.type->size == sizeof(f32));
-		TESTER_CHECK(field_x.type->align == alignof(f32));
+		TESTER_CHECK(field_x.type->size == sizeof(F32));
+		TESTER_CHECK(field_x.type->align == alignof(F32));
 
 		auto field_y = vec3_type->as_struct.fields[1];
 		TESTER_CHECK(string_literal(field_y.name) == "y");
 		TESTER_CHECK(field_y.offset == offsetof(Vector3, y));
 		TESTER_CHECK(string_literal(field_y.type->name) == "f32");
 		TESTER_CHECK(field_y.type->kind == TYPE_KIND_F32);
-		TESTER_CHECK(field_y.type->size == sizeof(f32));
-		TESTER_CHECK(field_y.type->align == alignof(f32));
+		TESTER_CHECK(field_y.type->size == sizeof(F32));
+		TESTER_CHECK(field_y.type->align == alignof(F32));
 
 		auto field_z = vec3_type->as_struct.fields[2];
 		TESTER_CHECK(string_literal(field_z.name) == "z");
 		TESTER_CHECK(field_z.offset == offsetof(Vector3, z));
 		TESTER_CHECK(string_literal(field_z.type->name) == "f32");
 		TESTER_CHECK(field_z.type->kind == TYPE_KIND_F32);
-		TESTER_CHECK(field_z.type->size == sizeof(f32));
-		TESTER_CHECK(field_z.type->align == alignof(f32));
+		TESTER_CHECK(field_z.type->size == sizeof(F32));
+		TESTER_CHECK(field_z.type->align == alignof(F32));
 	}
 
 	// ("type_of<T> array")
@@ -486,24 +486,24 @@ TESTER_TEST("[CORE]: Reflect")
 		TESTER_CHECK(field_x.offset == offsetof(Vector3, x));
 		TESTER_CHECK(string_literal(field_x.type->name) == "f32");
 		TESTER_CHECK(field_x.type->kind == TYPE_KIND_F32);
-		TESTER_CHECK(field_x.type->size == sizeof(f32));
-		TESTER_CHECK(field_x.type->align == alignof(f32));
+		TESTER_CHECK(field_x.type->size == sizeof(F32));
+		TESTER_CHECK(field_x.type->align == alignof(F32));
 
 		auto field_y = vec3_type->as_struct.fields[1];
 		TESTER_CHECK(string_literal(field_y.name) == "y");
 		TESTER_CHECK(field_y.offset == offsetof(Vector3, y));
 		TESTER_CHECK(string_literal(field_y.type->name) == "f32");
 		TESTER_CHECK(field_y.type->kind == TYPE_KIND_F32);
-		TESTER_CHECK(field_y.type->size == sizeof(f32));
-		TESTER_CHECK(field_y.type->align == alignof(f32));
+		TESTER_CHECK(field_y.type->size == sizeof(F32));
+		TESTER_CHECK(field_y.type->align == alignof(F32));
 
 		auto field_z = vec3_type->as_struct.fields[2];
 		TESTER_CHECK(string_literal(field_z.name) == "z");
 		TESTER_CHECK(field_z.offset == offsetof(Vector3, z));
 		TESTER_CHECK(string_literal(field_z.type->name) == "f32");
 		TESTER_CHECK(field_z.type->kind == TYPE_KIND_F32);
-		TESTER_CHECK(field_z.type->size == sizeof(f32));
-		TESTER_CHECK(field_z.type->align == alignof(f32));
+		TESTER_CHECK(field_z.type->size == sizeof(F32));
+		TESTER_CHECK(field_z.type->align == alignof(F32));
 	}
 
 	// ("type_of<T> enum")
@@ -517,9 +517,9 @@ TESTER_TEST("[CORE]: Reflect")
 		TESTER_CHECK(reflect_enum_type->as_enum.values != nullptr);
 		TESTER_CHECK(reflect_enum_type->as_enum.value_count == 7);
 
-		for (u64 i = 0; i < reflect_enum_type->as_enum.value_count; ++i)
+		for (U64 i = 0; i < reflect_enum_type->as_enum.value_count; ++i)
 		{
-			TESTER_CHECK(reflect_enum_type->as_enum.values[i].index == (i32)i);
+			TESTER_CHECK(reflect_enum_type->as_enum.values[i].index == (I32)i);
 			TESTER_CHECK(reflect_enum_type->as_enum.values[i].name == format("REFLECT_ENUM_{}", i, memory::temp_allocator()));
 		}
 
@@ -614,61 +614,61 @@ TESTER_TEST("[CORE]: Reflect")
 		TESTER_CHECK(field_x.offset == offsetof(Vector3, x));
 		TESTER_CHECK(string_literal(field_x.type->name) == "f32");
 		TESTER_CHECK(field_x.type->kind == TYPE_KIND_F32);
-		TESTER_CHECK(field_x.type->size == sizeof(f32));
-		TESTER_CHECK(field_x.type->align == alignof(f32));
+		TESTER_CHECK(field_x.type->size == sizeof(F32));
+		TESTER_CHECK(field_x.type->align == alignof(F32));
 
 		auto field_y = vec3_type->as_struct.fields[1];
 		TESTER_CHECK(string_literal(field_y.name) == "y");
 		TESTER_CHECK(field_y.offset == offsetof(Vector3, y));
 		TESTER_CHECK(string_literal(field_y.type->name) == "f32");
 		TESTER_CHECK(field_y.type->kind == TYPE_KIND_F32);
-		TESTER_CHECK(field_y.type->size == sizeof(f32));
-		TESTER_CHECK(field_y.type->align == alignof(f32));
+		TESTER_CHECK(field_y.type->size == sizeof(F32));
+		TESTER_CHECK(field_y.type->align == alignof(F32));
 
 		auto field_z = vec3_type->as_struct.fields[2];
 		TESTER_CHECK(string_literal(field_z.name) == "z");
 		TESTER_CHECK(field_z.offset == offsetof(Vector3, z));
 		TESTER_CHECK(string_literal(field_z.type->name) == "f32");
 		TESTER_CHECK(field_z.type->kind == TYPE_KIND_F32);
-		TESTER_CHECK(field_z.type->size == sizeof(f32));
-		TESTER_CHECK(field_z.type->align == alignof(f32));
+		TESTER_CHECK(field_z.type->size == sizeof(F32));
+		TESTER_CHECK(field_z.type->align == alignof(F32));
 	}
 
 	// ("type_of<T> template struct")
 	{
-		TESTER_CHECK(type_of<Point<f32>>() != nullptr);
+		TESTER_CHECK(type_of<Point<F32>>() != nullptr);
 		TESTER_CHECK(type_of<Point<Vector3>>() != nullptr);
 		TESTER_CHECK(type_of<Point<Point<Vector3>>>() != nullptr);
 
-		const Type *point_i32_type = type_of(Point<i32>{1, 2, 3});
-		TESTER_CHECK(point_i32_type == type_of<Point<i32>>());
+		const Type *point_i32_type = type_of(Point<I32>{1, 2, 3});
+		TESTER_CHECK(point_i32_type == type_of<Point<I32>>());
 		TESTER_CHECK(string_literal(point_i32_type->name) == "Point<i32>");
 		TESTER_CHECK(point_i32_type->kind == TYPE_KIND_STRUCT);
-		TESTER_CHECK(point_i32_type->size == sizeof(Point<i32>));
-		TESTER_CHECK(point_i32_type->align == alignof(Point<i32>));
+		TESTER_CHECK(point_i32_type->size == sizeof(Point<I32>));
+		TESTER_CHECK(point_i32_type->align == alignof(Point<I32>));
 		TESTER_CHECK(point_i32_type->as_struct.fields != nullptr);
 		TESTER_CHECK(point_i32_type->as_struct.field_count == 3);
 
-		Foo_Struct<f32, i32> foo = {1.5f, 1};
-		auto foo_f32_i32_type = type_of<Foo_Struct<f32, i32>>();
+		Foo_Struct<F32, I32> foo = {1.5f, 1};
+		auto foo_f32_i32_type = type_of<Foo_Struct<F32, I32>>();
 		TESTER_CHECK(foo_f32_i32_type == type_of(foo));
 
-		auto foo_point_vector3_type = type_of<Foo_Struct<Point<i32>, Vector3>>();
+		auto foo_point_vector3_type = type_of<Foo_Struct<Point<I32>, Vector3>>();
 		TESTER_CHECK(string_literal(foo_point_vector3_type->name) == "Foo_Struct<Point<i32>,Vector3>");
 		TESTER_CHECK(foo_point_vector3_type->kind == TYPE_KIND_STRUCT);
-		TESTER_CHECK(foo_point_vector3_type->size == sizeof(Foo_Struct<Point<i32>, Vector3>));
-		TESTER_CHECK(foo_point_vector3_type->align == alignof(Foo_Struct<Point<i32>, Vector3>));
+		TESTER_CHECK(foo_point_vector3_type->size == sizeof(Foo_Struct<Point<I32>, Vector3>));
+		TESTER_CHECK(foo_point_vector3_type->align == alignof(Foo_Struct<Point<I32>, Vector3>));
 		TESTER_CHECK(foo_point_vector3_type->as_struct.fields != nullptr);
 		TESTER_CHECK(foo_point_vector3_type->as_struct.field_count == 2);
 
-		using foo_point_vector3_templated_type = Foo_Struct<Point<i32>, Vector3>;
+		using foo_point_vector3_templated_type = Foo_Struct<Point<I32>, Vector3>;
 		auto foo_point_vector3_field_x = foo_point_vector3_type->as_struct.fields[0];
 		TESTER_CHECK(string_literal(foo_point_vector3_field_x.name) == "x");
 		TESTER_CHECK(foo_point_vector3_field_x.offset == offsetof(foo_point_vector3_templated_type, x));
 		TESTER_CHECK(string_literal(foo_point_vector3_field_x.type->name) == "Point<i32>");
 		TESTER_CHECK(foo_point_vector3_field_x.type->kind == TYPE_KIND_STRUCT);
-		TESTER_CHECK(foo_point_vector3_field_x.type->size == sizeof(Point<i32>));
-		TESTER_CHECK(foo_point_vector3_field_x.type->align == alignof(Point<i32>));
+		TESTER_CHECK(foo_point_vector3_field_x.type->size == sizeof(Point<I32>));
+		TESTER_CHECK(foo_point_vector3_field_x.type->align == alignof(Point<I32>));
 		TESTER_CHECK(foo_point_vector3_field_x.type->as_struct.fields != nullptr);
 		TESTER_CHECK(foo_point_vector3_field_x.type->as_struct.field_count == 3);
 
@@ -685,8 +685,8 @@ TESTER_TEST("[CORE]: Reflect")
 
 	// ("type_of<T> template class")
 	{
-		Foo_Class<i32> foo_class = {};
-		auto foo_class_i32_type = type_of<Foo_Class<i32>>();
+		Foo_Class<I32> foo_class = {};
+		auto foo_class_i32_type = type_of<Foo_Class<I32>>();
 		TESTER_CHECK(foo_class_i32_type == type_of(foo_class));
 		TESTER_CHECK(foo_class_i32_type->as_struct.field_count == 3);
 		TESTER_CHECK(foo_class_i32_type->as_struct.fields[2].name == string_literal("z"));
@@ -694,27 +694,27 @@ TESTER_TEST("[CORE]: Reflect")
 		TESTER_CHECK(foo_class_i32_type->as_struct.fields[2].tag == string_literal(""));
 		TESTER_CHECK(foo_class_i32_type->as_struct.fields[2].type->name == string_literal("i32"));
 		TESTER_CHECK(foo_class_i32_type->as_struct.fields[2].type->kind == TYPE_KIND_I32);
-		TESTER_CHECK(foo_class_i32_type->as_struct.fields[2].type->size == sizeof(i32));
-		TESTER_CHECK(foo_class_i32_type->as_struct.fields[2].type->align == alignof(i32));
+		TESTER_CHECK(foo_class_i32_type->as_struct.fields[2].type->size == sizeof(I32));
+		TESTER_CHECK(foo_class_i32_type->as_struct.fields[2].type->align == alignof(I32));
 	}
 
 	// ("type_of<T> containers")
 	{
-		auto array_u8_type = type_of<Array<u8>>();
-		TESTER_CHECK(array_u8_type == type_of(Array<u8>{}));
+		auto array_u8_type = type_of<Array<U8>>();
+		TESTER_CHECK(array_u8_type == type_of(Array<U8>{}));
 
 		auto string_type = type_of<String>();
 		TESTER_CHECK(string_type == type_of(String{}));
 
-		auto hash_table_i32_string_type = type_of<Hash_Table<i32, String>>();
-		TESTER_CHECK(hash_table_i32_string_type == type_of(Hash_Table<i32, String>{}));
+		auto hash_table_i32_string_type = type_of<Hash_Table<I32, String>>();
+		TESTER_CHECK(hash_table_i32_string_type == type_of(Hash_Table<I32, String>{}));
 	}
 
 	// ("value_of(T)")
 	{
-		i32 v = 1;
+		I32 v = 1;
 		auto i32_value = value_of(v);
-		TESTER_CHECK(*(i32 *)i32_value.data == *(i32 *)value_of((i32)1).data);
-		TESTER_CHECK(i32_value.type == value_of((i32)1).type);
+		TESTER_CHECK(*(I32 *)i32_value.data == *(I32 *)value_of((I32)1).data);
+		TESTER_CHECK(i32_value.type == value_of((I32)1).type);
 	}
 }

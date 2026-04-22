@@ -35,11 +35,33 @@ target_compile_definitions(core-options INTERFACE
     $<$<PLATFORM_ID:Darwin>:PLATFORM_MACOS=1>
 )
 target_compile_options(core-options INTERFACE
-    $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>: -Werror -Wall -Wno-c++2b-extensions -Wno-enum-constexpr-conversion -Wno-c++11-narrowing -Wno-deprecated-declarations -Wno-invalid-offsetof>
+    $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>: -Werror -Wall -Wno-c++2b-extensions -Wno-c++11-narrowing -Wno-deprecated-declarations -Wno-invalid-offsetof -Wno-missing-braces>
     $<$<CXX_COMPILER_ID:GNU>: -Werror -Wall -Wextra -std=c++2b -Wno-invalid-offsetof -Wno-missing-field-initializers>
-    $<$<CXX_COMPILER_ID:MSVC>: -WX -W4 -Zc:preprocessor>
+    $<$<CXX_COMPILER_ID:MSVC>: -WX -W4 -Zc:preprocessor -wd4201>
 )
 target_include_directories(core-options INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/)
+
+# SIMD arch gates — compile-time selection per target architecture.
+# ARM64 (Apple Silicon, Linux/Windows ARM): NEON, always available on the ISA.
+# x86_64 (Windows/Linux): AVX, Sandy Bridge (2011+) required. Anything beyond AVX
+# (AVX2, AVX-512) is not guaranteed and stays out of scope.
+#
+# `CORE_SIMD_FORCE_SCALAR` overrides arch detection for parity testing — the
+# arch flags are not emitted when it's on, so every math op falls through to its
+# scalar branch.
+option(CORE_SIMD_FORCE_SCALAR "Force scalar SIMD fallback for parity testing." OFF)
+if(CORE_SIMD_FORCE_SCALAR)
+    target_compile_definitions(core-options INTERFACE SIMD_FORCE_SCALAR=1)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
+    target_compile_definitions(core-options INTERFACE SIMD_NEON=1)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|x64)$")
+    target_compile_definitions(core-options INTERFACE SIMD_AVX=1)
+    if(MSVC)
+        target_compile_options(core-options INTERFACE /arch:AVX)
+    else()
+        target_compile_options(core-options INTERFACE -mavx)
+    endif()
+endif()
 
 add_subdirectory(core)
 add_subdirectory(test)

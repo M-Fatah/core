@@ -49,7 +49,7 @@ _string_concat(const char *a, const char *b, char *result)
 }
 
 inline static PLATFORM_KEY
-_platform_key_from_button_number(i32 button_number)
+_platform_key_from_button_number(I32 button_number)
 {
 	switch (button_number)
 	{
@@ -61,7 +61,7 @@ _platform_key_from_button_number(i32 button_number)
 }
 
 inline static PLATFORM_KEY
-_platform_key_from_key_code(i32 key_code)
+_platform_key_from_key_code(I32 key_code)
 {
 	switch (key_code)
 	{
@@ -388,8 +388,8 @@ platform_path_get_directory(const String &path, memory::Allocator *allocator)
 	if (platform_path_is_directory(path))
 		return path_directory;
 
-	u64 path_directory_length = string_find_last_of(path_directory, '/');
-	if (path_directory_length != u64(-1))
+	U64 path_directory_length = string_find_last_of(path_directory, '/');
+	if (path_directory_length != U64(-1))
 		string_resize(path_directory, path_directory_length);
 	return path_directory;
 }
@@ -412,14 +412,14 @@ String
 platform_path_get_executable_path(memory::Allocator *allocator)
 {
 	char module_path_relative[PATH_MAX + 1];
-	u32 module_path_relative_size = sizeof(module_path_relative);
+	U32 module_path_relative_size = sizeof(module_path_relative);
 	::memset(module_path_relative, 0, module_path_relative_size);
 
 	char module_path_absolute[PATH_MAX + 1];
 	::memset(module_path_absolute, 0, sizeof(module_path_absolute));
 
-	i64 module_path_relative_length = ::_NSGetExecutablePath(module_path_relative, &module_path_relative_size);
-	validate(module_path_relative_length != -1 && module_path_relative_length < (i64)sizeof(module_path_relative), "[PLATFORM]: Failed to get relative path of the current executable.");
+	I64 module_path_relative_length = ::_NSGetExecutablePath(module_path_relative, &module_path_relative_size);
+	validate(module_path_relative_length != -1 && module_path_relative_length < (I64)sizeof(module_path_relative), "[PLATFORM]: Failed to get relative path of the current executable.");
 
 	char *path_absolute = ::realpath(module_path_relative, module_path_absolute);
 	validate(path_absolute == module_path_absolute, "[PLATFORM]: Failed to get absolute path of the current executable.");
@@ -433,7 +433,7 @@ platform_path_get_file_name(const String &path, memory::Allocator *allocator)
 	String path_temp = string_copy(path, memory::temp_allocator());
 	string_replace(path_temp, "\\", "/");
 	Array<String> splits = string_split(path_temp, "/", true, memory::temp_allocator());
-	return string_copy(array_last(splits), allocator);
+	return string_copy(array_back(splits), allocator);
 }
 
 String
@@ -441,17 +441,17 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 {
 	String content = string_init(allocator);
 
-	i32 file_handle = ::open(path.data, O_RDONLY, S_IRWXU);
+	I32 file_handle = ::open(path.data, O_RDONLY, S_IRWXU);
 	if (file_handle == -1)
 		return content;
 
-	u64 file_size = platform_file_size(path.data);
+	U64 file_size = platform_file_size(path.data);
 	if (file_size == 0)
 		return content;
 
 	string_resize(content, file_size);
 
-	i64 bytes_read = ::read(file_handle, content.data, content.count);
+	I64 bytes_read = ::read(file_handle, content.data, content.count);
 	validate(::close(file_handle) == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_read == -1)
 		return content;
@@ -459,14 +459,14 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 	return content;
 }
 
-u64
+U64
 platform_path_write_file(const String &path, Block block)
 {
-	i32 file_handle = ::open(path.data, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
+	I32 file_handle = ::open(path.data, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
 	if (file_handle == -1)
 		return 0;
 
-	i64 bytes_written = ::write(file_handle, block.data, block.size);
+	I64 bytes_written = ::write(file_handle, block.data, block.size);
 	validate(::close(file_handle) == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_written == -1)
 		return 0;
@@ -498,12 +498,12 @@ platform_path_list_files(const String &directory, const String &extension_filter
 		String file_name = string_from(entry->d_name, memory::temp_allocator());
 		if (extension_filter.count > 0)
 		{
-			u64 extension_position = string_find_last_of(file_name, '.');
-			if (extension_position == u64(-1))
+			U64 extension_position = string_find_last_of(file_name, '.');
+			if (extension_position == U64(-1))
 				continue;
 
 			String file_extension = string_with_capacity(file_name.count - extension_position - 1, memory::temp_allocator());
-			for (u64 i = extension_position + 1; i < file_name.count; ++i)
+			for (U64 i = extension_position + 1; i < file_name.count; ++i)
 				string_append(file_extension, file_name.data[i]);
 
 			if (file_extension != extension_filter)
@@ -547,7 +547,7 @@ platform_api_init(const char *filepath)
 	validate(self.api, "[PLATFORM]: Failed to get api.");
 
 	struct stat file_stat = {};
-	[[maybe_unused]] i32 stat_result = ::stat(src_relative_path, &file_stat);
+	[[maybe_unused]] I32 stat_result = ::stat(src_relative_path, &file_stat);
 	validate(stat_result == 0, "[PLATFORM]: Failed to get file attributes.");
 
 	self.last_write_time = file_stat.st_mtime;
@@ -576,10 +576,10 @@ platform_api_load(Platform_Api *self)
 	_string_concat(self->filepath, ".tmp", dst_absolute_path);
 
 	struct stat file_stat = {};
-	i32 stat_result = ::stat(self->filepath, &file_stat);
+	I32 stat_result = ::stat(self->filepath, &file_stat);
 	validate(stat_result == 0, "[PLATFORM]: Failed to get file attributes.");
 
-	i64 last_write_time = file_stat.st_mtime;
+	I64 last_write_time = file_stat.st_mtime;
 	if ((last_write_time == self->last_write_time) || (stat_result != 0))
 		return self->api;
 
@@ -609,10 +609,10 @@ platform_api_load(Platform_Api *self)
 
 
 Platform_Allocator
-platform_allocator_init(u64 size_in_bytes)
+platform_allocator_init(U64 size_in_bytes)
 {
 	Platform_Allocator self = {};
-	self.ptr = (u8 *)::mmap(0, size_in_bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	self.ptr = (U8 *)::mmap(0, size_in_bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if (self.ptr)
 		self.size = size_in_bytes;
 	return self;
@@ -621,12 +621,12 @@ platform_allocator_init(u64 size_in_bytes)
 void
 platform_allocator_deinit(Platform_Allocator *self)
 {
-	[[maybe_unused]] i32 result = ::munmap(self->ptr, self->size);
+	[[maybe_unused]] I32 result = ::munmap(self->ptr, self->size);
 	validate(result == 0, "[PLATFORM][MACOS]: Failed to free virtual memory.");
 }
 
 Platform_Memory
-platform_allocator_alloc(Platform_Allocator *self, u64 size_in_bytes)
+platform_allocator_alloc(Platform_Allocator *self, U64 size_in_bytes)
 {
 	Platform_Memory res = {};
 	if (self->used + size_in_bytes >= self->size)
@@ -701,7 +701,7 @@ platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_
 
 // TODO: Return early with error message if failed to create objects.
 Platform_Window
-platform_window_init(u32 width, u32 height, const char *title)
+platform_window_init(U32 width, U32 height, const char *title)
 {
 	Platform_Window_Context *ctx = memory::allocate_zeroed<Platform_Window_Context>();
 
@@ -769,7 +769,7 @@ platform_window_poll(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 
-	for (i32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
+	for (I32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{
 		self->input.keys[i].pressed       = false;
 		self->input.keys[i].released      = false;
@@ -894,14 +894,14 @@ void
 platform_set_current_directory()
 {
 	char module_path_relative[PATH_MAX + 1];
-	u32 module_path_relative_size = sizeof(module_path_relative);
+	U32 module_path_relative_size = sizeof(module_path_relative);
 	::memset(module_path_relative, 0, module_path_relative_size);
 
 	char module_path_absolute[PATH_MAX + 1];
 	::memset(module_path_absolute, 0, sizeof(module_path_absolute));
 
-	[[maybe_unused]] i64 module_path_relative_length = ::_NSGetExecutablePath(module_path_relative, &module_path_relative_size);
-	validate(module_path_relative_length != -1 && module_path_relative_length < (i64)sizeof(module_path_relative), "[PLATFORM]: Failed to get relative path of the current executable.");
+	[[maybe_unused]] I64 module_path_relative_length = ::_NSGetExecutablePath(module_path_relative, &module_path_relative_size);
+	validate(module_path_relative_length != -1 && module_path_relative_length < (I64)sizeof(module_path_relative), "[PLATFORM]: Failed to get relative path of the current executable.");
 
 	[[maybe_unused]] char *path_absolute = ::realpath(module_path_relative, module_path_absolute);
 	validate(path_absolute == module_path_absolute, "[PLATFORM]: Failed to get absolute path of the current executable.");
@@ -915,7 +915,7 @@ platform_set_current_directory()
 	}
 	*last_slash = '\0';
 
-	[[maybe_unused]] i32 result = ::chdir(module_path_absolute);
+	[[maybe_unused]] I32 result = ::chdir(module_path_absolute);
 	validate(result == 0, "[PLATFORM]: Failed to set current directory.");
 	::strcpy(current_executable_directory, module_path_absolute);
 }
@@ -927,7 +927,7 @@ platform_file_exists(const char *filepath)
 	return ::stat(filepath, &file_stat) == 0;
 }
 
-u64
+U64
 platform_file_size(const char *filepath)
 {
 	struct stat file_stat = {};
@@ -941,17 +941,17 @@ platform_file_read(const String &file_path, memory::Allocator *allocator)
 {
 	String content = string_init(allocator);
 
-	i32 file_handle = ::open(file_path.data, O_RDONLY, S_IRWXU);
+	I32 file_handle = ::open(file_path.data, O_RDONLY, S_IRWXU);
 	if (file_handle == -1)
 		return content;
 
-	u64 file_size = platform_file_size(file_path.data);
+	U64 file_size = platform_file_size(file_path.data);
 	if (file_size == 0)
 		return content;
 
 	string_resize(content, file_size);
 
-	i64 bytes_read = ::read(file_handle, content.data, content.count);
+	I64 bytes_read = ::read(file_handle, content.data, content.count);
 	validate(::close(file_handle) == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_read == -1)
 		return content;
@@ -959,30 +959,30 @@ platform_file_read(const String &file_path, memory::Allocator *allocator)
 	return content;
 }
 
-u64
+U64
 platform_file_read(const char *filepath, Platform_Memory mem)
 {
-	i32 file_handle = ::open(filepath, O_RDONLY, S_IRWXU);
+	I32 file_handle = ::open(filepath, O_RDONLY, S_IRWXU);
 	if (file_handle == -1)
 		return 0;
 
-	i64 bytes_read = ::read(file_handle, mem.ptr, mem.size);
-	[[maybe_unused]] i32 close_result = ::close(file_handle);
+	I64 bytes_read = ::read(file_handle, mem.ptr, mem.size);
+	[[maybe_unused]] I32 close_result = ::close(file_handle);
 	validate(close_result == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_read == -1)
 		return 0;
 	return bytes_read;
 }
 
-u64
+U64
 platform_file_write(const char *filepath, Platform_Memory mem)
 {
-	i32 file_handle = ::open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
+	I32 file_handle = ::open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
 	if (file_handle == -1)
 		return 0;
 
-	i64 bytes_written = ::write(file_handle, mem.ptr, mem.size);
-	[[maybe_unused]] i32 close_result = ::close(file_handle);
+	I64 bytes_written = ::write(file_handle, mem.ptr, mem.size);
+	[[maybe_unused]] I32 close_result = ::close(file_handle);
 	validate(close_result == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_written == -1)
 		return 0;
@@ -992,11 +992,11 @@ platform_file_write(const char *filepath, Platform_Memory mem)
 bool
 platform_file_copy(const char *from, const char *to)
 {
-	i32 src_file = ::open(from, O_RDONLY);
+	I32 src_file = ::open(from, O_RDONLY);
 	if (src_file < 0)
 		return false;
 
-	i32 dst_file = ::open(to, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+	I32 dst_file = ::open(to, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 	if (dst_file < 0)
 	{
 		::close(src_file);
@@ -1011,14 +1011,14 @@ platform_file_copy(const char *from, const char *to)
 	char buffer[8192];
 	while (true)
 	{
-		i64 bytes_read = ::read(src_file, buffer, sizeof(buffer));
+		I64 bytes_read = ::read(src_file, buffer, sizeof(buffer));
 		if (bytes_read == 0)
 			break;
 
 		if (bytes_read == -1)
 			return false;
 
-		i64 bytes_written = ::write(dst_file, buffer, bytes_read);
+		I64 bytes_written = ::write(dst_file, buffer, bytes_read);
 		if (bytes_written != bytes_read)
 			return false;
 	}
@@ -1033,7 +1033,7 @@ platform_file_delete(const char *filepath)
 }
 
 bool
-platform_file_dialog_open(char *path, u32 path_length, const char *filters)
+platform_file_dialog_open(char *path, U32 path_length, const char *filters)
 {
 	::memset(path, 0, path_length);
 
@@ -1062,7 +1062,7 @@ platform_file_dialog_open(char *path, u32 path_length, const char *filters)
 }
 
 bool
-platform_file_dialog_save(char *path, u32 path_length, const char *filters)
+platform_file_dialog_save(char *path, U32 path_length, const char *filters)
 {
 	::memset(path, 0, path_length);
 
@@ -1088,23 +1088,23 @@ platform_file_dialog_save(char *path, u32 path_length, const char *filters)
 	return false;
 }
 
-u64
+U64
 platform_query_microseconds()
 {
 	struct timespec time;
-	[[maybe_unused]] i32 result = clock_gettime(CLOCK_MONOTONIC, &time);
+	[[maybe_unused]] I32 result = clock_gettime(CLOCK_MONOTONIC, &time);
 	validate(result == 0, "[PLATFORM]: Failed to query clock.");
 	return time.tv_sec * 1000000 + time.tv_nsec * 0.001;
 }
 
 void
-platform_sleep_set_period(u32)
+platform_sleep_set_period(U32)
 {
 
 }
 
 void
-platform_sleep(u32 milliseconds)
+platform_sleep(U32 milliseconds)
 {
 	struct timespec ts;
 	ts.tv_sec = milliseconds / 1000;
@@ -1112,8 +1112,8 @@ platform_sleep(u32 milliseconds)
 	::nanosleep(&ts, 0);
 }
 
-u32
-platform_callstack_capture(void **callstack, u32 frame_count)
+U32
+platform_callstack_capture(void **callstack, U32 frame_count)
 {
 	unused(callstack, frame_count);
 #if DEBUG
@@ -1125,7 +1125,7 @@ platform_callstack_capture(void **callstack, u32 frame_count)
 }
 
 void
-platform_callstack_log(void **callstack, u32 frame_count)
+platform_callstack_log(void **callstack, U32 frame_count)
 {
 	unused(callstack, frame_count);
 #if DEBUG
@@ -1134,7 +1134,7 @@ platform_callstack_log(void **callstack, u32 frame_count)
 	{
 		// TODO: Use logger.
 		::printf("callstack:\n");
-		for (u32 i = 0; i < frame_count; ++i)
+		for (U32 i = 0; i < frame_count; ++i)
 			::printf("\t[%" PRIu32 "]: %s\n", frame_count - i - 1, symbols[i]);
 
 		::free(symbols);
@@ -1143,7 +1143,7 @@ platform_callstack_log(void **callstack, u32 frame_count)
 }
 
 Platform_Font
-platform_font_init(const char *, const char *, u32, bool)
+platform_font_init(const char *, const char *, U32, bool)
 {
 	return {};
 }

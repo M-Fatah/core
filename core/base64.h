@@ -7,21 +7,21 @@
 
 /*
 	TODO:
-	- [ ] Should decode return a String or an Array<u8>?
+	- [ ] Should decode return a String or an Array<U8>?
 	- [ ] Should use Result<T>?
 */
 
 CORE_API String
-base64_encode(const u8 *data, u64 size, memory::Allocator *allocator = memory::heap_allocator());
+base64_encode(const U8 *data, U64 size, memory::Allocator *allocator = memory::heap_allocator());
 
 inline static String
 base64_encode(const Block &data, memory::Allocator *allocator = memory::heap_allocator())
 {
-	return base64_encode((const u8 *)data.data, data.size, allocator);
+	return base64_encode((const U8 *)data.data, data.size, allocator);
 }
 
 inline static String
-base64_encode(const Array<u8> &data, memory::Allocator *allocator = memory::heap_allocator())
+base64_encode(const Array<U8> &data, memory::Allocator *allocator = memory::heap_allocator())
 {
 	return base64_encode(data.data, data.count, allocator);
 }
@@ -29,7 +29,7 @@ base64_encode(const Array<u8> &data, memory::Allocator *allocator = memory::heap
 inline static String
 base64_encode(const String &data, memory::Allocator *allocator = memory::heap_allocator())
 {
-	return base64_encode((const u8 *)data.data, data.count, allocator);
+	return base64_encode((const U8 *)data.data, data.count, allocator);
 }
 
 inline static String

@@ -78,21 +78,18 @@
 #define F64_MIN DBL_MIN
 #define F64_MAX DBL_MAX
 
-typedef int8_t    i8;
-typedef int16_t   i16;
-typedef int32_t   i32;
-typedef int64_t   i64;
+typedef int8_t    I8;
+typedef int16_t   I16;
+typedef int32_t   I32;
+typedef int64_t   I64;
 
-typedef uint8_t   u8;
-typedef uint16_t  u16;
-typedef uint32_t  u32;
-typedef uint64_t  u64;
+typedef uint8_t   U8;
+typedef uint16_t  U16;
+typedef uint32_t  U32;
+typedef uint64_t  U64;
 
-typedef float     f32;
-typedef double    f64;
-
-typedef intptr_t  iptr;
-typedef uintptr_t uptr;
+typedef float     F32;
+typedef double    F64;
 
 template <class T, template <class...> class Template>
 struct is_specialization : std::false_type {};
@@ -106,7 +103,7 @@ concept is_specialization_v = is_specialization<T, Template>::value;
 template <typename>
 struct is_bounded_char_array : std::false_type {};
 
-template <u64 N>
+template <U64 N>
 struct is_bounded_char_array<char[N]> : std::true_type {};
 
 template <typename>
@@ -128,7 +125,7 @@ namespace memory { struct Allocator; }
 struct Block
 {
 	void *data;
-	u64 size;
+	U64 size;
 };
 
 template <typename T>
@@ -146,8 +143,8 @@ destroy(T &)
 	static_assert(sizeof(T) == 0, "There is no `void destroy(T &)` function overload defined for this type.");
 }
 
-template <typename T, u64 N>
-inline static u64
+template <typename T, U64 N>
+inline static U64
 count_of(const T (&)[N])
 {
 	return N;

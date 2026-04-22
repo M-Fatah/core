@@ -5,6 +5,26 @@
 #include "core/containers/string.h"
 #include "core/containers/hash_table.h"
 
+#include "core/math/f32x2.h"
+#include "core/math/f32x3.h"
+#include "core/math/f32x4.h"
+#include "core/math/f32x2x2.h"
+#include "core/math/f32x3x3.h"
+#include "core/math/f32x4x4.h"
+#include "core/math/f64x2.h"
+#include "core/math/f64x3.h"
+#include "core/math/f64x4.h"
+#include "core/math/f64x2x2.h"
+#include "core/math/f64x3x3.h"
+#include "core/math/f64x4x4.h"
+#include "core/math/i32x2.h"
+#include "core/math/i32x3.h"
+#include "core/math/i32x4.h"
+#include "core/math/u32x2.h"
+#include "core/math/u32x3.h"
+#include "core/math/u32x4.h"
+#include "core/math/quaternion.h"
+
 #include <stdlib.h>
 
 /*
@@ -13,6 +33,14 @@
 	- [ ] Compile time check string format.
 	- [ ] Use formatting in validate messages.
 	- [ ] Cleanup.
+	- [ ] Refactor math-type formatters out of formatter.h. They're bundled here
+	      for expedience while the math library lands, but ideally formatter.h
+	      shouldn't depend on every math header (adds compile time for every
+	      log-using TU). Options to explore: (a) opt-in core/math/format.h
+	      companion header included by callers who want math logging,
+	      (b) a trait-based customization point so any type with a
+	      to_string()-like member can format itself, or (c) forward-only
+	      declarations with definitions in the math TUs.
 */
 
 enum Format_Specifier
@@ -44,8 +72,8 @@ struct Format_Options
 {
 	Format_Specifier specifier = FORMAT_SPECIFIER_NONE;
 	Format_Alignment alignment = FORMAT_ALIGNMENT_NONE;
-	u32 width = 0;
-	u32 precision = 6;
+	U32 width = 0;
+	U32 precision = 6;
 	bool zero_pad = false;
 	bool remove_trailing_zeros = true;
 };
@@ -85,7 +113,7 @@ format_apply_width_alignment(Formatter &self, const String &content, const Forma
 		return;
 	}
 
-	u64 padding = options.width - content.count;
+	U64 padding = options.width - content.count;
 
 	// Special handling for zero-padding with negative numbers or prefixes
 	if (options.zero_pad && (options.alignment == FORMAT_ALIGNMENT_NONE || options.alignment == FORMAT_ALIGNMENT_RIGHT))
@@ -110,19 +138,19 @@ format_apply_width_alignment(Formatter &self, const String &content, const Forma
 				string_append(self.buffer, content[1]);
 				string_append(self.buffer, content[2]);
 				// Output padding
-				for (u64 i = 0; i < padding; ++i)
+				for (U64 i = 0; i < padding; ++i)
 					string_append(self.buffer, '0');
 				// Output rest of content
-				for (u64 i = 3; i < content.count; ++i)
+				for (U64 i = 3; i < content.count; ++i)
 					string_append(self.buffer, content[i]);
 			}
 			else
 			{
 				// Output padding
-				for (u64 i = 0; i < padding; ++i)
+				for (U64 i = 0; i < padding; ++i)
 					string_append(self.buffer, '0');
 				// Output rest of content (skip the sign we already added)
-				for (u64 i = 1; i < content.count; ++i)
+				for (U64 i = 1; i < content.count; ++i)
 					string_append(self.buffer, content[i]);
 			}
 		}
@@ -132,16 +160,16 @@ format_apply_width_alignment(Formatter &self, const String &content, const Forma
 			string_append(self.buffer, content[0]);
 			string_append(self.buffer, content[1]);
 			// Output padding
-			for (u64 i = 0; i < padding; ++i)
+			for (U64 i = 0; i < padding; ++i)
 				string_append(self.buffer, '0');
 			// Output rest of content
-			for (u64 i = 2; i < content.count; ++i)
+			for (U64 i = 2; i < content.count; ++i)
 				string_append(self.buffer, content[i]);
 		}
 		else
 		{
 			// No sign or prefix, just pad normally
-			for (u64 i = 0; i < padding; ++i)
+			for (U64 i = 0; i < padding; ++i)
 				string_append(self.buffer, '0');
 			string_append(self.buffer, content);
 		}
@@ -155,24 +183,24 @@ format_apply_width_alignment(Formatter &self, const String &content, const Forma
 	{
 		// Left align: content then padding
 		string_append(self.buffer, content);
-		for (u64 i = 0; i < padding; ++i)
+		for (U64 i = 0; i < padding; ++i)
 			string_append(self.buffer, pad_char);
 	}
 	else if (options.alignment == FORMAT_ALIGNMENT_CENTER)
 	{
 		// Center align: padding/2, content, padding/2
-		u64 left_pad = padding / 2;
-		u64 right_pad = padding - left_pad;
-		for (u64 i = 0; i < left_pad; ++i)
+		U64 left_pad = padding / 2;
+		U64 right_pad = padding - left_pad;
+		for (U64 i = 0; i < left_pad; ++i)
 			string_append(self.buffer, pad_char);
 		string_append(self.buffer, content);
-		for (u64 i = 0; i < right_pad; ++i)
+		for (U64 i = 0; i < right_pad; ++i)
 			string_append(self.buffer, pad_char);
 	}
 	else // FORMAT_ALIGNMENT_RIGHT or NONE (default right for numbers)
 	{
 		// Right align: padding then content
-		for (u64 i = 0; i < padding; ++i)
+		for (U64 i = 0; i < padding; ++i)
 			string_append(self.buffer, pad_char);
 		string_append(self.buffer, content);
 	}
@@ -181,7 +209,7 @@ format_apply_width_alignment(Formatter &self, const String &content, const Forma
 template <typename T>
 requires (std::is_integral_v<T> && !std::is_floating_point_v<T>)
 inline static String
-format(Formatter &self, T data, u8 base = 10, bool uppercase = false)
+format(Formatter &self, T data, U8 base = 10, bool uppercase = false)
 {
 	const char *digits = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
 
@@ -194,10 +222,10 @@ format(Formatter &self, T data, u8 base = 10, bool uppercase = false)
 	}
 
 	char temp[64] = {};
-	u64 count = 0;
+	U64 count = 0;
 	do
 	{
-		temp[count++] = digits[(uptr)(data % base)];
+		temp[count++] = digits[(U64)(data % base)];
 		data = (T)(data / base);
 	} while (data != 0);
 
@@ -213,7 +241,7 @@ format(Formatter &self, T data, u8 base = 10, bool uppercase = false)
 		// Pad to at least 2 digits for hex
 		if (count < 2)
 		{
-			for (u64 i = count; i < 2; ++i)
+			for (U64 i = count; i < 2; ++i)
 				string_append(self.buffer, '0');
 		}
 	}
@@ -229,7 +257,7 @@ format(Formatter &self, T data, u8 base = 10, bool uppercase = false)
 	}
 	// for base == 10 there's no prefix; sign already emitted
 
-	for (i64 i = count - 1; i >= 0; --i)
+	for (I64 i = count - 1; i >= 0; --i)
 		string_append(self.buffer, temp[i]);
 
 	return self.buffer;
@@ -244,7 +272,7 @@ format(Formatter &self, T data, const Format_Options &options)
 	Formatter temp = formatter_init(self.buffer.allocator);
 	DEFER(formatter_deinit(temp));
 
-	u8 base = 10;
+	U8 base = 10;
 	bool uppercase = false;
 
 	switch (options.specifier)
@@ -302,7 +330,7 @@ format(Formatter &self, T data, const Format_Options &options)
 template <typename T>
 requires (std::is_floating_point_v<T>)
 inline static String
-format(Formatter &self, T data, u32 precision = 6, bool remove_trailing_zeros = true)
+format(Formatter &self, T data, U32 precision = 6, bool remove_trailing_zeros = true)
 {
 	if (data < 0)
 	{
@@ -310,15 +338,15 @@ format(Formatter &self, T data, u32 precision = 6, bool remove_trailing_zeros = 
 		data = -data;
 	}
 
-	u64 integer = (u64)data;
-	f64 fraction = data - integer;
-	format(self, (u64)integer);
+	U64 integer = (U64)data;
+	F64 fraction = data - integer;
+	format(self, (U64)integer);
 	string_append(self.buffer, '.');
 
-	for (u64 i = 0; i < precision; ++i)
+	for (U64 i = 0; i < precision; ++i)
 	{
 		fraction *= 10;
-		integer = (u64)fraction;
+		integer = (U64)fraction;
 		format(self, integer);
 		fraction = fraction - integer;
 	}
@@ -395,7 +423,7 @@ format(Formatter &self, char data, const Format_Options &options)
 	else
 	{
 		// Format as integer
-		format(self, (u8)data, options);
+		format(self, (U8)data, options);
 	}
 	return self.buffer;
 }
@@ -405,7 +433,7 @@ requires (std::is_pointer_v<T> && !is_c_string_v<T>)
 inline static String
 format(Formatter &self, const T &data)
 {
-	return format(self, (uptr)data, 16, false);
+	return format(self, (U64)data, 16, false);
 }
 
 template <typename T>
@@ -417,7 +445,7 @@ format(Formatter &self, const T &data, const Format_Options &options)
 	DEFER(formatter_deinit(temp));
 
 	bool uppercase = (options.specifier == FORMAT_SPECIFIER_POINTER_UPPER);
-	format(temp, (uptr)data, 16, uppercase);
+	format(temp, (U64)data, 16, uppercase);
 	format_apply_width_alignment(self, temp.buffer, options);
 	return self.buffer;
 }
@@ -465,7 +493,7 @@ inline static String
 format(Formatter &self, const T &data)
 {
 	format(self, "[{}] {{ ", count_of(data));
-	for (u64 i = 0; i < count_of(data); ++i)
+	for (U64 i = 0; i < count_of(data); ++i)
 	{
 		if (i != 0)
 			string_append(self.buffer, ", ");
@@ -481,7 +509,7 @@ inline static String
 format(Formatter &self, const Array<T> &data)
 {
 	format(self, "[{}] {{ ", data.count);
-	for (u64 i = 0; i < data.count; ++i)
+	for (U64 i = 0; i < data.count; ++i)
 	{
 		if (i != 0)
 			string_append(self.buffer, ", ");
@@ -496,7 +524,7 @@ inline static String
 format(Formatter &self, const Hash_Table<K, V> &data)
 {
 	format(self, "[{}] {{ ", data.count);
-	u64 i = 0;
+	U64 i = 0;
 	for (const auto &[key, value] : data)
 	{
 		if (i != 0)
@@ -512,13 +540,13 @@ format(Formatter &self, const Hash_Table<K, V> &data)
 
 struct Format_Field
 {
-	u32 index;
+	U32 index;
 	Format_Options options;
 	bool has_index;
 };
 
 inline static Format_Field
-parse_format_field(const String &fmt, u32 &i)
+parse_format_field(const String &fmt, U32 &i)
 {
 	Format_Field field = {};
 	field.options.specifier = FORMAT_SPECIFIER_NONE;
@@ -535,8 +563,8 @@ parse_format_field(const String &fmt, u32 &i)
 		char *end = nullptr;
 		field.index = ::strtoul(&fmt[i + 1], &end, 10);
 		field.has_index = true;
-		i64 length = end - &fmt[i + 1];
-		i += (u32)length + 1;
+		I64 length = end - &fmt[i + 1];
+		i += (U32)length + 1;
 	}
 	else
 	{
@@ -580,8 +608,8 @@ parse_format_field(const String &fmt, u32 &i)
 		{
 			char *end = nullptr;
 			field.options.width = ::strtoul(&fmt[i], &end, 10);
-			i64 length = end - &fmt[i];
-			i += (u32)length;
+			I64 length = end - &fmt[i];
+			i += (U32)length;
 		}
 
 		// Parse type specifier (optional)
@@ -627,7 +655,7 @@ template <typename ...TArgs>
 inline static String
 format(Formatter &self, const String &fmt, TArgs &&...args)
 {
-	constexpr auto append_field_data = []<typename T>(Formatter &self, const T &data, u32 &argument_index, u32 target_index, const Format_Options &options) {
+	constexpr auto append_field_data = []<typename T>(Formatter &self, const T &data, U32 &argument_index, U32 target_index, const Format_Options &options) {
 		if (argument_index == target_index)
 		{
 			if constexpr (std::is_same_v<T, char>)
@@ -638,10 +666,10 @@ format(Formatter &self, const String &fmt, TArgs &&...args)
 			{
 				Formatter temp = formatter_init(self.buffer.allocator);
 				DEFER(formatter_deinit(temp));
-				u64 count = count_of(data);
+				U64 count = count_of(data);
 				if (count > 0 && data[count - 1] == '\0')
 					--count;
-				for (u64 i = 0; i < count; ++i)
+				for (U64 i = 0; i < count; ++i)
 					string_append(temp.buffer, data[i]);
 				format_apply_width_alignment(self, temp.buffer, options);
 			}
@@ -688,10 +716,10 @@ format(Formatter &self, const String &fmt, TArgs &&...args)
 		return string_literal("");
 
 	// Count arguments (excluding trailing allocator)
-	u32 argument_count = sizeof...(args);
+	U32 argument_count = sizeof...(args);
 	if constexpr (sizeof...(args) > 0)
 	{
-		[[maybe_unused]] u32 argument_index = 0;
+		[[maybe_unused]] U32 argument_index = 0;
 		([&]() {
 			if (argument_index == argument_count - 1 && is_allocator(args))
 				--argument_count;
@@ -699,11 +727,11 @@ format(Formatter &self, const String &fmt, TArgs &&...args)
 		}(), ...);
 	}
 
-	u32 auto_index = 0;
+	U32 auto_index = 0;
 	bool uses_manual_indexing = false;
 	bool uses_auto_indexing = false;
 
-	for (u32 i = 0; i < fmt.count; ++i)
+	for (U32 i = 0; i < fmt.count; ++i)
 	{
 		if (fmt[i] == '{')
 		{
@@ -721,7 +749,7 @@ format(Formatter &self, const String &fmt, TArgs &&...args)
 			Format_Field field = parse_format_field(fmt, i);
 
 			// Determine which index to use
-			u32 target_index;
+			U32 target_index;
 			if (field.has_index)
 			{
 				uses_manual_indexing = true;
@@ -737,7 +765,7 @@ format(Formatter &self, const String &fmt, TArgs &&...args)
 			// Append the argument
 			if constexpr (sizeof...(args) > 0)
 			{
-				u32 index = 0;
+				U32 index = 0;
 				(append_field_data(self, args, index, target_index, field.options), ...);
 			}
 		}
@@ -770,7 +798,7 @@ template <typename ...TArgs>
 inline static String
 format(const String &fmt, TArgs &&...args)
 {
-	[[maybe_unused]] constexpr auto set_allocator = []<typename T>(memory::Allocator *&allocator, const T &data, u32 &argument_index, u32 argument_count) {
+	[[maybe_unused]] constexpr auto set_allocator = []<typename T>(memory::Allocator *&allocator, const T &data, U32 &argument_index, U32 argument_count) {
 		if constexpr (std::is_base_of_v<memory::Allocator, T> || std::is_same_v<T, memory::Allocator *>)
 			if (argument_index == argument_count - 1)
 				allocator = data;
@@ -778,7 +806,7 @@ format(const String &fmt, TArgs &&...args)
 	};
 
 	memory::Allocator *allocator = memory::heap_allocator();
-	[[maybe_unused]] u32 argument_index = 0;
+	[[maybe_unused]] U32 argument_index = 0;
 	(set_allocator(allocator, args, argument_index, sizeof...(args)), ...);
 
 	Formatter self = formatter_init(allocator);
@@ -801,4 +829,86 @@ to_string(const T &data, memory::Allocator *allocator = memory::heap_allocator()
 	Formatter self = formatter_init(allocator);
 	DEFER(self = Formatter{});
 	return format(self, "{}", data);
+}
+
+// ============================================================================
+// Math type formatters. Placed after the variadic format() dispatchers so their
+// call sites can resolve via ordinary lookup. See TODO at top — these ideally
+// shouldn't live here long-term.
+// ============================================================================
+
+inline static String format(Formatter &self, const F32x2 &v) { return format(self, "{{{}, {}}}",         v.x, v.y); }
+inline static String format(Formatter &self, const F32x3 &v) { return format(self, "{{{}, {}, {}}}",    v.x, v.y, v.z); }
+inline static String format(Formatter &self, const F32x4 &v) { return format(self, "{{{}, {}, {}, {}}}", v.x, v.y, v.z, v.w); }
+
+inline static String format(Formatter &self, const F64x2 &v) { return format(self, "{{{}, {}}}",         v.x, v.y); }
+inline static String format(Formatter &self, const F64x3 &v) { return format(self, "{{{}, {}, {}}}",    v.x, v.y, v.z); }
+inline static String format(Formatter &self, const F64x4 &v) { return format(self, "{{{}, {}, {}, {}}}", v.x, v.y, v.z, v.w); }
+
+inline static String format(Formatter &self, const I32x2 &v) { return format(self, "{{{}, {}}}",         v.x, v.y); }
+inline static String format(Formatter &self, const I32x3 &v) { return format(self, "{{{}, {}, {}}}",    v.x, v.y, v.z); }
+inline static String format(Formatter &self, const I32x4 &v) { return format(self, "{{{}, {}, {}, {}}}", v.x, v.y, v.z, v.w); }
+
+inline static String format(Formatter &self, const U32x2 &v) { return format(self, "{{{}, {}}}",         v.x, v.y); }
+inline static String format(Formatter &self, const U32x3 &v) { return format(self, "{{{}, {}, {}}}",    v.x, v.y, v.z); }
+inline static String format(Formatter &self, const U32x4 &v) { return format(self, "{{{}, {}, {}, {}}}", v.x, v.y, v.z, v.w); }
+
+inline static String
+format(Formatter &self, const F32x2x2 &M)
+{
+	return format(self, "[[{}, {}], [{}, {}]]",
+		M.m00, M.m01,
+		M.m10, M.m11);
+}
+
+inline static String
+format(Formatter &self, const F32x3x3 &M)
+{
+	return format(self, "[[{}, {}, {}], [{}, {}, {}], [{}, {}, {}]]",
+		M.m00, M.m01, M.m02,
+		M.m10, M.m11, M.m12,
+		M.m20, M.m21, M.m22);
+}
+
+inline static String
+format(Formatter &self, const F32x4x4 &M)
+{
+	return format(self, "[[{}, {}, {}, {}], [{}, {}, {}, {}], [{}, {}, {}, {}], [{}, {}, {}, {}]]",
+		M.m00, M.m01, M.m02, M.m03,
+		M.m10, M.m11, M.m12, M.m13,
+		M.m20, M.m21, M.m22, M.m23,
+		M.m30, M.m31, M.m32, M.m33);
+}
+
+inline static String
+format(Formatter &self, const F64x2x2 &M)
+{
+	return format(self, "[[{}, {}], [{}, {}]]",
+		M.m00, M.m01,
+		M.m10, M.m11);
+}
+
+inline static String
+format(Formatter &self, const F64x3x3 &M)
+{
+	return format(self, "[[{}, {}, {}], [{}, {}, {}], [{}, {}, {}]]",
+		M.m00, M.m01, M.m02,
+		M.m10, M.m11, M.m12,
+		M.m20, M.m21, M.m22);
+}
+
+inline static String
+format(Formatter &self, const F64x4x4 &M)
+{
+	return format(self, "[[{}, {}, {}, {}], [{}, {}, {}, {}], [{}, {}, {}, {}], [{}, {}, {}, {}]]",
+		M.m00, M.m01, M.m02, M.m03,
+		M.m10, M.m11, M.m12, M.m13,
+		M.m20, M.m21, M.m22, M.m23,
+		M.m30, M.m31, M.m32, M.m33);
+}
+
+inline static String
+format(Formatter &self, const Quaternion &q)
+{
+	return format(self, "{{w={}, x={}, y={}, z={}}}", q.w, q.x, q.y, q.z);
 }

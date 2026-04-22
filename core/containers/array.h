@@ -13,18 +13,18 @@ struct Array
 {
 	memory::Allocator *allocator;
 	T *data;
-	u64 count;
-	u64 capacity;
+	U64 count;
+	U64 capacity;
 
-	T &
-	operator[](u64 index)
+	inline T &
+	operator[](U64 index)
 	{
 		validate(index < count, "[ARRAY]: Access out of range.");
 		return data[index];
 	}
 
-	const T &
-	operator[](u64 index) const
+	inline const T &
+	operator[](U64 index) const
 	{
 		validate(index < count, "[ARRAY]: Access out of range.");
 		return data[index];
@@ -45,12 +45,12 @@ array_init(memory::Allocator *allocator = memory::heap_allocator())
 
 template <typename T>
 inline static Array<T>
-array_init_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
+array_init_with_capacity(U64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
 	allocator = allocator ? allocator : memory::heap_allocator();
 	return Array<T> {
 		.allocator = allocator,
-		.data = (T *)memory::allocate(allocator, capacity * sizeof(T)),
+		.data = memory::allocate<T>(allocator, capacity),
 		.count = 0,
 		.capacity = capacity
 	};
@@ -58,12 +58,12 @@ array_init_with_capacity(u64 capacity, memory::Allocator *allocator = memory::he
 
 template <typename T>
 inline static Array<T>
-array_init_with_count(u64 count, memory::Allocator *allocator = memory::heap_allocator())
+array_init_with_count(U64 count, memory::Allocator *allocator = memory::heap_allocator())
 {
 	allocator = allocator ? allocator : memory::heap_allocator();
 	return Array<T> {
 		.allocator = allocator,
-		.data = (T *)memory::allocate(allocator, count * sizeof(T)),
+		.data = memory::allocate<T>(allocator, count),
 		.count = count,
 		.capacity = count
 	};
@@ -91,7 +91,7 @@ inline static Array<T>
 array_copy(const Array<T> &self, memory::Allocator *allocator = memory::heap_allocator())
 {
 	Array<T> copy = array_init_with_count<T>(self.count, allocator);
-	for (u64 i = 0; i < self.count; ++i)
+	for (U64 i = 0; i < self.count; ++i)
 		copy[i] = self[i];
 	return copy;
 }
@@ -102,12 +102,12 @@ array_deinit(Array<T> &self)
 {
 	if (self.capacity && self.allocator)
 		memory::deallocate(self.allocator, self.data);
-	self = Array<T>{self.allocator};
+	self = Array<T>{.allocator = self.allocator};
 }
 
 template <typename T>
 inline static void
-array_reserve(Array<T> &self, u64 added_capacity)
+array_reserve(Array<T> &self, U64 added_capacity)
 {
 	if (self.count + added_capacity < self.capacity)
 		return;
@@ -117,8 +117,8 @@ array_reserve(Array<T> &self, u64 added_capacity)
 
 	self.capacity += added_capacity;
 
-	T *data = (T *)memory::allocate(self.allocator, self.capacity * sizeof(T));
-	for (u64 i = 0; i < self.count; ++i)
+	T *data = memory::allocate<T>(self.allocator, self.capacity);
+	for (U64 i = 0; i < self.count; ++i)
 		data[i] = self[i];
 	memory::deallocate(self.allocator, self.data);
 
@@ -127,7 +127,7 @@ array_reserve(Array<T> &self, u64 added_capacity)
 
 template <typename T>
 inline static void
-array_resize(Array<T> &self, u64 new_count)
+array_resize(Array<T> &self, U64 new_count)
 {
 	if (new_count > self.count)
 		array_reserve(self, new_count - self.count);
@@ -145,9 +145,9 @@ array_push(Array<T> &self, const R &value)
 
 template <typename T>
 inline static void
-array_push(Array<T> &self, const T &value, u64 count)
+array_push(Array<T> &self, const T &value, U64 count)
 {
-	u64 i = self.count;
+	U64 i = self.count;
 	array_resize(self, self.count + count);
 	for (; i < self.count; ++i)
 		self[i] = value;
@@ -165,7 +165,7 @@ array_pop(Array<T> &self)
 
 template <typename T>
 inline static void
-array_remove(Array<T> &self, u64 index)
+array_remove(Array<T> &self, U64 index)
 {
 	validate(index < self.count, "[ARRAY]: Access out of range.");
 	if ((index + 1) != self.count)
@@ -181,7 +181,7 @@ template <typename T, typename P>
 inline static void
 array_remove_if(Array<T> &self, P &&predicate)
 {
-	for (u64 i = 0; i < self.count; ++i)
+	for (U64 i = 0; i < self.count; ++i)
 	{
 		if (predicate(self[i]))
 		{
@@ -193,7 +193,7 @@ array_remove_if(Array<T> &self, P &&predicate)
 
 template <typename T>
 inline static void
-array_remove_ordered(Array<T> &self, u64 index)
+array_remove_ordered(Array<T> &self, U64 index)
 {
 	validate(index < self.count, "[ARRAY]: Access out of range.");
 	::memmove(self.data + index, self.data + index + 1, (self.count - index - 1) * sizeof(T));
@@ -204,7 +204,7 @@ template <typename T, typename P>
 inline static void
 array_remove_ordered_if(Array<T> &self, P &&predicate)
 {
-	for (u64 i = 0; i < self.count; ++i)
+	for (U64 i = 0; i < self.count; ++i)
 	{
 		if (predicate(self[i]))
 		{
@@ -218,9 +218,9 @@ template <typename T>
 inline static void
 array_append(Array<T> &self, const Array<T> &other)
 {
-	u64 old_count = self.count;
+	U64 old_count = self.count;
 	array_resize(self, self.count + other.count);
-	for (u64 i = 0; i < other.count; ++i)
+	for (U64 i = 0; i < other.count; ++i)
 		self[old_count + i] = other[i];
 }
 
@@ -228,7 +228,7 @@ template <typename T, typename R>
 inline static void
 array_fill(Array<T> &self, const R &value)
 {
-	for (u64 i = 0; i < self.count; ++i)
+	for (U64 i = 0; i < self.count; ++i)
 		self[i] = (T)value;
 }
 
@@ -248,7 +248,7 @@ array_is_empty(const Array<T> &self)
 
 template <typename T>
 inline static T &
-array_first(Array<T> &self)
+array_front(Array<T> &self)
 {
 	validate(self.count > 0, "[ARRAY]: Count is 0.");
 	return self[0];
@@ -256,7 +256,7 @@ array_first(Array<T> &self)
 
 template <typename T>
 inline static T &
-array_last(Array<T> &self)
+array_back(Array<T> &self)
 {
 	validate(self.count > 0, "[ARRAY]: Count is 0.");
 	return self[self.count - 1];

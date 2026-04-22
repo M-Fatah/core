@@ -9,7 +9,6 @@
 
 /*
 	TODO:
-	- [ ] Memory alignment.
 	- [ ] Rename this file to allocator.h?
 	- [ ] Add meta allocator to arena and pool allocators?
 */
@@ -22,7 +21,7 @@ namespace memory
 		~Allocator() = default;
 
 		virtual void *
-		allocate(u64 size) = 0;
+		allocate(U64 size, U64 alignment) = 0;
 
 		virtual void
 		deallocate(void *data) = 0;
@@ -37,33 +36,36 @@ namespace memory
 	CORE_API Allocator *
 	temp_allocator();
 
+	// Untyped allocation — alignment required (no default).
 	inline static void *
-	allocate(u64 size)
+	allocate(U64 size, U64 alignment)
 	{
 		auto allocator = heap_allocator();
-		return allocator->allocate(size);
+		return allocator->allocate(size, alignment);
 	}
 
 	inline static void *
-	allocate(Allocator *allocator, u64 size)
+	allocate(Allocator *allocator, U64 size, U64 alignment)
 	{
-		return allocator->allocate(size);
+		return allocator->allocate(size, alignment);
+	}
+
+	// Typed allocation — alignment auto from alignof(T), count optional.
+	template <typename T>
+	inline static T *
+	allocate(U64 count = 1)
+	{
+		return (T *)allocate(sizeof(T) * count, alignof(T));
 	}
 
 	template <typename T>
 	inline static T *
-	allocate()
+	allocate(Allocator *allocator, U64 count = 1)
 	{
-		return (T *)allocate(sizeof(T));
+		return (T *)allocate(allocator, sizeof(T) * count, alignof(T));
 	}
 
-	template <typename T>
-	inline static T *
-	allocate(Allocator *allocator)
-	{
-		return (T *)allocate(allocator, sizeof(T));
-	}
-
+	// Constructor-calling typed allocation.
 	template <typename T, typename ...TArgs>
 	inline static T *
 	allocate_and_call_constructor(TArgs &&...args)
@@ -82,36 +84,40 @@ namespace memory
 		return data;
 	}
 
+	// Zeroed allocation — mirrors the non-zeroed family.
 	inline static void *
-	allocate_zeroed(u64 size)
+	allocate_zeroed(U64 size, U64 alignment)
 	{
-		void *data = allocate(size);
-		::memset(data, 0, size);
+		void *data = allocate(size, alignment);
+		if (data != nullptr)
+			::memset(data, 0, size);
 		return data;
 	}
 
 	inline static void *
-	allocate_zeroed(Allocator *allocator, u64 size)
+	allocate_zeroed(Allocator *allocator, U64 size, U64 alignment)
 	{
-		void *data = allocate(allocator, size);
-		::memset(data, 0, size);
+		void *data = allocate(allocator, size, alignment);
+		if (data != nullptr)
+			::memset(data, 0, size);
 		return data;
 	}
 
 	template <typename T>
 	inline static T *
-	allocate_zeroed()
+	allocate_zeroed(U64 count = 1)
 	{
-		return (T *)allocate_zeroed(sizeof(T));
+		return (T *)allocate_zeroed(sizeof(T) * count, alignof(T));
 	}
 
 	template <typename T>
 	inline static T *
-	allocate_zeroed(Allocator *allocator)
+	allocate_zeroed(Allocator *allocator, U64 count = 1)
 	{
-		return (T *)allocate_zeroed(allocator, sizeof(T));
+		return (T *)allocate_zeroed(allocator, sizeof(T) * count, alignof(T));
 	}
 
+	// Deallocation — unchanged signature (allocator tracks alignment internally).
 	inline static void
 	deallocate(void *data)
 	{

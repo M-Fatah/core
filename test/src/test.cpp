@@ -18,52 +18,52 @@
 // 	{
 // 		case TYPE_KIND_I8:
 // 		{
-// 			printf("%" PRIi8, *(i8 *)v.data);
+// 			printf("%" PRIi8, *(I8 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_I16:
 // 		{
-// 			printf("%" PRIi16, *(i16 *)v.data);
+// 			printf("%" PRIi16, *(I16 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_I32:
 // 		{
-// 			printf("%" PRIi32, *(i32 *)v.data);
+// 			printf("%" PRIi32, *(I32 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_I64:
 // 		{
-// 			printf("%" PRIi64, *(i64 *)v.data);
+// 			printf("%" PRIi64, *(I64 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_U8:
 // 		{
-// 			printf("%" PRIu8, *(u8 *)v.data);
+// 			printf("%" PRIu8, *(U8 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_U16:
 // 		{
-// 			printf("%" PRIu16, *(u16 *)v.data);
+// 			printf("%" PRIu16, *(U16 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_U32:
 // 		{
-// 			printf("%" PRIu32, *(u32 *)v.data);
+// 			printf("%" PRIu32, *(U32 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_U64:
 // 		{
-// 			printf("%" PRIu64, *(u64 *)v.data);
+// 			printf("%" PRIu64, *(U64 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_F32:
 // 		{
-// 			printf("%g", *(f32 *)v.data);
+// 			printf("%g", *(F32 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_F64:
 // 		{
-// 			printf("%g", *(f64 *)v.data);
+// 			printf("%g", *(F64 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_BOOL:
@@ -79,7 +79,7 @@
 // 		case TYPE_KIND_STRUCT:
 // 		{
 // 			printf("%s { ", v.type->name);
-// 			for (u64 i = 0; i < v.type->as_struct.field_count; ++i)
+// 			for (U64 i = 0; i < v.type->as_struct.field_count; ++i)
 // 			{
 // 				if (i != 0)
 // 					printf(", ");
@@ -93,7 +93,7 @@
 // 		case TYPE_KIND_ARRAY:
 // 		{
 // 			printf("[ ");
-// 			for (u64 i = 0; i < v.type->as_array.element_count; ++i)
+// 			for (U64 i = 0; i < v.type->as_array.element_count; ++i)
 // 			{
 // 				if (i != 0)
 // 					printf(", ");
@@ -106,7 +106,7 @@
 // 		case TYPE_KIND_POINTER:
 // 		{
 // 			const auto *pointee = v.type->as_pointer.pointee;
-// 			uptr *pointer = *(uptr **)(v.data);
+// 			U64 *pointer = *(U64 **)(v.data);
 // 			if (v.type == type_of<const char *>() || v.type == type_of<char *>())
 // 			{
 // 				printf("\"%s\"", (const char *)pointer);
@@ -120,8 +120,8 @@
 // 		}
 // 		case TYPE_KIND_ENUM:
 // 		{
-// 			for (u64 i = 0; i < v.type->as_enum.value_count; ++i)
-// 				if (const auto & value = v.type->as_enum.values[i]; value.index == *(i32 *)(v.data))
+// 			for (U64 i = 0; i < v.type->as_enum.value_count; ++i)
+// 				if (const auto & value = v.type->as_enum.values[i]; value.index == *(I32 *)(v.data))
 // 					printf("%s(%" PRId32 ")", value.name, value.index);
 // 			break;
 // 		}
@@ -133,10 +133,10 @@
 // }
 
 // inline static void
-// to_json(Value v, i32 indent = 0)
+// to_json(Value v, I32 indent = 0)
 // {
-// 	constexpr auto print_tab = [](u64 count) {
-// 		for (u64 i = 0; i < count * 4; ++i)
+// 	constexpr auto print_tab = [](U64 count) {
+// 		for (U64 i = 0; i < count * 4; ++i)
 // 			printf(" ");
 // 	};
 
@@ -144,52 +144,52 @@
 // 	{
 // 		case TYPE_KIND_I8:
 // 		{
-// 			printf("%" PRIi8, *(i8 *)v.data);
+// 			printf("%" PRIi8, *(I8 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_I16:
 // 		{
-// 			printf("%" PRIi16, *(i16 *)v.data);
+// 			printf("%" PRIi16, *(I16 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_I32:
 // 		{
-// 			printf("%" PRIi32, *(i32 *)v.data);
+// 			printf("%" PRIi32, *(I32 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_I64:
 // 		{
-// 			printf("%" PRIi64, *(i64 *)v.data);
+// 			printf("%" PRIi64, *(I64 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_U8:
 // 		{
-// 			printf("%" PRIu8, *(u8 *)v.data);
+// 			printf("%" PRIu8, *(U8 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_U16:
 // 		{
-// 			printf("%" PRIu16, *(u16 *)v.data);
+// 			printf("%" PRIu16, *(U16 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_U32:
 // 		{
-// 			printf("%" PRIu32, *(u32 *)v.data);
+// 			printf("%" PRIu32, *(U32 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_U64:
 // 		{
-// 			printf("%" PRIu64, *(u64 *)v.data);
+// 			printf("%" PRIu64, *(U64 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_F32:
 // 		{
-// 			printf("%g", *(f32 *)v.data);
+// 			printf("%g", *(F32 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_F64:
 // 		{
-// 			printf("%g", *(f64 *)v.data);
+// 			printf("%g", *(F64 *)v.data);
 // 			break;
 // 		}
 // 		case TYPE_KIND_BOOL:
@@ -205,7 +205,7 @@
 // 		case TYPE_KIND_STRUCT:
 // 		{
 // 			printf("{\n");
-// 			for (u64 i = 0; i < v.type->as_struct.field_count; ++i)
+// 			for (U64 i = 0; i < v.type->as_struct.field_count; ++i)
 // 			{
 // 				const auto *field = &v.type->as_struct.fields[i];
 // 				if (string_literal(field->tag) != "NoSerialize")
@@ -225,7 +225,7 @@
 // 		case TYPE_KIND_ARRAY:
 // 		{
 // 			printf("[");
-// 			for (u64 i = 0; i < v.type->as_array.element_count; ++i)
+// 			for (U64 i = 0; i < v.type->as_array.element_count; ++i)
 // 			{
 // 				if (i != 0)
 // 					printf(", ");
@@ -238,7 +238,7 @@
 // 		case TYPE_KIND_POINTER:
 // 		{
 // 			const auto *pointee = v.type->as_pointer.pointee;
-// 			uptr *pointer = *(uptr **)(v.data);
+// 			U64 *pointer = *(U64 **)(v.data);
 // 			if (v.type == type_of<const char *>() || v.type == type_of<char *>())
 // 			{
 // 				printf("\"%s\"", (const char *)pointer);
@@ -255,8 +255,8 @@
 // 		}
 // 		case TYPE_KIND_ENUM:
 // 		{
-// 			for (u64 i = 0; i < v.type->as_enum.value_count; ++i)
-// 				if (const auto & value = v.type->as_enum.values[i]; value.index == *(i32 *)(v.data))
+// 			for (U64 i = 0; i < v.type->as_enum.value_count; ++i)
+// 				if (const auto & value = v.type->as_enum.values[i]; value.index == *(I32 *)(v.data))
 // 					printf("\"%s\"", value.name);
 // 			break;
 // 		}
@@ -307,8 +307,8 @@
 // 	char a;
 // 	bool b;
 // 	const char *c[2];
-// 	i32 *d;
-// 	Bar<f32> e;
+// 	I32 *d;
+// 	Bar<F32> e;
 // 	Foo *f;
 // };
 
@@ -327,10 +327,10 @@
 // struct P
 // {
 // 	P() {}
-// 	P(f32 _x, f32 _y, f32 _z, f32 _w) : x(_x), y(_y), z(_z), w(_w) {}
+// 	P(F32 _x, F32 _y, F32 _z, F32 _w) : x(_x), y(_y), z(_z), w(_w) {}
 
 // private:
-// 	f32 x, y, z, w;
+// 	F32 x, y, z, w;
 
 // 	TYPE_OF_MEMBER(P)
 // };
@@ -339,7 +339,7 @@
 
 struct vec3
 {
-	f32 x, y, z;
+	F32 x, y, z;
 };
 
 inline static String
@@ -348,18 +348,18 @@ format(Formatter &self, const vec3 &data)
 	return format(self, "{{{}, {}, {}}}", data.x, data.y, data.z);;
 }
 
-i32
-main(i32, char **)
+I32
+main(I32, char **)
 {
-	// i32 d = 7;
-	// i32 dd = 13;
+	// I32 d = 7;
+	// I32 dd = 13;
 	// Foo f1 = {'A', true, {"Hello", "World"}, &d, {1.5f}, nullptr};
 	// Foo f2 = {'B', false, {"FOO", "BOO"}, &dd, {7.5f}, &f1};
 
 	// auto t2 = type_of(f2);
 	// unused(t2);
 	// to_json(value_of(f2));
-	// to_json(value_of(TWO<i32, f32>{1, 3.4f}));
+	// to_json(value_of(TWO<I32, F32>{1, 3.4f}));
 
 	// P p(1.5f, 2.5f, 3.5f, 4.5f);
 	// to_json(value_of(p));
@@ -372,12 +372,12 @@ main(i32, char **)
 	auto b5 = format("{}", 1.5f);
 	auto b6 = format("{}", 2.5);
 
-	i32 array[] = {1, 2, 3};
+	I32 array[] = {1, 2, 3};
 	auto b7 = format("{}", array);
 
 	auto b8 = format("{}", "Hello, World!");
 
-	i32 i = 5;
+	I32 i = 5;
 	auto b9 = format("{}", &i);
 
 	auto b10 = format("{}", 'A');
@@ -389,13 +389,13 @@ main(i32, char **)
 	vec3 v = {1, 2, 3};
 	auto b13 = format("{}", v);
 
-	Array<i32> a = array_init_from({1, 2, 3}, memory::temp_allocator());
+	Array<I32> a = array_init_from({1, 2, 3}, memory::temp_allocator());
 	auto b14 = format("{}", a);
 
 	String b = string_from("BB", memory::temp_allocator());
 	auto b15 = format("{}", b);
 
-	Hash_Table<i32, i32> c = hash_table_init_from<i32, i32>({{1, 2}, {3, 4}}, memory::temp_allocator());
+	Hash_Table<I32, I32> c = hash_table_init_from<I32, I32>({{1, 2}, {3, 4}}, memory::temp_allocator());
 	auto b16 = format("{}", c);
 
 	unused(b1, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16);

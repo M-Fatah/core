@@ -9,19 +9,19 @@ namespace memory
 	{
 		struct Pool_Allocator_Context *ctx;
 
-		Pool_Allocator(u64 chunk_size, u64 chunk_count);
+		Pool_Allocator(U64 chunk_size, U64 chunk_count);
 
 		~Pool_Allocator() override;
 
 		void *
-		allocate(u64 size = 0) override;
+		allocate(U64 size = 0, U64 alignment = alignof(void *)) override;
 
 		void
 		deallocate(void *data) override;
 	};
 
 	CORE_API Pool_Allocator *
-	pool_allocator_init(u64 chunk_size, u64 chunk_count);
+	pool_allocator_init(U64 chunk_size, U64 chunk_count);
 
 	CORE_API void
 	pool_allocator_deinit(Pool_Allocator *self);

@@ -209,8 +209,8 @@ platform_path_get_directory(const String &path, memory::Allocator *allocator)
 	if (platform_path_is_directory(path))
 		return path_directory;
 
-	u64 path_directory_length = string_find_last_of(path_directory, '/');
-	if (path_directory_length != u64(-1))
+	U64 path_directory_length = string_find_last_of(path_directory, '/');
+	if (path_directory_length != U64(-1))
 		string_resize(path_directory, path_directory_length);
 	return path_directory;
 }
@@ -239,7 +239,7 @@ String
 platform_path_get_executable_path(memory::Allocator *allocator)
 {
 	String path_executable_temp = string_with_capacity(4096, memory::temp_allocator());
-	u64 path_executable_length = ::GetModuleFileName(0, path_executable_temp.data, (DWORD)path_executable_temp.count);
+	U64 path_executable_length = ::GetModuleFileName(0, path_executable_temp.data, (DWORD)path_executable_temp.count);
 	string_resize(path_executable_temp, path_executable_length);
 	string_replace(path_executable_temp, '\\', '/');
 	return string_copy(path_executable_temp, allocator);
@@ -251,7 +251,7 @@ platform_path_get_file_name(const String &path, memory::Allocator *allocator)
 	String path_temp = string_copy(path, memory::temp_allocator());
 	string_replace(path_temp, "\\", "/");
 	Array<String> splits = string_split(path_temp, "/", true, memory::temp_allocator());
-	return string_copy(array_last(splits), allocator);
+	return string_copy(array_back(splits), allocator);
 }
 
 String
@@ -263,21 +263,21 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 	if (file_handle == INVALID_HANDLE_VALUE)
 		return content;
 
-	u64 file_size = platform_file_size(path.data);
+	U64 file_size = platform_file_size(path.data);
 	if (file_size == 0)
 		return content;
 
 	string_resize(content, file_size);
 
 	DWORD bytes_read = 0;
-	::ReadFile(file_handle, content.data, (u32)content.count, &bytes_read, 0);
+	::ReadFile(file_handle, content.data, (U32)content.count, &bytes_read, 0);
 	validate(::CloseHandle(file_handle), "[PLATFORM][WINDOWS]: Failed to close file handle.");
 	validate(content.count == bytes_read);
 
 	return content;
 }
 
-u64
+U64
 platform_path_write_file(const String &path, Block block)
 {
 	HANDLE file_handle = ::CreateFileA(path.data, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
@@ -289,7 +289,92 @@ platform_path_write_file(const String &path, Block block)
 	validate(::CloseHandle(file_handle));
 	validate(bytes_written == block.size);
 
-	return (u64)bytes_written;
+	return (U64)bytes_written;
+}
+
+Platform_File_Handle
+platform_file_open(const String &path, Platform_File_Mode mode)
+{
+	DWORD access   = 0;
+	DWORD creation = 0;
+
+	switch (mode)
+	{
+		case PLATFORM_FILE_MODE_READ:
+			access   = GENERIC_READ;
+			creation = OPEN_EXISTING;
+			break;
+		case PLATFORM_FILE_MODE_WRITE:
+			access   = GENERIC_WRITE;
+			creation = CREATE_ALWAYS;
+			break;
+		case PLATFORM_FILE_MODE_READ_WRITE:
+			access   = GENERIC_READ | GENERIC_WRITE;
+			creation = OPEN_ALWAYS;
+			break;
+		case PLATFORM_FILE_MODE_APPEND:
+			access   = FILE_APPEND_DATA;
+			creation = OPEN_ALWAYS;
+			break;
+	}
+
+	HANDLE handle = ::CreateFileA(path.data, access, FILE_SHARE_READ, nullptr, creation, FILE_ATTRIBUTE_NORMAL, nullptr);
+	return handle == INVALID_HANDLE_VALUE ? PLATFORM_FILE_HANDLE_INVALID : (Platform_File_Handle)handle;
+}
+
+void
+platform_file_close(Platform_File_Handle handle)
+{
+	if (handle)
+		::CloseHandle((HANDLE)handle);
+}
+
+U64
+platform_file_read(Platform_File_Handle handle, void *data, U64 size)
+{
+	DWORD bytes_read = 0;
+	::ReadFile((HANDLE)handle, data, (DWORD)size, &bytes_read, nullptr);
+	return (U64)bytes_read;
+}
+
+U64
+platform_file_write(Platform_File_Handle handle, const void *data, U64 size)
+{
+	DWORD bytes_written = 0;
+	::WriteFile((HANDLE)handle, data, (DWORD)size, &bytes_written, nullptr);
+	return (U64)bytes_written;
+}
+
+bool
+platform_file_seek(Platform_File_Handle handle, I64 offset, Platform_File_Seek_Origin origin)
+{
+	DWORD method = FILE_BEGIN;
+	switch (origin)
+	{
+		case PLATFORM_FILE_SEEK_ORIGIN_BEGIN:   method = FILE_BEGIN;   break;
+		case PLATFORM_FILE_SEEK_ORIGIN_CURRENT: method = FILE_CURRENT; break;
+		case PLATFORM_FILE_SEEK_ORIGIN_END:     method = FILE_END;     break;
+	}
+	LARGE_INTEGER li;
+	li.QuadPart = offset;
+	return ::SetFilePointerEx((HANDLE)handle, li, nullptr, method) != 0;
+}
+
+U64
+platform_file_tell(Platform_File_Handle handle)
+{
+	LARGE_INTEGER li     = {};
+	LARGE_INTEGER result = {};
+	::SetFilePointerEx((HANDLE)handle, li, &result, FILE_CURRENT);
+	return (U64)result.QuadPart;
+}
+
+U64
+platform_file_size(Platform_File_Handle handle)
+{
+	LARGE_INTEGER size = {};
+	::GetFileSizeEx((HANDLE)handle, &size);
+	return (U64)size.QuadPart;
 }
 
 Array<String>
@@ -316,12 +401,12 @@ platform_path_list_files(const String &directory, const String &extension_filter
 		String file_name = string_from(find_data.cFileName, memory::temp_allocator());
 		if (extension_filter.count > 0)
 		{
-			u64 extension_position = string_find_last_of(file_name, '.');
-			if (extension_position == u64(-1))
+			U64 extension_position = string_find_last_of(file_name, '.');
+			if (extension_position == U64(-1))
 				continue;
 
 			String file_extension = string_with_capacity(file_name.count - extension_position - 1, memory::temp_allocator());
-			for (u64 i = extension_position + 1; i < file_name.count; ++i)
+			for (U64 i = extension_position + 1; i < file_name.count; ++i)
 				string_append(file_extension, file_name.data[i]);
 
 			if (file_extension != extension_filter)
@@ -362,7 +447,7 @@ platform_api_init(const char *filepath)
 	result = ::GetFileAttributesExA(path, GetFileExInfoStandard, &data);
 	validate(result, "[PLATFORM]: Failed to get file attributes.");
 
-	self.last_write_time = *(i64 *)&data.ftLastWriteTime;
+	self.last_write_time = *(I64 *)&data.ftLastWriteTime;
 	::strcpy_s(self.filepath, filepath);
 
 	return self;
@@ -390,7 +475,7 @@ platform_api_load(Platform_Api *self)
 	WIN32_FILE_ATTRIBUTE_DATA data = {};
 	bool result = ::GetFileAttributesExA(path, GetFileExInfoStandard, &data);
 
-	i64 last_write_time = *(i64 *)&data.ftLastWriteTime;
+	I64 last_write_time = *(I64 *)&data.ftLastWriteTime;
 	if ((last_write_time == self->last_write_time) || (result == false))
 		return self->api;
 
@@ -420,10 +505,10 @@ platform_api_load(Platform_Api *self)
 
 
 Platform_Allocator
-platform_allocator_init(u64 size_in_bytes)
+platform_allocator_init(U64 size_in_bytes)
 {
 	Platform_Allocator self = {};
-	self.ptr = (u8 *)VirtualAlloc(0, size_in_bytes, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+	self.ptr = (U8 *)VirtualAlloc(0, size_in_bytes, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 	if (self.ptr)
 		self.size = size_in_bytes;
 	return self;
@@ -437,7 +522,7 @@ platform_allocator_deinit(Platform_Allocator *self)
 }
 
 Platform_Memory
-platform_allocator_alloc(Platform_Allocator *self, u64 size_in_bytes)
+platform_allocator_alloc(Platform_Allocator *self, U64 size_in_bytes)
 {
 	// TODO(M-Fatah): We need a way to free allocated memory from the arena we created.
 	Platform_Memory res = {};
@@ -511,7 +596,7 @@ platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_
 }
 
 Platform_Window
-platform_window_init(u32 width, u32 height, const char *title)
+platform_window_init(U32 width, U32 height, const char *title)
 {
 	validate(width > 0 && height > 0, "[PLATFORM]: Windows cannot have zero width or height.");
 
@@ -556,7 +641,7 @@ platform_window_deinit(Platform_Window *self)
 bool
 platform_window_poll(Platform_Window *self)
 {
-	for (i32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
+	for (I32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{
 		self->input.keys[i].pressed       = false;
 		self->input.keys[i].released      = false;
@@ -590,7 +675,7 @@ platform_window_poll(Platform_Window *self)
 					self->input.keys[key].down    = true;
 					self->input.keys[key].press_count++;
 					if (key == PLATFORM_KEY_MOUSE_WHEEL_UP || key == PLATFORM_KEY_MOUSE_WHEEL_DOWN)
-						self->input.mouse_wheel += (f32)GET_WHEEL_DELTA_WPARAM(msg.wParam) / (f32)WHEEL_DELTA;
+						self->input.mouse_wheel += (F32)GET_WHEEL_DELTA_WPARAM(msg.wParam) / (F32)WHEEL_DELTA;
 				}
 				break;
 			}
@@ -651,7 +736,7 @@ platform_window_poll(Platform_Window *self)
 		ScreenToClient((HWND)self->handle, &mouse_point);
 
 		// NOTE: We want mouse coords to start bottom-left.
-		u32 mouse_point_y_inverted = (self->height - 1) - mouse_point.y;
+		U32 mouse_point_y_inverted = (self->height - 1) - mouse_point.y;
 		self->input.mouse_dx = mouse_point.x - self->input.mouse_x;
 		self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
 		self->input.mouse_x  = mouse_point.x;
@@ -708,7 +793,7 @@ platform_file_exists(const char *filepath)
 	return attributes != INVALID_FILE_ATTRIBUTES;
 }
 
-u64
+U64
 platform_file_size(const char *filepath)
 {
 	WIN32_FILE_ATTRIBUTE_DATA data = {};
@@ -721,7 +806,7 @@ platform_file_size(const char *filepath)
 	return size.QuadPart;
 }
 
-u64
+U64
 platform_file_read(const char *filepath, Platform_Memory mem)
 {
 	HANDLE file_handle = CreateFileA(filepath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
@@ -730,10 +815,10 @@ platform_file_read(const char *filepath, Platform_Memory mem)
 
 	// TODO(M-Fatah): Handle reading files that are bigger than 4GB size.
 	DWORD bytes_read = 0;
-	ReadFile(file_handle, mem.ptr, (u32)mem.size, &bytes_read, 0);
+	ReadFile(file_handle, mem.ptr, (U32)mem.size, &bytes_read, 0);
 	CloseHandle(file_handle);
 
-	return (u64)bytes_read;
+	return (U64)bytes_read;
 }
 
 String
@@ -745,14 +830,14 @@ platform_file_read(const String &file_path, memory::Allocator *allocator)
 	if (file_handle == INVALID_HANDLE_VALUE)
 		return content;
 
-	u64 file_size = platform_file_size(file_path.data);
+	U64 file_size = platform_file_size(file_path.data);
 	if (file_size == 0)
 		return content;
 
 	string_resize(content, file_size);
 
 	DWORD bytes_read = 0;
-	::ReadFile(file_handle, content.data, (u32)content.count, &bytes_read, 0);
+	::ReadFile(file_handle, content.data, (U32)content.count, &bytes_read, 0);
 	validate(::CloseHandle(file_handle), "[PLATFORM][WINDOWS]: Failed to close file handle.");
 
 	validate(content.count == bytes_read);
@@ -760,7 +845,7 @@ platform_file_read(const String &file_path, memory::Allocator *allocator)
 	return content;
 }
 
-u64
+U64
 platform_file_write(const char *filepath, Platform_Memory mem)
 {
 	HANDLE file_handle = CreateFileA(filepath, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
@@ -772,7 +857,7 @@ platform_file_write(const char *filepath, Platform_Memory mem)
 	WriteFile(file_handle, mem.ptr, (DWORD)mem.size, &bytes_written, 0);
 	CloseHandle(file_handle);
 
-	return (u64)bytes_written;
+	return (U64)bytes_written;
 }
 
 bool
@@ -788,7 +873,7 @@ platform_file_delete(const char *filepath)
 }
 
 bool
-platform_file_dialog_open(char *path, u32 path_length, const char *filters)
+platform_file_dialog_open(char *path, U32 path_length, const char *filters)
 {
 	::memset(path, 0, path_length);
 
@@ -810,7 +895,7 @@ platform_file_dialog_open(char *path, u32 path_length, const char *filters)
 }
 
 bool
-platform_file_dialog_save(char *path, u32 path_length, const char *filters)
+platform_file_dialog_save(char *path, U32 path_length, const char *filters)
 {
 	::memset(path, 0, path_length);
 
@@ -833,7 +918,7 @@ platform_file_dialog_save(char *path, u32 path_length, const char *filters)
 }
 
 
-u64
+U64
 platform_query_microseconds()
 {
 	LARGE_INTEGER frequency;
@@ -850,7 +935,7 @@ platform_query_microseconds()
 }
 
 void
-platform_sleep_set_period(u32 period)
+platform_sleep_set_period(U32 period)
 {
 	if (timeBeginPeriod(period) != TIMERR_NOERROR)
 	{
@@ -859,7 +944,7 @@ platform_sleep_set_period(u32 period)
 }
 
 void
-platform_sleep(u32 milliseconds)
+platform_sleep(U32 milliseconds)
 {
 	Sleep(milliseconds);
 }
@@ -879,8 +964,8 @@ struct Callstack
 	}
 };
 
-u32
-platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] u32 frame_count)
+U32
+platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] U32 frame_count)
 {
 #if DEBUG
 	::memset(callstack, 0, frame_count * sizeof(callstack));
@@ -891,7 +976,7 @@ platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] u
 }
 
 void
-platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 frame_count)
+platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] U32 frame_count)
 {
 #if DEBUG
 	static Callstack _callstack;
@@ -916,7 +1001,7 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 f
 
 	// Allocate a buffer for the symbol info.
 	// Windows lays symbol info in memory in the form [struct][name buffer].
-	constexpr u64 MAX_NAME_LENGTH = 256;
+	constexpr U64 MAX_NAME_LENGTH = 256;
 	char symbol_buffer[MAX_NAME_LENGTH + sizeof(SYMBOL_INFO)];
 
 	SYMBOL_INFO *symbol_info = (SYMBOL_INFO *)symbol_buffer;
@@ -926,7 +1011,7 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 f
 
 	// TODO: Use logger.
 	::printf("callstack:\n");
-	for (u64 i = 0; i < frame_count; ++i)
+	for (U64 i = 0; i < frame_count; ++i)
 	{
 		bool symbol_found = false;
 		bool line_found   = false;
@@ -965,29 +1050,29 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 f
 
 
 Platform_Font
-platform_font_init(const char *filepath, const char *face_name, u32 font_height, bool origin_top_left)
+platform_font_init(const char *filepath, const char *face_name, U32 font_height, bool origin_top_left)
 {
 	// Supported glyph range.
-	constexpr i32 GLYPH_RANGE[2]             = {'!', '~'};
-	constexpr u32 GLYPH_COUNT                = (GLYPH_RANGE[1] + 1) - GLYPH_RANGE[0];
+	constexpr I32 GLYPH_RANGE[2]             = {'!', '~'};
+	constexpr U32 GLYPH_COUNT                = (GLYPH_RANGE[1] + 1) - GLYPH_RANGE[0];
 
 	// Font bitmap config. This is used to rasterize each glyph by winapi.
-	constexpr u32 BITMAP_MAX_WIDTH           = 1024;
-	constexpr u32 BITMAP_MAX_HEIGHT          = 1024;
-	constexpr u32 BYTES_PER_PIXEL            = 1;
-	constexpr u32 APRON                      = 1;
-	u8 *temp_glyph_bitmaps[GLYPH_COUNT] = {};
+	constexpr U32 BITMAP_MAX_WIDTH           = 1024;
+	constexpr U32 BITMAP_MAX_HEIGHT          = 1024;
+	constexpr U32 BYTES_PER_PIXEL            = 1;
+	constexpr U32 APRON                      = 1;
+	U8 *temp_glyph_bitmaps[GLYPH_COUNT] = {};
 
 	// Atlas texture config.
-	constexpr u32 XPADDING                   = 3;
-	constexpr u32 YPADDING                   = 3;
-	u32 xoffset                              = XPADDING;
-	u32 total_glyph_width                    = 0;
-	u32 max_glyph_height                     = 0;
+	constexpr U32 XPADDING                   = 3;
+	constexpr U32 YPADDING                   = 3;
+	U32 xoffset                              = XPADDING;
+	U32 total_glyph_width                    = 0;
+	U32 max_glyph_height                     = 0;
 
 	// Kerning config.
-	constexpr u32 KERNING_ADJUSTMENT         = 3;
-	i32 *kerning_table                       = (i32 *)memory::allocate_zeroed(GLYPH_COUNT * GLYPH_COUNT * sizeof(i32));
+	constexpr U32 KERNING_ADJUSTMENT         = 3;
+	I32 *kerning_table                       = memory::allocate_zeroed<I32>(GLYPH_COUNT * GLYPH_COUNT);
 
 	// Extract the font from Windows.
 	AddFontResourceEx(filepath, FR_PRIVATE, 0);
@@ -1019,12 +1104,12 @@ platform_font_init(const char *filepath, const char *face_name, u32 font_height,
 	});
 
 	// Get kerning pairs.
-	u32 kerning_pair_count     = GetKerningPairsW(device_context, 0, 0);
-	KERNINGPAIR *kerning_pairs = (KERNINGPAIR *)memory::allocate(memory::temp_allocator(), kerning_pair_count * sizeof(KERNINGPAIR));
+	U32 kerning_pair_count     = GetKerningPairsW(device_context, 0, 0);
+	KERNINGPAIR *kerning_pairs = memory::allocate<KERNINGPAIR>(memory::temp_allocator(), kerning_pair_count);
 	GetKerningPairsW(device_context, kerning_pair_count, kerning_pairs);
 	if (kerning_pair_count > 0)
 	{
-		for (u32 i = 0; i <= kerning_pair_count; ++i)
+		for (U32 i = 0; i <= kerning_pair_count; ++i)
 		{
 			KERNINGPAIR *pair = kerning_pairs + i;
 			if ((pair->wFirst  >= GLYPH_RANGE[0]) &&
@@ -1032,8 +1117,8 @@ platform_font_init(const char *filepath, const char *face_name, u32 font_height,
 				(pair->wSecond >= GLYPH_RANGE[0]) &&
 				(pair->wSecond <= GLYPH_RANGE[1]))
 			{
-				i32 kern_index_1 = (pair->wFirst  - GLYPH_RANGE[0]);
-				i32 kern_index_2 = (pair->wSecond - GLYPH_RANGE[0]);
+				I32 kern_index_1 = (pair->wFirst  - GLYPH_RANGE[0]);
+				I32 kern_index_2 = (pair->wSecond - GLYPH_RANGE[0]);
 				kerning_table[kern_index_1 + kern_index_2 * GLYPH_COUNT] = pair->iKernAmount;
 			}
 		}
@@ -1045,32 +1130,32 @@ platform_font_init(const char *filepath, const char *face_name, u32 font_height,
 
 	// NOTE: We don't deinit this array here, since we will pass its pointer to the font structure, the user is left to free that pointer when done with font.
 	Array<Glyph> glyphs = array_init<Glyph>();
-	for (i32 c = GLYPH_RANGE[0]; c <= GLYPH_RANGE[1]; ++c)
+	for (I32 c = GLYPH_RANGE[0]; c <= GLYPH_RANGE[1]; ++c)
 	{
 		wchar_t point = (wchar_t)c;
 		SIZE size;
 		GetTextExtentPoint32W(device_context, &point, 1, &size);
 
-		i32 w = size.cx;
+		I32 w = size.cx;
 		if (w > BITMAP_MAX_WIDTH)
 			w = BITMAP_MAX_WIDTH;
 
-		i32 h = size.cy;
+		I32 h = size.cy;
 		if (h > BITMAP_MAX_HEIGHT)
 			h = BITMAP_MAX_HEIGHT;
 
 		TextOutW(device_context, 0, 0, &point, 1);
 
 		// Loop over the glyph's pixels and delete all empty pixels surrounding the font glyph.
-		i32 min_x =  10000;
-		i32 min_y =  10000;
-		i32 max_x = -10000;
-		i32 max_y = -10000;
-		u32 *row = (u32 *)bitmap_data + (BITMAP_MAX_HEIGHT - 1) * BITMAP_MAX_WIDTH;
-		for (i32 y = 0; y < h; ++y)
+		I32 min_x =  10000;
+		I32 min_y =  10000;
+		I32 max_x = -10000;
+		I32 max_y = -10000;
+		U32 *row = (U32 *)bitmap_data + (BITMAP_MAX_HEIGHT - 1) * BITMAP_MAX_WIDTH;
+		for (I32 y = 0; y < h; ++y)
 		{
-			u32 *pixel = row;
-			for (i32 x = 0; x < w; ++x)
+			U32 *pixel = row;
+			for (I32 x = 0; x < w; ++x)
 			{
 				if (*pixel != 0)
 				{
@@ -1115,28 +1200,28 @@ platform_font_init(const char *filepath, const char *face_name, u32 font_height,
 			// Adjust the kerning amount for the current glyph relative to the rest of the supported glyphs.
 			ABC this_abc;
 			GetCharABCWidthsW(device_context, glyph.codepoint, glyph.codepoint, &this_abc);
-			for (i32 c1 = GLYPH_RANGE[0]; c1 <= GLYPH_RANGE[1]; ++c1)
+			for (I32 c1 = GLYPH_RANGE[0]; c1 <= GLYPH_RANGE[1]; ++c1)
 			{
-				i32 kern_index_1 = (glyph.codepoint - GLYPH_RANGE[0]);
-				i32 kern_index_2 = (c1 - GLYPH_RANGE[0]);
+				I32 kern_index_1 = (glyph.codepoint - GLYPH_RANGE[0]);
+				I32 kern_index_2 = (c1 - GLYPH_RANGE[0]);
 				kerning_table[kern_index_1 + kern_index_2 * GLYPH_COUNT] += min_x - this_abc.abcA + KERNING_ADJUSTMENT;
 			}
 
 			// Allocate a temporary memory buffer to store the current glyph's bitmap.
-			i32 index = c - GLYPH_RANGE[0];
-			temp_glyph_bitmaps[index] = (u8 *)memory::allocate_zeroed(memory::temp_allocator(), glyph.width * glyph.height * BYTES_PER_PIXEL);
+			I32 index = c - GLYPH_RANGE[0];
+			temp_glyph_bitmaps[index] = memory::allocate_zeroed<U8>(memory::temp_allocator(), glyph.width * glyph.height * BYTES_PER_PIXEL);
 
 			// Fill the glyph's bitmap.
-			u8  *dst_row = temp_glyph_bitmaps[index] + APRON * glyph.width * BYTES_PER_PIXEL;
-			u32 *src_row = (u32 *)bitmap_data + (BITMAP_MAX_HEIGHT - APRON - min_y) * BITMAP_MAX_WIDTH;
-			for (i32 y = min_y; y <= max_y; ++y)
+			U8  *dst_row = temp_glyph_bitmaps[index] + APRON * glyph.width * BYTES_PER_PIXEL;
+			U32 *src_row = (U32 *)bitmap_data + (BITMAP_MAX_HEIGHT - APRON - min_y) * BITMAP_MAX_WIDTH;
+			for (I32 y = min_y; y <= max_y; ++y)
 			{
-				u32 *src = (u32 *)src_row + min_x;
-				u8 *dst  = dst_row + APRON;
-				for (i32 x = min_x; x <= max_x; ++x)
+				U32 *src = (U32 *)src_row + min_x;
+				U8 *dst  = dst_row + APRON;
+				for (I32 x = min_x; x <= max_x; ++x)
 				{
-					u32 pixel = *src;
-					*dst++ = (u8)(pixel & 0xFF);
+					U32 pixel = *src;
+					*dst++ = (U8)(pixel & 0xFF);
 					++src;
 				}
 				dst_row += glyph.width * BYTES_PER_PIXEL;
@@ -1146,18 +1231,18 @@ platform_font_init(const char *filepath, const char *face_name, u32 font_height,
 	}
 
 	// NOTE: Account for the extra XPADDING at the left and the YPADDING at the bottom and top.
-	u32 atlas_width  = total_glyph_width + XPADDING;
-	u32 atlas_height = max_glyph_height  + YPADDING * 2;
+	U32 atlas_width  = total_glyph_width + XPADDING;
+	U32 atlas_height = max_glyph_height  + YPADDING * 2;
 
 	// Fill the atlas texture.
-	u8 *atlas = (u8 *)memory::allocate_zeroed(atlas_width * atlas_height * BYTES_PER_PIXEL);
-	for (u32 i = 0; i < glyphs.count; ++i)
+	U8 *atlas = memory::allocate_zeroed<U8>(atlas_width * atlas_height * BYTES_PER_PIXEL);
+	for (U32 i = 0; i < glyphs.count; ++i)
 	{
 		Glyph &glyph = glyphs[i];
-		u8 *src      = temp_glyph_bitmaps[i];
-		for (u32 y = 0; y < glyph.height; ++y)
+		U8 *src      = temp_glyph_bitmaps[i];
+		for (U32 y = 0; y < glyph.height; ++y)
 		{
-			for (u32 x = 0; x < glyph.width; ++x)
+			for (U32 x = 0; x < glyph.width; ++x)
 			{
 				if (origin_top_left)
 					atlas[x + xoffset + (y + YPADDING) * atlas_width] = src[x + y * glyph.width];
@@ -1169,20 +1254,20 @@ platform_font_init(const char *filepath, const char *face_name, u32 font_height,
 		if (origin_top_left)
 		{
 			// Min UV coordinates (x1, y1).
-			glyph.uv_min_x = (f32)xoffset  / (f32)atlas_width;
-			glyph.uv_min_y = (f32)YPADDING / (f32)atlas_height;
+			glyph.uv_min_x = (F32)xoffset  / (F32)atlas_width;
+			glyph.uv_min_y = (F32)YPADDING / (F32)atlas_height;
 			// Max UV coordinates (x2, y2).
-			glyph.uv_max_x = (f32)(xoffset  + glyph.width)  / (f32)atlas_width;
-			glyph.uv_max_y = (f32)(YPADDING + glyph.height) / (f32)atlas_height;
+			glyph.uv_max_x = (F32)(xoffset  + glyph.width)  / (F32)atlas_width;
+			glyph.uv_max_y = (F32)(YPADDING + glyph.height) / (F32)atlas_height;
 		}
 		else
 		{
 			// Min UV coordinates (x1, y1).
-			glyph.uv_min_x = (f32)xoffset / (f32)atlas_width;
-			glyph.uv_min_y = (f32)(atlas_height - YPADDING + 1) / (f32)atlas_height;
+			glyph.uv_min_x = (F32)xoffset / (F32)atlas_width;
+			glyph.uv_min_y = (F32)(atlas_height - YPADDING + 1) / (F32)atlas_height;
 			// Max UV coordinates (x2, y2).
-			glyph.uv_max_x = (f32)(xoffset + glyph.width) / (f32)atlas_width;
-			glyph.uv_max_y = (f32)(atlas_height - YPADDING - glyph.height + 1) / (f32)atlas_height;
+			glyph.uv_max_x = (F32)(xoffset + glyph.width) / (F32)atlas_width;
+			glyph.uv_max_y = (F32)(atlas_height - YPADDING - glyph.height + 1) / (F32)atlas_height;
 		}
 
 		xoffset += glyph.width + XPADDING;
@@ -1202,7 +1287,7 @@ platform_font_init(const char *filepath, const char *face_name, u32 font_height,
 	font.max_glyph_height = max_glyph_height;
 	font.kerning_table    = kerning_table;
 	font.glyphs           = glyphs.data;
-	font.glyph_count      = (u32)glyphs.count;
+	font.glyph_count      = (U32)glyphs.count;
 	font.atlas            = atlas;
 	font.atlas_width      = atlas_width;
 	font.atlas_height     = atlas_height;
