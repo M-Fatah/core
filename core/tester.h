@@ -8,20 +8,23 @@
 #define TESTER_TEST(name) _TESTER_TEST_IMPL(name, __COUNTER__)
 #define _TESTER_TEST_IMPL(name, id)                                                                                                                \
 	static void CONCATENATE(tester_test_function_, id)();                                                                                          \
-	static u64 CONCATENATE(registrar_, id) = tester_add_test(tester(), Tester_Test{name, CONCATENATE(tester_test_function_, id)});                 \
+	static U64 CONCATENATE(registrar_, id) = tester_add_test(tester(), Tester_Test{name, CONCATENATE(tester_test_function_, id)});                 \
 	static void CONCATENATE(tester_test_function_, id)()
 
-#define TESTER_CHECK(expr)                                                                                                                     \
+// Variadic so callers can pass expressions containing braced initializers (whose
+// top-level commas would otherwise be consumed by the preprocessor as argument
+// separators).
+#define TESTER_CHECK(...)                                                                                                                     \
 	do                                                                                                                                         \
 	{                                                                                                                                          \
-		array_push((expr) ? tester()->passed_checks : tester()->failed_checks, Tester_Check{#expr, __FILE__, __LINE__});                       \
+		array_push((__VA_ARGS__) ? tester()->passed_checks : tester()->failed_checks, Tester_Check{#__VA_ARGS__, __FILE__, __LINE__});         \
 	} while (false)
 
 struct Tester_Check
 {
 	const char *expression;
 	const char *file;
-	u32 line;
+	U32 line;
 };
 
 struct Tester_Test
@@ -49,7 +52,7 @@ struct Tester
 CORE_API Tester *
 tester();
 
-CORE_API u64
+CORE_API U64
 tester_add_test(Tester *self, Tester_Test test);
 
 CORE_API bool

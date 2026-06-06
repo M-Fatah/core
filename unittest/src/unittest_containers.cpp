@@ -14,7 +14,7 @@ TESTER_TEST("[CONTAINERS]: Array")
 	// ("init")
 	{
 		{
-			auto array = array_init<i32>();
+			auto array = array_init<I32>();
 			DEFER(array_deinit(array));
 
 			TESTER_CHECK(array.data == nullptr);
@@ -24,7 +24,7 @@ TESTER_TEST("[CONTAINERS]: Array")
 		}
 
 		{
-			auto array = array_init_with_capacity<i32>(100);
+			auto array = array_init_with_capacity<I32>(100);
 			DEFER(array_deinit(array));
 
 			TESTER_CHECK(array.data != nullptr);
@@ -34,7 +34,7 @@ TESTER_TEST("[CONTAINERS]: Array")
 		}
 
 		{
-			auto array = array_init_with_count<i32>(100);
+			auto array = array_init_with_count<I32>(100);
 			DEFER(array_deinit(array));
 
 			TESTER_CHECK(array.data != nullptr);
@@ -69,23 +69,23 @@ TESTER_TEST("[CONTAINERS]: Array")
 
 		TESTER_CHECK(array2.count == array1.count);
 		TESTER_CHECK(array2.capacity == array1.capacity);
-		for (u64 i = 0; i < array2.count; ++i)
+		for (U64 i = 0; i < array2.count; ++i)
 			TESTER_CHECK(array2[i] == array1[i]);
 	}
 
 	// ("fill")
 	{
-		auto array = array_init_with_count<f32>(50);
+		auto array = array_init_with_count<F32>(50);
 		DEFER(array_deinit(array));
 
 		array_fill(array, 5.0f);
-		for (u64 i = 0; i < array.count; ++i)
+		for (U64 i = 0; i < array.count; ++i)
 			TESTER_CHECK(array[i] == 5.0f);
 	}
 
 	// ("reserve")
 	{
-		auto array = array_init_with_capacity<i32>(10);
+		auto array = array_init_with_capacity<I32>(10);
 		DEFER(array_deinit(array));
 
 		TESTER_CHECK(array.data != nullptr);
@@ -97,19 +97,19 @@ TESTER_TEST("[CONTAINERS]: Array")
 
 	// ("push/pop/last")
 	{
-		auto array = array_init<u64>();
+		auto array = array_init<U64>();
 		DEFER(array_deinit(array));
 
-		for (u64 i = 0; i < 100; ++i)
+		for (U64 i = 0; i < 100; ++i)
 			array_push(array, i);
 		TESTER_CHECK(array.count == 100);
 
-		for (u64 i = 0; i < array.count; ++i)
+		for (U64 i = 0; i < array.count; ++i)
 			TESTER_CHECK(array[i] == i);
 
 		TESTER_CHECK(array_back(array) == 99);
 
-		for (u64 i = 0; i < 100; ++i)
+		for (U64 i = 0; i < 100; ++i)
 			TESTER_CHECK(array_pop(array) == 99 - i);
 
 		TESTER_CHECK(array.count == 0);
@@ -117,16 +117,16 @@ TESTER_TEST("[CONTAINERS]: Array")
 
 	// ("remove")
 	{
-		auto array = array_init<u64>();
+		auto array = array_init<U64>();
 		DEFER(array_deinit(array));
 
-		for (u64 i = 0; i < 100; ++i)
+		for (U64 i = 0; i < 100; ++i)
 			array_push(array, i);
 		TESTER_CHECK(array.count == 100);
 
 		array_remove(array, array.count - 1);
 		TESTER_CHECK(array.count == 99);
-		for (u64 i = 0; i < 99; ++i)
+		for (U64 i = 0; i < 99; ++i)
 			TESTER_CHECK(array[i] == i);
 
 		array_remove(array, 0);
@@ -134,12 +134,12 @@ TESTER_TEST("[CONTAINERS]: Array")
 		TESTER_CHECK(array.count == 98);
 
 		array_remove_ordered(array, 0);
-		for (u64 i = 0; i < 97; ++i)
+		for (U64 i = 0; i < 97; ++i)
 			TESTER_CHECK(array[i] == i + 1);
 		TESTER_CHECK(array.count == 97);
 		array_remove(array, 0);
 
-		array_remove_if(array, [](u64 element) {
+		array_remove_if(array, [](U64 element) {
 			return element % 2 == 0;
 		});
 		TESTER_CHECK(array.count == 48);
@@ -147,19 +147,19 @@ TESTER_TEST("[CONTAINERS]: Array")
 
 	// ("remove_ordered")
 	{
-		auto array = array_init<i32>();
+		auto array = array_init<I32>();
 		DEFER(array_deinit(array));
 
-		for (u64 i = 0; i < 100; ++i)
-			array_push(array, i32(i));
+		for (U64 i = 0; i < 100; ++i)
+			array_push(array, I32(i));
 		TESTER_CHECK(array.count == 100);
 
-		array_remove_ordered_if(array, [](i32 element) {
+		array_remove_ordered_if(array, [](I32 element) {
 			return element % 2 == 0;
 		});
 
-		i32 j = 1;
-		for (u64 i = 0; i < 50; ++i)
+		I32 j = 1;
+		for (U64 i = 0; i < 50; ++i)
 		{
 			TESTER_CHECK(array[i] == j);
 			j += 2;
@@ -168,7 +168,7 @@ TESTER_TEST("[CONTAINERS]: Array")
 
 		array_remove_ordered(array, 0);
 		j = 3;
-		for (u64 i = 0; i < 49; ++i)
+		for (U64 i = 0; i < 49; ++i)
 		{
 			TESTER_CHECK(array[i] == j);
 			j += 2;
@@ -187,19 +187,19 @@ TESTER_TEST("[CONTAINERS]: Array")
 		array_append(array1, array2);
 		TESTER_CHECK(array1.count == 10);
 
-		for (i32 i = 0; i < (i32)array1.count; ++i)
+		for (I32 i = 0; i < (I32)array1.count; ++i)
 			TESTER_CHECK(array1[i] == i);
 	}
 
 	// ("iterators")
 	{
-		auto array = array_init_from<i32>({0, 1, 2, 3, 4});
+		auto array = array_init_from<I32>({0, 1, 2, 3, 4});
 		DEFER(array_deinit(array));
 
 		TESTER_CHECK(begin(array) == array.data);
 		TESTER_CHECK(end(array) == array.data + array.count);
 
-		i32 i = 0;
+		I32 i = 0;
 		for (auto v : array)
 			TESTER_CHECK(v == i++);
 
@@ -217,17 +217,17 @@ TESTER_TEST("[CONTAINERS]: Array")
 
 	// ("clone")
 	{
-		auto array1 = array_init<Array<i32>>();
+		auto array1 = array_init<Array<I32>>();
 		DEFER(destroy(array1));
-		array_push(array1, array_init_from<i32>({1, 2, 3}));
+		array_push(array1, array_init_from<I32>({1, 2, 3}));
 
 		auto array2 = clone(array1);
 		DEFER(destroy(array2));
 
-		for (u64 i = 0; i < array2.count; ++i)
+		for (U64 i = 0; i < array2.count; ++i)
 		{
 			TESTER_CHECK(array2.count == array1.count);
-			for (u64 j = 0; j < array2[i].count; ++j)
+			for (U64 j = 0; j < array2[i].count; ++j)
 			{
 				auto v1 = array1[i][j];
 				auto v2 = array2[i][j];
@@ -238,11 +238,11 @@ TESTER_TEST("[CONTAINERS]: Array")
 
 	// ("destroy")
 	{
-		auto v = array_init<Array<i32>>();
+		auto v = array_init<Array<I32>>();
 		DEFER(destroy(v));
 
-		array_push(v, array_init_from<i32>({1, 2, 3}));
-		array_push(v, array_init_from<i32>({4, 5, 6}));
+		array_push(v, array_init_from<I32>({1, 2, 3}));
+		array_push(v, array_init_from<I32>({4, 5, 6}));
 	}
 }
 
@@ -251,20 +251,20 @@ TESTER_TEST("[CONTAINERS]: Stack_Array")
 	// ("init")
 	{
 		{
-			Stack_Array<u64, 4> array{};
+			Stack_Array<U64, 4> array{};
 			TESTER_CHECK(array.count == 0);
 		}
 
 		{
 			Stack_Array array{{1, 2, 3}};
-			for (u64 i = 0; i < array.count; ++i)
-				TESTER_CHECK(array[i] == i32(i + 1));
+			for (U64 i = 0; i < array.count; ++i)
+				TESTER_CHECK(array[i] == I32(i + 1));
 			TESTER_CHECK(array.count == 3);
 		}
 
 		{
-			Stack_Array<u64, 3> array{{1, 2, 3}};
-			for (u64 i = 0; i < array.count; ++i)
+			Stack_Array<U64, 3> array{{1, 2, 3}};
+			for (U64 i = 0; i < array.count; ++i)
 				TESTER_CHECK(array[i] == i + 1);
 			TESTER_CHECK(array.count == 3);
 		}
@@ -285,7 +285,7 @@ TESTER_TEST("[CONTAINERS]: String")
 		s = string_from(c_string);
 		TESTER_CHECK(s.count == 13);
 		TESTER_CHECK(s.capacity == 14);
-		for (u64 i = 0; i < s.count; ++i)
+		for (U64 i = 0; i < s.count; ++i)
 			TESTER_CHECK(s[i] == c_string[i]);
 		TESTER_CHECK(s.data[s.count] == '\0');
 		string_deinit(s);
@@ -294,7 +294,7 @@ TESTER_TEST("[CONTAINERS]: String")
 		TESTER_CHECK(s.allocator == nullptr);
 		TESTER_CHECK(s.count == 13);
 		TESTER_CHECK(s.capacity == 14);
-		for (u64 i = 0; i < s.count; ++i)
+		for (U64 i = 0; i < s.count; ++i)
 			TESTER_CHECK(s[i] == c_string[i]);
 		TESTER_CHECK(s.data[s.count] == '\0');
 		string_deinit(s);
@@ -317,7 +317,7 @@ TESTER_TEST("[CONTAINERS]: String")
 		s = string_from(literal, literal + 13);
 		TESTER_CHECK(s.count == 13);
 		TESTER_CHECK(s.capacity == 14);
-		for (u64 i = 0; i < 13; ++i)
+		for (U64 i = 0; i < 13; ++i)
 			TESTER_CHECK(s[i] == literal[i]);
 		string_deinit(s);
 	}
@@ -332,7 +332,7 @@ TESTER_TEST("[CONTAINERS]: String")
 
 		TESTER_CHECK(s2.count == s1.count);
 		TESTER_CHECK(s2.capacity == s1.capacity);
-		for (u64 i = 0; i < s2.count; ++i)
+		for (U64 i = 0; i < s2.count; ++i)
 			TESTER_CHECK(s2[i] == s1[i]);
 	}
 
@@ -351,7 +351,7 @@ TESTER_TEST("[CONTAINERS]: String")
 		TESTER_CHECK(s.capacity == 14);
 
 		auto expected = "Hello, World!";
-		for (u64 i = 0; i < s.count; ++i)
+		for (U64 i = 0; i < s.count; ++i)
 			TESTER_CHECK(s[i] == expected[i]);
 		TESTER_CHECK(s.data[s.count] == '\0');
 
@@ -402,7 +402,7 @@ TESTER_TEST("[CONTAINERS]: String")
 		auto expected = "Hello, World!";
 		TESTER_CHECK(s1.count == 13);
 		TESTER_CHECK(s1.capacity == 14);
-		for (u64 i = 0; i < s1.count; ++i)
+		for (U64 i = 0; i < s1.count; ++i)
 			TESTER_CHECK(s1[i] == expected[i]);
 		TESTER_CHECK(s1.data[s1.count] == '\0');
 
@@ -410,7 +410,7 @@ TESTER_TEST("[CONTAINERS]: String")
 		string_trim_left(s1, string_literal("H"));
 		TESTER_CHECK(s1.count == 12);
 		TESTER_CHECK(s1.capacity == 13);
-		for (u64 i = 1; i < s1.count; ++i)
+		for (U64 i = 1; i < s1.count; ++i)
 			TESTER_CHECK(s1[i - 1] == expected[i]);
 		TESTER_CHECK(s1.data[s1.count] == '\0');
 
@@ -418,7 +418,7 @@ TESTER_TEST("[CONTAINERS]: String")
 		string_trim_right(s1, string_literal("!"));
 		TESTER_CHECK(s1.count == 11);
 		TESTER_CHECK(s1.capacity == 12);
-		for (u64 i = 1; i < s1.count; ++i)
+		for (U64 i = 1; i < s1.count; ++i)
 			TESTER_CHECK(s1[i - 1] == expected[i]);
 		TESTER_CHECK(s1.data[s1.count] == '\0');
 
@@ -430,7 +430,7 @@ TESTER_TEST("[CONTAINERS]: String")
 
 		TESTER_CHECK(s2.count == 13);
 		TESTER_CHECK(s2.capacity == 14);
-		for (u64 i = 0; i < s2.count; ++i)
+		for (U64 i = 0; i < s2.count; ++i)
 			TESTER_CHECK(s2[i] == expected[i]);
 		TESTER_CHECK(s2.data[s2.count] == '\0');
 	}
@@ -503,7 +503,7 @@ TESTER_TEST("[CONTAINERS]: String")
 
 		auto expected = "Hello, World!";
 		TESTER_CHECK(s.count == 13);
-		for (u64 i = 0; i < s.count; ++i)
+		for (U64 i = 0; i < s.count; ++i)
 			TESTER_CHECK(s[i] == expected[i]);
 		TESTER_CHECK(s.data[s.count] == '\0');
 
@@ -588,7 +588,7 @@ TESTER_TEST("[CONTAINERS]: String")
 
 struct Foo
 {
-	i32 x;
+	I32 x;
 
 	inline bool
 	operator==(const Foo &other) const
@@ -603,7 +603,7 @@ struct Foo
 	}
 };
 
-inline static u64
+inline static U64
 hash(const Foo &value)
 {
 	return hash_fnv_x32(&value.x, sizeof(value.x));
@@ -635,7 +635,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 		}
 
 		{
-			auto table = hash_table_init_with_capacity<i32, const char *>(62, memory::temp_allocator());
+			auto table = hash_table_init_with_capacity<I32, const char *>(62, memory::temp_allocator());
 			TESTER_CHECK(table.count == 0);
 			TESTER_CHECK(table.capacity == 64);
 
@@ -651,7 +651,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 		}
 
 		{
-			auto table = hash_table_init_from<i32, const char *>({ {1, "Hello"}, {2, "World!"} }, memory::temp_allocator());
+			auto table = hash_table_init_from<I32, const char *>({ {1, "Hello"}, {2, "World!"} }, memory::temp_allocator());
 
 			TESTER_CHECK(table.count == 2);
 			TESTER_CHECK(table.capacity == 8);
@@ -668,7 +668,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 		}
 
 		{
-			Hash_Table<i32, i32> table = {};
+			Hash_Table<I32, I32> table = {};
 			DEFER(hash_table_deinit(table));
 
 			hash_table_insert(table, 1, 1);
@@ -691,7 +691,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 
 	// ("operator[]")
 	{
-		Hash_Table<i32, i32> table = {};
+		Hash_Table<I32, I32> table = {};
 		DEFER(hash_table_deinit(table));
 
 		hash_table_insert(table, 1, 1);
@@ -711,13 +711,13 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 
 		TESTER_CHECK(table[1] == 3);
 
-		i32 x = table[1];
+		I32 x = table[1];
 		TESTER_CHECK(x == 3);
 
-		const i32 &xx = table[1];
+		const I32 &xx = table[1];
 		TESTER_CHECK(xx == 3);
 
-		i32 &y = table[1];
+		I32 &y = table[1];
 		y = 1;
 
 		TESTER_CHECK(table.entries[0].key == 1);
@@ -788,10 +788,10 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 
 	// ("i32, Foo")
 	{
-		Hash_Table<i32, Foo> table = hash_table_init<i32, Foo>();
+		Hash_Table<I32, Foo> table = hash_table_init<I32, Foo>();
 		DEFER(hash_table_deinit(table));
 
-		i32 key = 1;
+		I32 key = 1;
 		Foo value = Foo{1};
 
 		hash_table_insert(table, key, value);
@@ -809,7 +809,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 		TESTER_CHECK(hash_table_find(table, key)->value != Foo{1});
 		TESTER_CHECK(hash_table_find(table, key)->value == Foo{3});
 
-		i32 key2   = 2;
+		I32 key2   = 2;
 		Foo value2 = Foo{2};
 		hash_table_insert(table, key2, value2);
 		TESTER_CHECK(table.count == 2);
@@ -828,7 +828,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 
 	// ("reserve")
 	{
-		Hash_Table<i32, i32> table = hash_table_init<i32, i32>(memory::temp_allocator());
+		Hash_Table<I32, I32> table = hash_table_init<I32, I32>(memory::temp_allocator());
 
 		hash_table_reserve(table, 100);
 
@@ -848,7 +848,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 		TESTER_CHECK(table.slots.count    == 128);
 		TESTER_CHECK(table.slots.capacity == 128);
 
-		for (i32 i = 0; i < 50; ++i)
+		for (I32 i = 0; i < 50; ++i)
 			hash_table_insert(table, i, i);
 
 		hash_table_reserve(table, 100);
@@ -865,7 +865,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 	{
 		// ("unordered")
 		{
-			Hash_Table<i32, i32> table = {};
+			Hash_Table<I32, I32> table = {};
 			DEFER(hash_table_deinit(table));
 
 			TESTER_CHECK(hash_table_remove(table, 0) == false);
@@ -875,7 +875,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 
 		// ("ordered")
 		{
-			Hash_Table<i32, i32> table = {};
+			Hash_Table<I32, I32> table = {};
 			DEFER(hash_table_deinit(table));
 			hash_table_insert(table, 1, 1);
 			hash_table_insert(table, 2, 2);
@@ -920,19 +920,19 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 
 	// ("resize")
 	{
-		Hash_Table<i32, f32> table = hash_table_init<i32, f32>(memory::temp_allocator());
+		Hash_Table<I32, F32> table = hash_table_init<I32, F32>(memory::temp_allocator());
 
-		for (i32 i = 0; i < 100; ++i)
+		for (I32 i = 0; i < 100; ++i)
 			hash_table_insert(table, i, i + 0.5f);
 
 		TESTER_CHECK(table.count == 100);
 		TESTER_CHECK(table.capacity == 256);
 
-		i32 j = 0;
+		I32 j = 0;
 		for (const auto &entry : table)
 			TESTER_CHECK(entry.key == j++);
 
-		for (i32 i = 0; i < 100; ++i)
+		for (I32 i = 0; i < 100; ++i)
 		{
 			auto pair = hash_table_find(table, i);
 			TESTER_CHECK(pair != nullptr);
@@ -940,14 +940,14 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 			TESTER_CHECK(pair->value == (i + 0.5f));
 		}
 
-		for (i32 i = 0; i < 100; ++i)
+		for (I32 i = 0; i < 100; ++i)
 		{
 			TESTER_CHECK(hash_table_remove(table, i) == true);
 			TESTER_CHECK(hash_table_find(table, i) == nullptr);
-			TESTER_CHECK(table.count == u64(99 - i));
+			TESTER_CHECK(table.count == U64(99 - i));
 		}
 
-		for (i32 i = 0; i < 100; ++i)
+		for (I32 i = 0; i < 100; ++i)
 		{
 			TESTER_CHECK(hash_table_remove(table, i) == false);
 			TESTER_CHECK(hash_table_find(table, i) == nullptr);
@@ -959,15 +959,15 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 
 	// ("clear")
 	{
-		Hash_Table<i32, i32> table = hash_table_init<i32, i32>(memory::temp_allocator());
+		Hash_Table<I32, I32> table = hash_table_init<I32, I32>(memory::temp_allocator());
 
-		for (i32 i = 0; i < 10; ++i)
+		for (I32 i = 0; i < 10; ++i)
 			hash_table_insert(table, i, i + 1);
 
 		TESTER_CHECK(table.count == 10);
 		TESTER_CHECK(table.capacity == 16);
 
-		i32 j = 0;
+		I32 j = 0;
 		for (auto &entry : table)
 		{
 			TESTER_CHECK(entry.key == j++);
@@ -979,19 +979,19 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 		TESTER_CHECK(table.count == 0);
 		TESTER_CHECK(table.capacity == 16);
 
-		for (i32 i = 0; i < 10; ++i)
+		for (I32 i = 0; i < 10; ++i)
 			TESTER_CHECK(hash_table_find(table, i) == nullptr);
 	}
 
 	// ("copy/clone/destroy")
 	{
-		Hash_Table<i32, i32> table1 = hash_table_init<i32, i32>();
+		Hash_Table<I32, I32> table1 = hash_table_init<I32, I32>();
 		DEFER(destroy(table1));
 
 		TESTER_CHECK(table1.count    == 0);
 		TESTER_CHECK(table1.capacity == 0);
 
-		for (i32 i = 0; i < 10; ++i)
+		for (I32 i = 0; i < 10; ++i)
 			hash_table_insert(table1, i, i + 1);
 
 		TESTER_CHECK(table1.count    == 10);
@@ -1003,23 +1003,23 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 		TESTER_CHECK(table2.count == 10);
 		TESTER_CHECK(table2.capacity == 16);
 
-		i32 j = 0;
+		I32 j = 0;
 		for (auto &entry : table2)
 		{
 			TESTER_CHECK(entry.key == j++);
 			TESTER_CHECK(entry.value == j);
 		}
 
-		auto table3 = hash_table_init<Foo, i32>();
+		auto table3 = hash_table_init<Foo, I32>();
 		DEFER(destroy(table3));
 
-		for (i32 i = 0; i < 10; ++i)
+		for (I32 i = 0; i < 10; ++i)
 			hash_table_insert(table3, Foo{i}, i + 10);
 
 		TESTER_CHECK(table3.count == 10);
 		TESTER_CHECK(table3.capacity == 16);
 
-		i32 k = 0;
+		I32 k = 0;
 		for (const auto &entry : table3)
 		{
 			TESTER_CHECK(entry.key == Foo{k});
@@ -1044,18 +1044,18 @@ TESTER_TEST("[CONTAINERS]: Hash_Table")
 
 	// ("user defined key [Foo]")
 	{
-		Hash_Table<Foo, i32> table = hash_table_init<Foo, i32>(memory::temp_allocator());
+		Hash_Table<Foo, I32> table = hash_table_init<Foo, I32>(memory::temp_allocator());
 
 		TESTER_CHECK(table.count    == 0);
 		TESTER_CHECK(table.capacity == 0);
 
-		for (i32 i = 0; i < 10; ++i)
+		for (I32 i = 0; i < 10; ++i)
 			hash_table_insert(table, Foo{i}, i + 1);
 
 		TESTER_CHECK(table.count == 10);
 		TESTER_CHECK(table.capacity == 16);
 
-		i32 j = 0;
+		I32 j = 0;
 		for (const auto &entry : table)
 		{
 			TESTER_CHECK(entry.key == Foo{j++});
@@ -1081,7 +1081,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 		}
 
 		{
-			auto set = hash_set_init_with_capacity<i32>(62, memory::temp_allocator());
+			auto set = hash_set_init_with_capacity<I32>(62, memory::temp_allocator());
 			TESTER_CHECK(set.count == 0);
 			TESTER_CHECK(set.capacity == 64);
 
@@ -1097,7 +1097,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 		}
 
 		{
-			auto set = hash_set_init_from<i32>({1, 2}, memory::temp_allocator());
+			auto set = hash_set_init_from<I32>({1, 2}, memory::temp_allocator());
 
 			TESTER_CHECK(set.count == 2);
 			TESTER_CHECK(set.capacity == 8);
@@ -1111,7 +1111,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 		}
 
 		{
-			Hash_Set<i32> set = {};
+			Hash_Set<I32> set = {};
 			DEFER(hash_set_deinit(set));
 
 			hash_set_insert(set, 1);
@@ -1183,10 +1183,10 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 
 	// ("i32, Foo")
 	{
-		Hash_Set<i32> set = hash_set_init<i32>();
+		Hash_Set<I32> set = hash_set_init<I32>();
 		DEFER(hash_set_deinit(set));
 
-		i32 key = 1;
+		I32 key = 1;
 		hash_set_insert(set, key);
 
 		TESTER_CHECK(set.count == 1);
@@ -1200,7 +1200,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 		TESTER_CHECK(hash_set_find(set, key) != nullptr);
 		TESTER_CHECK(*hash_set_find(set, key) == 1);
 
-		i32 key2   = 2;
+		I32 key2   = 2;
 		hash_set_insert(set, key2);
 		TESTER_CHECK(set.count == 2);
 
@@ -1218,7 +1218,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 
 	// ("reserve")
 	{
-		Hash_Set<i32> set = hash_set_init<i32>(memory::temp_allocator());
+		Hash_Set<I32> set = hash_set_init<I32>(memory::temp_allocator());
 
 		hash_set_reserve(set, 100);
 
@@ -1238,7 +1238,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 		TESTER_CHECK(set.slots.count    == 128);
 		TESTER_CHECK(set.slots.capacity == 128);
 
-		for (i32 i = 0; i < 50; ++i)
+		for (I32 i = 0; i < 50; ++i)
 			hash_set_insert(set, i);
 
 		hash_set_reserve(set, 100);
@@ -1255,7 +1255,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 	{
 		// ("unordered")
 		{
-			Hash_Set<i32> set = {};
+			Hash_Set<I32> set = {};
 			DEFER(hash_set_deinit(set));
 
 			TESTER_CHECK(hash_set_remove(set, 0) == false);
@@ -1265,7 +1265,7 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 
 		// ("ordered")
 		{
-			Hash_Set<i32> set = {};
+			Hash_Set<I32> set = {};
 			DEFER(hash_set_deinit(set));
 			hash_set_insert(set, 1);
 			hash_set_insert(set, 2);
@@ -1302,33 +1302,33 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 
 	// ("resize")
 	{
-		Hash_Set<i32> set = hash_set_init<i32>(memory::temp_allocator());
+		Hash_Set<I32> set = hash_set_init<I32>(memory::temp_allocator());
 
-		for (i32 i = 0; i < 100; ++i)
+		for (I32 i = 0; i < 100; ++i)
 			hash_set_insert(set, i);
 
 		TESTER_CHECK(set.count == 100);
 		TESTER_CHECK(set.capacity == 256);
 
-		i32 j = 0;
+		I32 j = 0;
 		for (const auto &entry : set)
 			TESTER_CHECK(entry == j++);
 
-		for (i32 i = 0; i < 100; ++i)
+		for (I32 i = 0; i < 100; ++i)
 		{
 			auto entry = hash_set_find(set, i);
 			TESTER_CHECK(entry != nullptr);
 			TESTER_CHECK(*entry == i);
 		}
 
-		for (i32 i = 0; i < 100; ++i)
+		for (I32 i = 0; i < 100; ++i)
 		{
 			TESTER_CHECK(hash_set_remove(set, i) == true);
 			TESTER_CHECK(hash_set_find(set, i) == nullptr);
-			TESTER_CHECK(set.count == u64(99 - i));
+			TESTER_CHECK(set.count == U64(99 - i));
 		}
 
-		for (i32 i = 0; i < 100; ++i)
+		for (I32 i = 0; i < 100; ++i)
 		{
 			TESTER_CHECK(hash_set_remove(set, i) == false);
 			TESTER_CHECK(hash_set_find(set, i) == nullptr);
@@ -1340,15 +1340,15 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 
 	// ("clear")
 	{
-		Hash_Set<i32> set = hash_set_init<i32>(memory::temp_allocator());
+		Hash_Set<I32> set = hash_set_init<I32>(memory::temp_allocator());
 
-		for (i32 i = 0; i < 10; ++i)
+		for (I32 i = 0; i < 10; ++i)
 			hash_set_insert(set, i);
 
 		TESTER_CHECK(set.count == 10);
 		TESTER_CHECK(set.capacity == 16);
 
-		i32 j = 0;
+		I32 j = 0;
 		for (const auto &entry : set)
 			TESTER_CHECK(entry == j++);
 
@@ -1357,19 +1357,19 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 		TESTER_CHECK(set.count == 0);
 		TESTER_CHECK(set.capacity == 16);
 
-		for (i32 i = 0; i < 10; ++i)
+		for (I32 i = 0; i < 10; ++i)
 			TESTER_CHECK(hash_set_find(set, i) == nullptr);
 	}
 
 	// ("copy/clone/destroy")
 	{
-		Hash_Set<i32> set1 = hash_set_init<i32>();
+		Hash_Set<I32> set1 = hash_set_init<I32>();
 		DEFER(destroy(set1));
 
 		TESTER_CHECK(set1.count    == 0);
 		TESTER_CHECK(set1.capacity == 0);
 
-		for (i32 i = 0; i < 10; ++i)
+		for (I32 i = 0; i < 10; ++i)
 			hash_set_insert(set1, i);
 
 		TESTER_CHECK(set1.count    == 10);
@@ -1381,20 +1381,20 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 		TESTER_CHECK(set2.count == 10);
 		TESTER_CHECK(set2.capacity == 16);
 
-		i32 j = 0;
+		I32 j = 0;
 		for (const auto &entry : set2)
 			TESTER_CHECK(entry == j++);
 
 		auto set3 = hash_set_init<Foo>();
 		DEFER(destroy(set3));
 
-		for (i32 i = 0; i < 10; ++i)
+		for (I32 i = 0; i < 10; ++i)
 			hash_set_insert(set3, Foo{i});
 
 		TESTER_CHECK(set3.count == 10);
 		TESTER_CHECK(set3.capacity == 16);
 
-		i32 k = 0;
+		I32 k = 0;
 		for (const auto &entry : set3)
 		{
 			TESTER_CHECK(entry == Foo{k});
@@ -1422,13 +1422,13 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 		TESTER_CHECK(table.count    == 0);
 		TESTER_CHECK(table.capacity == 0);
 
-		for (i32 i = 0; i < 10; ++i)
+		for (I32 i = 0; i < 10; ++i)
 			hash_set_insert(table, Foo{i});
 
 		TESTER_CHECK(table.count == 10);
 		TESTER_CHECK(table.capacity == 16);
 
-		i32 j = 0;
+		I32 j = 0;
 		for (const auto &entry : table)
 			TESTER_CHECK(entry == Foo{j++});
 	}
@@ -1453,7 +1453,7 @@ TESTER_TEST("[CONTAINERS]: Span")
 {
 	// ("span_init from pointer + count")
 	{
-		i32 values[] = {10, 20, 30};
+		I32 values[] = {10, 20, 30};
 		auto span = span_init(values, 3);
 		TESTER_CHECK(span.data == values);
 		TESTER_CHECK(span.count == 3);
@@ -1461,7 +1461,7 @@ TESTER_TEST("[CONTAINERS]: Span")
 
 	// ("span_init from two pointers")
 	{
-		i32 values[] = {1, 2, 3, 4, 5};
+		I32 values[] = {1, 2, 3, 4, 5};
 		auto span = span_init(values, values + 5);
 		TESTER_CHECK(span.data == values);
 		TESTER_CHECK(span.count == 5);
@@ -1469,7 +1469,7 @@ TESTER_TEST("[CONTAINERS]: Span")
 
 	// ("span_init from C array")
 	{
-		i32 values[4] = {7, 8, 9, 10};
+		I32 values[4] = {7, 8, 9, 10};
 		auto span = span_init(values);
 		TESTER_CHECK(span.data == values);
 		TESTER_CHECK(span.count == 4);
@@ -1477,7 +1477,7 @@ TESTER_TEST("[CONTAINERS]: Span")
 
 	// ("span_init from Array")
 	{
-		auto array = array_init_from<i32>({1, 2, 3});
+		auto array = array_init_from<I32>({1, 2, 3});
 		DEFER(array_deinit(array));
 
 		auto span = span_init(array);
@@ -1487,7 +1487,7 @@ TESTER_TEST("[CONTAINERS]: Span")
 
 	// ("span_init from Stack_Array")
 	{
-		Stack_Array<i32, 3> array{{1, 2, 3}};
+		Stack_Array<I32, 3> array{{1, 2, 3}};
 		auto span = span_init(array);
 		TESTER_CHECK(span.data == array.data);
 		TESTER_CHECK(span.count == 3);
@@ -1501,9 +1501,9 @@ TESTER_TEST("[CONTAINERS]: Span")
 		TESTER_CHECK(span[4] == 'o');
 	}
 
-	// ("span_init from initializer_list — used inline as function argument")
+	// ("span_init from braced values used inline as function argument")
 	{
-		auto check = [](Span<const i32> span) {
+		auto check = [](Span<const I32> span) {
 			TESTER_CHECK(span.count == 4);
 			TESTER_CHECK(span[0] == 1);
 			TESTER_CHECK(span[3] == 4);
@@ -1513,7 +1513,7 @@ TESTER_TEST("[CONTAINERS]: Span")
 
 	// ("operator[]")
 	{
-		i32 values[] = {10, 20, 30};
+		I32 values[] = {10, 20, 30};
 		auto span = span_init(values, 3);
 		TESTER_CHECK(span[0] == 10);
 		TESTER_CHECK(span[1] == 20);
@@ -1522,7 +1522,7 @@ TESTER_TEST("[CONTAINERS]: Span")
 
 	// ("mutation through span")
 	{
-		i32 values[] = {1, 2, 3};
+		I32 values[] = {1, 2, 3};
 		auto span = span_init(values, 3);
 		span[0] = 99;
 		TESTER_CHECK(values[0] == 99);
@@ -1530,14 +1530,14 @@ TESTER_TEST("[CONTAINERS]: Span")
 
 	// ("span_is_empty")
 	{
-		i32 values[] = {1};
-		TESTER_CHECK(span_is_empty(span_init((i32 *)nullptr, (u64)0)) == true);
+		I32 values[] = {1};
+		TESTER_CHECK(span_is_empty(span_init((I32 *)nullptr, (U64)0)) == true);
 		TESTER_CHECK(span_is_empty(span_init(values, 1)) == false);
 	}
 
 	// ("span_first / span_last")
 	{
-		i32 values[] = {10, 20, 30};
+		I32 values[] = {10, 20, 30};
 		auto span = span_init(values, 3);
 		TESTER_CHECK(span_first(span) == 10);
 		TESTER_CHECK(span_last(span) == 30);
@@ -1550,10 +1550,10 @@ TESTER_TEST("[CONTAINERS]: Span")
 
 	// ("range-based for")
 	{
-		i32 values[] = {1, 2, 3, 4, 5};
+		I32 values[] = {1, 2, 3, 4, 5};
 		auto span = span_init(values, 5);
-		i32 sum = 0;
-		for (i32 v : span)
+		I32 sum = 0;
+		for (I32 v : span)
 			sum += v;
 		TESTER_CHECK(sum == 15);
 	}
@@ -1563,7 +1563,7 @@ TESTER_TEST("[CONTAINERS]: Ring_Buffer")
 {
 	// ("init")
 	{
-		auto rb = ring_buffer_init<i32>();
+		auto rb = ring_buffer_init<I32>();
 		DEFER(ring_buffer_deinit(rb));
 
 		TESTER_CHECK(rb.data     == nullptr);
@@ -1575,7 +1575,7 @@ TESTER_TEST("[CONTAINERS]: Ring_Buffer")
 
 	// ("push_back / first / last")
 	{
-		auto rb = ring_buffer_init<i32>();
+		auto rb = ring_buffer_init<I32>();
 		DEFER(ring_buffer_deinit(rb));
 
 		ring_buffer_push_back(rb, 1);
@@ -1592,7 +1592,7 @@ TESTER_TEST("[CONTAINERS]: Ring_Buffer")
 
 	// ("push_front / first / last")
 	{
-		auto rb = ring_buffer_init<i32>();
+		auto rb = ring_buffer_init<I32>();
 		DEFER(ring_buffer_deinit(rb));
 
 		ring_buffer_push_front(rb, 3);
@@ -1609,7 +1609,7 @@ TESTER_TEST("[CONTAINERS]: Ring_Buffer")
 
 	// ("pop_front — FIFO behaviour")
 	{
-		auto rb = ring_buffer_init<i32>();
+		auto rb = ring_buffer_init<I32>();
 		DEFER(ring_buffer_deinit(rb));
 
 		ring_buffer_push_back(rb, 10);
@@ -1628,7 +1628,7 @@ TESTER_TEST("[CONTAINERS]: Ring_Buffer")
 
 	// ("pop_back — stack behaviour")
 	{
-		auto rb = ring_buffer_init<i32>();
+		auto rb = ring_buffer_init<I32>();
 		DEFER(ring_buffer_deinit(rb));
 
 		ring_buffer_push_back(rb, 10);
@@ -1643,42 +1643,42 @@ TESTER_TEST("[CONTAINERS]: Ring_Buffer")
 
 	// ("wrap-around: head advances past end, tail wraps")
 	{
-		auto rb = ring_buffer_init<i32>();
+		auto rb = ring_buffer_init<I32>();
 		DEFER(ring_buffer_deinit(rb));
 
 		// fill to 8 (initial growth)
-		for (i32 i = 0; i < 8; ++i)
+		for (I32 i = 0; i < 8; ++i)
 			ring_buffer_push_back(rb, i);
 
 		// drain 4 from front → head=4
-		for (i32 i = 0; i < 4; ++i)
+		for (I32 i = 0; i < 4; ++i)
 			ring_buffer_pop_front(rb);
 
 		TESTER_CHECK(rb.count == 4);
 		TESTER_CHECK(rb.head  == 4);
 
 		// push 4 more → tail wraps past end
-		for (i32 i = 8; i < 12; ++i)
+		for (I32 i = 8; i < 12; ++i)
 			ring_buffer_push_back(rb, i);
 
 		TESTER_CHECK(rb.count == 8);
 		// logical order must be 4,5,6,7,8,9,10,11
-		for (u64 i = 0; i < rb.count; ++i)
-			TESTER_CHECK(rb[i] == i32(i + 4));
+		for (U64 i = 0; i < rb.count; ++i)
+			TESTER_CHECK(rb[i] == I32(i + 4));
 	}
 
 	// ("reserve: linearizes wrapped buffer correctly")
 	{
-		auto rb = ring_buffer_init<i32>();
+		auto rb = ring_buffer_init<I32>();
 		DEFER(ring_buffer_deinit(rb));
 
-		for (i32 i = 0; i < 8; ++i)
+		for (I32 i = 0; i < 8; ++i)
 			ring_buffer_push_back(rb, i);
 
 		// advance head to create a wrap condition on next pushes
-		for (i32 i = 0; i < 4; ++i)
+		for (I32 i = 0; i < 4; ++i)
 			ring_buffer_pop_front(rb);
-		for (i32 i = 8; i < 12; ++i)
+		for (I32 i = 8; i < 12; ++i)
 			ring_buffer_push_back(rb, i);  // wraps tail past index 0
 
 		// now force a grow (buffer is full at 8)
@@ -1687,13 +1687,13 @@ TESTER_TEST("[CONTAINERS]: Ring_Buffer")
 		// after grow, head must be 0 and logical order preserved
 		TESTER_CHECK(rb.head == 0);
 		TESTER_CHECK(rb.count == 9);
-		for (u64 i = 0; i < rb.count; ++i)
-			TESTER_CHECK(rb[i] == i32(i + 4));
+		for (U64 i = 0; i < rb.count; ++i)
+			TESTER_CHECK(rb[i] == I32(i + 4));
 	}
 
 	// ("is_empty / clear")
 	{
-		auto rb = ring_buffer_init<i32>();
+		auto rb = ring_buffer_init<I32>();
 		DEFER(ring_buffer_deinit(rb));
 
 		TESTER_CHECK(ring_buffer_is_empty(rb) == true);
@@ -1707,10 +1707,10 @@ TESTER_TEST("[CONTAINERS]: Ring_Buffer")
 
 	// ("copy")
 	{
-		auto rb1 = ring_buffer_init<i32>();
+		auto rb1 = ring_buffer_init<I32>();
 		DEFER(ring_buffer_deinit(rb1));
 
-		for (i32 i = 0; i < 5; ++i)
+		for (I32 i = 0; i < 5; ++i)
 			ring_buffer_push_back(rb1, i);
 
 		auto rb2 = ring_buffer_copy(rb1);
@@ -1718,7 +1718,7 @@ TESTER_TEST("[CONTAINERS]: Ring_Buffer")
 
 		TESTER_CHECK(rb2.count == rb1.count);
 		TESTER_CHECK(rb2.head  == 0);  // copy is always linearized
-		for (u64 i = 0; i < rb2.count; ++i)
+		for (U64 i = 0; i < rb2.count; ++i)
 			TESTER_CHECK(rb2[i] == rb1[i]);
 	}
 }

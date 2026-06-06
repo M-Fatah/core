@@ -19,7 +19,7 @@ string_init(memory::Allocator *allocator = memory::heap_allocator())
 
 // TODO: Unit test for null character if string is copied using for loop.
 inline static String
-string_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
+string_with_capacity(U64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
 	String self = array_init_with_capacity<char>(capacity, allocator);
 	self.data[0] = '\0';
@@ -29,17 +29,17 @@ string_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_a
 inline static String
 string_from(const char *c_string, memory::Allocator *allocator = memory::heap_allocator())
 {
-	auto length_of = [](const char *string) -> u64 {
-		u64 count = 0;
+	auto length_of = [](const char *string) -> U64 {
+		U64 count = 0;
 		const char *ptr = string;
 		while (*ptr++) ++count;
 		return count;
 	};
 
-	u64 length = c_string == nullptr ? 0 : length_of(c_string);
+	U64 length = c_string == nullptr ? 0 : length_of(c_string);
 	String self = array_init_with_capacity<char>(length + 1, allocator);
 	self.count = length;
-	for (u64 i = 0; i < length; ++i)
+	for (U64 i = 0; i < length; ++i)
 		self[i] = c_string[i];
 	self.data[self.count] = '\0';
 	return self;
@@ -69,8 +69,8 @@ string_copy(const String &self, memory::Allocator *allocator = memory::heap_allo
 inline static String
 string_literal(const char *c_string)
 {
-	auto length_of = [](const char *string) -> u64 {
-		u64 count = 0;
+	auto length_of = [](const char *string) -> U64 {
+		U64 count = 0;
 		const char *ptr = string;
 		while (*ptr++) ++count;
 		return count;
@@ -90,13 +90,13 @@ string_deinit(String &self)
 }
 
 inline static void
-string_reserve(String& self, u64 added_capacity)
+string_reserve(String& self, U64 added_capacity)
 {
 	array_reserve(self, added_capacity);
 }
 
 inline static void
-string_resize(String& self, u64 new_count)
+string_resize(String& self, U64 new_count)
 {
 	array_resize(self, new_count + 1);
 	--self.count;
@@ -119,7 +119,7 @@ string_append(String &self, char c)
 }
 
 inline static void
-string_append(String &self, char c, i32 count)
+string_append(String &self, char c, I32 count)
 {
 	if (count == 0)
 		return;
@@ -154,7 +154,7 @@ string_to_lowercase(char c)
 inline static String &
 string_to_lowercase(String &self)
 {
-	for (u64 i = 0; i < self.count; ++i)
+	for (U64 i = 0; i < self.count; ++i)
 		self[i] = string_to_lowercase(self[i]);
 	return self;
 }
@@ -170,29 +170,29 @@ string_to_uppercase(char c)
 inline static String &
 string_to_uppercase(String &self)
 {
-	for (u64 i = 0; i < self.count; ++i)
+	for (U64 i = 0; i < self.count; ++i)
 		self[i] = string_to_uppercase(self[i]);
 	return self;
 }
 
-inline static u64
-string_find_first_of(const String &self, const String &to_find, u64 start = 0)
+inline static U64
+string_find_first_of(const String &self, const String &to_find, U64 start = 0)
 {
 	if (self.count == 0 || to_find.count > self.count || to_find.count == 0 || start >= self.count)
-		return u64(-1);
+		return U64(-1);
 
-	u64 index = u64(-1);
-	for (u64 i = start; i < self.count; ++i)
+	U64 index = U64(-1);
+	for (U64 i = start; i < self.count; ++i)
 	{
 		if (self[i] != to_find[0])
 			continue;
 		else
 			index = i;
 
-		for (u64 c = 0; c < to_find.count; ++c)
+		for (U64 c = 0; c < to_find.count; ++c)
 		{
 			if (i + c >= self.count)
-				return u64(-1);
+				return U64(-1);
 
 			if (self[i + c] != to_find[c])
 				break;
@@ -202,61 +202,61 @@ string_find_first_of(const String &self, const String &to_find, u64 start = 0)
 		}
 	}
 
-	return u64(-1);
+	return U64(-1);
 }
 
-inline static u64
-string_find_first_of(const String &self, const char *to_find, u64 start = 0)
+inline static U64
+string_find_first_of(const String &self, const char *to_find, U64 start = 0)
 {
 	return string_find_first_of(self, string_literal(to_find), start);
 }
 
-inline static u64
-string_find_first_of(const char *c_string, const String &to_find, u64 start = 0)
+inline static U64
+string_find_first_of(const char *c_string, const String &to_find, U64 start = 0)
 {
 	return string_find_first_of(string_literal(c_string), to_find, start);
 }
 
-inline static u64
-string_find_first_of(const char *c_string, const char *to_find, u64 start = 0)
+inline static U64
+string_find_first_of(const char *c_string, const char *to_find, U64 start = 0)
 {
 	return string_find_first_of(string_literal(c_string), string_literal(to_find), start);
 }
 
-inline static u64
-string_find_first_of(const String &self, char c, u64 start = 0)
+inline static U64
+string_find_first_of(const String &self, char c, U64 start = 0)
 {
 	if (start >= self.count)
-		return u64(-1);
+		return U64(-1);
 
-	for (u64 i = start; i < self.count; ++i)
+	for (U64 i = start; i < self.count; ++i)
 		if (self[i] == c)
 			return i;
 
-	return u64(-1);
+	return U64(-1);
 }
 
-inline static u64
-string_find_first_of(const char *c_string, char c, u64 start = 0)
+inline static U64
+string_find_first_of(const char *c_string, char c, U64 start = 0)
 {
 	return string_find_first_of(string_literal(c_string), c, start);
 }
 
-inline static u64
+inline static U64
 string_find_last_of(const String &self, const String &to_find)
 {
 	if (self.count == 0 || to_find.count > self.count || to_find.count == 0)
-		return u64(-1);
+		return U64(-1);
 
-	u64 index = u64(-1);
-	for (u64 i = self.count - to_find.count; i != u64(-1); --i)
+	U64 index = U64(-1);
+	for (U64 i = self.count - to_find.count; i != U64(-1); --i)
 	{
 		if (self[i] != to_find[0])
 			continue;
 		else
 			index = i;
 
-		for (u64 c = 0; c < to_find.count; ++c)
+		for (U64 c = 0; c < to_find.count; ++c)
 		{
 			if (self[i + c] != to_find[c])
 				break;
@@ -266,36 +266,36 @@ string_find_last_of(const String &self, const String &to_find)
 		}
 	}
 
-	return u64(-1);
+	return U64(-1);
 }
 
-inline static u64
+inline static U64
 string_find_last_of(const String &self, const char *to_find)
 {
 	return string_find_last_of(self, string_literal(to_find));
 }
 
-inline static u64
+inline static U64
 string_find_last_of(const char *c_string, const String &to_find)
 {
 	return string_find_last_of(string_literal(c_string), to_find);
 }
 
-inline static u64
+inline static U64
 string_find_last_of(const char *c_string, const char *to_find)
 {
 	return string_find_last_of(string_literal(c_string), string_literal(to_find));
 }
 
-inline static u64
+inline static U64
 string_find_last_of(const String &self, char c)
 {
-	for (u64 i = self.count - 1; i != u64(-1); --i)
+	for (U64 i = self.count - 1; i != U64(-1); --i)
 	{
 		if (self[i] == c)
 			return i;
 	}
-	return u64(-1);
+	return U64(-1);
 }
 
 inline static bool
@@ -306,12 +306,12 @@ string_contains(const String &self, const String &other, bool case_insensitive =
 
 	if (case_insensitive)
 	{
-		for (u64 i = 0; i < self.count; ++i)
+		for (U64 i = 0; i < self.count; ++i)
 		{
 			if (string_to_lowercase(self[i]) != string_to_lowercase(other[0]))
 				continue;
 
-			for (u64 c = 0; c < other.count; ++c)
+			for (U64 c = 0; c < other.count; ++c)
 			{
 				if (string_to_lowercase(self[i + c]) != string_to_lowercase(other[c]))
 					break;
@@ -323,12 +323,12 @@ string_contains(const String &self, const String &other, bool case_insensitive =
 	}
 	else
 	{
-		for (u64 i = 0; i < self.count; ++i)
+		for (U64 i = 0; i < self.count; ++i)
 		{
 			if (self[i] != other[0])
 				continue;
 
-			for (u64 c = 0; c < other.count; ++c)
+			for (U64 c = 0; c < other.count; ++c)
 			{
 				if (self[i + c] != other[c])
 					break;
@@ -363,7 +363,7 @@ string_contains(const char *c_string, const char *other, bool case_insensitive =
 inline static bool
 string_contains(const String &self, char c, bool case_insensitive = false)
 {
-	for (u64 i = 0; i < self.count; ++i)
+	for (U64 i = 0; i < self.count; ++i)
 		if ((case_insensitive ? string_to_lowercase(self[i]) : self[i]) == c)
 			return true;
 	return false;
@@ -384,7 +384,7 @@ string_starts_with(const String &self, const String &prefix)
 	if(self.count < prefix.count)
 		return false;
 
-	for (u64 i = 0; i < prefix.count; ++i)
+	for (U64 i = 0; i < prefix.count; ++i)
 		if (self[i] != prefix[i])
 			return false;
 
@@ -424,7 +424,7 @@ string_ends_with(const String &self, const String &suffix)
 	if(self.count < suffix.count)
 		return false;
 
-	for (u64 i = 0; i < suffix.count; ++i)
+	for (U64 i = 0; i < suffix.count; ++i)
 		if (self[self.count - suffix.count + i] != suffix[i])
 			return false;
 
@@ -460,9 +460,9 @@ string_remove_last(String &self)
 inline static void
 string_trim(String &self, const String &to_trim)
 {
-	u64 substring_start  = 0;
-	u64 substring_length = self.count;
-	for (u64 i = 0; i < self.count; ++i)
+	U64 substring_start  = 0;
+	U64 substring_length = self.count;
+	for (U64 i = 0; i < self.count; ++i)
 	{
 		if (substring_length == 0)
 			return;
@@ -474,7 +474,7 @@ string_trim(String &self, const String &to_trim)
 		--substring_length;
 	}
 
-	for (u64 i = self.count - 1; i > 0; --i)
+	for (U64 i = self.count - 1; i > 0; --i)
 	{
 		if (substring_length == 0)
 			return;
@@ -497,9 +497,9 @@ string_trim(String &self, const char *to_trim)
 inline static void
 string_trim_left(String &self, const String &to_trim)
 {
-	u64 substring_start  = 0;
-	u64 substring_length = self.count;
-	for (u64 i = 0; i < self.count; ++i)
+	U64 substring_start  = 0;
+	U64 substring_length = self.count;
+	for (U64 i = 0; i < self.count; ++i)
 	{
 		if (substring_length == 0)
 			return;
@@ -525,9 +525,9 @@ string_trim_left(String &self, const char *to_trim)
 inline static void
 string_trim_right(String &self, const String &to_trim)
 {
-	u64 substring_start  = 0;
-	u64 substring_length = self.count;
-	for (u64 i = self.count - 1; i > 0; --i)
+	U64 substring_start  = 0;
+	U64 substring_length = self.count;
+	for (U64 i = self.count - 1; i > 0; --i)
 	{
 		if (substring_length == 0)
 			return;
@@ -558,9 +558,9 @@ string_split(const String &self, char delimeter, bool skip_empty = true, memory:
 {
 	Array<String> splits = array_init<String>(allocator);
 
-	u64 current = 0;
-	u64 index   = 0;
-	while((index = string_find_first_of(self, delimeter, current)) != u64(-1))
+	U64 current = 0;
+	U64 index   = 0;
+	while((index = string_find_first_of(self, delimeter, current)) != U64(-1))
 	{
 		if ((index - current) != 0 || skip_empty == false)
 			array_push(splits, string_from(self.data + current, self.data + index, allocator));
@@ -582,9 +582,9 @@ string_split(const String &self, const String &delimeter, bool skip_empty = true
 {
 	Array<String> splits = array_init<String>(allocator);
 
-	u64 current = 0;
-	u64 index   = 0;
-	while((index = string_find_first_of(self, delimeter, current)) != u64(-1))
+	U64 current = 0;
+	U64 index   = 0;
+	while((index = string_find_first_of(self, delimeter, current)) != U64(-1))
 	{
 		if ((index - current) != 0 || skip_empty == false)
 			array_push(splits, string_from(self.data + current, self.data + index, allocator));
@@ -616,7 +616,7 @@ string_split(const char *c_string, const char *delimeter, bool skip_empty = true
 inline static void
 string_replace(String &self, char to_replace, char replacement)
 {
-	for(u64 i = 0; i < self.count; ++i)
+	for(U64 i = 0; i < self.count; ++i)
 		if(self[i] == to_replace)
 			self[i] = replacement;
 }
@@ -631,7 +631,7 @@ string_replace(String &self, const String &to_replace, const String &replacement
 	if (string_starts_with(self, to_replace))
 		string_append(copy, replacement);
 
-	for (u64 i = 0; i < splits.count; ++i)
+	for (U64 i = 0; i < splits.count; ++i)
 	{
 		string_append(copy, splits[i]);
 		if (i != splits.count - 1)
@@ -667,10 +667,10 @@ string_replace(String &self, const char *to_replace, const char *replacement)
 //       Add string_replace(String &, const char *, char);
 //       Add start index to replace and other suited functions.
 inline static void
-string_replace_first_occurance(String &self, const String &to_replace, const String &replacement, u64 start = 0)
+string_replace_first_occurance(String &self, const String &to_replace, const String &replacement, U64 start = 0)
 {
-	u64 index = string_find_first_of(self, to_replace, start);
-	if (index != u64(-1))
+	U64 index = string_find_first_of(self, to_replace, start);
+	if (index != U64(-1))
 	{
 		String temp = string_from(begin(self) + index + to_replace.count, end(self), memory::temp_allocator());
 		string_resize(self, index);
@@ -680,19 +680,19 @@ string_replace_first_occurance(String &self, const String &to_replace, const Str
 }
 
 inline static void
-string_replace_first_occurance(String &self, const char *to_replace, const String &replacement, u64 start = 0)
+string_replace_first_occurance(String &self, const char *to_replace, const String &replacement, U64 start = 0)
 {
 	string_replace_first_occurance(self, string_literal(to_replace), replacement, start);
 }
 
 inline static void
-string_replace_first_occurance(String &self, const String &to_replace, const char *replacement, u64 start = 0)
+string_replace_first_occurance(String &self, const String &to_replace, const char *replacement, U64 start = 0)
 {
 	string_replace_first_occurance(self, to_replace, string_literal(replacement), start);
 }
 
 inline static void
-string_replace_first_occurance(String &self, const char *to_replace, const char *replacement, u64 start = 0)
+string_replace_first_occurance(String &self, const char *to_replace, const char *replacement, U64 start = 0)
 {
 	string_replace_first_occurance(self, string_literal(to_replace), string_literal(replacement), start);
 }
@@ -709,7 +709,7 @@ operator==(const String &self, const String &other)
 	if (self.count != other.count)
 		return false;
 
-	for (u64 i = 0; i < self.count; ++i)
+	for (U64 i = 0; i < self.count; ++i)
 		if (self[i] != other[i])
 			return false;
 
@@ -758,7 +758,7 @@ destroy(String &self)
 	string_deinit(self);
 }
 
-inline static u64
+inline static U64
 hash(const String &self)
 {
 	return hash_fnv_x32(self.data, self.count);

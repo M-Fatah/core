@@ -12,7 +12,6 @@ set(HEADER_FILES
     result.h
     source_location.h
     tester.h
-    utils.h
     containers/array.h
     containers/hash_set.h
     containers/hash_table.h
@@ -21,6 +20,32 @@ set(HEADER_FILES
     containers/stack_array.h
     containers/string_interner.h
     containers/string.h
+    math/f32.h
+    math/f64.h
+    math/i32.h
+    math/i64.h
+    math/u32.h
+    math/u64.h
+    math/f32x2.h
+    math/f32x3.h
+    math/f32x4.h
+    math/f64x2.h
+    math/f64x3.h
+    math/f64x4.h
+    math/i32x2.h
+    math/i32x3.h
+    math/i32x4.h
+    math/u32x2.h
+    math/u32x3.h
+    math/u32x4.h
+    math/f32x2x2.h
+    math/f32x3x3.h
+    math/f32x4x4.h
+    math/f64x2x2.h
+    math/f64x3x3.h
+    math/f64x4x4.h
+    math/quaternion.h
+    math/random.h
     memory/memory.h
     memory/heap_allocator.h
     memory/arena_allocator.h

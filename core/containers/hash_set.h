@@ -26,7 +26,7 @@ hash_set_init(memory::Allocator *allocator = memory::heap_allocator())
 
 template <typename K>
 inline static Hash_Set<K>
-hash_set_init_with_capacity(u64 capacity, memory::Allocator *allocator = memory::heap_allocator())
+hash_set_init_with_capacity(U64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
 	return hash_table_init_with_capacity<K, Hash_Set_Value>(capacity, allocator);
 }
@@ -57,7 +57,7 @@ hash_set_deinit(Hash_Set<K> &self)
 
 template <typename K>
 inline static void
-hash_set_reserve(Hash_Set<K> &self, u64 added_capacity)
+hash_set_reserve(Hash_Set<K> &self, U64 added_capacity)
 {
 	hash_table_reserve(self, added_capacity);
 }

@@ -15,8 +15,8 @@ struct JSON_Parser
 {
 	memory::Allocator *allocator;
 	const char *iterator;
-	u32 line_number;
-	u32 column_number;
+	U32 line_number;
+	U32 column_number;
 	Error error;
 };
 
@@ -187,7 +187,7 @@ _json_parser_parse_number(JSON_Parser &self)
 	}
 
 	char *end  = nullptr;
-	f64 number = ::strtod(self.iterator, &end);
+	F64 number = ::strtod(self.iterator, &end);
 	if (errno == ERANGE)
 	{
 		self.error = Error{
@@ -198,7 +198,7 @@ _json_parser_parse_number(JSON_Parser &self)
 		};
 		return JSON_Value{};
 	}
-	self.column_number += u32(end - self.iterator);
+	self.column_number += U32(end - self.iterator);
 	self.iterator = end;
 
 	JSON_Value value = {};
@@ -363,13 +363,13 @@ _json_parser_parse_value(JSON_Parser &self)
 }
 
 inline static void
-_json_value_object_to_string(const JSON_Value &self, String &json_string, i32 indent_level);
+_json_value_object_to_string(const JSON_Value &self, String &json_string, I32 indent_level);
 
 inline static void
-_json_value_array_to_string(const JSON_Value &self, String &json_string, i32 indent_level = 0)
+_json_value_array_to_string(const JSON_Value &self, String &json_string, I32 indent_level = 0)
 {
 	string_append(json_string, "[\n");
-	for (u64 i = 0; i < self.as_array.count; ++i)
+	for (U64 i = 0; i < self.as_array.count; ++i)
 	{
 		if (i > 0)
 			string_append(json_string, ",\n");
@@ -407,10 +407,10 @@ _json_value_array_to_string(const JSON_Value &self, String &json_string, i32 ind
 }
 
 inline static void
-_json_value_object_to_string(const JSON_Value &self, String &json_string, i32 indent_level = 0)
+_json_value_object_to_string(const JSON_Value &self, String &json_string, I32 indent_level = 0)
 {
 	string_append(json_string, "{\n");
-	i32 i = 0;
+	I32 i = 0;
 	for (const auto &[key, value] : self.as_object)
 	{
 		if (i > 0)
@@ -460,7 +460,7 @@ json_value_init_as_bool(bool value)
 }
 
 JSON_Value
-json_value_init_as_number(f64 value)
+json_value_init_as_number(F64 value)
 {
 	return JSON_Value {
 		.kind = JSON_VALUE_KIND_NUMBER,
@@ -526,8 +526,8 @@ json_value_from_file(const char *filepath, memory::Allocator *allocator)
 		};
 	}
 
-	auto file_data  = memory::allocate(allocator, file_size);
-	auto bytes_read = platform_file_read(filepath, Platform_Memory{(u8 *)file_data, file_size});
+	auto file_data  = memory::allocate<U8>(allocator, file_size);
+	auto bytes_read = platform_file_read(filepath, Platform_Memory{(U8 *)file_data, file_size});
 	if (bytes_read != file_size)
 	{
 		memory::deallocate(allocator, file_data);
@@ -627,7 +627,7 @@ json_value_get_as_bool(const JSON_Value &self)
 	return self.as_bool;
 }
 
-f64
+F64
 json_value_get_as_number(const JSON_Value &self)
 {
 	validate(self.kind == JSON_VALUE_KIND_NUMBER, "[JSON]: Expected JSON_VALUE_KIND_NUMBER.");
@@ -673,7 +673,7 @@ json_value_to_file(const JSON_Value &self, const char *filepath)
 	if (error)
 		return error;
 
-	auto file_size = platform_file_write(filepath, Platform_Memory{(u8 *)json_string.data, json_string.count});
+	auto file_size = platform_file_write(filepath, Platform_Memory{(U8 *)json_string.data, json_string.count});
 	if (file_size != json_string.count)
 		return Error{"[JSON]: Could not write file '{}'.", filepath};
 	return {};

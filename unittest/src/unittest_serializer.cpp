@@ -4,24 +4,24 @@
 
 struct Game
 {
-	u64 a;
-	u64 b;
-	f32 c;
+	U64 a;
+	U64 b;
+	F32 c;
 	char d;
-	Array<f32> e;
+	Array<F32> e;
 	String f;
-	Hash_Table<String, f32> g;
-	i32 *h;
+	Hash_Table<String, F32> g;
+	I32 *h;
 };
 
 inline static Game
 game_init(memory::Allocator *allocator = memory::heap_allocator())
 {
 	Game self = {};
-	self.e = array_init<f32>(allocator);
+	self.e = array_init<F32>(allocator);
 	self.f = string_init(allocator);
-	self.g = hash_table_init<String, f32>(allocator);
-	self.h = memory::allocate<i32>(allocator);
+	self.g = hash_table_init<String, F32>(allocator);
+	self.h = memory::allocate<I32>(allocator);
 	return self;
 }
 
@@ -58,16 +58,16 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 		Binary_Serializer serializer = binary_serializer_init();
 		DEFER(binary_serializer_deinit(serializer));
 
-		i8   a1 = 1;
-		i16  b1 = 2;
-		i32  c1 = 3;
-		i64  d1 = 4;
-		u8   e1 = 5;
-		u16  f1 = 6;
-		u32  g1 = 7;
-		u64  h1 = 8;
-		f32  i1 = 9;
-		f64  j1 = 10;
+		I8   a1 = 1;
+		I16  b1 = 2;
+		I32  c1 = 3;
+		I64  d1 = 4;
+		U8   e1 = 5;
+		U16  f1 = 6;
+		U32  g1 = 7;
+		U64  h1 = 8;
+		F32  i1 = 9;
+		F64  j1 = 10;
 		char k1 = 'A';
 		bool l1 = true;
 
@@ -87,16 +87,16 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
 		DEFER(binary_deserializer_deinit(deserializer));
 
-		i8   a2 = 0;
-		i16  b2 = 0;
-		i32  c2 = 0;
-		i64  d2 = 0;
-		u8   e2 = 0;
-		u16  f2 = 0;
-		u32  g2 = 0;
-		u64  h2 = 0;
-		f32  i2 = 0;
-		f64  j2 = 0;
+		I8   a2 = 0;
+		I16  b2 = 0;
+		I32  c2 = 0;
+		I64  d2 = 0;
+		U8   e2 = 0;
+		U16  f2 = 0;
+		U32  g2 = 0;
+		U64  h2 = 0;
+		F32  i2 = 0;
+		F64  j2 = 0;
 		char k2 = 0;
 		bool l2 = 0;
 
@@ -132,16 +132,16 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 		Binary_Serializer serializer = binary_serializer_init();
 		DEFER(binary_serializer_deinit(serializer));
 
-		i32 i1 = 5;
-		i32 *a1 = &i1;
+		I32 i1 = 5;
+		I32 *a1 = &i1;
 
 		serialize(serializer, {"a1", a1});
 
 		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
 		DEFER(binary_deserializer_deinit(deserializer));
 
-		i32 i2 = 0;
-		i32 *a2 = &i2;
+		I32 i2 = 0;
+		I32 *a2 = &i2;
 
 		serialize(deserializer, {"a1", a2});
 
@@ -153,15 +153,15 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 		Binary_Serializer serializer = binary_serializer_init();
 		DEFER(binary_serializer_deinit(serializer));
 
-		i32 a1[5]    = {1, 2, 3, 4, 5};
-		Array<i8> b1 = array_init_from<i8>({1, 2, 3, 4, 5});
+		I32 a1[5]    = {1, 2, 3, 4, 5};
+		Array<I8> b1 = array_init_from<I8>({1, 2, 3, 4, 5});
 		DEFER(array_deinit(b1));
 
 		serialize(serializer, {"a1", a1});
 		serialize(serializer, {"b1", b1});
 
-		i32 a2[5]    = {};
-		Array<i8> b2 = {};
+		I32 a2[5]    = {};
+		Array<I8> b2 = {};
 		DEFER(array_deinit(b2));
 
 		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
@@ -170,7 +170,7 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 		serialize(deserializer, {"a1", a2});
 		serialize(deserializer, {"b1", b2});
 
-		for (u64 i = 0; i < count_of(a1); ++i)
+		for (U64 i = 0; i < count_of(a1); ++i)
 		{
 			TESTER_CHECK(a1[i] == a2[i]);
 			TESTER_CHECK(b1[i] == b2[i]);
@@ -211,7 +211,7 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 		Binary_Serializer serializer = binary_serializer_init();
 		DEFER(binary_serializer_deinit(serializer));
 
-		Hash_Table<i32, String> a1 = hash_table_init_from<i32, String>({
+		Hash_Table<I32, String> a1 = hash_table_init_from<I32, String>({
 			{1, string_literal("A")},
 			{2, string_literal("B")},
 			{3, string_literal("C")},
@@ -220,7 +220,7 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 
 		serialize(serializer, {"a1", a1});
 
-		Hash_Table<i32, String> a2 = {};
+		Hash_Table<I32, String> a2 = {};
 		DEFER(destroy(a2));
 
 		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
@@ -231,7 +231,7 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 		TESTER_CHECK(a1.count    == a2.count);
 		TESTER_CHECK(a1.capacity == a2.capacity);
 
-		for (u64 i = 0; i < a1.entries.count; ++i)
+		for (U64 i = 0; i < a1.entries.count; ++i)
 		{
 			TESTER_CHECK(a1.entries[i].key   == a2.entries[i].key);
 			TESTER_CHECK(a1.entries[i].value == a2.entries[i].value);
@@ -243,7 +243,7 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 		Binary_Serializer serializer = binary_serializer_init();
 		DEFER(binary_serializer_deinit(serializer));
 
-		i32 i = 5;
+		I32 i = 5;
 
 		Block a1 = {&i, sizeof(i)};
 
@@ -257,7 +257,7 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 
 		serialize(deserializer, {"a1", a2});
 
-		TESTER_CHECK(*((i32 *)a1.data) == *((i32 *)a2.data));
+		TESTER_CHECK(*((I32 *)a1.data) == *((I32 *)a2.data));
 		TESTER_CHECK(a1.size == a2.size);
 	}
 
@@ -297,7 +297,7 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 		TESTER_CHECK(new_game.c == original_game.c);
 		TESTER_CHECK(new_game.d == original_game.d);
 
-		for (u64 i = 0; i < new_game.e.count; ++i)
+		for (U64 i = 0; i < new_game.e.count; ++i)
 			TESTER_CHECK(new_game.e[i] == original_game.e[i]);
 
 		TESTER_CHECK(new_game.f == original_game.f);
@@ -348,7 +348,7 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 		TESTER_CHECK(new_game.c == original_game.c);
 		TESTER_CHECK(new_game.d == original_game.d);
 
-		for (u64 i = 0; i < new_game.e.count; ++i)
+		for (U64 i = 0; i < new_game.e.count; ++i)
 			TESTER_CHECK(new_game.e[i] == original_game.e[i]);
 
 		TESTER_CHECK(new_game.f == original_game.f);
@@ -368,7 +368,7 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 		Binary_Serializer serializer = binary_serializer_init();
 		DEFER(binary_serializer_deinit(serializer));
 
-		i32 a1 = 1;
+		I32 a1 = 1;
 		Error error1 = serialize(serializer, a1);
 		TESTER_CHECK(error1 == true);
 		TESTER_CHECK(error1.message == "[SERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(serializer, {\"a\", a})'.");
@@ -376,7 +376,7 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
 		DEFER(binary_deserializer_deinit(deserializer));
 
-		i32 a2 = 0;
+		I32 a2 = 0;
 		Error error2 = serialize(deserializer, a2);
 		TESTER_CHECK(error2 == true);
 		TESTER_CHECK(error2.message == "[DESERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {\"a\", a})'.");
@@ -392,16 +392,16 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 		Json_Serializer serializer = json_serializer_init();
 		DEFER(json_serializer_deinit(serializer));
 
-		i8   a1 = 1;
-		i16  b1 = 2;
-		i32  c1 = 3;
-		i64  d1 = 4;
-		u8   e1 = 5;
-		u16  f1 = 6;
-		u32  g1 = 7;
-		u64  h1 = 8;
-		f32  i1 = 9;
-		f64  j1 = 10;
+		I8   a1 = 1;
+		I16  b1 = 2;
+		I32  c1 = 3;
+		I64  d1 = 4;
+		U8   e1 = 5;
+		U16  f1 = 6;
+		U32  g1 = 7;
+		U64  h1 = 8;
+		F32  i1 = 9;
+		F64  j1 = 10;
 		char k1 = 'A';
 		bool l1 = true;
 
@@ -418,16 +418,16 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 		serialize(serializer, {"k1", k1});
 		serialize(serializer, {"l1", l1});
 
-		i8   a2 = 0;
-		i16  b2 = 0;
-		i32  c2 = 0;
-		i64  d2 = 0;
-		u8   e2 = 0;
-		u16  f2 = 0;
-		u32  g2 = 0;
-		u64  h2 = 0;
-		f32  i2 = 0;
-		f64  j2 = 0;
+		I8   a2 = 0;
+		I16  b2 = 0;
+		I32  c2 = 0;
+		I64  d2 = 0;
+		U8   e2 = 0;
+		U16  f2 = 0;
+		U32  g2 = 0;
+		U64  h2 = 0;
+		F32  i2 = 0;
+		F64  j2 = 0;
 		char k2 = 0;
 		bool l2 = 0;
 
@@ -466,16 +466,16 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 		Json_Serializer serializer = json_serializer_init();
 		DEFER(json_serializer_deinit(serializer));
 
-		i32 i1 = 5;
-		i32 *a1 = &i1;
+		I32 i1 = 5;
+		I32 *a1 = &i1;
 
 		serialize(serializer, {"a1", a1});
 
 		Json_Deserializer deserializer = json_deserializer_init(serializer.values[0]);
 		DEFER(json_deserializer_deinit(deserializer));
 
-		i32 i2 = 0;
-		i32 *a2 = &i2;
+		I32 i2 = 0;
+		I32 *a2 = &i2;
 
 		serialize(deserializer, {"a1", a2});
 
@@ -488,8 +488,8 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 		Json_Serializer serializer = json_serializer_init();
 		DEFER(json_serializer_deinit(serializer));
 
-		i32 a1[3]    = {1, 2, 3};
-		Array<i8> b1 = array_init_from<i8>({1, 2, 3});
+		I32 a1[3]    = {1, 2, 3};
+		Array<I8> b1 = array_init_from<I8>({1, 2, 3});
 		DEFER(array_deinit(b1));
 
 		serialize(serializer, {"a1", a1});
@@ -498,14 +498,14 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 		Json_Deserializer deserializer = json_deserializer_init(serializer.values[0]);
 		DEFER(json_deserializer_deinit(deserializer));
 
-		i32 a2[3]    = {};
-		Array<i8> b2 = {};
+		I32 a2[3]    = {};
+		Array<I8> b2 = {};
 		DEFER(array_deinit(b2));
 
 		serialize(deserializer, {"a1", a2});
 		serialize(deserializer, {"b1", b2});
 
-		for (u64 i = 0; i < count_of(a1); ++i)
+		for (U64 i = 0; i < count_of(a1); ++i)
 		{
 			TESTER_CHECK(a1[i] == a2[i]);
 			TESTER_CHECK(b1[i] == b2[i]);
@@ -546,7 +546,7 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 		Json_Serializer serializer = json_serializer_init();
 		DEFER(json_serializer_deinit(serializer));
 
-		Hash_Table<i32, String> a1 = hash_table_init_from<i32, String>({
+		Hash_Table<I32, String> a1 = hash_table_init_from<I32, String>({
 			{1, string_literal("A")},
 			{2, string_literal("B")},
 			{3, string_literal("C")},
@@ -558,7 +558,7 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 		Json_Deserializer deserializer = json_deserializer_init(serializer.values[0]);
 		DEFER(json_deserializer_deinit(deserializer));
 
-		Hash_Table<i32, String> a2 = {};
+		Hash_Table<I32, String> a2 = {};
 		DEFER(destroy(a2));
 
 		serialize(deserializer, {"a1", a2});
@@ -566,7 +566,7 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 		TESTER_CHECK(a1.count    == a2.count);
 		TESTER_CHECK(a1.capacity == a2.capacity);
 
-		for (u64 i = 0; i < a1.entries.count; ++i)
+		for (U64 i = 0; i < a1.entries.count; ++i)
 		{
 			TESTER_CHECK(a1.entries[i].key   == a2.entries[i].key);
 			TESTER_CHECK(a1.entries[i].value == a2.entries[i].value);
@@ -578,7 +578,7 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 		Json_Serializer serializer = json_serializer_init();
 		DEFER(json_serializer_deinit(serializer));
 
-		i32 i = 5;
+		I32 i = 5;
 
 		Block a1 = {&i, sizeof(i)};
 
@@ -592,7 +592,7 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 
 		serialize(deserializer, {"a1", a2});
 
-		TESTER_CHECK(*((i32 *)a1.data) == *((i32 *)a2.data));
+		TESTER_CHECK(*((I32 *)a1.data) == *((I32 *)a2.data));
 		TESTER_CHECK(a1.size == a2.size);
 	}
 
@@ -632,7 +632,7 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 		TESTER_CHECK(new_game.c == original_game.c);
 		TESTER_CHECK(new_game.d == original_game.d);
 
-		for (u64 i = 0; i < new_game.e.count; ++i)
+		for (U64 i = 0; i < new_game.e.count; ++i)
 			TESTER_CHECK(new_game.e[i] == original_game.e[i]);
 
 		TESTER_CHECK(new_game.f == original_game.f);
@@ -683,13 +683,13 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 	{
 		// ("Fundamental types")
 		{
-			i32 a1 = 1;
+			I32 a1 = 1;
 			auto [buffer, error] = to_json(a1);
 			DEFER(string_deinit(buffer));
 
 			TESTER_CHECK(buffer == "{\n\t\"data\": 1\n}");
 
-			i32 a2 = 0;
+			I32 a2 = 0;
 			from_json(buffer, a2);
 
 			TESTER_CHECK(a1 == a2);
@@ -728,7 +728,7 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 			TESTER_CHECK(new_game.c == original_game.c);
 			TESTER_CHECK(new_game.d == original_game.d);
 
-			for (u64 i = 0; i < new_game.e.count; ++i)
+			for (U64 i = 0; i < new_game.e.count; ++i)
 				TESTER_CHECK(new_game.e[i] == original_game.e[i]);
 
 			TESTER_CHECK(new_game.f == original_game.f);
@@ -749,7 +749,7 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 		Json_Serializer serializer = json_serializer_init();
 		DEFER(json_serializer_deinit(serializer));
 
-		i32 a1 = 1;
+		I32 a1 = 1;
 		Error error1 = serialize(serializer, a1);
 		TESTER_CHECK(error1 == true);
 		TESTER_CHECK(error1.message == "[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {\"a\", a})'.");
@@ -757,7 +757,7 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 		Json_Deserializer deserializer = json_deserializer_init(serializer.values[0]);
 		DEFER(json_deserializer_deinit(deserializer));
 
-		i32 a2 = 0;
+		I32 a2 = 0;
 		Error error2 = serialize(deserializer, a2);
 		TESTER_CHECK(error2 == true);
 		TESTER_CHECK(error2.message == "[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {\"a\", a})'.");

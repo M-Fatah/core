@@ -5,11 +5,11 @@
 
 #include <initializer_list>
 
-template <typename T, u64 N>
+template <typename T, U64 N>
 struct Stack_Array
 {
 	T data[N];
-	u64 count;
+	U64 count;
 
 	Stack_Array() : data(), count(0) {}
 
@@ -19,7 +19,7 @@ struct Stack_Array
 		count = N;
 	}
 
-	template <u64 NN>
+	template <U64 NN>
 	Stack_Array(const T (&values)[NN])
 	{
 		::memcpy(data, values, sizeof(T) * NN);
@@ -27,21 +27,21 @@ struct Stack_Array
 	}
 
 	T &
-	operator[](u64 index)
+	operator[](U64 index)
 	{
 		validate(index < count, "[STACK_ARRAY]: Access out of range.");
 		return data[index];
 	}
 
 	const T &
-	operator[](u64 index) const
+	operator[](U64 index) const
 	{
 		validate(index < count, "[STACK_ARRAY]: Access out of range.");
 		return data[index];
 	}
 };
 
-template <typename T, u64 N>
+template <typename T, U64 N>
 inline static void
 stack_array_push(Stack_Array<T, N> &self, const T &value)
 {
@@ -49,7 +49,7 @@ stack_array_push(Stack_Array<T, N> &self, const T &value)
 	self.data[self.count++] = value;
 }
 
-template <typename T, u64 N>
+template <typename T, U64 N>
 inline static T
 stack_array_pop(Stack_Array<T, N> &self)
 {
@@ -57,35 +57,35 @@ stack_array_pop(Stack_Array<T, N> &self)
 	return self.data[--self.count];
 }
 
-template <typename T, u64 N>
+template <typename T, U64 N>
 inline static void
 stack_array_clear(Stack_Array<T, N> &self)
 {
 	self.count = 0;
 }
 
-template <typename T, u64 N>
+template <typename T, U64 N>
 inline static const T *
 begin(const Stack_Array<T, N> &self)
 {
 	return self.data;
 }
 
-template <typename T, u64 N>
+template <typename T, U64 N>
 inline static T *
 begin(Stack_Array<T, N> &self)
 {
 	return self.data;
 }
 
-template <typename T, u64 N>
+template <typename T, U64 N>
 inline static const T *
 end(const Stack_Array<T, N> &self)
 {
 	return self.data + self.count;
 }
 
-template <typename T, u64 N>
+template <typename T, U64 N>
 inline static T *
 end(Stack_Array<T, N> &self)
 {

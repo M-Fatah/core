@@ -12,19 +12,19 @@ struct Ring_Buffer
 {
 	memory::Allocator *allocator;
 	T *data;
-	u64 count;
-	u64 capacity;
-	u64 head;
+	U64 count;
+	U64 capacity;
+	U64 head;
 
 	inline T &
-	operator[](u64 index)
+	operator[](U64 index)
 	{
 		validate(index < count, "[RING_BUFFER]: Access out of range.");
 		return data[(head + index) % capacity];
 	}
 
 	inline const T &
-	operator[](u64 index) const
+	operator[](U64 index) const
 	{
 		validate(index < count, "[RING_BUFFER]: Access out of range.");
 		return data[(head + index) % capacity];
@@ -51,7 +51,7 @@ ring_buffer_copy(const Ring_Buffer<T> &self, memory::Allocator *allocator = memo
 	Ring_Buffer<T> copy = ring_buffer_init<T>(allocator);
 	ring_buffer_reserve(copy, self.count);
 	copy.count = self.count;
-	for (u64 i = 0; i < self.count; ++i)
+	for (U64 i = 0; i < self.count; ++i)
 		copy[i] = self[i];
 	return copy;
 }
@@ -69,7 +69,7 @@ ring_buffer_deinit(Ring_Buffer<T> &self)
 
 template <typename T>
 inline static void
-ring_buffer_reserve(Ring_Buffer<T> &self, u64 added_capacity)
+ring_buffer_reserve(Ring_Buffer<T> &self, U64 added_capacity)
 {
 	if (self.count + added_capacity <= self.capacity)
 		return;
@@ -77,15 +77,15 @@ ring_buffer_reserve(Ring_Buffer<T> &self, u64 added_capacity)
 	if (self.allocator == nullptr)
 		self.allocator = memory::heap_allocator();
 
-	u64 next_cap     = (u64)(self.capacity * 1.5f);
-	u64 needed_cap   = self.count + added_capacity;
-	u64 new_capacity = next_cap > needed_cap ? next_cap : needed_cap;
+	U64 next_cap     = (U64)(self.capacity * 1.5f);
+	U64 needed_cap   = self.count + added_capacity;
+	U64 new_capacity = next_cap > needed_cap ? next_cap : needed_cap;
 
-	T *new_data = (T *)memory::allocate(self.allocator, new_capacity * sizeof(T));
+	T *new_data = memory::allocate<T>(self.allocator, new_capacity);
 
 	if (self.count)
 	{
-		const u64 first_chunk = self.capacity - self.head;
+		const U64 first_chunk = self.capacity - self.head;
 		if (first_chunk >= self.count)
 		{
 			::memcpy(new_data, self.data + self.head, self.count * sizeof(T));
@@ -196,7 +196,7 @@ clone(const Ring_Buffer<T> &self, memory::Allocator *allocator = memory::heap_al
 {
 	Ring_Buffer<T> copy = ring_buffer_copy(self, allocator);
 	if constexpr (std::is_class_v<T>)
-		for (u64 i = 0; i < self.count; ++i)
+		for (U64 i = 0; i < self.count; ++i)
 			copy[i] = clone(copy[i]);
 	return copy;
 }
@@ -206,7 +206,7 @@ inline static void
 destroy(Ring_Buffer<T> &self)
 {
 	if constexpr (std::is_class_v<T>)
-		for (u64 i = 0; i < self.count; ++i)
+		for (U64 i = 0; i < self.count; ++i)
 			destroy(self[i]);
 	ring_buffer_deinit(self);
 }

@@ -14,10 +14,10 @@ namespace memory
 	{
 		Arena_Allocator *arena;
 		Pool_Allocator_Node *head;
-		u64 chunk_size;
+		U64 chunk_size;
 	};
 
-	Pool_Allocator::Pool_Allocator(u64 chunk_size, u64 chunk_count)
+	Pool_Allocator::Pool_Allocator(U64 chunk_size, U64 chunk_count)
 	{
 		Pool_Allocator *self = this;
 		self->ctx = memory::allocate_zeroed<Pool_Allocator_Context>();
@@ -39,12 +39,20 @@ namespace memory
 	}
 
 	void *
-	Pool_Allocator::allocate(u64)
+	Pool_Allocator::allocate(U64, U64 alignment)
 	{
 		Pool_Allocator *self = this;
+		if (alignment > alignof(void *))
+		{
+			// Pool free-list threads a next-pointer at the start of each free chunk,
+			// so chunks are inherently sizeof(void*)-aligned. Over-aligned requests are
+			// not supported — allocate them through the arena directly if needed.
+			log_fatal("[POOL_ALLOCATOR]: Requested alignment {} exceeds pool's guaranteed {} byte alignment.", alignment, alignof(void *));
+		}
+
 		if(self->ctx->head == nullptr)
 		{
-			void *result = arena_allocator_allocate(self->ctx->arena, self->ctx->chunk_size);
+			void *result = arena_allocator_allocate(self->ctx->arena, self->ctx->chunk_size, alignof(void *));
 			::memset(result, 0, self->ctx->chunk_size);
 			return result;
 		}
@@ -84,7 +92,7 @@ namespace memory
 	}
 
 	Pool_Allocator *
-	pool_allocator_init(u64 chunk_size, u64 chunk_count)
+	pool_allocator_init(U64 chunk_size, U64 chunk_count)
 	{
 		return allocate_and_call_constructor<Pool_Allocator>(chunk_size, chunk_count);
 	}

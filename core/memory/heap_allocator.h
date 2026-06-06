@@ -16,7 +16,7 @@ namespace memory
 		~Heap_Allocator() override;
 
 		void *
-		allocate(u64 size) override;
+		allocate(U64 size, U64 alignment) override;
 
 		void
 		deallocate(void *data) override;
@@ -29,7 +29,7 @@ namespace memory
 	heap_allocator_deinit(Heap_Allocator *self);
 
 	CORE_API void *
-	heap_allocator_allocate(Heap_Allocator *self, u64 size);
+	heap_allocator_allocate(Heap_Allocator *self, U64 size, U64 alignment);
 
 	CORE_API void
 	heap_allocator_deallocate(Heap_Allocator *self, void *data);

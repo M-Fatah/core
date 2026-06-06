@@ -49,7 +49,7 @@ serialize(Json_Serializer &self, const T &data)
 		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
 
 	JSON_Value &value = array_back(self.values);
-	value = json_value_init_as_number((f64)data);
+	value = json_value_init_as_number((F64)data);
 	return Error{};
 }
 
@@ -83,7 +83,7 @@ serialize(Json_Serializer &self, const T &data)
 	JSON_Value &value = array_back(self.values);
 	value = json_value_init_as_array(self.allocator);
 
-	for (u64 i = 0; i < count_of(data); ++i)
+	for (U64 i = 0; i < count_of(data); ++i)
 	{
 		array_push(self.values, JSON_Value{});
 		if (Error error = serialize(self, data[i]))
@@ -102,7 +102,7 @@ serialize(Json_Serializer &self, const Block &block)
 
 	JSON_Value &value = array_back(self.values);
 	value.kind = JSON_VALUE_KIND_STRING;
-	value.as_string = base64_encode((const u8 *)block.data, (u32)block.size, self.allocator);
+	value.as_string = base64_encode((const U8 *)block.data, (U32)block.size, self.allocator);
 	return Error{};
 }
 
@@ -116,7 +116,7 @@ serialize(Json_Serializer &self, const Array<T> &data)
 	JSON_Value &value = array_back(self.values);
 	value = json_value_init_as_array(self.allocator);
 
-	for (u64 i = 0; i < data.count; ++i)
+	for (U64 i = 0; i < data.count; ++i)
 	{
 		array_push(self.values, JSON_Value{});
 		if (Error error = serialize(self, data[i]))
@@ -291,7 +291,7 @@ serialize(Json_Deserializer &self, T &data)
 	if (array_values.count != count_of(data))
 		return Error{"[DESERIALIZER][JSON]: Passed array count does not match the deserialized count."};
 
-	for (u64 i = 0; i < array_values.count; ++i)
+	for (U64 i = 0; i < array_values.count; ++i)
 	{
 		array_push(self.values, array_values[i]);
 
@@ -316,7 +316,7 @@ serialize(Json_Deserializer &self, Block &block)
 	DEFER(string_deinit(o));
 
 	if (block.data == nullptr)
-		block.data = (u8 *)memory::allocate(self.allocator, o.count);
+		block.data = memory::allocate<U8>(self.allocator, o.count);
 
 	if (block.data == nullptr)
 		return Error{"[DESERIALIZER][JSON]: Could not allocate memory for passed pointer type."};
@@ -342,7 +342,7 @@ serialize(Json_Deserializer &self, Array<T> &data)
 
 	Array<JSON_Value> array_values = json_value_get_as_array(array_back(self.values));
 	array_resize(data, array_values.count);
-	for (u64 i = 0; i < data.count; ++i)
+	for (U64 i = 0; i < data.count; ++i)
 	{
 		array_push(self.values, array_values[i]);
 		if (Error error = serialize(self, data[i]))
@@ -404,7 +404,7 @@ serialize(Json_Deserializer &self, Hash_Table<K, V> &data)
 	Array<JSON_Value> array_values = array_back(self.values).as_array;
 
 	hash_table_clear(data);
-	for (u64 i = 0; i < array_values.count; ++i)
+	for (U64 i = 0; i < array_values.count; ++i)
 	{
 		K key   = {};
 		V value = {};

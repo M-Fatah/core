@@ -14,6 +14,55 @@ platform_file_read(const char *file_path, memory::Allocator *allocator = memory:
 	return platform_file_read(string_literal(file_path), allocator);
 }
 
+// ============================================================
+// Handle-based file I/O (used by File_Stream)
+// ============================================================
+
+typedef void *Platform_File_Handle;
+#define PLATFORM_FILE_HANDLE_INVALID nullptr
+
+enum Platform_File_Mode
+{
+	PLATFORM_FILE_MODE_READ,
+	PLATFORM_FILE_MODE_WRITE,
+	PLATFORM_FILE_MODE_READ_WRITE,
+	PLATFORM_FILE_MODE_APPEND,
+};
+
+enum Platform_File_Seek_Origin
+{
+	PLATFORM_FILE_SEEK_ORIGIN_BEGIN,
+	PLATFORM_FILE_SEEK_ORIGIN_CURRENT,
+	PLATFORM_FILE_SEEK_ORIGIN_END,
+};
+
+CORE_API Platform_File_Handle
+platform_file_open(const String &path, Platform_File_Mode mode);
+
+inline static Platform_File_Handle
+platform_file_open(const char *path, Platform_File_Mode mode)
+{
+	return platform_file_open(string_literal(path), mode);
+}
+
+CORE_API void
+platform_file_close(Platform_File_Handle handle);
+
+CORE_API U64
+platform_file_read(Platform_File_Handle handle, void *data, U64 size);
+
+CORE_API U64
+platform_file_write(Platform_File_Handle handle, const void *data, U64 size);
+
+CORE_API bool
+platform_file_seek(Platform_File_Handle handle, I64 offset, Platform_File_Seek_Origin origin);
+
+CORE_API U64
+platform_file_tell(Platform_File_Handle handle);
+
+CORE_API U64
+platform_file_size(Platform_File_Handle handle);
+
 CORE_API bool
 platform_path_is_valid(const String &path);
 
@@ -63,6 +112,9 @@ platform_path_get_directory(const char *path, memory::Allocator *allocator = mem
 CORE_API String
 platform_path_get_current_working_directory(memory::Allocator *allocator = memory::heap_allocator());
 
+CORE_API String
+platform_path_get_temp_directory(memory::Allocator *allocator = memory::heap_allocator());
+
 CORE_API void
 platform_path_set_current_working_directory(const String &path);
 
@@ -93,28 +145,28 @@ platform_path_read_file(const char *path, memory::Allocator *allocator = memory:
 	return platform_path_read_file(string_literal(path), allocator);
 }
 
-CORE_API u64
+CORE_API U64
 platform_path_write_file(const String &path, Block block);
 
-inline static u64
+inline static U64
 platform_path_write_file(const String &path, const String &content)
 {
 	return platform_path_write_file(path, Block{(void *)content.data, content.count});
 }
 
-inline static u64
+inline static U64
 platform_path_write_file(const String &path, const char *content)
 {
 	return platform_path_write_file(path, string_literal(content));
 }
 
-inline static u64
+inline static U64
 platform_path_write_file(const char *path, const String &content)
 {
 	return platform_path_write_file(string_literal(path), Block{(void *)content.data, content.count});
 }
 
-inline static u64
+inline static U64
 platform_path_write_file(const char *path, const char *content)
 {
 	return platform_path_write_file(string_literal(path), string_literal(content));
@@ -163,20 +215,20 @@ typedef struct Platform_Api
 	char filepath[4096];
 	void *handle;
 	void *api;
-	i64 last_write_time;
+	I64 last_write_time;
 } Platform_Api;
 
 typedef struct Platform_Memory
 {
-	u8 *ptr;
-	u64 size;
+	U8 *ptr;
+	U64 size;
 } Platform_Memory;
 
 typedef struct Platform_Allocator
 {
-	u8 *ptr;
-	u64 size;
-	u64 used;
+	U8 *ptr;
+	U64 size;
+	U64 used;
 } Platform_Allocator;
 
 typedef struct Platform_Thread Platform_Thread;
@@ -288,55 +340,55 @@ typedef struct Platform_Key_State
 	bool released; // Once we release.
 	bool down;
 
-	i32 press_count;
-	i32 release_count;
+	I32 press_count;
+	I32 release_count;
 } Platform_Key_State;
 
 typedef struct Platform_Input
 {
-	i32 mouse_x, mouse_y;
-	i32 mouse_dx, mouse_dy;
-	f32 mouse_wheel;
+	I32 mouse_x, mouse_y;
+	I32 mouse_dx, mouse_dy;
+	F32 mouse_wheel;
 	Platform_Key_State keys[PLATFORM_KEY_COUNT];
 } Platform_Input;
 
 typedef struct Platform_Window
 {
 	void *handle; // TODO: Rename to context.
-	u32 width, height;
+	U32 width, height;
 	Platform_Input input;
 } Platform_Window;
 
 typedef struct Glyph
 {
-	i32 codepoint;
-	i32 yadvance;
-	u32 width;
-	u32 height;
-	f32 uv_min_x;
-	f32 uv_min_y;
-	f32 uv_max_x;
-	f32 uv_max_y;
+	I32 codepoint;
+	I32 yadvance;
+	U32 width;
+	U32 height;
+	F32 uv_min_x;
+	F32 uv_min_y;
+	F32 uv_max_x;
+	F32 uv_max_y;
 } Glyph;
 
 typedef struct Platform_Font
 {
 	// Font data.
-	i32 ascent;
-	i32 descent;
-	i32 line_spacing;
-	u32 whitespace_width;
-	u32 max_glyph_height;
-	i32 *kerning_table;
+	I32 ascent;
+	I32 descent;
+	I32 line_spacing;
+	U32 whitespace_width;
+	U32 max_glyph_height;
+	I32 *kerning_table;
 
 	// Font glyphs.
 	Glyph *glyphs;
-	u32 glyph_count;
+	U32 glyph_count;
 
 	// Font atlas.
-	u8 *atlas;
-	u32 atlas_width;
-	u32 atlas_height;
+	U8 *atlas;
+	U32 atlas_width;
+	U32 atlas_height;
 } Platform_Font;
 
 
@@ -351,13 +403,13 @@ platform_api_load(Platform_Api *self);
 
 
 CORE_API Platform_Allocator
-platform_allocator_init(u64 size_in_bytes);
+platform_allocator_init(U64 size_in_bytes);
 
 CORE_API void
 platform_allocator_deinit(Platform_Allocator *self);
 
 CORE_API Platform_Memory
-platform_allocator_alloc(Platform_Allocator *self, u64 size_in_bytes);
+platform_allocator_alloc(Platform_Allocator *self, U64 size_in_bytes);
 
 CORE_API void
 platform_allocator_clear(Platform_Allocator *self);
@@ -374,7 +426,7 @@ platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_
 
 
 CORE_API Platform_Window
-platform_window_init(u32 width, u32 height, const char *title);
+platform_window_init(U32 width, U32 height, const char *title);
 
 CORE_API void
 platform_window_deinit(Platform_Window *self);
@@ -405,13 +457,13 @@ platform_set_current_directory();
 CORE_API bool
 platform_file_exists(const char *filepath);
 
-CORE_API u64
+CORE_API U64
 platform_file_size(const char *filepath);
 
-CORE_API u64
+CORE_API U64
 platform_file_read(const char *filepath, Platform_Memory mem);
 
-CORE_API u64
+CORE_API U64
 platform_file_write(const char *filepath, Platform_Memory mem);
 
 CORE_API bool
@@ -429,7 +481,7 @@ platform_file_delete(const char *filepath);
  * Note that in case the path was larger than the supplied buffer, the dialog will return 'false'.
  */
 CORE_API bool
-platform_file_dialog_open(char *path, u32 path_length, const char *filters);
+platform_file_dialog_open(char *path, U32 path_length, const char *filters);
 
 /**
  * @brief Opens a file dialog for saving.
@@ -440,23 +492,23 @@ platform_file_dialog_open(char *path, u32 path_length, const char *filters);
  * Note that in case the path was larger than the supplied buffer, the dialog will return 'false'.
  */
 CORE_API bool
-platform_file_dialog_save(char *path, u32 path_length, const char *filters);
+platform_file_dialog_save(char *path, U32 path_length, const char *filters);
 
 
-CORE_API u64
+CORE_API U64
 platform_query_microseconds(void);
 
 CORE_API void
-platform_sleep_set_period(u32 period);
+platform_sleep_set_period(U32 period);
 
 CORE_API void
-platform_sleep(u32 milliseconds);
+platform_sleep(U32 milliseconds);
 
-CORE_API u32
-platform_callstack_capture(void **callstack, u32 frame_count);
+CORE_API U32
+platform_callstack_capture(void **callstack, U32 frame_count);
 
 CORE_API void
-platform_callstack_log(void **callstack, u32 frame_count);
+platform_callstack_log(void **callstack, U32 frame_count);
 
 /**
  * @brief Loads the font at the specified path, and extracts information about glyphs from it.
@@ -468,7 +520,7 @@ platform_callstack_log(void **callstack, u32 frame_count);
  * The font atlas stores only the alpha channel of the font glyphs.
  */
 CORE_API Platform_Font
-platform_font_init(const char *filepath, const char *face_name, u32 font_height, bool origin_top_left);
+platform_font_init(const char *filepath, const char *face_name, U32 font_height, bool origin_top_left);
 
 /**
  * @brief Frees resources held by a previously loaded 'Font' structure.

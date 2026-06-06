@@ -6,6 +6,7 @@ set(SOURCE_FILES
     src/unittest_core.cpp
     src/unittest_formatter.cpp
     src/unittest_containers.cpp
+    src/unittest_math.cpp
     src/unittest_platform.cpp
     src/unittest_reflect.cpp
     src/unittest_serializer.cpp

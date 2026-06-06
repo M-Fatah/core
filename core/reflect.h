@@ -46,12 +46,12 @@
 	- [ ] Cleanup.
 */
 
-inline static constexpr const u64 REFLECT_MAX_NAME_LENGTH      = 128;
-inline static constexpr const i32 REFLECT_MIN_ENUM_VALUE       = -32;
-inline static constexpr const i32 REFLECT_MAX_ENUM_VALUE       =  64;
-inline static constexpr const i32 REFLECT_MAX_ENUM_VALUE_COUNT = REFLECT_MAX_ENUM_VALUE - REFLECT_MIN_ENUM_VALUE;
+inline static constexpr const U64 REFLECT_MAX_NAME_LENGTH      = 128;
+inline static constexpr const I32 REFLECT_MIN_ENUM_VALUE       = -32;
+inline static constexpr const I32 REFLECT_MAX_ENUM_VALUE       =  64;
+inline static constexpr const I32 REFLECT_MAX_ENUM_VALUE_COUNT = REFLECT_MAX_ENUM_VALUE - REFLECT_MIN_ENUM_VALUE;
 
-enum TYPE_KIND
+enum TYPE_KIND : int
 {
 	TYPE_KIND_I8,
 	TYPE_KIND_I16,
@@ -74,14 +74,14 @@ enum TYPE_KIND
 
 struct Type_Enum_Value
 {
-	i32 index;
+	I32 index;
 	const char *name;
 };
 
 struct Type_Field
 {
 	const char *name;
-	u64 offset;
+	U64 offset;
 	const struct Type *type;
 	const char *tag;
 };
@@ -90,8 +90,8 @@ struct Type
 {
 	const char *name;
 	TYPE_KIND kind;
-	u64 size;
-	u64 align;
+	U64 size;
+	U64 align;
 	union
 	{
 		struct
@@ -101,17 +101,17 @@ struct Type
 		struct
 		{
 			const Type *element;
-			u64 element_count;
+			U64 element_count;
 		} as_array;
 		struct
 		{
 			const Type_Enum_Value *values;
-			u64 value_count;
+			U64 value_count;
 		} as_enum;
 		struct
 		{
 			const Type_Field *fields;
-			u64 field_count;
+			U64 field_count;
 		} as_struct;
 	};
 };
@@ -123,14 +123,14 @@ struct Value
 };
 
 inline static constexpr void
-_reflect_append_name(char *name, u64 &count, std::string_view type_name)
+_reflect_append_name(char *name, U64 &count, std::string_view type_name)
 {
-	constexpr auto string_append = [](char *string, const char *to_append, u64 &count) {
+	constexpr auto string_append = [](char *string, const char *to_append, U64 &count) {
 		while(*to_append != '\0' && count < REFLECT_MAX_NAME_LENGTH - 1)
 			string[count++] = *to_append++;
 	};
 
-	constexpr auto append_type_name_prettified = [string_append](char *name, std::string_view type_name, u64 &count) {
+	constexpr auto append_type_name_prettified = [string_append](char *name, std::string_view type_name, U64 &count) {
 		if (type_name.starts_with(' '))
 			type_name.remove_prefix(1);
 
@@ -300,14 +300,14 @@ _reflect_append_name(char *name, u64 &count, std::string_view type_name)
 
 	if (type_name.ends_with('>'))
 	{
-		u64 open_angle_bracket_pos = type_name.find('<');
+		U64 open_angle_bracket_pos = type_name.find('<');
 		append_type_name_prettified(name, type_name.substr(0, open_angle_bracket_pos), count);
 		type_name.remove_prefix(open_angle_bracket_pos + 1);
 
 		name[count++] = '<';
-		u64 prev = 0;
-		u64 match = 1;
-		for (u64 c = 0; c < type_name.length(); ++c)
+		U64 prev = 0;
+		U64 match = 1;
+		for (U64 c = 0; c < type_name.length(); ++c)
 		{
 			if (type_name.at(c) == '<')
 			{
@@ -350,16 +350,16 @@ template <typename T>
 inline static constexpr const char *
 name_of()
 {
-		 if constexpr (std::is_same_v<T, i8>)   return "i8";
-	else if constexpr (std::is_same_v<T, i16>)  return "i16";
-	else if constexpr (std::is_same_v<T, i32>)  return "i32";
-	else if constexpr (std::is_same_v<T, i64>)  return "i64";
-	else if constexpr (std::is_same_v<T, u8>)   return "u8";
-	else if constexpr (std::is_same_v<T, u16>)  return "u16";
-	else if constexpr (std::is_same_v<T, u32>)  return "u32";
-	else if constexpr (std::is_same_v<T, u64>)  return "u64";
-	else if constexpr (std::is_same_v<T, f32>)  return "f32";
-	else if constexpr (std::is_same_v<T, f64>)  return "f64";
+		 if constexpr (std::is_same_v<T, I8>)   return "i8";
+	else if constexpr (std::is_same_v<T, I16>)  return "i16";
+	else if constexpr (std::is_same_v<T, I32>)  return "i32";
+	else if constexpr (std::is_same_v<T, I64>)  return "i64";
+	else if constexpr (std::is_same_v<T, U8>)   return "u8";
+	else if constexpr (std::is_same_v<T, U16>)  return "u16";
+	else if constexpr (std::is_same_v<T, U32>)  return "u32";
+	else if constexpr (std::is_same_v<T, U64>)  return "u64";
+	else if constexpr (std::is_same_v<T, F32>)  return "f32";
+	else if constexpr (std::is_same_v<T, F64>)  return "f64";
 	else if constexpr (std::is_same_v<T, bool>) return "bool";
 	else if constexpr (std::is_same_v<T, char>) return "char";
 	else if constexpr (std::is_same_v<T, void>) return "void";
@@ -367,7 +367,7 @@ name_of()
 	{
 		constexpr auto get_type_name = [](std::string_view type_name) -> const char * {
 			static char name[REFLECT_MAX_NAME_LENGTH] = {};
-			u64 count = 0;
+			U64 count = 0;
 			_reflect_append_name(name, count, type_name);
 			return name;
 		};
@@ -393,25 +393,25 @@ inline static constexpr TYPE_KIND
 kind_of()
 {
 	using Type = std::remove_cvref_t<T>;
-	if constexpr (std::is_same_v<Type, i8>)
+	if constexpr (std::is_same_v<Type, I8>)
 		return TYPE_KIND_I8;
-	else if constexpr (std::is_same_v<Type, i16>)
+	else if constexpr (std::is_same_v<Type, I16>)
 		return TYPE_KIND_I16;
-	else if constexpr (std::is_same_v<Type, i32>)
+	else if constexpr (std::is_same_v<Type, I32>)
 		return TYPE_KIND_I32;
-	else if constexpr (std::is_same_v<Type, i64>)
+	else if constexpr (std::is_same_v<Type, I64>)
 		return TYPE_KIND_I64;
-	else if constexpr (std::is_same_v<Type, u8>)
+	else if constexpr (std::is_same_v<Type, U8>)
 		return TYPE_KIND_U8;
-	else if constexpr (std::is_same_v<Type, u16>)
+	else if constexpr (std::is_same_v<Type, U16>)
 		return TYPE_KIND_U16;
-	else if constexpr (std::is_same_v<Type, u32>)
+	else if constexpr (std::is_same_v<Type, U32>)
 		return TYPE_KIND_U32;
-	else if constexpr (std::is_same_v<Type, u64>)
+	else if constexpr (std::is_same_v<Type, U64>)
 		return TYPE_KIND_U64;
-	else if constexpr (std::is_same_v<Type, f32>)
+	else if constexpr (std::is_same_v<Type, F32>)
 		return TYPE_KIND_F32;
-	else if constexpr (std::is_same_v<Type, f64>)
+	else if constexpr (std::is_same_v<Type, F64>)
 		return TYPE_KIND_F64;
 	else if constexpr (std::is_same_v<Type, bool>)
 		return TYPE_KIND_BOOL;
@@ -495,7 +495,7 @@ type_of(const T)
 	return &self;
 }
 
-template <typename T, u64 N>
+template <typename T, U64 N>
 inline static constexpr const Type *
 type_of(const T (&)[N])
 {
@@ -509,7 +509,7 @@ type_of(const T (&)[N])
 	return &self;
 }
 
-#define _TYPE_OF_ENUM(VALUE) {(i32)VALUE, #VALUE}
+#define _TYPE_OF_ENUM(VALUE) {(I32)VALUE, #VALUE}
 
 #define TYPE_OF_ENUM(T, ...)                                                                    \
 inline static const Type *                                                                      \
@@ -528,43 +528,47 @@ type_of(const T)                                                                
 
 struct Enum_Value
 {
-	i32 index;
+	I32 index;
 	std::string_view name;
 };
 
 struct Enum
 {
 	std::array<Enum_Value, REFLECT_MAX_ENUM_VALUE_COUNT> values;
-	u64 count;
+	U64 count;
 };
 
-template <typename T, i32... I>
-constexpr inline static Enum
-get_enum(std::integer_sequence<i32, I...>)
+template <typename T, T V>
+constexpr inline static Enum_Value
+get_enum_value()
 {
-	// TODO: Remove -Wno-enum-constexpr-conversion.
-	constexpr auto get_enum_value = []<T V>() -> Enum_Value {
-		#if defined(_MSC_VER) // TODO: PLATFORM_WIN32.
-			constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
-			constexpr auto type_name_prefix_length = type_function_name.find("()<") + 3;
-			constexpr auto type_name_length        = type_function_name.find(">", type_name_prefix_length) - type_name_prefix_length;
-		#elif defined(__GNUC__) // PLATFORM_LINUX/MACOS.
-			constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
-			constexpr auto type_name_prefix_length = type_function_name.find("= ") + 2;
-			constexpr auto type_name_length        = type_function_name.find("]", type_name_prefix_length) - type_name_prefix_length;
-		#else
-			#error "[REFLECT]: Unsupported compiler."
-		#endif
+	#if defined(_MSC_VER) // TODO: PLATFORM_WIN32.
+		// MSVC formats: "struct Enum_Value __cdecl get_enum_value<enum T,VALUE>(void)"
+		// The enum value is the last template argument: after the last ',' up to the last '>'.
+		constexpr auto type_function_name      = std::string_view{__FUNCSIG__};
+		constexpr auto type_name_prefix_length = type_function_name.rfind(',') + 1;
+		constexpr auto type_name_length        = type_function_name.rfind('>') - type_name_prefix_length;
+	#elif defined(__GNUC__) // PLATFORM_LINUX/MACOS.
+		constexpr auto type_function_name      = std::string_view{__PRETTY_FUNCTION__};
+		constexpr auto type_name_prefix_length = type_function_name.rfind("= ") + 2;
+		constexpr auto type_name_length        = type_function_name.find("]", type_name_prefix_length) - type_name_prefix_length;
+	#else
+		#error "[REFLECT]: Unsupported compiler."
+	#endif
 
-		char c = type_function_name.at(type_name_prefix_length);
-		if ((c >= '0' && c <= '9') || c == '(' || c == ')')
-			return {};
-		return {(i32)V, {type_function_name.data() + type_name_prefix_length, type_name_length}};
-	};
+	char c = type_function_name.at(type_name_prefix_length);
+	if ((c >= '0' && c <= '9') || c == '(' || c == ')' || c == '-')
+		return {};
+	return {(I32)V, {type_function_name.data() + type_name_prefix_length, type_name_length}};
+}
 
+template <typename T, I32... I>
+constexpr inline static Enum
+get_enum(std::integer_sequence<I32, I...>)
+{
 	return Enum {
-		{ get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>()...},
-		((get_enum_value.template operator()<(T)(I + REFLECT_MIN_ENUM_VALUE)>().name != "") + ...)
+		{ get_enum_value<T, static_cast<T>(I + REFLECT_MIN_ENUM_VALUE)>()...},
+		((get_enum_value<T, static_cast<T>(I + REFLECT_MIN_ENUM_VALUE)>().name != "") + ...)
 	};
 }
 
@@ -573,10 +577,10 @@ requires (std::is_enum_v<T>)
 inline static constexpr const Type *
 type_of(const T)
 {
-	constexpr auto data = get_enum<T>(std::make_integer_sequence<i32, REFLECT_MAX_ENUM_VALUE_COUNT>());
+	constexpr auto data = get_enum<T>(std::make_integer_sequence<I32, REFLECT_MAX_ENUM_VALUE_COUNT>());
 
-	constexpr auto copy = [](char *dst, const char *src, u64 count) {
-		for (u64 i = 0; i < count; ++i)
+	constexpr auto copy = [](char *dst, const char *src, U64 count) {
+		for (U64 i = 0; i < count; ++i)
 			dst[i] = src[i];
 	};
 
@@ -586,7 +590,7 @@ type_of(const T)
 	static bool initialized = false;
 	if (initialized == false)
 	{
-		for (u64 i = 0, c = 0; i < REFLECT_MAX_ENUM_VALUE_COUNT; ++i)
+		for (U64 i = 0, c = 0; i < REFLECT_MAX_ENUM_VALUE_COUNT; ++i)
 		{
 			if (const auto &value = data.values[i]; value.name != "")
 			{

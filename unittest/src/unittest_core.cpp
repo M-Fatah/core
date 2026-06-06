@@ -13,8 +13,8 @@ TESTER_TEST("[CORE]: Arena_Allocator")
 	memory::Arena_Allocator *arena = memory::arena_allocator_init(1024);
 	DEFER(memory::arena_allocator_deinit(arena));
 
-	void *a = memory::arena_allocator_allocate(arena, 4);
-	void *b = memory::arena_allocator_allocate(arena, 8);
+	void *a = memory::arena_allocator_allocate(arena, 4, 1);
+	void *b = memory::arena_allocator_allocate(arena, 8, 1);
 
 	TESTER_CHECK(a != nullptr);
 	TESTER_CHECK(b != nullptr);
@@ -27,7 +27,7 @@ TESTER_TEST("[CORE]: Arena_Allocator")
 	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 0);
 	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 12);
 
-	arena_allocator_allocate(arena, 2048);
+	arena_allocator_allocate(arena, 2048, 1);
 
 	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 2048);
 	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 2048);
@@ -42,7 +42,7 @@ TESTER_TEST("[CORE]: Pool_Allocator")
 {
 	struct Entity
 	{
-		f32 x, y, z;
+		F32 x, y, z;
 	};
 
 	memory::Pool_Allocator *pool = memory::pool_allocator_init(sizeof(Entity), 10);
@@ -67,7 +67,7 @@ TESTER_TEST("[CORE]: Pool_Allocator")
 	TESTER_CHECK(p5 == e3);
 }
 
-inline static Result<i32>
+inline static Result<I32>
 _result_test_with_default_error_pseudo_disk_read(bool success)
 {
 	if (success)
@@ -77,7 +77,7 @@ _result_test_with_default_error_pseudo_disk_read(bool success)
 
 enum class PSEUDO_DISK_READ_RESULT_CODE { OK, NOT_OK };
 
-inline static Result<i32, PSEUDO_DISK_READ_RESULT_CODE>
+inline static Result<I32, PSEUDO_DISK_READ_RESULT_CODE>
 _result_test_with_custom_error_pseudo_disk_read(bool success)
 {
 	if (success)

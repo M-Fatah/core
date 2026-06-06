@@ -196,8 +196,8 @@ platform_path_get_directory(const String &path, memory::Allocator *allocator)
 	if (platform_path_is_directory(path))
 		return path_directory;
 
-	u64 path_directory_length = string_find_last_of(path_directory, '/');
-	if (path_directory_length != u64(-1))
+	U64 path_directory_length = string_find_last_of(path_directory, '/');
+	if (path_directory_length != U64(-1))
 		string_resize(path_directory, path_directory_length);
 	return path_directory;
 }
@@ -208,6 +208,19 @@ platform_path_get_current_working_directory(memory::Allocator *allocator)
 	char buffer[PATH_MAX] = {};
 	validate(::getcwd(buffer, PATH_MAX));
 	return string_from(buffer, allocator);
+}
+
+String
+platform_path_get_temp_directory(memory::Allocator *allocator)
+{
+	const char *path = ::getenv("TMPDIR");
+	if (path == nullptr || path[0] == '\0')
+		path = "/tmp/";
+
+	String result = string_from(path, allocator);
+	if (result.count > 0 && result[result.count - 1] != '/')
+		string_append(result, '/');
+	return result;
 }
 
 void
@@ -225,8 +238,8 @@ platform_path_get_executable_path(memory::Allocator *allocator)
 	char module_path_absolute[PATH_MAX + 1];
 	::memset(module_path_absolute, 0, sizeof(module_path_absolute));
 
-	i64 module_path_relative_length = ::readlink("/proc/self/exe", module_path_relative, sizeof(module_path_relative));
-	validate(module_path_relative_length != -1 && module_path_relative_length < (i64)sizeof(module_path_relative), "[PLATFORM]: Failed to get relative path of the current executable.");
+	I64 module_path_relative_length = ::readlink("/proc/self/exe", module_path_relative, sizeof(module_path_relative));
+	validate(module_path_relative_length != -1 && module_path_relative_length < (I64)sizeof(module_path_relative), "[PLATFORM]: Failed to get relative path of the current executable.");
 
 	char *path_absolute = ::realpath(module_path_relative, module_path_absolute);
 	validate(path_absolute == module_path_absolute, "[PLATFORM]: Failed to get absolute path of the current executable.");
@@ -248,34 +261,34 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 {
 	String content = string_init(allocator);
 
-	i32 file_handle = ::open(path.data, O_RDONLY, S_IRWXU);
+	I32 file_handle = ::open(path.data, O_RDONLY, S_IRWXU);
 	if (file_handle == -1)
 		return content;
 
-	u64 file_size = platform_file_size(path.data);
+	U64 file_size = platform_file_size(path.data);
 	if (file_size == 0)
 		return content;
 
 	string_resize(content, file_size);
 
-	i64 bytes_read = ::read(file_handle, content.data, content.count);
+	I64 bytes_read = ::read(file_handle, content.data, content.count);
 	validate(::close(file_handle) == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_read == -1)
 		return content;
 
-	validate((i64)content.count == bytes_read);
+	validate((I64)content.count == bytes_read);
 
 	return content;
 }
 
-u64
+U64
 platform_path_write_file(const String &path, Block block)
 {
-	i32 file_handle = ::open(path.data, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
+	I32 file_handle = ::open(path.data, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
 	if (file_handle == -1)
 		return 0;
 
-	i64 bytes_written = ::write(file_handle, block.data, block.size);
+	I64 bytes_written = ::write(file_handle, block.data, block.size);
 	validate(::close(file_handle) == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_written == -1)
 		return 0;
@@ -307,12 +320,12 @@ platform_path_list_files(const String &directory, const String &extension_filter
 		String file_name = string_from(entry->d_name, memory::temp_allocator());
 		if (extension_filter.count > 0)
 		{
-			u64 extension_position = string_find_last_of(file_name, '.');
-			if (extension_position == u64(-1))
+			U64 extension_position = string_find_last_of(file_name, '.');
+			if (extension_position == U64(-1))
 				continue;
 
 			String file_extension = string_with_capacity(file_name.count - extension_position - 1, memory::temp_allocator());
-			for (u64 i = extension_position + 1; i < file_name.count; ++i)
+			for (U64 i = extension_position + 1; i < file_name.count; ++i)
 				string_append(file_extension, file_name.data[i]);
 
 			if (file_extension != extension_filter)
@@ -356,7 +369,7 @@ platform_api_init(const char *filepath)
 	validate(self.api, "[PLATFORM]: Failed to get api.");
 
 	struct stat file_stat = {};
-	[[maybe_unused]] i32 stat_result = ::stat(src_relative_path, &file_stat);
+	[[maybe_unused]] I32 stat_result = ::stat(src_relative_path, &file_stat);
 	validate(stat_result == 0, "[PLATFORM]: Failed to get file attributes.");
 
 	self.last_write_time = file_stat.st_mtime;
@@ -385,10 +398,10 @@ platform_api_load(Platform_Api *self)
 	_string_concat(self->filepath, ".tmp", dst_absolute_path);
 
 	struct stat file_stat = {};
-	i32 stat_result = ::stat(self->filepath, &file_stat);
+	I32 stat_result = ::stat(self->filepath, &file_stat);
 	validate(stat_result == 0, "[PLATFORM]: Failed to get file attributes.");
 
-	i64 last_write_time = file_stat.st_mtime;
+	I64 last_write_time = file_stat.st_mtime;
 	if ((last_write_time == self->last_write_time) || (stat_result != 0))
 		return self->api;
 
@@ -418,10 +431,10 @@ platform_api_load(Platform_Api *self)
 
 
 Platform_Allocator
-platform_allocator_init(u64 size_in_bytes)
+platform_allocator_init(U64 size_in_bytes)
 {
 	Platform_Allocator self = {};
-	self.ptr = (u8 *)::mmap(0, size_in_bytes, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+	self.ptr = (U8 *)::mmap(0, size_in_bytes, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
 	if(self.ptr)
 		self.size = size_in_bytes;
 	return self;
@@ -430,12 +443,12 @@ platform_allocator_init(u64 size_in_bytes)
 void
 platform_allocator_deinit(Platform_Allocator *self)
 {
-	[[maybe_unused]] i32 result = ::munmap(self->ptr, self->size);
+	[[maybe_unused]] I32 result = ::munmap(self->ptr, self->size);
 	validate(result == 0, "[PLATFORM]: Failed to free virtual memory.");
 }
 
 Platform_Memory
-platform_allocator_alloc(Platform_Allocator *self, u64 size_in_bytes)
+platform_allocator_alloc(Platform_Allocator *self, U64 size_in_bytes)
 {
 	Platform_Memory res = {};
 	if (self->used + size_in_bytes >= self->size)
@@ -517,7 +530,7 @@ struct Platform_Window_Context
 };
 
 Platform_Window
-platform_window_init(u32 width, u32 height, const char *title)
+platform_window_init(U32 width, U32 height, const char *title)
 {
 	Display *display             = ::XOpenDisplay(nullptr);
 	xcb_connection_t *connection = ::XGetXCBConnection(display);
@@ -533,8 +546,8 @@ platform_window_init(u32 width, u32 height, const char *title)
 
 	xcb_window_t window = ::xcb_generate_id(connection);
 
-	u32 event_mask   = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
-	u32 event_values = XCB_EVENT_MASK_BUTTON_PRESS   |
+	U32 event_mask   = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
+	U32 event_values = XCB_EVENT_MASK_BUTTON_PRESS   |
 					   XCB_EVENT_MASK_BUTTON_RELEASE |
 					   XCB_EVENT_MASK_KEY_PRESS      |
 					   XCB_EVENT_MASK_KEY_RELEASE    |
@@ -542,7 +555,7 @@ platform_window_init(u32 width, u32 height, const char *title)
 					   XCB_EVENT_MASK_POINTER_MOTION |
 					   XCB_EVENT_MASK_STRUCTURE_NOTIFY;
 
-	u32 value_list[] = {screen->black_pixel, event_values};
+	U32 value_list[] = {screen->black_pixel, event_values};
 
 	// Create the window.
 	::xcb_create_window(
@@ -588,7 +601,7 @@ platform_window_init(u32 width, u32 height, const char *title)
 	::xcb_map_window(connection, window);
 
 	// Flush the stream.
-	i32 stream_result = ::xcb_flush(connection);
+	I32 stream_result = ::xcb_flush(connection);
 	if (stream_result <= 0)
 	{
 		validate(false, "[PLATFORM]: An error occurred when flusing the stream.");
@@ -627,7 +640,7 @@ platform_window_poll(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 
-	for (i32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
+	for (I32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{
 		self->input.keys[i].pressed       = false;
 		self->input.keys[i].released      = false;
@@ -708,7 +721,7 @@ platform_window_poll(Platform_Window *self)
 			case XCB_CONFIGURE_NOTIFY:
 			{
 				xcb_configure_notify_event_t *xcb_configure_notify_event = (xcb_configure_notify_event_t *)xcb_event;
-				if (self->width != (u32)xcb_configure_notify_event->width || self->height != (u32)xcb_configure_notify_event->height)
+				if (self->width != (U32)xcb_configure_notify_event->width || self->height != (U32)xcb_configure_notify_event->height)
 				{
 					self->width  = xcb_configure_notify_event->width;
 					self->height = xcb_configure_notify_event->height;
@@ -727,14 +740,14 @@ platform_window_poll(Platform_Window *self)
 		xcb_query_pointer_cookie_t xcb_query_pointer_cookie = ::xcb_query_pointer_unchecked(ctx->connection, ctx->window);
 		xcb_query_pointer_reply_t *xcb_query_pointer_reply  = ::xcb_query_pointer_reply(ctx->connection, xcb_query_pointer_cookie, nullptr);
 
-		i32 window_mouse_x = xcb_query_pointer_reply->win_x;
-		i32 window_mouse_y = xcb_query_pointer_reply->win_y;
-		if (window_mouse_x >= 0 && (u32)window_mouse_x < self->width && window_mouse_y >= 0 && (u32)window_mouse_y < self->height)
+		I32 window_mouse_x = xcb_query_pointer_reply->win_x;
+		I32 window_mouse_y = xcb_query_pointer_reply->win_y;
+		if (window_mouse_x >= 0 && (U32)window_mouse_x < self->width && window_mouse_y >= 0 && (U32)window_mouse_y < self->height)
 		{
 			if (window_mouse_x != self->input.mouse_x || window_mouse_y != self->input.mouse_y)
 			{
 				// NOTE: We want mouse coords to start bottom-left.
-				u32 mouse_point_y_inverted = (self->height - 1) - window_mouse_y;
+				U32 mouse_point_y_inverted = (self->height - 1) - window_mouse_y;
 				self->input.mouse_dx = window_mouse_x - self->input.mouse_x;
 				self->input.mouse_dy = self->input.mouse_y - mouse_point_y_inverted;
 				self->input.mouse_x  = window_mouse_x;
@@ -791,8 +804,8 @@ platform_set_current_directory()
 	char module_path_absolute[PATH_MAX + 1];
 	::memset(module_path_absolute, 0, sizeof(module_path_absolute));
 
-	[[maybe_unused]] i64 module_path_relative_length = ::readlink("/proc/self/exe", module_path_relative, sizeof(module_path_relative));
-	validate(module_path_relative_length != -1 && module_path_relative_length < (i64)sizeof(module_path_relative), "[PLATFORM]: Failed to get relative path of the current executable.");
+	[[maybe_unused]] I64 module_path_relative_length = ::readlink("/proc/self/exe", module_path_relative, sizeof(module_path_relative));
+	validate(module_path_relative_length != -1 && module_path_relative_length < (I64)sizeof(module_path_relative), "[PLATFORM]: Failed to get relative path of the current executable.");
 
 	[[maybe_unused]] char *path_absolute = ::realpath(module_path_relative, module_path_absolute);
 	validate(path_absolute == module_path_absolute, "[PLATFORM]: Failed to get absolute path of the current executable.");
@@ -806,7 +819,7 @@ platform_set_current_directory()
 	}
 	*last_slash = '\0';
 
-	[[maybe_unused]] i32 result = ::chdir(module_path_absolute);
+	[[maybe_unused]] I32 result = ::chdir(module_path_absolute);
 	validate(result == 0, "[PLATFORM]: Failed to set current directory.");
 	::strcpy(current_executable_directory, module_path_absolute);
 }
@@ -818,7 +831,7 @@ platform_file_exists(const char *filepath)
 	return ::stat(filepath, &file_stat) == 0;
 }
 
-u64
+U64
 platform_file_size(const char *filepath)
 {
 	struct stat file_stat = {};
@@ -832,64 +845,127 @@ platform_file_read(const String &file_path, memory::Allocator *allocator)
 {
 	String content = string_init(allocator);
 
-	i32 file_handle = ::open(file_path.data, O_RDONLY, S_IRWXU);
+	I32 file_handle = ::open(file_path.data, O_RDONLY, S_IRWXU);
 	if (file_handle == -1)
 		return content;
 
-	u64 file_size = platform_file_size(file_path.data);
+	U64 file_size = platform_file_size(file_path.data);
 	if (file_size == 0)
 		return content;
 
 	string_resize(content, file_size);
 
-	i64 bytes_read = ::read(file_handle, content.data, content.count);
+	I64 bytes_read = ::read(file_handle, content.data, content.count);
 	validate(::close(file_handle) == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_read == -1)
 		return content;
 
-	validate((i64)content.count == bytes_read);
+	validate((I64)content.count == bytes_read);
 
 	return content;
 }
 
-u64
+U64
 platform_file_read(const char *filepath, Platform_Memory mem)
 {
-	i32 file_handle = ::open(filepath, O_RDONLY, S_IRWXU);
+	I32 file_handle = ::open(filepath, O_RDONLY, S_IRWXU);
 	if (file_handle == -1)
 		return 0;
 
-	i64 bytes_read = ::read(file_handle, mem.ptr, mem.size);
-	[[maybe_unused]] i32 close_result = ::close(file_handle);
+	I64 bytes_read = ::read(file_handle, mem.ptr, mem.size);
+	[[maybe_unused]] I32 close_result = ::close(file_handle);
 	validate(close_result == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_read == -1)
 		return 0;
 	return bytes_read;
 }
 
-u64
+U64
 platform_file_write(const char *filepath, Platform_Memory mem)
 {
-	i32 file_handle = ::open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
+	I32 file_handle = ::open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
 	if (file_handle == -1)
 		return 0;
 
-	i64 bytes_written = ::write(file_handle, mem.ptr, mem.size);
-	[[maybe_unused]] i32 close_result = ::close(file_handle);
+	I64 bytes_written = ::write(file_handle, mem.ptr, mem.size);
+	[[maybe_unused]] I32 close_result = ::close(file_handle);
 	validate(close_result == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_written == -1)
 		return 0;
 	return bytes_written;
 }
 
+Platform_File_Handle
+platform_file_open(const String &path, Platform_File_Mode mode)
+{
+	int flags = 0;
+	switch (mode)
+	{
+		case PLATFORM_FILE_MODE_READ:       flags = O_RDONLY;                     break;
+		case PLATFORM_FILE_MODE_WRITE:      flags = O_WRONLY | O_CREAT | O_TRUNC; break;
+		case PLATFORM_FILE_MODE_READ_WRITE: flags = O_RDWR   | O_CREAT;           break;
+		case PLATFORM_FILE_MODE_APPEND:     flags = O_WRONLY | O_CREAT | O_APPEND; break;
+	}
+	int fd = ::open(path.data, flags, S_IRWXU);
+	return fd == -1 ? PLATFORM_FILE_HANDLE_INVALID : (Platform_File_Handle)(intptr_t)fd;
+}
+
+void
+platform_file_close(Platform_File_Handle handle)
+{
+	if (handle)
+		::close((int)(intptr_t)handle);
+}
+
+U64
+platform_file_read(Platform_File_Handle handle, void *data, U64 size)
+{
+	ssize_t bytes_read = ::read((int)(intptr_t)handle, data, size);
+	return bytes_read < 0 ? 0 : (U64)bytes_read;
+}
+
+U64
+platform_file_write(Platform_File_Handle handle, const void *data, U64 size)
+{
+	ssize_t bytes_written = ::write((int)(intptr_t)handle, data, size);
+	return bytes_written < 0 ? 0 : (U64)bytes_written;
+}
+
+bool
+platform_file_seek(Platform_File_Handle handle, I64 offset, Platform_File_Seek_Origin origin)
+{
+	int whence = SEEK_SET;
+	switch (origin)
+	{
+		case PLATFORM_FILE_SEEK_ORIGIN_BEGIN:   whence = SEEK_SET; break;
+		case PLATFORM_FILE_SEEK_ORIGIN_CURRENT: whence = SEEK_CUR; break;
+		case PLATFORM_FILE_SEEK_ORIGIN_END:     whence = SEEK_END; break;
+	}
+	return ::lseek((int)(intptr_t)handle, (off_t)offset, whence) != (off_t)-1;
+}
+
+U64
+platform_file_tell(Platform_File_Handle handle)
+{
+	return (U64)::lseek((int)(intptr_t)handle, 0, SEEK_CUR);
+}
+
+U64
+platform_file_size(Platform_File_Handle handle)
+{
+	struct stat st = {};
+	::fstat((int)(intptr_t)handle, &st);
+	return (U64)st.st_size;
+}
+
 bool
 platform_file_copy(const char *from, const char *to)
 {
-	i32 src_file = ::open(from, O_RDONLY);
+	I32 src_file = ::open(from, O_RDONLY);
 	if (src_file < 0)
 		return false;
 
-	i32 dst_file = ::open(to, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+	I32 dst_file = ::open(to, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 	if (dst_file < 0)
 	{
 		::close(src_file);
@@ -904,14 +980,14 @@ platform_file_copy(const char *from, const char *to)
 	char buffer[8192];
 	while (true)
 	{
-		i64 bytes_read = ::read(src_file, buffer, sizeof(buffer));
+		I64 bytes_read = ::read(src_file, buffer, sizeof(buffer));
 		if (bytes_read == 0)
 			break;
 
 		if (bytes_read == -1)
 			return false;
 
-		i64 bytes_written = ::write(dst_file, buffer, bytes_read);
+		I64 bytes_written = ::write(dst_file, buffer, bytes_read);
 		if (bytes_written != bytes_read)
 			return false;
 	}
@@ -932,7 +1008,7 @@ platform_file_delete(const char *filepath)
 	[ ] Also file filter works only for a single filter for now.
 */
 bool
-platform_file_dialog_open(char *path, u32 path_length, const char *filters)
+platform_file_dialog_open(char *path, U32 path_length, const char *filters)
 {
 	::memset(path, 0, path_length);
 
@@ -946,7 +1022,7 @@ platform_file_dialog_open(char *path, u32 path_length, const char *filters)
 }
 
 bool
-platform_file_dialog_save(char *path, u32 path_length, const char *filters)
+platform_file_dialog_save(char *path, U32 path_length, const char *filters)
 {
 	::memset(path, 0, path_length);
 
@@ -959,23 +1035,23 @@ platform_file_dialog_save(char *path, u32 path_length, const char *filters)
 	return ::pclose(file_handle) == 0;
 }
 
-u64
+U64
 platform_query_microseconds()
 {
 	struct timespec time;
-	[[maybe_unused]] i32 result = clock_gettime(CLOCK_MONOTONIC, &time);
+	[[maybe_unused]] I32 result = clock_gettime(CLOCK_MONOTONIC, &time);
 	validate(result == 0, "[PLATFORM]: Failed to query clock.");
 	return time.tv_sec * 1000000 + time.tv_nsec * 0.001;
 }
 
 void
-platform_sleep_set_period(u32)
+platform_sleep_set_period(U32)
 {
 
 }
 
 void
-platform_sleep(u32 milliseconds)
+platform_sleep(U32 milliseconds)
 {
 	struct timespec ts;
 	ts.tv_sec = milliseconds / 1000;
@@ -983,8 +1059,8 @@ platform_sleep(u32 milliseconds)
 	nanosleep(&ts, 0);
 }
 
-u32
-platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] u32 frame_count)
+U32
+platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] U32 frame_count)
 {
 #if DEBUG
 	::memset(callstack, 0, frame_count * sizeof(callstack));
@@ -995,7 +1071,7 @@ platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] u
 }
 
 void
-platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 frame_count)
+platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] U32 frame_count)
 {
 #if DEBUG
 	char** symbols = ::backtrace_symbols(callstack, frame_count);
@@ -1003,7 +1079,7 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 f
 	{
 		// TODO: Use logger.
 		::printf("callstack:\n");
-		for (u32 i = 0; i < frame_count; ++i)
+		for (U32 i = 0; i < frame_count; ++i)
 			::printf("\t[%" PRIu32 "]: %s\n", frame_count - i - 1, symbols[i]);
 
 		::free(symbols);
@@ -1012,7 +1088,7 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] u32 f
 }
 
 Platform_Font
-platform_font_init(const char *, const char *, u32, bool)
+platform_font_init(const char *, const char *, U32, bool)
 {
 	return {};
 }

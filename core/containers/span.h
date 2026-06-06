@@ -6,6 +6,7 @@
 #include "core/containers/stack_array.h"
 
 #include <initializer_list>
+#include <type_traits>
 
 /*
 TODO:
@@ -16,79 +17,130 @@ template <typename T>
 struct Span
 {
 	T *data;
-	u64 count;
+	U64 count;
+
+	// Default — empty span.
+	Span() : data(nullptr), count(0) {}
+
+	// Trivially copyable / movable — explicit so our converting constructors
+	// below don't inhibit the compiler-synthesized copy.
+	Span(const Span &) = default;
+	Span(Span &&) = default;
+	Span &operator=(const Span &) = default;
+	Span &operator=(Span &&) = default;
+
+	// Raw pointer + count.
+	Span(T *data_, U64 count_) : data(data_), count(count_) {}
+
+	// Half-open [begin, end) range.
+	Span(T *begin_, T *end_) : data(begin_), count(U64(end_ - begin_)) {}
+
+	// C-style array.
+	template <U64 N>
+	Span(T (&array)[N]) : data(array), count(N) {}
+
+	// From the engine's containers.
+	Span(Array<T> &array) : data(array.data), count(array.count) {}
+
+	template <U64 N>
+	Span(Stack_Array<T, N> &array) : data(array.data), count(array.count) {}
+
+	// Single element — span of size 1 over the given value's storage. The caller
+	// must keep the referenced value alive for the span's lifetime.
+	Span(T &value) : data(&value), count(1) {}
+
+	// Convert Span<T> to Span<const T> (the mutable → const view). Only enabled
+	// when T is `const U` so this doesn't shadow the copy constructor.
+	Span(const Span<std::remove_const_t<T>> &other) requires std::is_const_v<T>
+		: data(other.data), count(other.count) {}
 
 	inline T &
-	operator[](u64 index)
+	operator[](U64 index)
 	{
 		validate(index < count, "[SPAN]: Access out of range.");
 		return data[index];
 	}
 
 	inline const T &
-	operator[](u64 index) const
+	operator[](U64 index) const
 	{
 		validate(index < count, "[SPAN]: Access out of range.");
 		return data[index];
 	}
 };
 
+// Deduction guides so `Span{data, count}` and friends pick up T without a user annotation.
+template <typename T> Span(T *, U64) -> Span<T>;
+template <typename T> Span(T *, T *) -> Span<T>;
+template <typename T, U64 N> Span(T (&)[N]) -> Span<T>;
+template <typename T> Span(Array<T> &) -> Span<T>;
+template <typename T, U64 N> Span(Stack_Array<T, N> &) -> Span<T>;
+template <typename T> Span(T &) -> Span<T>;
+
+// ---- span_init helpers (retained for existing call sites) ------------------
+
 template <typename T>
 inline static Span<T>
-span_init(T *data, u64 count)
+span_init(T *data, U64 count)
 {
-	return Span<T> {
-		.data = data,
-		.count = count,
-	};
+	return Span<T>(data, count);
 }
 
 template <typename T>
 inline static Span<T>
 span_init(T *begin, T *end)
 {
-	return span_init(begin, u64(end - begin));
+	return Span<T>(begin, end);
 }
 
-template <typename T, u64 N>
+template <typename T, U64 N>
 inline static Span<T>
 span_init(T (&array)[N])
 {
-	return span_init(array, N);
+	return Span<T>(array);
 }
 
 template <typename T>
 inline static Span<const T>
 span_init(std::initializer_list<T> list)
 {
-	return Span<const T>{ .data = list.begin(), .count = list.size() };
+	return Span<const T>(list.begin(), U64(list.size()));
 }
 
 template <typename T>
 inline static Span<T>
 span_init(Array<T> &array)
 {
-	return span_init(array.data, array.count);
+	return Span<T>(array);
 }
 
-template <typename T, u64 N>
+template <typename T, U64 N>
 inline static Span<T>
 span_init(Stack_Array<T, N> &array)
 {
-	return span_init(array.data, array.count);
+	return Span<T>(array);
+}
+
+template <typename T>
+inline static Span<T>
+span_init(T &value)
+{
+	return Span<T>(value);
 }
 
 inline static Span<const char>
 span_init(const char *string)
 {
-	constexpr auto c_string_length = [](const char *str) -> u64 {
-		u64 length = 0;
+	constexpr auto c_string_length = [](const char *str) -> U64 {
+		U64 length = 0;
 		while (str[length] != '\0')
 			++length;
 		return length;
 	};
-	return span_init(string, c_string_length(string));
+	return Span<const char>(string, c_string_length(string));
 }
+
+// ---- Accessors / iteration -------------------------------------------------
 
 template <typename T>
 inline static bool
