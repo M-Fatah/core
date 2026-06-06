@@ -84,19 +84,19 @@ tester_run(Tester *self)
 	}
 
 	print_to_stdout(" Tests:  ");
-	print_to_stdout(PRINT_COLOR_FG_BLUE, "{:>4}", tests_passed + tests_failed);
+	print_to_stdout(PRINT_COLOR_FG_BLUE, "{:>6}", tests_passed + tests_failed);
 	print_to_stdout(" | ");
-	print_to_stdout(tests_passed > 0 ? PRINT_COLOR_FG_GREEN : PRINT_COLOR_DEFAULT, "{:>4} passed", tests_passed);
+	print_to_stdout(tests_passed > 0 ? PRINT_COLOR_FG_GREEN : PRINT_COLOR_DEFAULT, "{:>6} passed", tests_passed);
 	print_to_stdout(" | ");
-	print_to_stdout(tests_failed > 0 ? PRINT_COLOR_FG_RED : PRINT_COLOR_DEFAULT, "{:>4} failed", tests_failed);
+	print_to_stdout(tests_failed > 0 ? PRINT_COLOR_FG_RED : PRINT_COLOR_DEFAULT, "{:>6} failed", tests_failed);
 	print_to_stdout("\n");
 
 	print_to_stdout(" Checks: ");
-	print_to_stdout(PRINT_COLOR_FG_BLUE, "{:>4}", self->passed_checks.count + self->failed_checks.count);
+	print_to_stdout(PRINT_COLOR_FG_BLUE, "{:>6}", self->passed_checks.count + self->failed_checks.count);
 	print_to_stdout(" | ");
-	print_to_stdout(self->passed_checks.count > 0 ? PRINT_COLOR_FG_GREEN : PRINT_COLOR_DEFAULT, "{:>4} passed", self->passed_checks.count);
+	print_to_stdout(self->passed_checks.count > 0 ? PRINT_COLOR_FG_GREEN : PRINT_COLOR_DEFAULT, "{:>6} passed", self->passed_checks.count);
 	print_to_stdout(" | ");
-	print_to_stdout(self->failed_checks.count > 0 ? PRINT_COLOR_FG_RED : PRINT_COLOR_DEFAULT, "{:>4} failed", self->failed_checks.count);
+	print_to_stdout(self->failed_checks.count > 0 ? PRINT_COLOR_FG_RED : PRINT_COLOR_DEFAULT, "{:>6} failed", self->failed_checks.count);
 	print_to_stdout("\n");
 
 	print_to_stdout(" Status: ");

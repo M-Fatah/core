@@ -1,31 +1,20 @@
 #pragma once
 
-#include <core/defines.h>
+#include "core/defines.h"
+#include "core/validate.h"
 
-#include <cmath>
-#include <limits>
+#include <float.h>
+#include <math.h>
 
-// ============================================================================
-// F64 scalar helpers + constants — full prefixed mirror of F32.h.
-// ============================================================================
+inline static constexpr F64 F64_PI                = 3.14159265358979323846;
+inline static constexpr F64 F64_TAU               = F64_PI * 2.0;
+inline static constexpr F64 F64_TO_DEGREES        = 360.0 / F64_TAU;
+inline static constexpr F64 F64_TO_RADIANS        = F64_TAU / 360.0;
 
-// ---- Angular constants -----------------------------------------------------
-
-static constexpr F64 F64_PI         = 3.14159265358979323846;
-static constexpr F64 F64_TAU        = F64_PI * 2.0;
-static constexpr F64 F64_PI_OVER_2  = F64_PI * 0.5;
-static constexpr F64 F64_TO_DEGREES = 360.0 / F64_TAU;
-static constexpr F64 F64_TO_RADIANS = F64_TAU / 360.0;
-
-// ---- Numeric limits / special values ---------------------------------------
-// F64_MIN / F64_MAX live in core/defines.h.
-
-static constexpr F64 F64_EPSILON      = std::numeric_limits<F64>::epsilon();
-static constexpr F64 F64_INFINITY     = std::numeric_limits<F64>::infinity();
-static constexpr F64 F64_NEG_INFINITY = -F64_INFINITY;
-static constexpr F64 F64_NAN          = std::numeric_limits<F64>::quiet_NaN();
-
-// ---- Transcendental / trigonometric wrappers -------------------------------
+inline static constexpr F64 F64_EPSILON           = DBL_EPSILON;
+inline static constexpr F64 F64_INFINITY          = INFINITY;
+inline static constexpr F64 F64_NEGATIVE_INFINITY = -F64_INFINITY;
+inline static constexpr F64 F64_NAN               = NAN;
 
 inline static F64
 f64_sqrt(F64 x)
@@ -81,20 +70,34 @@ f64_modulo(F64 x, F64 divisor)
 	return ::fmod(x, divisor);
 }
 
-// ---- Basic arithmetic helpers ----------------------------------------------
-
 inline static F64
-f64_abs(F64 x)
+f64_floor(F64 x)
 {
-	return x < 0.0 ? -x : x;
+	return ::floor(x);
 }
 
 inline static F64
-f64_sign(F64 x)
+f64_ceil(F64 x)
 {
-	if (x > 0.0) return  1.0;
-	if (x < 0.0) return -1.0;
-	return 0.0;
+	return ::ceil(x);
+}
+
+inline static F64
+f64_round(F64 x)
+{
+	return ::round(x);
+}
+
+inline static F64
+f64_trunc(F64 x)
+{
+	return ::trunc(x);
+}
+
+inline static F64
+f64_fract(F64 x)
+{
+	return x - f64_floor(x);
 }
 
 inline static F64
@@ -110,20 +113,36 @@ f64_max(F64 a, F64 b)
 }
 
 inline static F64
-f64_clamp(F64 x, F64 lo, F64 hi)
+f64_clamp(F64 x, F64 a, F64 b)
 {
-	if (x < lo) return lo;
-	if (x > hi) return hi;
+	if (x < a)
+		return a;
+	if (x > b)
+		return b;
 	return x;
 }
 
 inline static F64
-f64_lerp(F64 a, F64 b, F64 t)
+f64_saturate(F64 x)
 {
-	return a + t * (b - a);
+	return f64_clamp(x, 0.0, 1.0);
 }
 
-// ---- Special-value tests ---------------------------------------------------
+inline static F64
+f64_abs(F64 x)
+{
+	return x < 0.0 ? -x : x;
+}
+
+inline static F64
+f64_sign(F64 x)
+{
+	if (x > 0.0)
+		return  1.0;
+	if (x < 0.0)
+		return -1.0;
+	return 0.0;
+}
 
 inline static bool
 f64_is_nan(F64 x)
@@ -134,7 +153,7 @@ f64_is_nan(F64 x)
 inline static bool
 f64_is_infinite(F64 x)
 {
-	return x == F64_INFINITY || x == F64_NEG_INFINITY;
+	return x == F64_INFINITY || x == F64_NEGATIVE_INFINITY;
 }
 
 inline static bool
@@ -146,39 +165,92 @@ f64_is_finite(F64 x)
 inline static bool
 f64_approx_equal(F64 a, F64 b, F64 epsilon)
 {
+	validate(epsilon >= 0.0, "[MATH][F64]: approx_equal epsilon must be non-negative.");
 	return f64_abs(a - b) <= epsilon;
 }
 
-// ---- Interpolation beyond lerp ---------------------------------------------
+inline static bool
+f64_approx_equal_relative(F64 a, F64 b, F64 epsilon)
+{
+	validate(epsilon >= 0.0, "[MATH][F64]: approx_equal_relative epsilon must be non-negative.");
+	F64 scale = f64_max(1.0, f64_max(f64_abs(a), f64_abs(b)));
+	return f64_abs(a - b) <= epsilon * scale;
+}
 
 inline static F64
-f64_smoothstep(F64 edge0, F64 edge1, F64 x)
+f64_wrap_radians(F64 angle)
 {
-	F64 t = f64_clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+	F64 wrapped = f64_modulo(angle + F64_PI, F64_TAU);
+	if (wrapped < 0.0)
+		wrapped += F64_TAU;
+	return wrapped - F64_PI;
+}
+
+inline static F64
+f64_angle_delta(F64 from, F64 to)
+{
+	return f64_wrap_radians(to - from);
+}
+
+inline static F64
+f64_lerp(F64 a, F64 b, F64 t)
+{
+	return a + t * (b - a);
+}
+
+inline static F64
+f64_inverse_lerp(F64 a, F64 b, F64 x)
+{
+	validate(a != b, "[MATH][F64]: inverse_lerp range must not be empty.");
+	return (x - a) / (b - a);
+}
+
+inline static F64
+f64_remap(F64 in_min, F64 in_max, F64 out_min, F64 out_max, F64 x)
+{
+	return f64_lerp(out_min, out_max, f64_inverse_lerp(in_min, in_max, x));
+}
+
+inline static F64
+f64_move_towards(F64 current, F64 target, F64 max_delta)
+{
+	validate(max_delta >= 0.0, "[MATH][F64]: move_towards max_delta must be non-negative.");
+	F64 delta = target - current;
+	if (f64_abs(delta) <= max_delta)
+		return target;
+	return current + f64_sign(delta) * max_delta;
+}
+
+inline static F64
+f64_smoothstep(F64 edge_0, F64 edge_1, F64 x)
+{
+	validate(edge_0 != edge_1, "[MATH][F64]: smoothstep edges must not be equal.");
+	F64 t = f64_clamp((x - edge_0) / (edge_1 - edge_0), 0.0, 1.0);
 	return t * t * (3.0 - 2.0 * t);
 }
 
 inline static F64
-f64_smootherstep(F64 edge0, F64 edge1, F64 x)
+f64_smootherstep(F64 edge_0, F64 edge_1, F64 x)
 {
-	F64 t = f64_clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+	validate(edge_0 != edge_1, "[MATH][F64]: smootherstep edges must not be equal.");
+	F64 t = f64_clamp((x - edge_0) / (edge_1 - edge_0), 0.0, 1.0);
 	return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
 }
 
 inline static F64
 f64_smooth_damp(F64 current, F64 target, F64 *velocity, F64 smooth_time, F64 dt)
 {
-	smooth_time = f64_max(smooth_time, 0.0001);
-	F64 omega   = 2.0 / smooth_time;
-	F64 x       = omega * dt;
-	F64 exp_    = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x);
-	F64 delta   = current - target;
-	F64 temp    = (*velocity + omega * delta) * dt;
-	*velocity   = (*velocity - omega * temp) * exp_;
-	return target + (delta + temp) * exp_;
+	validate(velocity != nullptr, "[MATH][F64]: smooth_damp velocity must not be null.");
+	validate(smooth_time > 0.0, "[MATH][F64]: smooth_damp smooth_time must be positive.");
+	validate(dt >= 0.0, "[MATH][F64]: smooth_damp dt must be non-negative.");
+	F64 omega = 2.0 / smooth_time;
+	F64 x     = omega * dt;
+	F64 exp   = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x);
+	F64 delta = current - target;
+	F64 temp  = (*velocity + omega * delta) * dt;
+	*velocity = (*velocity - omega * temp) * exp;
+	return target + (delta + temp) * exp;
 }
-
-// ---- Easing curves ---------------------------------------------------------
 
 inline static F64
 f64_ease_in_quad(F64 t)
@@ -212,8 +284,8 @@ inline static F64
 f64_ease_out_cubic(F64 t)
 {
 	t = f64_clamp(t, 0.0, 1.0);
-	F64 one_minus = 1.0 - t;
-	return 1.0 - one_minus * one_minus * one_minus;
+	F64 one_minus_t = 1.0 - t;
+	return 1.0 - one_minus_t * one_minus_t * one_minus_t;
 }
 
 inline static F64
@@ -222,38 +294,44 @@ f64_ease_in_out_cubic(F64 t)
 	t = f64_clamp(t, 0.0, 1.0);
 	if (t < 0.5)
 		return 4.0 * t * t * t;
-	F64 one_minus = 1.0 - t;
-	return 1.0 - 4.0 * one_minus * one_minus * one_minus;
+	F64 one_minus_t = 1.0 - t;
+	return 1.0 - 4.0 * one_minus_t * one_minus_t * one_minus_t;
 }
 
 inline static F64
 f64_ease_in_elastic(F64 t)
 {
+	constexpr F64 C4 = F64_TAU / 3.0;
 	t = f64_clamp(t, 0.0, 1.0);
-	if (t == 0.0) return 0.0;
-	if (t == 1.0) return 1.0;
-	constexpr F64 c4 = F64_TAU / 3.0;
-	return -f64_power(2.0, 10.0 * t - 10.0) * f64_sin((t * 10.0 - 10.75) * c4);
+	if (t == 0.0)
+		return 0.0;
+	if (t == 1.0)
+		return 1.0;
+	return -f64_power(2.0, 10.0 * t - 10.0) * f64_sin((t * 10.0 - 10.75) * C4);
 }
 
 inline static F64
 f64_ease_out_elastic(F64 t)
 {
+	constexpr F64 C4 = F64_TAU / 3.0;
 	t = f64_clamp(t, 0.0, 1.0);
-	if (t == 0.0) return 0.0;
-	if (t == 1.0) return 1.0;
-	constexpr F64 c4 = F64_TAU / 3.0;
-	return f64_power(2.0, -10.0 * t) * f64_sin((t * 10.0 - 0.75) * c4) + 1.0;
+	if (t == 0.0)
+		return 0.0;
+	if (t == 1.0)
+		return 1.0;
+	return f64_power(2.0, -10.0 * t) * f64_sin((t * 10.0 - 0.75) * C4) + 1.0;
 }
 
 inline static F64
 f64_ease_in_out_elastic(F64 t)
 {
+	constexpr F64 C5 = F64_TAU / 4.5;
 	t = f64_clamp(t, 0.0, 1.0);
-	if (t == 0.0) return 0.0;
-	if (t == 1.0) return 1.0;
-	constexpr F64 c5 = F64_TAU / 4.5;
+	if (t == 0.0)
+		return 0.0;
+	if (t == 1.0)
+		return 1.0;
 	if (t < 0.5)
-		return -(f64_power(2.0,  20.0 * t - 10.0) * f64_sin((20.0 * t - 11.125) * c5)) * 0.5;
-	return   (f64_power(2.0, -20.0 * t + 10.0) * f64_sin((20.0 * t - 11.125) * c5)) * 0.5 + 1.0;
+		return -(f64_power(2.0,  20.0 * t - 10.0) * f64_sin((20.0 * t - 11.125) * C5)) * 0.5;
+	return (f64_power(2.0, -20.0 * t + 10.0) * f64_sin((20.0 * t - 11.125) * C5)) * 0.5 + 1.0;
 }

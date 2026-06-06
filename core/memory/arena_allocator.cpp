@@ -117,7 +117,7 @@ namespace memory
 	Arena_Allocator::clear()
 	{
 		Arena_Allocator *self = this;
-		if (self->ctx->peak_size >= self->ctx->head->capacity)
+		if (self->ctx->peak_size > self->ctx->head->capacity)
 		{
 			auto node = self->ctx->head;
 			while (node)

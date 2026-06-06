@@ -4,6 +4,8 @@ Header-only linear-algebra + scalar math primitives. Type-prefixed free function
 
 **Headers:** per-type, included individually (`core/math/f32.h`, `core/math/f32x3.h`, `core/math/f32x4x4.h`, `core/math/quaternion.h`, `core/math/random.h`, etc.). Pull in exactly what each translation unit uses.
 
+Invalid math inputs are caller bugs. Debug builds validate contracts such as non-zero normalization inputs, invertible matrices, valid random ranges, non-empty projection viewports, and `operator[]` bounds. Release builds assume inputs were verified by the caller; there are no `try_*` fallback APIs.
+
 ---
 
 ## Canonical coordinate convention
@@ -14,7 +16,6 @@ Consistent across every platform. Documented once; enforced by the API.
 |---|---|
 | Handedness | Right-handed |
 | World axes | `+X` right, `+Y` up, `+Z` toward the viewer |
-| Axis constants | `F32X3_RIGHT = {1,0,0}`, `F32X3_UP = {0,1,0}`, `F32X3_FORWARD = {0,0,-1}` |
 | Matrix storage | Row-major. `F32x4x4` layout is `[m00 m01 m02 m03 \| m10 m11 ... \| ...]` |
 | Multiplication | **Row-vector**: `v * M`, not `M * v`. Translation lives in the last row. |
 | Angle units | Radians unless the parameter name ends in `_degrees` |
@@ -36,7 +37,7 @@ The "row-major vs column-major" memory reinterpretation and the "row-vector vs c
 
 ## Type reference
 
-All types are POD. No constructors, no destructors. Initialize via aggregate init: `F32x3{1.0f, 2.0f, 3.0f}`.
+All types are POD. No constructors, no destructors. Initialize via aggregate init (`F32x3{1.0f, 2.0f, 3.0f}`), named-field designated init (`F32x3{.x = 1.0f, .y = 2.0f, .z = 3.0f}`), or explicit free helpers such as `f32x3_from_f32(1.0f)`.
 
 ### Vectors
 
@@ -53,16 +54,20 @@ All types are POD. No constructors, no destructors. Initialize via aggregate ini
 | `U32x2` / `U32x3` | scalar | packed | |
 | `U32x4` | 4 × U32 | 16 B SIMD-backed | |
 
+Vectors expose named fields (`x`, `y`, `z`, `w`) and a `components[]` array. Vector `operator[]` takes a `U64` component index. Vector arithmetic operators cover vector add/subtract and scalar multiply/divide; ambiguous operations such as dot, cross, project, and reject are named functions. Common vector APIs include length, distance, normalize, reflect, min/max, clamp, lerp, and explicit-epsilon `*_approx_equal` where meaningful.
+
 ### Matrices
 
 | Type | Size | Storage | Notes |
 |---|---|---|---|
 | `F32x2x2` | 16 B | scalar | Row-major `[m00 m01 / m10 m11]` |
-| `F32x3x3` | 48 B | SIMD, 3 padded rows | Matches `std140` / MSL `matrix_float3x3` |
+| `F32x3x3` | 36 B | scalar | Compact CPU math storage |
 | `F32x4x4` | 64 B | SIMD, 4 rows | std140-compatible |
-| `F64x2x2` | 32 B | scalar | |
-| `F64x3x3` | 96 B | SIMD, 3 padded rows | |
+| `F64x2x2` | 32 B | scalar ops, 2 rows | |
+| `F64x3x3` | 72 B | scalar | Compact CPU math storage |
 | `F64x4x4` | 128 B | SIMD, 4 rows | |
+
+Matrices expose named fields (`m00`, `m01`, ...) and a `rows[]` array in a top-level union. Matrix `operator[]` takes a `U64` row index; chaining indexes columns (`M[1][2]` is row 1, column 2). Named-field designated init with `.m00`, `.m01`, etc. is supported.
 
 ### Other
 
@@ -75,12 +80,10 @@ All types are POD. No constructors, no destructors. Initialize via aggregate ini
 
 | Scope | Constants |
 |---|---|
-| Angular (F32) | `F32_PI`, `F32_TAU`, `F32_PI_OVER_2`, `F32_TO_DEGREES`, `F32_TO_RADIANS` |
-| Angular (F64) | `F64_PI`, `F64_TAU`, `F64_PI_OVER_2`, `F64_TO_DEGREES`, `F64_TO_RADIANS` |
-| Special values | `F32_EPSILON`, `F32_INFINITY`, `F32_NEG_INFINITY`, `F32_NAN` (+ `F64_*` mirror) |
+| Angular (F32) | `F32_PI`, `F32_TAU`, `F32_TO_DEGREES`, `F32_TO_RADIANS` |
+| Angular (F64) | `F64_PI`, `F64_TAU`, `F64_TO_DEGREES`, `F64_TO_RADIANS` |
+| Special values | `F32_EPSILON`, `F32_INFINITY`, `F32_NEGATIVE_INFINITY`, `F32_NAN` (+ `F64_*` mirror) |
 | Limits | `F32_MIN`, `F32_MAX`, `I32_MIN`, `I32_MAX`, `U32_MAX`, ... (in `core/defines.h`) |
-| Axis constants | `F32X3_RIGHT`, `F32X3_UP`, `F32X3_FORWARD`, `F32X3_LEFT`, `F32X3_DOWN`, `F32X3_BACKWARD`, `F32X3_ZERO`, `F32X3_ONE` |
-| Identities | `QUATERNION_IDENTITY` |
 
 ---
 
@@ -93,27 +96,31 @@ All types are POD. No constructors, no destructors. Initialize via aggregate ini
 #include <core/math/f32x4x4.h>
 
 F32x3 eye    = {0.0f, 0.0f, 5.0f};
-F32x3 target = F32X3_ZERO;
+F32x3 target = {};
+F32x3 up     = {0.0f, 1.0f, 0.0f};
 
-F32x4x4 view = f32x4x4_look_at(eye, target, F32X3_UP);
+F32x4x4 view = f32x4x4_look_at(eye, target, up);
 F32x4x4 proj = f32x4x4_perspective(60.0f * F32_TO_RADIANS, 16.0f / 9.0f, 0.1f, 1000.0f);
 F32x4x4 vp   = view * proj;
 
 F32x4 world_pos = {1.0f, 2.0f, 3.0f, 1.0f};
 F32x4 clip_pos  = world_pos * vp;          // row-vector convention
+F32x3 transformed = f32x4x4_transform_point(vp, F32x3{1.0f, 2.0f, 3.0f});
 ```
 
 ### Composing a TRS transform
 
 ```cpp
+#include <core/math/quaternion.h>
+#include <core/math/f32x4x4.h>
+
 F32x3 translation = {5.0f, 0.0f, 0.0f};
-Quaternion rotation = quaternion_from_axis_angle(F32X3_UP, 45.0f * F32_TO_RADIANS);
+Quaternion rotation = quaternion_from_axis_angle(F32x3{0.0f, 1.0f, 0.0f}, 45.0f * F32_TO_RADIANS);
 F32x3 scale = {2.0f, 2.0f, 2.0f};
 
 // Apply in the order "scale first, then rotate, then translate" — reads left-to-right.
-F32x4x4 trs = f32x4x4_scaling(scale)
-            * f32x4x4_from_quaternion(rotation)
-            * f32x4x4_translation(translation);
+F32x4x4 trs = f32x4x4_from_trs(translation, rotation, scale);
+F32x4x4 inv = f32x4x4_affine_inverse(trs);
 
 // Decompose back.
 F32x3 out_t;
@@ -125,10 +132,10 @@ bool ok = f32x4x4_decompose(trs, &out_t, &out_r, &out_s);
 ### Rotating a vector by a quaternion
 
 ```cpp
-Quaternion q = quaternion_from_axis_angle(F32X3_UP, F32_PI_OVER_2);
+Quaternion q = quaternion_from_axis_angle(F32x3{0.0f, 1.0f, 0.0f}, F32_PI * 0.5f);
 
-F32x3 rotated = F32X3_RIGHT * q;           // 90° yaw → forward direction
-// rotated ≈ F32X3_FORWARD
+F32x3 rotated = F32x3{1.0f, 0.0f, 0.0f} * q; // 90 degree yaw -> forward direction
+// rotated is approximately {0.0f, 0.0f, -1.0f}
 ```
 
 ### Interpolating
@@ -137,16 +144,31 @@ F32x3 rotated = F32X3_RIGHT * q;           // 90° yaw → forward direction
 // Scalar
 F32 brightness = f32_lerp(0.0f, 1.0f, t);
 F32 smoothed   = f32_smoothstep(0.2f, 0.8f, t);
+F32 wrapped    = f32_wrap_radians(angle);
 
 // Vector
 F32x3 pos = f32x3_lerp(start, end, t);
+F32x3 bounce = f32x3_reflect(velocity, surface_normal);
 
 // Rotation — always use slerp, not lerp.
 Quaternion r = quaternion_slerp(start_orientation, end_orientation, t);
+Quaternion cheap_r = quaternion_nlerp(start_orientation, end_orientation, t);
 
 // Camera follow with critical damping.
 static F32 velocity = 0.0f;
 camera.distance = f32_smooth_damp(camera.distance, target_distance, &velocity, 0.2f, dt);
+```
+
+### Scalar and integer helpers
+
+```cpp
+F32 t = f32_inverse_lerp(min_value, max_value, value);
+F32 x = f32_remap(0.0f, 1.0f, -1.0f, 1.0f, t);
+
+U64 capacity = u64_next_power_of_two(requested);
+U64 offset   = u64_align_up(cursor, 16);
+U32 bits     = u32_popcount(mask);
+U32 id       = u32_byte_swap(network_order_id);
 ```
 
 ### Screen-space projection / picking
@@ -178,14 +200,19 @@ U32x2 clamped = u32x2_min(texture_size, U32x2{4096u, 4096u});
 ```cpp
 Random rng = random_from_seed(0xDEADBEEF);
 
-F32 roll         = f32_random_range(rng, 0.0f, 1.0f);
-I32 die          = i32_random_range(rng, 1, 6);
-F32x3 in_sphere  = f32x3_random_in_unit_sphere(rng);
-F32x3 on_surface = f32x3_random_on_unit_sphere(rng);
-Quaternion q     = quaternion_random(rng);
+F32 roll         = random_f32_range(rng, 0.0f, 1.0f);
+I32 die          = random_i32_range(rng, 1, 6);
+U64 id           = random_u64_range(rng, 1, U64_MAX);
+F32x2 in_circle  = random_f32x2_in_unit_circle(rng);
+F32x2 on_circle  = random_f32x2_on_unit_circle(rng);
+F32x3 in_sphere  = random_f32x3_in_unit_sphere(rng);
+F32x3 on_surface = random_f32x3_on_unit_sphere(rng);
+Quaternion q     = random_quaternion(rng);
+
+Random worker_rng = random_from_seed_and_stream(0xDEADBEEF, 1);
 ```
 
-Seeded and explicit-state — deterministic for replays, network sync, tests. No `srand()`-style hidden global.
+Seeded and explicit-state - deterministic for replays, network sync, tests. Integer ranges use unbiased rejection sampling. No `srand()`-style hidden global.
 
 ### Formatted logging
 
@@ -202,7 +229,7 @@ log_warn("Dirty texel %",    texel);             // "{10, 20}"
 
 ## SIMD
 
-The 4-wide types (`F32x4`, `F32x3x3`, `F32x4x4`, `F64x2`, `F64x4`, `F64x3x3`, `F64x4x4`, `I32x4`, `U32x4`) are SIMD-backed. Call sites don't see the SIMD details — the storage is a union of scalar fields and the SIMD register, and ops dispatch at compile time.
+The 4-wide types (`F32x4`, `F32x4x4`, `F64x2`, `F64x4`, `F64x4x4`, `I32x4`, `U32x4`) are SIMD-backed. Call sites don't see the SIMD details — the storage is a union of scalar fields and the SIMD register, and ops dispatch at compile time.
 
 | Arch | Baseline | Wrapper types |
 |---|---|---|
@@ -218,7 +245,8 @@ Anything beyond the baseline (AVX2, AVX-512) is not in scope. The math library t
 ## Field conventions
 
 - All ops are free functions prefixed by the type: `f32x3_dot`, `f32x4x4_inverse`, `quaternion_slerp`.
-- No hidden state. `f32_random_*` / `quaternion_random` take an explicit `Random &`.
+- No hidden state. `random_f32_*` / `random_quaternion` take an explicit `Random &`.
 - Angle parameters are radians unless named `_degrees`.
+- Integer scalar helpers live in the typed math headers (`i32.h`, `i64.h`, `u32.h`, `u64.h`): power-of-two, alignment, rotate, popcount, zero-count, and byte-swap.
 - `*_approx_equal(a, b, epsilon)` — always requires an explicit epsilon (no magic default).
 - `*_length_squared` — name fixed from the older "norm" which was misleading (it returned the squared length, not the length).

@@ -210,6 +210,19 @@ platform_path_get_current_working_directory(memory::Allocator *allocator)
 	return string_from(buffer, allocator);
 }
 
+String
+platform_path_get_temp_directory(memory::Allocator *allocator)
+{
+	const char *path = ::getenv("TMPDIR");
+	if (path == nullptr || path[0] == '\0')
+		path = "/tmp/";
+
+	String result = string_from(path, allocator);
+	if (result.count > 0 && result[result.count - 1] != '/')
+		string_append(result, '/');
+	return result;
+}
+
 void
 platform_path_set_current_working_directory(const String &path)
 {

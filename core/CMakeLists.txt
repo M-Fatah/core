@@ -12,7 +12,6 @@ set(HEADER_FILES
     result.h
     source_location.h
     tester.h
-    utils.h
     containers/array.h
     containers/hash_set.h
     containers/hash_table.h

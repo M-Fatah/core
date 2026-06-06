@@ -227,6 +227,21 @@ platform_path_get_current_working_directory(memory::Allocator *allocator)
 	return path_directory;
 }
 
+String
+platform_path_get_temp_directory(memory::Allocator *allocator)
+{
+	DWORD required_length = ::GetTempPathA(0, nullptr);
+	validate(required_length > 0, "[PLATFORM][WINDOWS]: Failed to get temp path length.");
+
+	String path = string_with_capacity(required_length + 1, allocator);
+	DWORD path_length = ::GetTempPathA((DWORD)path.capacity, path.data);
+	validate(path_length > 0 && path_length < path.capacity, "[PLATFORM][WINDOWS]: Failed to get temp path.");
+
+	string_resize(path, path_length);
+	string_replace(path, '\\', '/');
+	return path;
+}
+
 void
 platform_path_set_current_working_directory(const String &path)
 {

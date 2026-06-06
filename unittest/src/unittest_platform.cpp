@@ -26,12 +26,16 @@ TESTER_TEST("[PLATFORM] file")
 	write_mem.ptr  = (U8 *)write_data;
 	write_mem.size = sizeof(write_data);
 
-	const char *filepath = "test.platform";
+	String temp_directory = platform_path_get_temp_directory(memory::temp_allocator());
+	String filepath = string_copy(temp_directory, memory::temp_allocator());
+	string_append(filepath, "test.platform");
+	String copy_filepath = string_copy(temp_directory, memory::temp_allocator());
+	string_append(copy_filepath, "test_copy.platform");
 
-	U64 written_size = platform_file_write(filepath, write_mem);
+	U64 written_size = platform_file_write(filepath.data, write_mem);
 	TESTER_CHECK(written_size == write_mem.size);
 
-	U64 file_size = platform_file_size(filepath);
+	U64 file_size = platform_file_size(filepath.data);
 	TESTER_CHECK(file_size == write_mem.size);
 
 	U32 read_data[1024] = {};
@@ -39,7 +43,7 @@ TESTER_TEST("[PLATFORM] file")
 	read_mem.ptr  = (U8 *)read_data;
 	read_mem.size = sizeof(read_data);
 
-	U64 read_size = platform_file_read(filepath, read_mem);
+	U64 read_size = platform_file_read(filepath.data, read_mem);
 	TESTER_CHECK(read_size == written_size);
 	TESTER_CHECK(read_size == read_mem.size);
 
@@ -54,10 +58,10 @@ TESTER_TEST("[PLATFORM] file")
 	}
 	TESTER_CHECK(same == true);
 
-	bool copy_result = platform_file_copy(filepath, "test_copy.platform");
+	bool copy_result = platform_file_copy(filepath.data, copy_filepath.data);
 	TESTER_CHECK(copy_result == true);
 
-	read_size = platform_file_read("test_copy.platform", read_mem);
+	read_size = platform_file_read(copy_filepath.data, read_mem);
 	TESTER_CHECK(read_size == written_size);
 	TESTER_CHECK(read_size == read_mem.size);
 
@@ -72,8 +76,8 @@ TESTER_TEST("[PLATFORM] file")
 	}
 	TESTER_CHECK(same == true);
 
-	TESTER_CHECK(platform_file_delete("test.platform"));
-	TESTER_CHECK(platform_file_delete("test_copy.platform"));
+	TESTER_CHECK(platform_file_delete(filepath.data));
+	TESTER_CHECK(platform_file_delete(copy_filepath.data));
 }
 
 // TODO: For some reason this on github actions fails every single time (time on github actions is 124.5f ms) which is very weird.

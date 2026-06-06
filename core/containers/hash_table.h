@@ -2,7 +2,7 @@
 
 #include "core/defines.h"
 #include "core/hash.h"
-#include "core/utils.h"
+#include "core/math/u64.h"
 #include "core/reflect.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
@@ -105,7 +105,7 @@ inline static Hash_Table<K, V>
 hash_table_init_with_capacity(U64 capacity, memory::Allocator *allocator = memory::heap_allocator())
 {
 	Hash_Table<K, V> self = {
-		.slots    = array_init_with_count<Hash_Table_Slot>(capacity > 8 ? next_power_of_two((I32)capacity) : 8, allocator),
+		.slots    = array_init_with_count<Hash_Table_Slot>(capacity > 8 ? u64_next_power_of_two(capacity) : 8, allocator),
 		.entries  = array_init<Hash_Table_Entry<K, V>>(allocator),
 		.count    = 0,
 		.capacity = self.slots.count
@@ -156,7 +156,7 @@ hash_table_reserve(Hash_Table<K, V> &self, U64 added_capacity)
 	if (new_capacity < self.slots.count)
 		return;
 
-	array_resize(self.slots, next_power_of_two((I32)new_capacity));
+	array_resize(self.slots, u64_next_power_of_two(new_capacity));
 	array_fill(self.slots, Hash_Table_Slot{});
 
 	for (U64 i = 0; i < self.entries.count; ++i)

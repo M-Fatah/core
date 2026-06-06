@@ -23,7 +23,3 @@ set_target_properties(unittest
         UNITY_BUILD_BATCH_SIZE 8
         UNITY_BUILD ${CORE_BUILD_UNITY}
 )
-
-# Math micro-benchmark — not a test, run manually to compare SIMD vs scalar paths.
-add_executable(bench_math src/bench_math.cpp)
-target_link_libraries(bench_math PRIVATE ${LIBS})

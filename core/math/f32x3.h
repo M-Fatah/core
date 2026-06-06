@@ -1,23 +1,36 @@
 #pragma once
 
-#include <core/defines.h>
-#include <core/math/f32.h>
+#include "core/defines.h"
+#include "core/validate.h"
+#include "core/math/f32.h"
 
-// ============================================================================
-// F32x3 — 3D F32 vector. Packed 12 bytes (no alignas) for GPU-attribute interop.
-// ============================================================================
-
-struct F32x3
+union F32x3
 {
-	F32 x, y, z;
-};
+	struct
+	{
+		F32 x, y, z;
+	};
+	F32 components[3];
 
-// ---- Operators -------------------------------------------------------------
+	inline F32 &
+	operator[](U64 index)
+	{
+		validate(index < 3, "[MATH][F32x3]: Component index out of bounds.");
+		return components[index];
+	}
+
+	inline const F32 &
+	operator[](U64 index) const
+	{
+		validate(index < 3, "[MATH][F32x3]: Component index out of bounds.");
+		return components[index];
+	}
+};
 
 inline static F32x3
 operator+(const F32x3 &a, const F32x3 &b)
 {
-	return F32x3{a.x + b.x, a.y + b.y, a.z + b.z};
+	return F32x3{.x = a.x + b.x, .y = a.y + b.y, .z = a.z + b.z};
 }
 
 inline static F32x3 &
@@ -30,13 +43,13 @@ operator+=(F32x3 &a, const F32x3 &b)
 inline static F32x3
 operator-(const F32x3 &a)
 {
-	return F32x3{-a.x, -a.y, -a.z};
+	return F32x3{.x = -a.x, .y = -a.y, .z = -a.z};
 }
 
 inline static F32x3
 operator-(const F32x3 &a, const F32x3 &b)
 {
-	return F32x3{a.x - b.x, a.y - b.y, a.z - b.z};
+	return F32x3{.x = a.x - b.x, .y = a.y - b.y, .z = a.z - b.z};
 }
 
 inline static F32x3 &
@@ -49,7 +62,7 @@ operator-=(F32x3 &a, const F32x3 &b)
 inline static F32x3
 operator*(const F32x3 &a, F32 s)
 {
-	return F32x3{a.x * s, a.y * s, a.z * s};
+	return F32x3{.x = a.x * s, .y = a.y * s, .z = a.z * s};
 }
 
 inline static F32x3
@@ -68,6 +81,7 @@ operator*=(F32x3 &a, F32 s)
 inline static F32x3
 operator/(const F32x3 &a, F32 s)
 {
+	validate(s != 0.0f, "[MATH][F32x3]: Scalar divisor must be non-zero.");
 	return a * (1.0f / s);
 }
 
@@ -84,64 +98,54 @@ operator==(const F32x3 &a, const F32x3 &b)
 	return a.x == b.x && a.y == b.y && a.z == b.z;
 }
 
-// ---- Free functions --------------------------------------------------------
-
 inline static F32x3
 f32x3_from_f32(F32 s)
 {
-	return F32x3{s, s, s};
-}
-
-inline static F32
-f32x3_dot(const F32x3 &a, const F32x3 &b)
-{
-	return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-
-inline static F32x3
-f32x3_cross(const F32x3 &a, const F32x3 &b)
-{
-	return F32x3{
-		a.y * b.z - a.z * b.y,
-		a.z * b.x - a.x * b.z,
-		a.x * b.y - a.y * b.x
-	};
-}
-
-inline static F32
-f32x3_length_squared(const F32x3 &a)
-{
-	return f32x3_dot(a, a);
-}
-
-inline static F32
-f32x3_length(const F32x3 &a)
-{
-	return f32_sqrt(f32x3_length_squared(a));
+	return F32x3{.x = s, .y = s, .z = s};
 }
 
 inline static F32x3
 f32x3_normalize(const F32x3 &a)
 {
-	return a / f32x3_length(a);
+	F32 length_squared = a.x * a.x + a.y * a.y + a.z * a.z;
+	validate(length_squared != 0.0f, "[MATH][F32x3]: Cannot normalize zero-length vector.");
+	return a / f32_sqrt(length_squared);
+}
+
+inline static F32
+f32x3_length(const F32x3 &a)
+{
+	return f32_sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+}
+
+inline static F32
+f32x3_length_squared(const F32x3 &a)
+{
+	return a.x * a.x + a.y * a.y + a.z * a.z;
+}
+
+inline static F32
+f32x3_distance(const F32x3 &a, const F32x3 &b)
+{
+	return f32_sqrt(f32x3_length_squared(b - a));
+}
+
+inline static F32
+f32x3_distance_squared(const F32x3 &a, const F32x3 &b)
+{
+	return f32x3_length_squared(b - a);
 }
 
 inline static F32x3
 f32x3_min(const F32x3 &a, const F32x3 &b)
 {
-	return F32x3{f32_min(a.x, b.x), f32_min(a.y, b.y), f32_min(a.z, b.z)};
+	return F32x3{.x = f32_min(a.x, b.x), .y = f32_min(a.y, b.y), .z = f32_min(a.z, b.z)};
 }
 
 inline static F32x3
 f32x3_max(const F32x3 &a, const F32x3 &b)
 {
-	return F32x3{f32_max(a.x, b.x), f32_max(a.y, b.y), f32_max(a.z, b.z)};
-}
-
-inline static F32x3
-f32x3_lerp(const F32x3 &a, const F32x3 &b, F32 t)
-{
-	return F32x3{f32_lerp(a.x, b.x, t), f32_lerp(a.y, b.y, t), f32_lerp(a.z, b.z, t)};
+	return F32x3{.x = f32_max(a.x, b.x), .y = f32_max(a.y, b.y), .z = f32_max(a.z, b.z)};
 }
 
 inline static F32x3
@@ -154,19 +158,48 @@ inline static bool
 f32x3_approx_equal(const F32x3 &a, const F32x3 &b, F32 epsilon)
 {
 	return f32_approx_equal(a.x, b.x, epsilon)
-	    && f32_approx_equal(a.y, b.y, epsilon)
-	    && f32_approx_equal(a.z, b.z, epsilon);
+		&& f32_approx_equal(a.y, b.y, epsilon)
+		&& f32_approx_equal(a.z, b.z, epsilon);
 }
 
-// ---- Canonical-convention constants ----------------------------------------
-// Right-handed, Y-up, +Z toward the viewer. See docs/math.md for the full
-// coordinate convention.
+inline static F32
+f32x3_dot(const F32x3 &a, const F32x3 &b)
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
 
-static constexpr F32x3 F32X3_ZERO     = { 0.0f,  0.0f,  0.0f};
-static constexpr F32x3 F32X3_ONE      = { 1.0f,  1.0f,  1.0f};
-static constexpr F32x3 F32X3_RIGHT    = { 1.0f,  0.0f,  0.0f};
-static constexpr F32x3 F32X3_LEFT     = {-1.0f,  0.0f,  0.0f};
-static constexpr F32x3 F32X3_UP       = { 0.0f,  1.0f,  0.0f};
-static constexpr F32x3 F32X3_DOWN     = { 0.0f, -1.0f,  0.0f};
-static constexpr F32x3 F32X3_FORWARD  = { 0.0f,  0.0f, -1.0f};
-static constexpr F32x3 F32X3_BACKWARD = { 0.0f,  0.0f,  1.0f};
+inline static F32x3
+f32x3_cross(const F32x3 &a, const F32x3 &b)
+{
+	return F32x3 {
+		.x = a.y * b.z - a.z * b.y,
+		.y = a.z * b.x - a.x * b.z,
+		.z = a.x * b.y - a.y * b.x
+	};
+}
+
+inline static F32x3
+f32x3_reflect(const F32x3 &v, const F32x3 &normal)
+{
+	return v - 2.0f * f32x3_dot(v, normal) * normal;
+}
+
+inline static F32x3
+f32x3_project(const F32x3 &v, const F32x3 &onto)
+{
+	F32 length_squared = f32x3_length_squared(onto);
+	validate(length_squared != 0.0f, "[MATH][F32x3]: Cannot project onto zero-length vector.");
+	return onto * (f32x3_dot(v, onto) / length_squared);
+}
+
+inline static F32x3
+f32x3_reject(const F32x3 &v, const F32x3 &onto)
+{
+	return v - f32x3_project(v, onto);
+}
+
+inline static F32x3
+f32x3_lerp(const F32x3 &a, const F32x3 &b, F32 t)
+{
+	return F32x3{.x = f32_lerp(a.x, b.x, t), .y = f32_lerp(a.y, b.y, t), .z = f32_lerp(a.z, b.z, t)};
+}

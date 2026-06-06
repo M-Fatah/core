@@ -112,6 +112,9 @@ platform_path_get_directory(const char *path, memory::Allocator *allocator = mem
 CORE_API String
 platform_path_get_current_working_directory(memory::Allocator *allocator = memory::heap_allocator());
 
+CORE_API String
+platform_path_get_temp_directory(memory::Allocator *allocator = memory::heap_allocator());
+
 CORE_API void
 platform_path_set_current_working_directory(const String &path);
 
