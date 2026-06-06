@@ -1501,7 +1501,7 @@ TESTER_TEST("[CONTAINERS]: Span")
 		TESTER_CHECK(span[4] == 'o');
 	}
 
-	// ("span_init from initializer_list — used inline as function argument")
+	// ("span_init from braced values used inline as function argument")
 	{
 		auto check = [](Span<const I32> span) {
 			TESTER_CHECK(span.count == 4);

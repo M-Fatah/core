@@ -39,11 +39,6 @@ struct Span
 	template <U64 N>
 	Span(T (&array)[N]) : data(array), count(N) {}
 
-	// Braced / initializer list — wraps const storage (initializer_list<T>::begin() is const T *).
-	// Only participates in overload resolution when T is `const U`.
-	Span(std::initializer_list<std::remove_const_t<T>> list) requires std::is_const_v<T>
-		: data(list.begin()), count(list.size()) {}
-
 	// From the engine's containers.
 	Span(Array<T> &array) : data(array.data), count(array.count) {}
 
@@ -81,7 +76,6 @@ template <typename T, U64 N> Span(T (&)[N]) -> Span<T>;
 template <typename T> Span(Array<T> &) -> Span<T>;
 template <typename T, U64 N> Span(Stack_Array<T, N> &) -> Span<T>;
 template <typename T> Span(T &) -> Span<T>;
-template <typename T> Span(std::initializer_list<T>) -> Span<const T>;
 
 // ---- span_init helpers (retained for existing call sites) ------------------
 
@@ -110,7 +104,7 @@ template <typename T>
 inline static Span<const T>
 span_init(std::initializer_list<T> list)
 {
-	return Span<const T>(list);
+	return Span<const T>(list.begin(), U64(list.size()));
 }
 
 template <typename T>
