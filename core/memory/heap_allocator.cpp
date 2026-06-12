@@ -37,12 +37,10 @@ namespace memory
 	};
 #endif
 
-	static void *
+	inline static void *
 	_aligned_allocate(U64 size, U64 alignment)
 	{
-		U64 min_align = alignment;
-		if (min_align < alignof(void *))
-			min_align = alignof(void *);
+		U64 min_align = u64_max(alignment, alignof(void *));
 
 		void *data = nullptr;
 		#if COMPILER_MSVC
@@ -53,6 +51,81 @@ namespace memory
 		#endif
 		return data;
 	}
+
+	inline static void
+	_aligned_deallocate(void *data)
+	{
+		#if COMPILER_MSVC
+			::_aligned_free(data);
+		#else
+			::free(data);
+		#endif
+	}
+
+#if DEBUG
+	inline static Heap_Allocator_Node *
+	_heap_allocator_node_init(void *data, U64 size)
+	{
+		Heap_Allocator_Node *node = (Heap_Allocator_Node *)::malloc(sizeof(Heap_Allocator_Node));
+		if (node == nullptr)
+			log_fatal("[HEAP_ALLOCATOR]: Could not allocate debug tracking node.");
+
+		node->size                  = size;
+		node->data                  = data;
+		node->next                  = nullptr;
+		node->prev                  = nullptr;
+		node->callstack_frame_count = platform_callstack_capture(node->callstack, CALLSTACK_MAX_FRAME_COUNT);
+		return node;
+	}
+
+	inline static void
+	_heap_allocator_track_allocation(Heap_Allocator *self, void *data, U64 size)
+	{
+		Heap_Allocator_Node *node = _heap_allocator_node_init(data, size);
+
+		self->ctx->mutex.lock();
+		{
+			node->prev = self->ctx->head;
+			if (self->ctx->head != nullptr)
+				self->ctx->head->next = node;
+			self->ctx->head = node;
+		}
+		self->ctx->mutex.unlock();
+	}
+
+	inline static Heap_Allocator_Node *
+	_heap_allocator_untrack_allocation(Heap_Allocator *self, Memory_Block block)
+	{
+		Heap_Allocator_Node *node = nullptr;
+
+		self->ctx->mutex.lock();
+		{
+			for (Heap_Allocator_Node *it = self->ctx->head; it != nullptr; it = it->prev)
+			{
+				if (it->data == block.data)
+				{
+					node = it;
+					break;
+				}
+			}
+
+			validate(node != nullptr, "[HEAP_ALLOCATOR]: Tried to deallocate a block that was not allocated by this allocator.");
+			validate(node->size == block.size, "[HEAP_ALLOCATOR]: Deallocated block size does not match allocated block size.");
+
+			if (node == self->ctx->head)
+				self->ctx->head = node->prev;
+
+			if (node->next)
+				node->next->prev = node->prev;
+
+			if (node->prev)
+				node->prev->next = node->next;
+		}
+		self->ctx->mutex.unlock();
+
+		return node;
+	}
+#endif
 
 	Heap_Allocator::Heap_Allocator()
 	{
@@ -112,25 +185,7 @@ namespace memory
 			log_fatal("[HEAP_ALLOCATOR]: Could not allocate memory with size {} alignment {}.", size, alignment);
 
 		#if DEBUG
-			Heap_Allocator *self = this;
-
-			Heap_Allocator_Node *node = (Heap_Allocator_Node *)::malloc(sizeof(Heap_Allocator_Node));
-			if (node == nullptr)
-				log_fatal("[HEAP_ALLOCATOR]: Could not allocate debug tracking node.");
-
-			node->size = size;
-			node->data = data;
-			node->next = nullptr;
-			node->callstack_frame_count = platform_callstack_capture(node->callstack, CALLSTACK_MAX_FRAME_COUNT);
-
-			self->ctx->mutex.lock();
-			{
-				node->prev = self->ctx->head;
-				if (self->ctx->head != nullptr)
-					self->ctx->head->next = node;
-				self->ctx->head = node;
-			}
-			self->ctx->mutex.unlock();
+			_heap_allocator_track_allocation(this, data, size);
 		#endif
 
 		return Memory_Block{data, size};
@@ -143,41 +198,11 @@ namespace memory
 			return;
 
 #if DEBUG
-		Heap_Allocator *self = this;
-		Heap_Allocator_Node *node = nullptr;
-		self->ctx->mutex.lock();
-		{
-			for (Heap_Allocator_Node *it = self->ctx->head; it != nullptr; it = it->prev)
-			{
-				if (it->data == block.data)
-				{
-					node = it;
-					break;
-				}
-			}
-
-			validate(node != nullptr, "[HEAP_ALLOCATOR]: Tried to deallocate a block that was not allocated by this allocator.");
-			validate(node->size == block.size, "[HEAP_ALLOCATOR]: Deallocated block size does not match allocated block size.");
-
-			if (node == self->ctx->head)
-				self->ctx->head = node->prev;
-
-			if (node->next)
-				node->next->prev = node->prev;
-
-			if (node->prev)
-				node->prev->next = node->next;
-		}
-		self->ctx->mutex.unlock();
-
+		Heap_Allocator_Node *node = _heap_allocator_untrack_allocation(this, block);
 		::free(node);
 #endif
 
-		#if COMPILER_MSVC
-			::_aligned_free(block.data);
-		#else
-			::free(block.data);
-		#endif
+		_aligned_deallocate(block.data);
 	}
 
 	Heap_Allocator *
