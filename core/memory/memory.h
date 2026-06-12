@@ -40,6 +40,9 @@ namespace memory
 	heap_allocator();
 
 	CORE_API Allocator *
+	virtual_allocator();
+
+	CORE_API Allocator *
 	temp_allocator();
 
 	inline static Memory_Block

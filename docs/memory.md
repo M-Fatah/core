@@ -76,7 +76,7 @@ String msg = format("Hello {}!", name, memory::temp_allocator());
 
 ### Arena Allocator
 
-Bump-pointer allocator. `deallocate` is a no-op; memory is reclaimed all at once with `clear()` or `deinit`. Default capacity is 4 MB.
+Bump-pointer allocator. `deallocate` is a no-op; memory is reclaimed all at once with `clear()` or `deinit`. Default capacity is 1 GB and the default backing allocator is `memory::virtual_allocator()`.
 
 ```cpp
 #include <core/memory/arena_allocator.h>
@@ -111,6 +111,8 @@ Page-backed allocator implemented through the platform virtual-memory API.
 
 ```cpp
 #include <core/memory/virtual_allocator.h>
+
+memory::Allocator *global_allocator = memory::virtual_allocator();
 
 auto *allocator = memory::virtual_allocator_init();
 Memory_Block block = memory::virtual_allocator_allocate(allocator, 128 * 1024, alignof(U8));

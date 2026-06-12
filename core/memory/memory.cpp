@@ -2,24 +2,19 @@
 
 #include "core/memory/heap_allocator.h"
 #include "core/memory/arena_allocator.h"
+#include "core/memory/virtual_allocator.h"
 
 namespace memory
 {
 	struct Context
 	{
-		Heap_Allocator *heap_allocator;
-		Arena_Allocator *temp_allocator;
+		Heap_Allocator    heap_allocator;
+		Virtual_Allocator virtual_allocator;
+		Arena_Allocator   temp_allocator;
 
 		Context()
+			: temp_allocator(ARENA_ALLOCATOR_INITIAL_CAPACITY, &virtual_allocator)
 		{
-			heap_allocator = heap_allocator_init();
-			temp_allocator = arena_allocator_init(ARENA_ALLOCATOR_INITIAL_CAPACITY, heap_allocator);
-		}
-
-		~Context()
-		{
-			arena_allocator_deinit(temp_allocator);
-			heap_allocator_deinit(heap_allocator);
 		}
 	};
 
@@ -34,13 +29,20 @@ namespace memory
 	heap_allocator()
 	{
 		Context *ctx = context_get();
-		return ctx->heap_allocator;
+		return &ctx->heap_allocator;
+	}
+
+	Allocator *
+	virtual_allocator()
+	{
+		Context *ctx = context_get();
+		return &ctx->virtual_allocator;
 	}
 
 	Allocator *
 	temp_allocator()
 	{
 		Context *ctx = context_get();
-		return ctx->temp_allocator;
+		return &ctx->temp_allocator;
 	}
 }

@@ -110,6 +110,12 @@ TESTER_TEST("[CORE]: Virtual_Allocator")
 	TESTER_CHECK(platform_virtual_memory_commit(reserved));
 	platform_virtual_memory_release(reserved);
 
+	Memory_Block global_block = memory::allocate(memory::virtual_allocator(), page_size, 16);
+	DEFER(memory::deallocate(memory::virtual_allocator(), global_block));
+	TESTER_CHECK(global_block.data != nullptr);
+	TESTER_CHECK(global_block.size == page_size);
+	TESTER_CHECK(((U64)global_block.data & 15) == 0);
+
 	memory::Virtual_Allocator *allocator = memory::virtual_allocator_init();
 	DEFER(memory::virtual_allocator_deinit(allocator));
 
