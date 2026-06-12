@@ -86,9 +86,15 @@ auto *arena = memory::arena_allocator_init();
 auto arr = array_init<int>(arena);
 array_push(arr, 42);
 
+memory::Arena_Allocator_Checkpoint checkpoint = memory::arena_allocator_checkpoint(arena);
+Memory_Block scratch = memory::arena_allocator_allocate(arena, 1024, alignof(U8));
+memory::arena_allocator_restore(arena, checkpoint);
+
 memory::arena_allocator_clear(arena);
 memory::arena_allocator_deinit(arena);
 ```
+
+Checkpoints restore the arena to a previous stack position and free newer arena nodes. Restoring a checkpoint invalidates checkpoints taken after it. `peak_size` remains a high-water mark.
 
 ### Pool Allocator
 

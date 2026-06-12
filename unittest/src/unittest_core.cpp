@@ -39,6 +39,41 @@ TESTER_TEST("[CORE]: Arena_Allocator")
 	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 2048);
 }
 
+TESTER_TEST("[CORE]: Arena_Allocator_Checkpoint")
+{
+	memory::Arena_Allocator *arena = memory::arena_allocator_init(64);
+	DEFER(memory::arena_allocator_deinit(arena));
+
+	Memory_Block base = memory::arena_allocator_allocate(arena, 16, 1);
+	TESTER_CHECK(base.data != nullptr);
+	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 16);
+	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 16);
+
+	memory::Arena_Allocator_Checkpoint checkpoint = memory::arena_allocator_checkpoint(arena);
+	Memory_Block tail = memory::arena_allocator_allocate(arena, 8, 1);
+	TESTER_CHECK(tail.data != nullptr);
+	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 24);
+	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 24);
+
+	memory::arena_allocator_restore(arena, checkpoint);
+	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 16);
+	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 24);
+
+	Memory_Block reused_tail = memory::arena_allocator_allocate(arena, 8, 1);
+	TESTER_CHECK(reused_tail.data == tail.data);
+	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 24);
+
+	memory::Arena_Allocator_Checkpoint cross_node_checkpoint = memory::arena_allocator_checkpoint(arena);
+	Memory_Block large = memory::arena_allocator_allocate(arena, 128, 1);
+	TESTER_CHECK(large.data != nullptr);
+	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 152);
+	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 152);
+
+	memory::arena_allocator_restore(arena, cross_node_checkpoint);
+	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 24);
+	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 152);
+}
+
 TESTER_TEST("[CORE]: Pool_Allocator")
 {
 	struct Entity

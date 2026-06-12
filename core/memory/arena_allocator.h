@@ -8,6 +8,14 @@ namespace memory
 {
 	static constexpr const U64 ARENA_ALLOCATOR_INITIAL_CAPACITY = 1 * 1024 * 1024 * 1024ULL;
 
+	struct Arena_Allocator_Checkpoint
+	{
+		struct Arena_Allocator *allocator;
+		struct Arena_Allocator_Node *head;
+		U64 head_used;
+		U64 arena_used_size;
+	};
+
 	struct Arena_Allocator : Allocator
 	{
 		struct Arena_Allocator_Context *ctx;
@@ -40,6 +48,12 @@ namespace memory
 
 	CORE_API void
 	arena_allocator_clear(Arena_Allocator *self);
+
+	CORE_API Arena_Allocator_Checkpoint
+	arena_allocator_checkpoint(Arena_Allocator *self);
+
+	CORE_API void
+	arena_allocator_restore(Arena_Allocator *self, Arena_Allocator_Checkpoint checkpoint);
 
 	CORE_API U64
 	arena_allocator_get_used_size(Arena_Allocator *self);

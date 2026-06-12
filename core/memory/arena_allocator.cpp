@@ -121,7 +121,6 @@ namespace memory
 
 			self->ctx->head = _arena_allocator_node_init(self->ctx->peak_size, self->ctx->allocator);
 		}
-
 		self->ctx->head->used = 0;
 		self->ctx->used_size  = 0;
 	}
@@ -154,6 +153,36 @@ namespace memory
 	arena_allocator_clear(Arena_Allocator *self)
 	{
 		self->clear();
+	}
+
+	Arena_Allocator_Checkpoint
+	arena_allocator_checkpoint(Arena_Allocator *self)
+	{
+		return Arena_Allocator_Checkpoint {
+			.allocator       = self,
+			.head            = self->ctx->head,
+			.head_used       = self->ctx->head->used,
+			.arena_used_size = self->ctx->used_size
+		};
+	}
+
+	void
+	arena_allocator_restore(Arena_Allocator *self, Arena_Allocator_Checkpoint checkpoint)
+	{
+		validate(checkpoint.allocator == self, "[ARENA_ALLOCATOR]: Checkpoint belongs to a different arena.");
+		validate(checkpoint.arena_used_size <= self->ctx->used_size, "[ARENA_ALLOCATOR]: Checkpoint is ahead of this arena state.");
+
+		Arena_Allocator_Node *node = self->ctx->head;
+		while (node != checkpoint.head)
+		{
+			Arena_Allocator_Node *next = node->next;
+			memory::deallocate(self->ctx->allocator, Memory_Block{node, sizeof(Arena_Allocator_Node) + node->capacity});
+			node = next;
+		}
+
+		self->ctx->head       = checkpoint.head;
+		self->ctx->head->used = checkpoint.head_used;
+		self->ctx->used_size  = checkpoint.arena_used_size;
 	}
 
 	U64
