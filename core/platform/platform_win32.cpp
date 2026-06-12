@@ -2,6 +2,7 @@
 
 #include "core/defer.h"
 #include "core/validate.h"
+#include "core/math/u64.h"
 #include "core/memory/memory.h"
 #include "core/containers/array.h"
 
@@ -293,7 +294,7 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 }
 
 U64
-platform_path_write_file(const String &path, Block block)
+platform_path_write_file(const String &path, Memory_Block block)
 {
 	HANDLE file_handle = ::CreateFileA(path.data, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
 	if (file_handle == INVALID_HANDLE_VALUE)
@@ -519,40 +520,66 @@ platform_api_load(Platform_Api *self)
 }
 
 
-Platform_Allocator
-platform_allocator_init(U64 size_in_bytes)
+U64
+platform_virtual_memory_get_page_size()
 {
-	Platform_Allocator self = {};
-	self.ptr = (U8 *)VirtualAlloc(0, size_in_bytes, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-	if (self.ptr)
-		self.size = size_in_bytes;
-	return self;
+	SYSTEM_INFO system_info = {};
+	::GetSystemInfo(&system_info);
+	return system_info.dwPageSize;
+}
+
+U64
+platform_virtual_memory_page_align(U64 size)
+{
+	U64 page_size = platform_virtual_memory_get_page_size();
+	return u64_align_up(size, page_size);
+}
+
+Memory_Block
+platform_virtual_memory_reserve(U64 size)
+{
+	U64 aligned_size = platform_virtual_memory_page_align(size);
+	if (aligned_size == 0)
+		return {};
+
+	void *data = ::VirtualAlloc(nullptr, aligned_size, MEM_RESERVE, PAGE_NOACCESS);
+	return Memory_Block{data, data ? aligned_size : 0};
+}
+
+bool
+platform_virtual_memory_commit(Memory_Block block)
+{
+	U64 page_size = platform_virtual_memory_get_page_size();
+	validate(block.data != nullptr && block.size > 0, "[PLATFORM][WINDOWS]: Cannot commit an empty virtual memory block.");
+	validate(((U64)block.data & (page_size - 1)) == 0, "[PLATFORM][WINDOWS]: Virtual memory block address is not page-aligned.");
+	validate(block.size == platform_virtual_memory_page_align(block.size), "[PLATFORM][WINDOWS]: Virtual memory block size is not page-aligned.");
+
+	return ::VirtualAlloc(block.data, block.size, MEM_COMMIT, PAGE_READWRITE) == block.data;
+}
+
+bool
+platform_virtual_memory_decommit(Memory_Block block)
+{
+	U64 page_size = platform_virtual_memory_get_page_size();
+	validate(block.data != nullptr && block.size > 0, "[PLATFORM][WINDOWS]: Cannot decommit an empty virtual memory block.");
+	validate(((U64)block.data & (page_size - 1)) == 0, "[PLATFORM][WINDOWS]: Virtual memory block address is not page-aligned.");
+	validate(block.size == platform_virtual_memory_page_align(block.size), "[PLATFORM][WINDOWS]: Virtual memory block size is not page-aligned.");
+
+	return ::VirtualFree(block.data, block.size, MEM_DECOMMIT) != 0;
 }
 
 void
-platform_allocator_deinit(Platform_Allocator *self)
+platform_virtual_memory_release(Memory_Block block)
 {
-	[[maybe_unused]] bool result = VirtualFree(self->ptr, 0, MEM_RELEASE);
-	validate(result, "[PLATFORM]: Failed to free virtual memory.");
-}
+	if (block.data == nullptr)
+		return;
 
-Platform_Memory
-platform_allocator_alloc(Platform_Allocator *self, U64 size_in_bytes)
-{
-	// TODO(M-Fatah): We need a way to free allocated memory from the arena we created.
-	Platform_Memory res = {};
-	if (self->used + size_in_bytes >= self->size)
-		return res;
-	self->used += size_in_bytes;
-	res.ptr = self->ptr + self->used;
-	res.size = size_in_bytes;
-	return res;
-}
+	U64 page_size = platform_virtual_memory_get_page_size();
+	validate(((U64)block.data & (page_size - 1)) == 0, "[PLATFORM][WINDOWS]: Virtual memory block address is not page-aligned.");
+	validate(block.size == platform_virtual_memory_page_align(block.size), "[PLATFORM][WINDOWS]: Virtual memory block size is not page-aligned.");
 
-void
-platform_allocator_clear(Platform_Allocator *self)
-{
-	self->used = 0;
+	[[maybe_unused]] bool result = ::VirtualFree(block.data, 0, MEM_RELEASE);
+	validate(result, "[PLATFORM][WINDOWS]: Failed to release virtual memory.");
 }
 
 struct Platform_Task
@@ -822,7 +849,7 @@ platform_file_size(const char *filepath)
 }
 
 U64
-platform_file_read(const char *filepath, Platform_Memory mem)
+platform_file_read(const char *filepath, Memory_Block block)
 {
 	HANDLE file_handle = CreateFileA(filepath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	if (file_handle == INVALID_HANDLE_VALUE)
@@ -830,7 +857,7 @@ platform_file_read(const char *filepath, Platform_Memory mem)
 
 	// TODO(M-Fatah): Handle reading files that are bigger than 4GB size.
 	DWORD bytes_read = 0;
-	ReadFile(file_handle, mem.ptr, (U32)mem.size, &bytes_read, 0);
+	ReadFile(file_handle, block.data, (U32)block.size, &bytes_read, 0);
 	CloseHandle(file_handle);
 
 	return (U64)bytes_read;
@@ -861,7 +888,7 @@ platform_file_read(const String &file_path, memory::Allocator *allocator)
 }
 
 U64
-platform_file_write(const char *filepath, Platform_Memory mem)
+platform_file_write(const char *filepath, Memory_Block block)
 {
 	HANDLE file_handle = CreateFileA(filepath, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
 	if (file_handle == INVALID_HANDLE_VALUE)
@@ -869,7 +896,7 @@ platform_file_write(const char *filepath, Platform_Memory mem)
 
 	// TODO(M-Fatah): Properly handle large files (files with size over 4GB as a single file).
 	DWORD bytes_written = 0;
-	WriteFile(file_handle, mem.ptr, (DWORD)mem.size, &bytes_written, 0);
+	WriteFile(file_handle, block.data, (DWORD)block.size, &bytes_written, 0);
 	CloseHandle(file_handle);
 
 	return (U64)bytes_written;
@@ -1087,7 +1114,8 @@ platform_font_init(const char *filepath, const char *face_name, U32 font_height,
 
 	// Kerning config.
 	constexpr U32 KERNING_ADJUSTMENT         = 3;
-	I32 *kerning_table                       = memory::allocate_zeroed<I32>(GLYPH_COUNT * GLYPH_COUNT);
+	Memory_Block kerning_table_block         = memory::allocate_zeroed(GLYPH_COUNT * GLYPH_COUNT * sizeof(I32), alignof(I32));
+	I32 *kerning_table                       = (I32 *)kerning_table_block.data;
 
 	// Extract the font from Windows.
 	AddFontResourceEx(filepath, FR_PRIVATE, 0);
@@ -1119,8 +1147,9 @@ platform_font_init(const char *filepath, const char *face_name, U32 font_height,
 	});
 
 	// Get kerning pairs.
-	U32 kerning_pair_count     = GetKerningPairsW(device_context, 0, 0);
-	KERNINGPAIR *kerning_pairs = memory::allocate<KERNINGPAIR>(memory::temp_allocator(), kerning_pair_count);
+	U32 kerning_pair_count           = GetKerningPairsW(device_context, 0, 0);
+	Memory_Block kerning_pairs_block = memory::allocate(memory::temp_allocator(), kerning_pair_count * sizeof(KERNINGPAIR), alignof(KERNINGPAIR));
+	KERNINGPAIR *kerning_pairs = (KERNINGPAIR *)kerning_pairs_block.data;
 	GetKerningPairsW(device_context, kerning_pair_count, kerning_pairs);
 	if (kerning_pair_count > 0)
 	{
@@ -1224,7 +1253,8 @@ platform_font_init(const char *filepath, const char *face_name, U32 font_height,
 
 			// Allocate a temporary memory buffer to store the current glyph's bitmap.
 			I32 index = c - GLYPH_RANGE[0];
-			temp_glyph_bitmaps[index] = memory::allocate_zeroed<U8>(memory::temp_allocator(), glyph.width * glyph.height * BYTES_PER_PIXEL);
+			Memory_Block temp_glyph_bitmap_block = memory::allocate_zeroed(memory::temp_allocator(), glyph.width * glyph.height * BYTES_PER_PIXEL, alignof(U8));
+			temp_glyph_bitmaps[index] = (U8 *)temp_glyph_bitmap_block.data;
 
 			// Fill the glyph's bitmap.
 			U8  *dst_row = temp_glyph_bitmaps[index] + APRON * glyph.width * BYTES_PER_PIXEL;
@@ -1250,7 +1280,8 @@ platform_font_init(const char *filepath, const char *face_name, U32 font_height,
 	U32 atlas_height = max_glyph_height  + YPADDING * 2;
 
 	// Fill the atlas texture.
-	U8 *atlas = memory::allocate_zeroed<U8>(atlas_width * atlas_height * BYTES_PER_PIXEL);
+	Memory_Block atlas_block = memory::allocate_zeroed(atlas_width * atlas_height * BYTES_PER_PIXEL, alignof(U8));
+	U8 *atlas = (U8 *)atlas_block.data;
 	for (U32 i = 0; i < glyphs.count; ++i)
 	{
 		Glyph &glyph = glyphs[i];
@@ -1295,17 +1326,20 @@ platform_font_init(const char *filepath, const char *face_name, U32 font_height,
 
 	// Fill font data.
 	Platform_Font font = {};
-	font.ascent           = text_metrics.tmAscent;
-	font.descent          = text_metrics.tmDescent;
-	font.line_spacing     = text_metrics.tmHeight + text_metrics.tmExternalLeading;
-	font.whitespace_width = whitespace_size.cx;
-	font.max_glyph_height = max_glyph_height;
-	font.kerning_table    = kerning_table;
-	font.glyphs           = glyphs.data;
-	font.glyph_count      = (U32)glyphs.count;
-	font.atlas            = atlas;
-	font.atlas_width      = atlas_width;
-	font.atlas_height     = atlas_height;
+	font.ascent              = text_metrics.tmAscent;
+	font.descent             = text_metrics.tmDescent;
+	font.line_spacing        = text_metrics.tmHeight + text_metrics.tmExternalLeading;
+	font.whitespace_width    = whitespace_size.cx;
+	font.max_glyph_height    = max_glyph_height;
+	font.kerning_table       = kerning_table;
+	font.kerning_table_block = kerning_table_block;
+	font.glyphs              = glyphs.data;
+	font.glyph_count         = (U32)glyphs.count;
+	font.glyphs_block        = Memory_Block{glyphs.data, sizeof(Glyph) * glyphs.capacity};
+	font.atlas               = atlas;
+	font.atlas_width         = atlas_width;
+	font.atlas_height        = atlas_height;
+	font.atlas_block         = atlas_block;
 
 	return font;
 }
@@ -1313,7 +1347,7 @@ platform_font_init(const char *filepath, const char *face_name, U32 font_height,
 void
 platform_font_deinit(Platform_Font *font)
 {
-	memory::deallocate(font->kerning_table);
-	memory::deallocate(font->glyphs);
-	memory::deallocate(font->atlas);
+	memory::deallocate(font->kerning_table_block);
+	memory::deallocate(font->glyphs_block);
+	memory::deallocate(font->atlas_block);
 }

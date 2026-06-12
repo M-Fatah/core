@@ -1,8 +1,9 @@
 #include "core/memory/arena_allocator.h"
 
 #include "core/log.h"
+#include "core/validate.h"
+#include "core/math/u64.h"
 
-// TODO: Remove and use logger.
 #include <stdio.h>
 #include <inttypes.h>
 
@@ -23,6 +24,20 @@ namespace memory
 		Arena_Allocator_Node *head;
 	};
 
+	inline static Arena_Allocator_Node *
+	_arena_allocator_node_init(U64 capacity, Allocator *allocator)
+	{
+		Memory_Block block = memory::allocate(allocator, sizeof(Arena_Allocator_Node) + capacity, alignof(Arena_Allocator_Node));
+		if (block.data == nullptr)
+			log_fatal("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", block.size);
+
+		Arena_Allocator_Node *node = (Arena_Allocator_Node *)block.data;
+		node->capacity = capacity;
+		node->used     = 0;
+		node->next     = nullptr;
+		return node;
+	}
+
 	Arena_Allocator::Arena_Allocator(U64 initial_capacity, Allocator *allocator)
 	{
 		Arena_Allocator *self = this;
@@ -31,84 +46,61 @@ namespace memory
 			log_fatal("[ARENA_ALLOCATOR]: Could not allocate memory for initialization.");
 
 		self->ctx->allocator = allocator;
-
-		self->ctx->head = (Arena_Allocator_Node *)memory::allocate(allocator, sizeof(Arena_Allocator_Node) + initial_capacity, alignof(Arena_Allocator_Node));
-		if (self->ctx->head == nullptr)
-			log_fatal("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", sizeof(Arena_Allocator_Node) + initial_capacity);
-
-		self->ctx->head->capacity = initial_capacity;
-		self->ctx->head->used     = 0;
-		self->ctx->head->next     = nullptr;
-		self->ctx->used_size      = 0;
-		self->ctx->peak_size      = 0;
+		self->ctx->head      = _arena_allocator_node_init(initial_capacity, allocator);
+		self->ctx->used_size = 0;
+		self->ctx->peak_size = 0;
 	}
 
 	Arena_Allocator::~Arena_Allocator()
 	{
 		Arena_Allocator *self = this;
-
-	#if DEBUG
-		// TODO: Use logger.
-		// ::printf("[ARENA_ALLOCATOR]: %" PRIu64 " bytes used at exit, %" PRIu64 " bytes peak size.\n", self->ctx->used_size, self->ctx->peak_size);
-	#endif
-
-		auto node = self->ctx->head;
+		Arena_Allocator_Node *node = self->ctx->head;
 		while (node)
 		{
-			auto next = node->next;
-			memory::deallocate(self->ctx->allocator, node);
+			Arena_Allocator_Node *next = node->next;
+			memory::deallocate(self->ctx->allocator, Memory_Block{node, sizeof(Arena_Allocator_Node) + node->capacity});
 			node = next;
 		}
-
 		memory::deallocate(self->ctx->allocator, self->ctx);
 	}
 
-	void *
+	Memory_Block
 	Arena_Allocator::allocate(U64 size, U64 alignment)
 	{
+		if (size == 0)
+			return Memory_Block{};
+
+		validate(u64_is_power_of_two(alignment), "[ARENA_ALLOCATOR]: Alignment must be a non-zero power of two.");
+
 		Arena_Allocator *self = this;
 
-		// Bump-pointer with alignment: round the current position up to the next
-		// multiple of `alignment`, then carve out `size` bytes.
-		auto head_start   = (U64)(self->ctx->head + 1);
-		auto cur_pos      = head_start + self->ctx->head->used;
-		auto aligned_pos  = (cur_pos + (alignment - 1)) & ~((U64)alignment - 1);
-		U64  padding      = (U64)(aligned_pos - cur_pos);
-		U64  consumed     = padding + size;
-
-		self->ctx->used_size += consumed;
-		self->ctx->peak_size = self->ctx->used_size > self->ctx->peak_size ? self->ctx->used_size : self->ctx->peak_size;
-
-		if (self->ctx->head->used + consumed <= self->ctx->head->capacity)
+		U8 *payload_start    = (U8 *)(self->ctx->head + 1);
+		U8 *aligned_position = (U8 *)u64_align_up((U64)(payload_start + self->ctx->head->used), alignment);
+		U64 used             = (U64)(aligned_position - payload_start) + size;
+		if (used <= self->ctx->head->capacity)
 		{
-			self->ctx->head->used += consumed;
-			return (void *)aligned_pos;
+			self->ctx->used_size += used - self->ctx->head->used;
+			self->ctx->peak_size  = u64_max(self->ctx->peak_size, self->ctx->used_size);
+			self->ctx->head->used = used;
+			return Memory_Block{.data = aligned_position, .size = size};
 		}
 		else
 		{
-			// Worst-case alignment padding inside a brand-new node is (alignment - 1).
-			// Ensure the new node has enough room for the aligned allocation.
-			U64 min_capacity = size + alignment;
-			U64 capacity     = min_capacity > self->ctx->head->capacity ? min_capacity : self->ctx->head->capacity;
-			auto node = (Arena_Allocator_Node *)memory::allocate(self->ctx->allocator, sizeof(Arena_Allocator_Node) + capacity, alignof(Arena_Allocator_Node));
-			if (node == nullptr)
-				log_fatal("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", size);
-
-			auto new_payload_start = (U64)(node + 1);
-			auto new_aligned_pos   = (new_payload_start + (alignment - 1)) & ~((U64)alignment - 1);
-			U64  new_padding       = (U64)(new_aligned_pos - new_payload_start);
-
-			node->capacity  = capacity;
-			node->used      = new_padding + size;
-			node->next      = self->ctx->head;
-			self->ctx->head = node;
-
-			return (void *)new_aligned_pos;
+			Arena_Allocator_Node *node = _arena_allocator_node_init(u64_max(size + alignment, self->ctx->head->capacity), self->ctx->allocator);
+			payload_start              = (U8 *)(node + 1);
+			aligned_position           = (U8 *)u64_align_up((U64)payload_start, alignment);
+			used                       = (U64)(aligned_position - payload_start) + size;
+			node->used                 = used;
+			node->next                 = self->ctx->head;
+			self->ctx->head            = node;
+			self->ctx->used_size      += used;
+			self->ctx->peak_size       = u64_max(self->ctx->peak_size, self->ctx->used_size);
+			return Memory_Block{.data = aligned_position, .size = size};
 		}
 	}
 
 	void
-	Arena_Allocator::deallocate(void *)
+	Arena_Allocator::deallocate(Memory_Block)
 	{
 
 	}
@@ -119,20 +111,15 @@ namespace memory
 		Arena_Allocator *self = this;
 		if (self->ctx->peak_size > self->ctx->head->capacity)
 		{
-			auto node = self->ctx->head;
+			Arena_Allocator_Node *node = self->ctx->head;
 			while (node)
 			{
-				auto next = node->next;
-				memory::deallocate(self->ctx->allocator, node);
+				Arena_Allocator_Node *next = node->next;
+				memory::deallocate(self->ctx->allocator, Memory_Block{node, sizeof(Arena_Allocator_Node) + node->capacity});
 				node = next;
 			}
 
-			self->ctx->head = (Arena_Allocator_Node *)memory::allocate(self->ctx->allocator, sizeof(Arena_Allocator_Node) + self->ctx->peak_size, alignof(Arena_Allocator_Node));
-			if (self->ctx->head == nullptr)
-				log_fatal("[ARENA_ALLOCATOR]: Could not allocate memory with given size {}.", sizeof(Arena_Allocator_Node) + self->ctx->peak_size);
-			self->ctx->head->capacity = self->ctx->peak_size;
-			self->ctx->head->used     = 0;
-			self->ctx->head->next     = nullptr;
+			self->ctx->head = _arena_allocator_node_init(self->ctx->peak_size, self->ctx->allocator);
 		}
 
 		self->ctx->head->used = 0;
@@ -151,16 +138,16 @@ namespace memory
 		deallocate_and_call_destructor(self->ctx->allocator, self);
 	}
 
-	void *
+	Memory_Block
 	arena_allocator_allocate(Arena_Allocator *self, U64 size, U64 alignment)
 	{
 		return self->allocate(size, alignment);
 	}
 
 	void
-	arena_allocator_deallocate(Arena_Allocator *self, void *data)
+	arena_allocator_deallocate(Arena_Allocator *self, Memory_Block block)
 	{
-		self->deallocate(data);
+		self->deallocate(block);
 	}
 
 	void

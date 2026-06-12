@@ -50,6 +50,7 @@ set(HEADER_FILES
     memory/heap_allocator.h
     memory/arena_allocator.h
     memory/pool_allocator.h
+    memory/virtual_allocator.h
     platform/platform.h
     serialization/binary_serializer.h
     serialization/json_serializer.h
@@ -66,6 +67,7 @@ set(SOURCE_FILES
     memory/heap_allocator.cpp
     memory/arena_allocator.cpp
     memory/pool_allocator.cpp
+    memory/virtual_allocator.cpp
     validate.cpp
 )
 

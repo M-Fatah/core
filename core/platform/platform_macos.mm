@@ -4,14 +4,17 @@
 #include "core/defer.h"
 #include "core/log.h"
 #include "core/formatter.h"
+#include "core/math/u64.h"
 #include "core/memory/memory.h"
 
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include <execinfo.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <pthread.h>
 #include <atomic>
 #include <inttypes.h>
@@ -473,7 +476,7 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 }
 
 U64
-platform_path_write_file(const String &path, Block block)
+platform_path_write_file(const String &path, Memory_Block block)
 {
 	I32 file_handle = ::open(path.data, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
 	if (file_handle == -1)
@@ -621,39 +624,68 @@ platform_api_load(Platform_Api *self)
 }
 
 
-Platform_Allocator
-platform_allocator_init(U64 size_in_bytes)
+U64
+platform_virtual_memory_get_page_size()
 {
-	Platform_Allocator self = {};
-	self.ptr = (U8 *)::mmap(0, size_in_bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (self.ptr)
-		self.size = size_in_bytes;
-	return self;
+	return (U64)::sysconf(_SC_PAGESIZE);
+}
+
+U64
+platform_virtual_memory_page_align(U64 size)
+{
+	U64 page_size = platform_virtual_memory_get_page_size();
+	return u64_align_up(size, page_size);
+}
+
+Memory_Block
+platform_virtual_memory_reserve(U64 size)
+{
+	U64 aligned_size = platform_virtual_memory_page_align(size);
+	if (aligned_size == 0)
+		return Memory_Block{};
+
+	void *data = ::mmap(nullptr, aligned_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (data == MAP_FAILED)
+		return Memory_Block{};
+	return Memory_Block{data, aligned_size};
+}
+
+bool
+platform_virtual_memory_commit(Memory_Block block)
+{
+	U64 page_size = platform_virtual_memory_get_page_size();
+	validate(block.data != nullptr && block.size > 0, "[PLATFORM][MACOS]: Cannot commit an empty virtual memory block.");
+	validate(((U64)block.data & (page_size - 1)) == 0, "[PLATFORM][MACOS]: Virtual memory block address is not page-aligned.");
+	validate(block.size == platform_virtual_memory_page_align(block.size), "[PLATFORM][MACOS]: Virtual memory block size is not page-aligned.");
+
+	return ::mprotect(block.data, block.size, PROT_READ | PROT_WRITE) == 0;
+}
+
+bool
+platform_virtual_memory_decommit(Memory_Block block)
+{
+	U64 page_size = platform_virtual_memory_get_page_size();
+	validate(block.data != nullptr && block.size > 0, "[PLATFORM][MACOS]: Cannot decommit an empty virtual memory block.");
+	validate(((U64)block.data & (page_size - 1)) == 0, "[PLATFORM][MACOS]: Virtual memory block address is not page-aligned.");
+	validate(block.size == platform_virtual_memory_page_align(block.size), "[PLATFORM][MACOS]: Virtual memory block size is not page-aligned.");
+
+	I32 advise_result = ::madvise(block.data, block.size, MADV_DONTNEED);
+	I32 protect_result = ::mprotect(block.data, block.size, PROT_NONE);
+	return advise_result == 0 && protect_result == 0;
 }
 
 void
-platform_allocator_deinit(Platform_Allocator *self)
+platform_virtual_memory_release(Memory_Block block)
 {
-	[[maybe_unused]] I32 result = ::munmap(self->ptr, self->size);
-	validate(result == 0, "[PLATFORM][MACOS]: Failed to free virtual memory.");
-}
+	if (block.data == nullptr)
+		return;
 
-Platform_Memory
-platform_allocator_alloc(Platform_Allocator *self, U64 size_in_bytes)
-{
-	Platform_Memory res = {};
-	if (self->used + size_in_bytes >= self->size)
-		return res;
-	self->used += size_in_bytes;
-	res.ptr = self->ptr + self->used;
-	res.size = size_in_bytes;
-	return res;
-}
+	U64 page_size = platform_virtual_memory_get_page_size();
+	validate(((U64)block.data & (page_size - 1)) == 0, "[PLATFORM][MACOS]: Virtual memory block address is not page-aligned.");
+	validate(block.size == platform_virtual_memory_page_align(block.size), "[PLATFORM][MACOS]: Virtual memory block size is not page-aligned.");
 
-void
-platform_allocator_clear(Platform_Allocator *self)
-{
-	self->used = 0;
+	[[maybe_unused]] I32 result = ::munmap(block.data, block.size);
+	validate(result == 0, "[PLATFORM][MACOS]: Failed to release virtual memory.");
 }
 
 struct Platform_Task
@@ -973,13 +1005,13 @@ platform_file_read(const String &file_path, memory::Allocator *allocator)
 }
 
 U64
-platform_file_read(const char *filepath, Platform_Memory mem)
+platform_file_read(const char *filepath, Memory_Block block)
 {
 	I32 file_handle = ::open(filepath, O_RDONLY, S_IRWXU);
 	if (file_handle == -1)
 		return 0;
 
-	I64 bytes_read = ::read(file_handle, mem.ptr, mem.size);
+	I64 bytes_read = ::read(file_handle, block.data, block.size);
 	[[maybe_unused]] I32 close_result = ::close(file_handle);
 	validate(close_result == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_read == -1)
@@ -988,13 +1020,13 @@ platform_file_read(const char *filepath, Platform_Memory mem)
 }
 
 U64
-platform_file_write(const char *filepath, Platform_Memory mem)
+platform_file_write(const char *filepath, Memory_Block block)
 {
 	I32 file_handle = ::open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
 	if (file_handle == -1)
 		return 0;
 
-	I64 bytes_written = ::write(file_handle, mem.ptr, mem.size);
+	I64 bytes_written = ::write(file_handle, block.data, block.size);
 	[[maybe_unused]] I32 close_result = ::close(file_handle);
 	validate(close_result == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_written == -1)

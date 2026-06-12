@@ -80,7 +80,7 @@ serialize(Binary_Serializer &self, const T &data)
 }
 
 inline static Error
-serialize(Binary_Serializer &self, const Block &block)
+serialize(Binary_Serializer &self, const Memory_Block &block)
 {
 	if (!self.is_valid)
 		return Error{"[SERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
@@ -229,23 +229,29 @@ serialize(Binary_Deserializer &self, T &data)
 }
 
 inline static Error
-serialize(Binary_Deserializer &self, Block &block)
+serialize(Binary_Deserializer &self, Memory_Block &block)
 {
 	if (!self.is_valid)
 		return Error{"[DESERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
 
-	if (Error error = serialize(self, block.size))
+	U64 size = 0;
+	if (Error error = serialize(self, size))
 		return error;
 
+	if (self.offset + size > self.buffer.count)
+		return Error{"[DESERIALIZER][BINARY]: Trying to deserialize beyond buffer capacity."};
+
 	if (block.data == nullptr)
-		block.data = memory::allocate<U8>(self.allocator, block.size);
+		block = memory::allocate(self.allocator, size, alignof(U8));
+	else if (block.size < size)
+		return Error{"[DESERIALIZER][BINARY]: Passed block capacity is smaller than the deserialized block."};
 
 	if (block.data == nullptr)
 		return Error{"[DESERIALIZER][BINARY]: Could not allocate memory for passed pointer type."};
 
-	for (U64 i = 0; i < block.size; ++i)
-		if (Error error = serialize(self, ((U8 *)block.data)[i]))
-			return error;
+	::memcpy(block.data, self.buffer.data + self.offset, size);
+	self.offset += size;
+	block.size   = size;
 
 	return Error{};
 }
@@ -305,12 +311,22 @@ serialize(Binary_Deserializer &self, const char *&data)
 	if (!self.is_valid)
 		return Error{"[DESERIALIZER][BINARY]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
 
-	String out = {};
-	if (Error error = serialize(self, out))
+	U64 count = 0;
+	if (Error error = serialize(self, count))
 		return error;
 
-	data = out.data;
-	out = {};
+	if (self.offset + count > self.buffer.count)
+		return Error{"[DESERIALIZER][BINARY]: Trying to deserialize beyond buffer capacity."};
+
+	Memory_Block block = memory::allocate(self.allocator, count + 1, alignof(char));
+	if (block.data == nullptr)
+		return Error{"[DESERIALIZER][BINARY]: Could not allocate memory for passed c-string type."};
+
+	char *output = (char *)block.data;
+	::memcpy(output, self.buffer.data + self.offset, count);
+	self.offset += count;
+	output[count] = '\0';
+	data = output;
 
 	return Error{};
 }

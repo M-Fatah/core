@@ -13,11 +13,11 @@ namespace memory
 
 		~Pool_Allocator() override;
 
-		void *
+		Memory_Block
 		allocate(U64 size = 0, U64 alignment = alignof(void *)) override;
 
 		void
-		deallocate(void *data) override;
+		deallocate(Memory_Block block) override;
 	};
 
 	CORE_API Pool_Allocator *
@@ -26,9 +26,9 @@ namespace memory
 	CORE_API void
 	pool_allocator_deinit(Pool_Allocator *self);
 
-	CORE_API void *
+	CORE_API Memory_Block
 	pool_allocator_allocate(Pool_Allocator *self);
 
 	CORE_API void
-	pool_allocator_deallocate(Pool_Allocator *self, void *data);
+	pool_allocator_deallocate(Pool_Allocator *self, Memory_Block block);
 }

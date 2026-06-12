@@ -95,7 +95,7 @@ serialize(Json_Serializer &self, const T &data)
 }
 
 inline static Error
-serialize(Json_Serializer &self, const Block &block)
+serialize(Json_Serializer &self, const Memory_Block &block)
 {
 	if (!self.is_valid)
 		return Error{"[SERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(serializer, {{\"a\", a}})'."};
@@ -305,24 +305,26 @@ serialize(Json_Deserializer &self, T &data)
 }
 
 inline static Error
-serialize(Json_Deserializer &self, Block &block)
+serialize(Json_Deserializer &self, Memory_Block &block)
 {
 	if (!self.is_valid)
 		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
 
-	String str = json_value_get_as_string(array_back(self.values));
+	String input = json_value_get_as_string(array_back(self.values));
 
-	String o = base64_decode(str, memory::temp_allocator());
-	DEFER(string_deinit(o));
+	String output = base64_decode(input, memory::temp_allocator());
+	DEFER(string_deinit(output));
 
+	U64 size = block.size;
 	if (block.data == nullptr)
-		block.data = memory::allocate<U8>(self.allocator, o.count);
+		block = memory::allocate(self.allocator, output.count, alignof(U8));
+	else if (size < output.count)
+		return Error{"[DESERIALIZER][JSON]: Passed block size is smaller than the deserialized block."};
 
 	if (block.data == nullptr)
 		return Error{"[DESERIALIZER][JSON]: Could not allocate memory for passed pointer type."};
 
-	::memcpy(block.data, o.data, o.count);
-	block.size = o.count;
+	::memcpy(block.data, output.data, output.count);
 
 	return Error{};
 }
@@ -378,11 +380,15 @@ serialize(Json_Deserializer &self, const char *&data)
 	if (!self.is_valid)
 		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
 
-	String out = {};
-	if (Error error = serialize(self, out))
-		return error;
-	data = out.data;
-	out = {};
+	String input = json_value_get_as_string(array_back(self.values));
+	Memory_Block block = memory::allocate(self.allocator, input.count + 1, alignof(char));
+	if (block.data == nullptr)
+		return Error{"[DESERIALIZER][JSON]: Could not allocate memory for passed c-string type."};
+
+	char *output = (char *)block.data;
+	::memcpy(output, input.data, input.count);
+	output[input.count] = '\0';
+	data = output;
 
 	return Error{};
 }
@@ -394,7 +400,6 @@ serialize(Json_Deserializer &self, Hash_Table<K, V> &data)
 	if (!self.is_valid)
 		return Error{"[DESERIALIZER][JSON]: Please use Serialize_Pair, for e.x 'serialize(deserializer, {{\"a\", a}})'."};
 
-	// TODO: Should we add allocator in hash table?
 	if (self.allocator != data.entries.allocator || data.entries.allocator == nullptr)
 	{
 		destroy(data);
@@ -455,7 +460,7 @@ to_json(const T &data, memory::Allocator *allocator = memory::heap_allocator())
 	if constexpr (std::is_class_v<T>                 &&
 				 !is_specialization_v<T, Array>      && // TODO: Add is_array<>
 				 !is_specialization_v<T, Hash_Table> && // TODO: Add is_hash_table<>
-				 !std::is_same_v<T, Block>)
+				 !std::is_same_v<T, Memory_Block>)
 	{
 		if (Error error = serialize(self, data))
 			return error;
@@ -477,7 +482,7 @@ from_json(const String &buffer, T &data, memory::Allocator *allocator = memory::
 	if constexpr (std::is_class_v<T>                 &&
 				 !is_specialization_v<T, Array>      && // TODO: Add is_array<>
 				 !is_specialization_v<T, Hash_Table> && // TODO: Add is_hash_table<>
-				 !std::is_same_v<T, Block>)
+				 !std::is_same_v<T, Memory_Block>)
 	{
 		if (Error error = serialize(self, data))
 			return error;

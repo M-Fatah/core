@@ -146,12 +146,12 @@ platform_path_read_file(const char *path, memory::Allocator *allocator = memory:
 }
 
 CORE_API U64
-platform_path_write_file(const String &path, Block block);
+platform_path_write_file(const String &path, Memory_Block block);
 
 inline static U64
 platform_path_write_file(const String &path, const String &content)
 {
-	return platform_path_write_file(path, Block{(void *)content.data, content.count});
+	return platform_path_write_file(path, Memory_Block{(void *)content.data, content.count});
 }
 
 inline static U64
@@ -163,7 +163,7 @@ platform_path_write_file(const String &path, const char *content)
 inline static U64
 platform_path_write_file(const char *path, const String &content)
 {
-	return platform_path_write_file(string_literal(path), Block{(void *)content.data, content.count});
+	return platform_path_write_file(string_literal(path), Memory_Block{(void *)content.data, content.count});
 }
 
 inline static U64
@@ -217,19 +217,6 @@ typedef struct Platform_Api
 	void *api;
 	I64 last_write_time;
 } Platform_Api;
-
-typedef struct Platform_Memory
-{
-	U8 *ptr;
-	U64 size;
-} Platform_Memory;
-
-typedef struct Platform_Allocator
-{
-	U8 *ptr;
-	U64 size;
-	U64 used;
-} Platform_Allocator;
 
 typedef struct Platform_Thread Platform_Thread;
 
@@ -380,15 +367,18 @@ typedef struct Platform_Font
 	U32 whitespace_width;
 	U32 max_glyph_height;
 	I32 *kerning_table;
+	Memory_Block kerning_table_block;
 
 	// Font glyphs.
 	Glyph *glyphs;
 	U32 glyph_count;
+	Memory_Block glyphs_block;
 
 	// Font atlas.
 	U8 *atlas;
 	U32 atlas_width;
 	U32 atlas_height;
+	Memory_Block atlas_block;
 } Platform_Font;
 
 
@@ -402,17 +392,23 @@ CORE_API void *
 platform_api_load(Platform_Api *self);
 
 
-CORE_API Platform_Allocator
-platform_allocator_init(U64 size_in_bytes);
+CORE_API U64
+platform_virtual_memory_get_page_size();
+
+CORE_API U64
+platform_virtual_memory_page_align(U64 size);
+
+CORE_API Memory_Block
+platform_virtual_memory_reserve(U64 size);
+
+CORE_API bool
+platform_virtual_memory_commit(Memory_Block block);
+
+CORE_API bool
+platform_virtual_memory_decommit(Memory_Block block);
 
 CORE_API void
-platform_allocator_deinit(Platform_Allocator *self);
-
-CORE_API Platform_Memory
-platform_allocator_alloc(Platform_Allocator *self, U64 size_in_bytes);
-
-CORE_API void
-platform_allocator_clear(Platform_Allocator *self);
+platform_virtual_memory_release(Memory_Block block);
 
 
 CORE_API Platform_Thread *
@@ -461,10 +457,10 @@ CORE_API U64
 platform_file_size(const char *filepath);
 
 CORE_API U64
-platform_file_read(const char *filepath, Platform_Memory mem);
+platform_file_read(const char *filepath, Memory_Block block);
 
 CORE_API U64
-platform_file_write(const char *filepath, Platform_Memory mem);
+platform_file_write(const char *filepath, Memory_Block block);
 
 CORE_API bool
 platform_file_copy(const char *from, const char *to);

@@ -17,6 +17,30 @@ DEFER(string_deinit(contents));
 
 // With explicit allocator
 String contents = platform_file_read("shader.glsl", memory::temp_allocator());
+
+// Read/write into caller-owned memory
+Memory_Block block = memory::allocate(file_size, alignof(U8));
+DEFER(memory::deallocate(block));
+
+U64 bytes_read = platform_file_read("data.bin", block);
+U64 bytes_written = platform_file_write("copy.bin", block);
+```
+
+Raw file read/write APIs take `Memory_Block`; higher-level path helpers still return `String` for whole-file text-style reads.
+
+---
+
+## Virtual Memory
+
+Platform exposes page-based virtual-memory primitives. Allocator policy lives in `core/memory/virtual_allocator.h`.
+
+```cpp
+U64 page_size = platform_virtual_memory_get_page_size();
+Memory_Block block = platform_virtual_memory_reserve(page_size);
+
+platform_virtual_memory_commit(block);
+platform_virtual_memory_decommit(block);
+platform_virtual_memory_release(block);
 ```
 
 ---

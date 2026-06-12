@@ -192,7 +192,7 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 		const char *a2 = {};
 		String b2 = {};
 		DEFER({
-			memory::deallocate((void *)a2);
+			memory::deallocate(Memory_Block{(void *)a2, string_literal(a2).capacity});
 			string_deinit(b2);
 		});
 
@@ -245,12 +245,12 @@ TESTER_TEST("[CORE]: Binary_Serializer")
 
 		I32 i = 5;
 
-		Block a1 = {&i, sizeof(i)};
+		Memory_Block a1 = {&i, sizeof(i)};
 
 		serialize(serializer, {"a1", a1});
 
-		Block a2 = {};
-		DEFER(memory::deallocate(a2.data));
+		Memory_Block a2 = {};
+		DEFER(memory::deallocate(a2));
 
 		Binary_Deserializer deserializer = binary_deserializer_init(serializer.buffer);
 		DEFER(binary_deserializer_deinit(deserializer));
@@ -530,7 +530,7 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 		const char *a2 = {};
 		String b2 = {};
 		DEFER({
-			memory::deallocate((void *)a2);
+			memory::deallocate(Memory_Block{(void *)a2, string_literal(a2).capacity});
 			string_deinit(b2);
 		});
 
@@ -580,15 +580,15 @@ TESTER_TEST("[CORE]: JSON_Serializer")
 
 		I32 i = 5;
 
-		Block a1 = {&i, sizeof(i)};
+		Memory_Block a1 = {&i, sizeof(i)};
 
 		serialize(serializer, {"a1", a1});
 
 		Json_Deserializer deserializer = json_deserializer_init(serializer.values[0]);
 		DEFER(json_deserializer_deinit(deserializer));
 
-		Block a2 = {};
-		DEFER(memory::deallocate(a2.data));
+		Memory_Block a2 = {};
+		DEFER(memory::deallocate(a2));
 
 		serialize(deserializer, {"a1", a2});
 

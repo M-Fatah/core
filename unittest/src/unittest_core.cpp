@@ -6,6 +6,7 @@
 #include <core/memory/memory.h>
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
+#include <core/memory/virtual_allocator.h>
 #include <core/platform/platform.h>
 
 TESTER_TEST("[CORE]: Arena_Allocator")
@@ -13,11 +14,11 @@ TESTER_TEST("[CORE]: Arena_Allocator")
 	memory::Arena_Allocator *arena = memory::arena_allocator_init(1024);
 	DEFER(memory::arena_allocator_deinit(arena));
 
-	void *a = memory::arena_allocator_allocate(arena, 4, 1);
-	void *b = memory::arena_allocator_allocate(arena, 8, 1);
+	Memory_Block a = memory::arena_allocator_allocate(arena, 4, 1);
+	Memory_Block b = memory::arena_allocator_allocate(arena, 8, 1);
 
-	TESTER_CHECK(a != nullptr);
-	TESTER_CHECK(b != nullptr);
+	TESTER_CHECK(a.data != nullptr);
+	TESTER_CHECK(b.data != nullptr);
 
 	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 12);
 	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 12);
@@ -27,7 +28,7 @@ TESTER_TEST("[CORE]: Arena_Allocator")
 	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 0);
 	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 12);
 
-	arena_allocator_allocate(arena, 2048, 1);
+	memory::arena_allocator_allocate(arena, 2048, 1);
 
 	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 2048);
 	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 2048);
@@ -48,23 +49,75 @@ TESTER_TEST("[CORE]: Pool_Allocator")
 	memory::Pool_Allocator *pool = memory::pool_allocator_init(sizeof(Entity), 10);
 	DEFER(memory::pool_allocator_deinit(pool));
 
-	Entity *e1 = (Entity *)memory::pool_allocator_allocate(pool);
+	Entity *e1 = (Entity *)memory::pool_allocator_allocate(pool).data;
 	TESTER_CHECK(e1 != nullptr);
 	*e1 = Entity{1.0f, 2.0f, 3.0f};
-	memory::pool_allocator_deallocate(pool, e1);
+	memory::pool_allocator_deallocate(pool, Memory_Block{e1, sizeof(Entity)});
 
-	Entity *e2 = (Entity *)memory::pool_allocator_allocate(pool);
+	Entity *e2 = (Entity *)memory::pool_allocator_allocate(pool).data;
 	TESTER_CHECK(e2 == e1);
 
-	Entity *e3 = (Entity *)memory::pool_allocator_allocate(pool);
-	memory::pool_allocator_deallocate(pool, e3);
-	memory::pool_allocator_deallocate(pool, e2);
+	Entity *e3 = (Entity *)memory::pool_allocator_allocate(pool).data;
+	memory::pool_allocator_deallocate(pool, Memory_Block{e3, sizeof(Entity)});
+	memory::pool_allocator_deallocate(pool, Memory_Block{e2, sizeof(Entity)});
 
-	Entity *p4 = (Entity *)memory::pool_allocator_allocate(pool);
+	Entity *p4 = (Entity *)memory::pool_allocator_allocate(pool).data;
 	TESTER_CHECK(p4 == e2);
 
-	Entity *p5 = (Entity *)memory::pool_allocator_allocate(pool);
+	Entity *p5 = (Entity *)memory::pool_allocator_allocate(pool).data;
 	TESTER_CHECK(p5 == e3);
+}
+
+TESTER_TEST("[CORE]: Memory_Block allocation")
+{
+	Memory_Block block = memory::allocate(sizeof(I32) * 4, alignof(I32));
+	DEFER(memory::deallocate(block));
+
+	TESTER_CHECK(block.data != nullptr);
+	TESTER_CHECK(block.size == sizeof(I32) * 4);
+
+	I32 *values = (I32 *)block.data;
+	for (U64 i = 0; i < 4; ++i)
+		values[i] = (I32)i;
+
+	for (U64 i = 0; i < 4; ++i)
+		TESTER_CHECK(values[i] == (I32)i);
+
+	I32 *single = memory::allocate<I32>();
+	DEFER(memory::deallocate(single));
+	*single = 42;
+	TESTER_CHECK(*single == 42);
+}
+
+TESTER_TEST("[CORE]: Virtual_Allocator")
+{
+	U64 page_size = platform_virtual_memory_get_page_size();
+	TESTER_CHECK(page_size > 0);
+	TESTER_CHECK((page_size & (page_size - 1)) == 0);
+
+	Memory_Block reserved = platform_virtual_memory_reserve(page_size);
+	TESTER_CHECK(reserved.data != nullptr);
+	TESTER_CHECK(reserved.size == page_size);
+	TESTER_CHECK(platform_virtual_memory_commit(reserved));
+
+	U8 *bytes = (U8 *)reserved.data;
+	bytes[0] = 1;
+	bytes[page_size - 1] = 2;
+	TESTER_CHECK(bytes[0] == 1);
+	TESTER_CHECK(bytes[page_size - 1] == 2);
+
+	TESTER_CHECK(platform_virtual_memory_decommit(reserved));
+	TESTER_CHECK(platform_virtual_memory_commit(reserved));
+	platform_virtual_memory_release(reserved);
+
+	memory::Virtual_Allocator *allocator = memory::virtual_allocator_init();
+	DEFER(memory::virtual_allocator_deinit(allocator));
+
+	Memory_Block block = memory::virtual_allocator_allocate(allocator, page_size + 16, 16);
+	DEFER(memory::virtual_allocator_deallocate(allocator, block));
+	TESTER_CHECK(block.data != nullptr);
+	TESTER_CHECK(block.size == page_size + 16);
+	TESTER_CHECK(((U64)block.data & 15) == 0);
 }
 
 inline static Result<I32>

@@ -15,7 +15,7 @@ CORE_API String
 base64_encode(const U8 *data, U64 size, memory::Allocator *allocator = memory::heap_allocator());
 
 inline static String
-base64_encode(const Block &data, memory::Allocator *allocator = memory::heap_allocator())
+base64_encode(const Memory_Block &data, memory::Allocator *allocator = memory::heap_allocator())
 {
 	return base64_encode((const U8 *)data.data, data.size, allocator);
 }

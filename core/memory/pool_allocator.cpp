@@ -1,6 +1,8 @@
 #include "core/memory/pool_allocator.h"
 
 #include "core/log.h"
+#include "core/validate.h"
+#include "core/math/u64.h"
 #include "core/memory/arena_allocator.h"
 
 namespace memory
@@ -38,35 +40,36 @@ namespace memory
 		memory::deallocate(self->ctx);
 	}
 
-	void *
-	Pool_Allocator::allocate(U64, U64 alignment)
+	Memory_Block
+	Pool_Allocator::allocate(U64 size, U64 alignment)
 	{
 		Pool_Allocator *self = this;
+		validate(size == 0 || size <= self->ctx->chunk_size, "[POOL_ALLOCATOR]: Requested allocation size exceeds pool chunk size.");
+		validate(u64_is_power_of_two(alignment), "[POOL_ALLOCATOR]: Alignment must be a non-zero power of two.");
 		if (alignment > alignof(void *))
 		{
-			// Pool free-list threads a next-pointer at the start of each free chunk,
-			// so chunks are inherently sizeof(void*)-aligned. Over-aligned requests are
-			// not supported — allocate them through the arena directly if needed.
-			log_fatal("[POOL_ALLOCATOR]: Requested alignment {} exceeds pool's guaranteed {} byte alignment.", alignment, alignof(void *));
+			// Pool chunks are allocated from the backing arena with pointer alignment.
+			// Reused chunks keep that alignment; over-aligned chunks are not configured in this pool.
+			log_fatal("[POOL_ALLOCATOR]: Requested alignment exceeds pool chunk alignment.");
 		}
 
 		if(self->ctx->head == nullptr)
 		{
-			void *result = arena_allocator_allocate(self->ctx->arena, self->ctx->chunk_size, alignof(void *));
-			::memset(result, 0, self->ctx->chunk_size);
-			return result;
+			Memory_Block block = arena_allocator_allocate(self->ctx->arena, self->ctx->chunk_size, alignof(void *));
+			::memset(block.data, 0, self->ctx->chunk_size);
+			return block;
 		}
 
 		Pool_Allocator_Node *result = self->ctx->head;
 		self->ctx->head = self->ctx->head->next;
 		::memset(result, 0, self->ctx->chunk_size);
-		return result;
+		return Memory_Block{result, self->ctx->chunk_size};
 	}
 
 	void
-	Pool_Allocator::deallocate(void *data)
+	Pool_Allocator::deallocate(Memory_Block block)
 	{
-		if (data == nullptr)
+		if (block.data == nullptr)
 			return;
 
 		Pool_Allocator *self = this;
@@ -76,9 +79,9 @@ namespace memory
 			Pool_Allocator_Node *node = self->ctx->head;
 			while(node)
 			{
-				if (node == data)
+				if (node == block.data)
 				{
-					log_error("[POOL_ALLOCATOR]: Double free of memory at address '{}'.", data);
+					log_error("[POOL_ALLOCATOR]: Double free of memory at address '{}'.", block.data);
 					return;
 				}
 				node = node->next;
@@ -86,7 +89,7 @@ namespace memory
 		}
 		#endif
 
-		Pool_Allocator_Node *node = (Pool_Allocator_Node *)data;
+		Pool_Allocator_Node *node = (Pool_Allocator_Node *)block.data;
 		node->next = self->ctx->head;
 		self->ctx->head = node;
 	}
@@ -103,15 +106,15 @@ namespace memory
 		deallocate_and_call_destructor(self);
 	}
 
-	void *
+	Memory_Block
 	pool_allocator_allocate(Pool_Allocator *self)
 	{
 		return self->allocate();
 	}
 
 	void
-	pool_allocator_deallocate(Pool_Allocator *self, void *data)
+	pool_allocator_deallocate(Pool_Allocator *self, Memory_Block block)
 	{
-		self->deallocate(data);
+		self->deallocate(block);
 	}
 }

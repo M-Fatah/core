@@ -16,11 +16,11 @@ namespace memory
 
 		~Arena_Allocator() override;
 
-		void *
+		Memory_Block
 		allocate(U64 size, U64 alignment) override;
 
 		void
-		deallocate(void *data) override;
+		deallocate(Memory_Block block) override;
 
 		void
 		clear() override;
@@ -32,11 +32,11 @@ namespace memory
 	CORE_API void
 	arena_allocator_deinit(Arena_Allocator *self);
 
-	CORE_API void *
+	CORE_API Memory_Block
 	arena_allocator_allocate(Arena_Allocator *self, U64 size, U64 alignment);
 
 	CORE_API void
-	arena_allocator_deallocate(Arena_Allocator *self, void *data);
+	arena_allocator_deallocate(Arena_Allocator *self, Memory_Block block);
 
 	CORE_API void
 	arena_allocator_clear(Arena_Allocator *self);

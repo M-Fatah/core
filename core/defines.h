@@ -120,14 +120,6 @@ concept is_c_string_v = std::is_same_v<T, char *> || std::is_same_v<T, const cha
 
 namespace memory { struct Allocator; }
 
-// TODO: Better name?
-// TODO: Better place?
-struct Block
-{
-	void *data;
-	U64 size;
-};
-
 template <typename T>
 inline static constexpr T
 clone(const T &, memory::Allocator *)

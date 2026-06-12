@@ -1,5 +1,6 @@
 #include "core/json.h"
 
+#include "core/defer.h"
 #include "core/formatter.h"
 #include "core/platform/platform.h"
 
@@ -526,11 +527,12 @@ json_value_from_file(const char *filepath, memory::Allocator *allocator)
 		};
 	}
 
-	auto file_data  = memory::allocate<U8>(allocator, file_size);
-	auto bytes_read = platform_file_read(filepath, Platform_Memory{(U8 *)file_data, file_size});
+	Memory_Block file_data = memory::allocate(allocator, file_size, alignof(U8));
+	DEFER(memory::deallocate(allocator, file_data));
+
+	auto bytes_read = platform_file_read(filepath, file_data);
 	if (bytes_read != file_size)
 	{
-		memory::deallocate(allocator, file_data);
 		return Error{
 			"[JSON]: Could not fully read file '{}' contents, file size '{}' but amount read is '{}'.",
 			filepath,
@@ -539,7 +541,7 @@ json_value_from_file(const char *filepath, memory::Allocator *allocator)
 		};
 	}
 
-	return json_value_from_string((char *)file_data, allocator);
+	return json_value_from_string((char *)file_data.data, allocator);
 }
 
 JSON_Value
@@ -673,7 +675,7 @@ json_value_to_file(const JSON_Value &self, const char *filepath)
 	if (error)
 		return error;
 
-	auto file_size = platform_file_write(filepath, Platform_Memory{(U8 *)json_string.data, json_string.count});
+	auto file_size = platform_file_write(filepath, Memory_Block{(void *)json_string.data, json_string.count});
 	if (file_size != json_string.count)
 		return Error{"[JSON]: Could not write file '{}'.", filepath};
 	return {};

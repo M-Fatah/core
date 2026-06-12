@@ -50,7 +50,7 @@ array_init_with_capacity(U64 capacity, memory::Allocator *allocator = memory::he
 	allocator = allocator ? allocator : memory::heap_allocator();
 	return Array<T> {
 		.allocator = allocator,
-		.data = memory::allocate<T>(allocator, capacity),
+		.data = (T *)memory::allocate(allocator, capacity * sizeof(T), alignof(T)).data,
 		.count = 0,
 		.capacity = capacity
 	};
@@ -63,7 +63,7 @@ array_init_with_count(U64 count, memory::Allocator *allocator = memory::heap_all
 	allocator = allocator ? allocator : memory::heap_allocator();
 	return Array<T> {
 		.allocator = allocator,
-		.data = memory::allocate<T>(allocator, count),
+		.data = (T *)memory::allocate(allocator, count * sizeof(T), alignof(T)).data,
 		.count = count,
 		.capacity = count
 	};
@@ -101,7 +101,7 @@ inline static void
 array_deinit(Array<T> &self)
 {
 	if (self.capacity && self.allocator)
-		memory::deallocate(self.allocator, self.data);
+		memory::deallocate(self.allocator, Memory_Block{self.data, self.capacity * sizeof(T)});
 	self = Array<T>{.allocator = self.allocator};
 }
 
@@ -115,12 +115,13 @@ array_reserve(Array<T> &self, U64 added_capacity)
 	if (self.allocator == nullptr)
 		self.allocator = memory::heap_allocator();
 
+	U64 old_capacity = self.capacity;
 	self.capacity += added_capacity;
 
-	T *data = memory::allocate<T>(self.allocator, self.capacity);
+	T *data = (T *)memory::allocate(self.allocator, self.capacity * sizeof(T), alignof(T)).data;
 	for (U64 i = 0; i < self.count; ++i)
 		data[i] = self[i];
-	memory::deallocate(self.allocator, self.data);
+	memory::deallocate(self.allocator, Memory_Block{self.data, old_capacity * sizeof(T)});
 
 	self.data = data;
 }
