@@ -21,14 +21,12 @@ namespace memory
 		if (reserved.data == nullptr)
 		{
 			log_fatal("[ALLOCATOR][VIRTUAL]: Could not reserve virtual memory with size {}.", reserved_size);
-			return Memory_Block{};
 		}
 
 		if (!platform_virtual_memory_commit(reserved))
 		{
-			log_fatal("[ALLOCATOR][VIRTUAL]: Could not commit virtual memory with size {}.", reserved_size);
 			platform_virtual_memory_release(reserved);
-			return Memory_Block{};
+			log_fatal("[ALLOCATOR][VIRTUAL]: Could not commit virtual memory with size {}.", reserved_size);
 		}
 
 		return Memory_Block{.data = reserved.data, .size = size};
