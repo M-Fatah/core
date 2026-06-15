@@ -11,7 +11,7 @@ namespace memory
 
 		Pool_Allocator(U64 chunk_size, U64 chunk_count);
 
-		~Pool_Allocator() override;
+		~Pool_Allocator();
 
 		Memory_Block
 		allocate(U64 size = 0, U64 alignment = alignof(void *)) override;

@@ -23,32 +23,26 @@ namespace memory
 {
 	struct Allocator
 	{
-		virtual
-		~Allocator() = default;
-
 		virtual Memory_Block
 		allocate(U64 size, U64 alignment) = 0;
 
 		virtual void
 		deallocate(Memory_Block block) = 0;
-
-		virtual void
-		clear() {}
 	};
 
 	CORE_API Allocator *
 	heap_allocator();
 
 	CORE_API Allocator *
-	virtual_allocator();
-
-	CORE_API Allocator *
 	temp_allocator();
+
+	CORE_API void
+	temp_allocator_clear();
 
 	inline static Memory_Block
 	allocate(U64 size, U64 alignment)
 	{
-		auto allocator = heap_allocator();
+		Allocator *allocator = heap_allocator();
 		return allocator->allocate(size, alignment);
 	}
 
@@ -125,7 +119,7 @@ namespace memory
 	inline static void
 	deallocate(Memory_Block block)
 	{
-		auto allocator = heap_allocator();
+		Allocator *allocator = heap_allocator();
 		allocator->deallocate(block);
 	}
 

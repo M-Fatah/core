@@ -11,15 +11,13 @@ All containers and most utilities accept a `memory::Allocator *`. The allocator 
 ```cpp
 namespace memory {
     struct Allocator {
-        virtual ~Allocator() = default;
         virtual Memory_Block allocate(U64 size, U64 alignment) = 0;
-        virtual void  deallocate(Memory_Block block) = 0;
-        virtual void  clear() {}
+        virtual void deallocate(Memory_Block block) = 0;
     };
 }
 ```
 
-`Memory_Block{nullptr, 0}` is valid to deallocate. Alignment must be non-zero and a power of two.
+`memory::allocate` and `memory::deallocate` are convenience wrappers over the allocator interface. `Memory_Block{nullptr, 0}` is valid to deallocate. Alignment must be non-zero and a power of two.
 
 ---
 
@@ -61,22 +59,36 @@ There is no `allocate<T>(count)` API. Multi-element ownership stays explicit thr
 Default allocator for containers and utilities.
 
 ```cpp
-Memory_Block block = memory::allocate(memory::heap_allocator(), 1024, alignof(U8));
-memory::deallocate(memory::heap_allocator(), block);
+memory::Allocator *heap = memory::heap_allocator();
+Memory_Block block = memory::allocate(heap, 1024, alignof(U8));
+memory::deallocate(heap, block);
 ```
 
 ### Temp Allocator
 
-A per-thread arena intended to be cleared every frame or tick. Use it for short-lived strings and intermediate buffers. Do not store pointers from it across frames.
+A global arena intended to be cleared every frame or tick. Use it for short-lived strings and intermediate buffers. Do not store pointers from it across frames. `memory::temp_allocator()` returns `memory::Allocator *`. The global temp arena is embedded in Core's memory context and does not depend on the heap allocator, so it remains available during heap leak reporting.
 
 ```cpp
 String msg = format("Hello {}!", name, memory::temp_allocator());
 // msg.data is valid until temp_allocator is cleared
+
+memory::temp_allocator_clear();
+```
+
+For scoped scratch work, use a temp mark.
+
+```cpp
+#include <core/memory/arena_allocator.h>
+
+memory::Arena_Allocator_Mark mark = memory::temp_allocator_mark();
+DEFER(memory::temp_allocator_reset_to_mark(mark));
+
+Memory_Block scratch = memory::allocate(memory::temp_allocator(), 1024, alignof(U8));
 ```
 
 ### Arena Allocator
 
-Bump-pointer allocator. `deallocate` is a no-op; memory is reclaimed all at once with `clear()` or `deinit`. Default capacity is 1 GB and the default backing allocator is `memory::virtual_allocator()`.
+Bump-pointer allocator. `deallocate` is a no-op; memory is reclaimed all at once with `clear()` or `deinit`. Default capacity is 1 GB. Arena nodes use platform virtual memory internally: they reserve their address range up front and commit pages on demand. User-created arena objects are allocated through the heap allocator, so forgotten `arena_allocator_deinit` calls are visible in heap leak reports.
 
 ```cpp
 #include <core/memory/arena_allocator.h>
@@ -86,15 +98,15 @@ auto *arena = memory::arena_allocator_init();
 auto arr = array_init<int>(arena);
 array_push(arr, 42);
 
-memory::Arena_Allocator_Checkpoint checkpoint = memory::arena_allocator_checkpoint(arena);
+memory::Arena_Allocator_Mark mark = memory::arena_allocator_mark(arena);
 Memory_Block scratch = memory::arena_allocator_allocate(arena, 1024, alignof(U8));
-memory::arena_allocator_restore(arena, checkpoint);
+memory::arena_allocator_reset_to_mark(arena, mark);
 
 memory::arena_allocator_clear(arena);
 memory::arena_allocator_deinit(arena);
 ```
 
-Checkpoints restore the arena to a previous stack position and free newer arena nodes. Restoring a checkpoint invalidates checkpoints taken after it. `peak_size` remains a high-water mark.
+Marks reset the arena to a previous stack position and free newer arena nodes. Resetting to a mark invalidates marks taken after it. The reported peak remains a high-water mark.
 
 ### Pool Allocator
 
@@ -111,32 +123,14 @@ memory::pool_allocator_deallocate(pool, chunk);
 memory::pool_allocator_deinit(pool);
 ```
 
-### Virtual Allocator
-
-Page-backed allocator implemented through the platform virtual-memory API.
-
-```cpp
-#include <core/memory/virtual_allocator.h>
-
-memory::Allocator *global_allocator = memory::virtual_allocator();
-
-auto *allocator = memory::virtual_allocator_init();
-Memory_Block block = memory::virtual_allocator_allocate(allocator, 128 * 1024, alignof(U8));
-
-memory::virtual_allocator_deallocate(allocator, block);
-memory::virtual_allocator_deinit(allocator);
-```
-
----
-
 ## Custom Allocator
 
-Inherit from `memory::Allocator` and implement the `Memory_Block` contract.
+Inherit from `memory::Allocator` and implement the `Memory_Block` allocation contract.
 
 ```cpp
 struct My_Allocator : memory::Allocator
 {
     Memory_Block allocate(U64 size, U64 alignment) override;
-    void  deallocate(Memory_Block block) override;
+    void deallocate(Memory_Block block) override;
 };
 ```

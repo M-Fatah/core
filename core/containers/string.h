@@ -5,6 +5,7 @@
 #include "core/defer.h"
 #include "core/hash.h"
 #include "core/memory/memory.h"
+#include "core/memory/arena_allocator.h"
 #include "core/containers/array.h"
 
 using String = Array<char>;

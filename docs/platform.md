@@ -32,7 +32,7 @@ Raw file read/write APIs take `Memory_Block`; higher-level path helpers still re
 
 ## Virtual Memory
 
-Platform exposes page-based virtual-memory primitives. Allocator policy lives in `core/memory/virtual_allocator.h`.
+Platform exposes page-based virtual-memory primitives. Memory policies, such as the arena allocator, consume these primitives from the platform API.
 
 ```cpp
 U64 page_size = platform_virtual_memory_get_page_size();

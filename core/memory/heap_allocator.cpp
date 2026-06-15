@@ -35,53 +35,25 @@ namespace memory
 		Heap_Allocator_Node *head;
 		std::mutex mutex;
 	};
-#endif
 
-	inline static void *
-	_aligned_allocate(U64 size, U64 alignment)
-	{
-		U64 min_align = u64_max(alignment, alignof(void *));
-
-		void *data = nullptr;
-		#if COMPILER_MSVC
-			data = ::_aligned_malloc(size, min_align);
-		#else
-			if (::posix_memalign(&data, min_align, size) != 0)
-				data = nullptr;
-		#endif
-		return data;
-	}
-
-	inline static void
-	_aligned_deallocate(void *data)
-	{
-		#if COMPILER_MSVC
-			::_aligned_free(data);
-		#else
-			::free(data);
-		#endif
-	}
-
-#if DEBUG
-	inline static Heap_Allocator_Node *
-	_heap_allocator_node_init(void *data, U64 size)
-	{
-		Heap_Allocator_Node *node = (Heap_Allocator_Node *)::malloc(sizeof(Heap_Allocator_Node));
-		if (node == nullptr)
-			log_fatal("[HEAP_ALLOCATOR]: Could not allocate debug tracking node.");
-
-		node->size                  = size;
-		node->data                  = data;
-		node->next                  = nullptr;
-		node->prev                  = nullptr;
-		node->callstack_frame_count = platform_callstack_capture(node->callstack, CALLSTACK_MAX_FRAME_COUNT);
-		return node;
-	}
 
 	inline static void
 	_heap_allocator_track_allocation(Heap_Allocator *self, void *data, U64 size)
 	{
-		Heap_Allocator_Node *node = _heap_allocator_node_init(data, size);
+		constexpr auto _node_init = [](void *data, U64 size) -> Heap_Allocator_Node * {
+			Heap_Allocator_Node *node = (Heap_Allocator_Node *)::malloc(sizeof(Heap_Allocator_Node));
+			if (node == nullptr)
+				log_fatal("[HEAP_ALLOCATOR]: Could not allocate debug tracking node.");
+
+			node->size                  = size;
+			node->data                  = data;
+			node->next                  = nullptr;
+			node->prev                  = nullptr;
+			node->callstack_frame_count = platform_callstack_capture(node->callstack, CALLSTACK_MAX_FRAME_COUNT);
+			return node;
+		};
+
+		Heap_Allocator_Node *node = _node_init(data, size);
 
 		self->ctx->mutex.lock();
 		{
@@ -140,41 +112,54 @@ namespace memory
 
 	Heap_Allocator::~Heap_Allocator()
 	{
-#if DEBUG
-		Heap_Allocator *self = this;
-		if (self->ctx->head == nullptr)
-		{
-			::delete self->ctx;
-			return;
-		}
+		#if DEBUG
+			Heap_Allocator *self = this;
+			if (self->ctx->head == nullptr)
+			{
+				::delete self->ctx;
+				return;
+			}
 
-		U64 total_leak_count = 0;
-		U64 total_leak_size  = 0;
+			U64 total_leak_count = 0;
+			U64 total_leak_size  = 0;
 
-		::printf("memory leak detected:\n");
-		::printf("==================================================================\n");
-
-		Heap_Allocator_Node *node = self->ctx->head;
-		while (node)
-		{
-			::printf("size: %" PRIu64 " byte%s\n", node->size, node->size > 1 ? "s" : "");
-			platform_callstack_log(node->callstack, node->callstack_frame_count);
+			::printf("memory leak detected:\n");
 			::printf("==================================================================\n");
 
-			++total_leak_count;
-			total_leak_size += node->size;
-			node = node->prev;
-		}
+			Heap_Allocator_Node *node = self->ctx->head;
+			while (node)
+			{
+				::printf("size: %" PRIu64 " byte%s\n", node->size, node->size > 1 ? "s" : "");
+				platform_callstack_log(node->callstack, node->callstack_frame_count);
+				::printf("==================================================================\n");
 
-		::printf("total count: %" PRIu64 ", total size: %" PRIu64 "byte%s\n", total_leak_count, total_leak_size, total_leak_size > 1 ? "s" : "");
+				++total_leak_count;
+				total_leak_size += node->size;
+				node = node->prev;
+			}
 
-		::delete self->ctx;
-#endif
+			::printf("total count: %" PRIu64 ", total size: %" PRIu64 "byte%s\n", total_leak_count, total_leak_size, total_leak_size > 1 ? "s" : "");
+
+			::delete self->ctx;
+		#endif
 	}
 
 	Memory_Block
 	Heap_Allocator::allocate(U64 size, U64 alignment)
 	{
+		constexpr auto _aligned_allocate = [](U64 size, U64 alignment) -> void * {
+			U64 min_align = u64_max(alignment, alignof(void *));
+
+			void *data = nullptr;
+			#if COMPILER_MSVC
+				data = ::_aligned_malloc(size, min_align);
+			#else
+				if (::posix_memalign(&data, min_align, size) != 0)
+					data = nullptr;
+			#endif
+			return data;
+		};
+
 		if (size == 0)
 			return Memory_Block{};
 
@@ -194,13 +179,21 @@ namespace memory
 	void
 	Heap_Allocator::deallocate(Memory_Block block)
 	{
+		constexpr auto _aligned_deallocate = [](void *data) -> void {
+			#if COMPILER_MSVC
+				::_aligned_free(data);
+			#else
+				::free(data);
+			#endif
+		};
+
 		if (block.data == nullptr)
 			return;
 
-#if DEBUG
-		Heap_Allocator_Node *node = _heap_allocator_untrack_allocation(this, block);
-		::free(node);
-#endif
+		#if DEBUG
+			Heap_Allocator_Node *node = _heap_allocator_untrack_allocation(this, block);
+			::free(node);
+		#endif
 
 		_aligned_deallocate(block.data);
 	}

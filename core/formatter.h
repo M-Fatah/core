@@ -4,6 +4,7 @@
 #include "core/containers/array.h"
 #include "core/containers/string.h"
 #include "core/containers/hash_table.h"
+#include "core/memory/arena_allocator.h"
 
 #include "core/math/f32x2.h"
 #include "core/math/f32x3.h"
@@ -709,7 +710,11 @@ format(Formatter &self, const String &fmt, TArgs &&...args)
 	};
 
 	constexpr auto is_allocator = []<typename T>(const T &) -> bool {
-		return std::is_base_of_v<memory::Allocator, T> || std::is_same_v<T, memory::Allocator *>;
+		using Clean_T = std::remove_cvref_t<T>;
+		if constexpr (std::is_pointer_v<Clean_T>)
+			return std::is_base_of_v<memory::Allocator, std::remove_pointer_t<Clean_T>>;
+		else
+			return std::is_base_of_v<memory::Allocator, Clean_T>;
 	};
 
 	if (string_is_empty(fmt))
@@ -799,7 +804,8 @@ inline static String
 format(const String &fmt, TArgs &&...args)
 {
 	[[maybe_unused]] constexpr auto set_allocator = []<typename T>(memory::Allocator *&allocator, const T &data, U32 &argument_index, U32 argument_count) {
-		if constexpr (std::is_base_of_v<memory::Allocator, T> || std::is_same_v<T, memory::Allocator *>)
+		using Clean_T = std::remove_cvref_t<T>;
+		if constexpr (std::is_pointer_v<Clean_T> && std::is_base_of_v<memory::Allocator, std::remove_pointer_t<Clean_T>>)
 			if (argument_index == argument_count - 1)
 				allocator = data;
 		++argument_index;

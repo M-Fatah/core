@@ -8,12 +8,13 @@ namespace memory
 {
 	struct Heap_Allocator : Allocator
 	{
-#if DEBUG
-		struct Heap_Allocator_Context *ctx;
-#endif
+		#if DEBUG
+			struct Heap_Allocator_Context *ctx;
+		#endif
+
 		Heap_Allocator();
 
-		~Heap_Allocator() override;
+		~Heap_Allocator();
 
 		Memory_Block
 		allocate(U64 size, U64 alignment) override;

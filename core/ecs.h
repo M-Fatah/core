@@ -3,6 +3,7 @@
 #include "core/export.h"
 #include "core/defines.h"
 #include "core/memory/pool_allocator.h"
+#include "core/memory/arena_allocator.h"
 #include "core/containers/hash_table.h"
 
 #include <type_traits>
