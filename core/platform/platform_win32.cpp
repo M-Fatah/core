@@ -1,6 +1,7 @@
 #include "core/platform/platform.h"
 
 #include "core/defer.h"
+#include "core/log.h"
 #include "core/validate.h"
 #include "core/math/u64.h"
 #include "core/memory/memory.h"
@@ -10,10 +11,8 @@
 #include <Windows.h>
 #include <Psapi.h>
 #include <DbgHelp.h>
-#include <stdio.h>
 #include <math.h>
 #include <atomic>
-#include <inttypes.h>
 
 // TODO: Remove from here.
 inline static void
@@ -1051,8 +1050,7 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] U32 f
 	symbol_info->MaxNameLen   = MAX_NAME_LENGTH;
 	symbol_info->SizeOfStruct = sizeof(SYMBOL_INFO);
 
-	// TODO: Use logger.
-	::printf("callstack:\n");
+	log_warning("callstack:");
 	for (U64 i = 0; i < frame_count; ++i)
 	{
 		bool symbol_found = false;
@@ -1072,9 +1070,8 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] U32 f
 			}
 		}
 
-		// TODO: Use logger.
-		::printf(
-			"\t[%" PRIu64 "]: %s, %s:%" PRIu32 "\n",
+		log_warning(
+			"\t[{}]: {}, {}:{}",
 			frame_count - i - 1,
 			symbol_found ? symbol_info->Name : "<SYMBOL NOT FOUND>",
 			line_found   ? line.FileName     : "<FILE NOT FOUND>",

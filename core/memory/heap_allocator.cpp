@@ -5,9 +5,7 @@
 #include "core/math/u64.h"
 #include "core/platform/platform.h"
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <inttypes.h>
 #if COMPILER_MSVC
 #include <malloc.h>
 #endif
@@ -123,22 +121,22 @@ namespace memory
 			U64 total_leak_count = 0;
 			U64 total_leak_size  = 0;
 
-			::printf("memory leak detected:\n");
-			::printf("==================================================================\n");
+			log_warning("Memory leak detected:");
+			log_warning("==================================================================");
 
 			Heap_Allocator_Node *node = self->ctx->head;
 			while (node)
 			{
-				::printf("size: %" PRIu64 " byte%s\n", node->size, node->size > 1 ? "s" : "");
+				log_warning("size: {} byte{}", node->size, node->size > 1 ? "s" : "");
 				platform_callstack_log(node->callstack, node->callstack_frame_count);
-				::printf("==================================================================\n");
+				log_warning("==================================================================");
 
 				++total_leak_count;
 				total_leak_size += node->size;
 				node = node->prev;
 			}
 
-			::printf("total count: %" PRIu64 ", total size: %" PRIu64 "byte%s\n", total_leak_count, total_leak_size, total_leak_size > 1 ? "s" : "");
+			log_warning("Total count = {} and size = {} byte{}", total_leak_count, total_leak_size, total_leak_size > 1 ? "s" : "");
 
 			::delete self->ctx;
 		#endif
@@ -148,16 +146,14 @@ namespace memory
 	Heap_Allocator::allocate(U64 size, U64 alignment)
 	{
 		constexpr auto _aligned_allocate = [](U64 size, U64 alignment) -> void * {
-			U64 min_align = u64_max(alignment, alignof(void *));
-
-			void *data = nullptr;
 			#if COMPILER_MSVC
-				data = ::_aligned_malloc(size, min_align);
+				return ::_aligned_malloc(size, u64_max(alignment, alignof(void *)));
 			#else
-				if (::posix_memalign(&data, min_align, size) != 0)
+				void *data = nullptr;
+				if (::posix_memalign(&data, u64_max(alignment, alignof(void *)), size) != 0)
 					data = nullptr;
+				return data;
 			#endif
-			return data;
 		};
 
 		if (size == 0)

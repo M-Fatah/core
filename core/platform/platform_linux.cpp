@@ -2,6 +2,7 @@
 
 #include "core/validate.h"
 #include "core/defer.h"
+#include "core/log.h"
 #include "core/formatter.h"
 #include "core/math/u64.h"
 #include "core/memory/memory.h"
@@ -22,7 +23,6 @@
 #include <X11/XKBlib.h>
 #include <pthread.h>
 #include <atomic>
-#include <inttypes.h>
 #include <dirent.h>
 
 static char current_executable_directory[PATH_MAX] = {};
@@ -1107,10 +1107,9 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] U32 f
 	char** symbols = ::backtrace_symbols(callstack, frame_count);
 	if (symbols)
 	{
-		// TODO: Use logger.
-		::printf("callstack:\n");
+		log_warning("callstack:");
 		for (U32 i = 0; i < frame_count; ++i)
-			::printf("\t[%" PRIu32 "]: %s\n", frame_count - i - 1, symbols[i]);
+			log_warning("\t[{}]: {}", frame_count - i - 1, symbols[i]);
 
 		::free(symbols);
 	}

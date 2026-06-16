@@ -8,6 +8,7 @@
 #include "core/memory/memory.h"
 
 #include <dlfcn.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -17,7 +18,6 @@
 #include <sys/mman.h>
 #include <pthread.h>
 #include <atomic>
-#include <inttypes.h>
 
 #include <Foundation/Foundation.h>
 #include <AppKit/AppKit.h>
@@ -1177,10 +1177,9 @@ platform_callstack_log(void **callstack, U32 frame_count)
 	char **symbols = ::backtrace_symbols(callstack, frame_count);
 	if (symbols)
 	{
-		// TODO: Use logger.
-		::printf("callstack:\n");
+		log_warning("callstack:");
 		for (U32 i = 0; i < frame_count; ++i)
-			::printf("\t[%" PRIu32 "]: %s\n", frame_count - i - 1, symbols[i]);
+			log_warning("\t[{}]: {}", frame_count - i - 1, symbols[i]);
 
 		::free(symbols);
 	}

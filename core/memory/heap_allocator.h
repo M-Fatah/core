@@ -6,7 +6,7 @@
 
 namespace memory
 {
-	struct Heap_Allocator : Allocator
+	struct Heap_Allocator final : Allocator
 	{
 		#if DEBUG
 			struct Heap_Allocator_Context *ctx;

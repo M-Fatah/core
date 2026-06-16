@@ -119,7 +119,7 @@ TESTER_TEST("[CORE]: Pool_Allocator")
 
 TESTER_TEST("[CORE]: Memory_Block allocation")
 {
-	struct Tracking_Allocator : memory::Allocator
+	struct Tracking_Allocator final : memory::Allocator
 	{
 		bool allocated;
 		bool deallocated;

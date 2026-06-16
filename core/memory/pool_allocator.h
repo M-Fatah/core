@@ -5,7 +5,7 @@
 
 namespace memory
 {
-	struct Pool_Allocator : Allocator
+	struct Pool_Allocator final : Allocator
 	{
 		struct Pool_Allocator_Context *ctx;
 

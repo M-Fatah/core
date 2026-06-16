@@ -16,7 +16,7 @@ namespace memory
 		U64 arena_used;
 	};
 
-	struct Arena_Allocator : Allocator
+	struct Arena_Allocator final : Allocator
 	{
 		struct Arena_Allocator_Context *ctx;
 
