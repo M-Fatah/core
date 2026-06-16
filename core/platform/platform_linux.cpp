@@ -1109,7 +1109,7 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] U32 f
 	{
 		log_warning("callstack:");
 		for (U32 i = 0; i < frame_count; ++i)
-			log_warning("\t[{}]: {}", frame_count - i - 1, symbols[i]);
+			log_warning("\t[{:2}]: {}", frame_count - i - 1, symbols[i]);
 
 		::free(symbols);
 	}

@@ -1071,7 +1071,7 @@ platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] U32 f
 		}
 
 		log_warning(
-			"\t[{}]: {}, {}:{}",
+			"\t[{:2}]: {}, {}:{}",
 			frame_count - i - 1,
 			symbol_found ? symbol_info->Name : "<SYMBOL NOT FOUND>",
 			line_found   ? line.FileName     : "<FILE NOT FOUND>",
