@@ -1178,6 +1178,18 @@ platform_sleep(U32 milliseconds)
 	::nanosleep(&ts, 0);
 }
 
+U32
+platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] U32 frame_count)
+{
+#if DEBUG
+	::memset(callstack, 0, frame_count * sizeof(*callstack));
+	return ::backtrace(callstack, frame_count);
+#else
+	return 0;
+#endif
+}
+
+#if DEBUG
 inline static void
 _platform_callstack_copy_string(char *dst, U64 dst_size, const char *src)
 {
@@ -1192,17 +1204,7 @@ _platform_callstack_copy_string(char *dst, U64 dst_size, const char *src)
 	}
 	dst[i] = '\0';
 }
-
-U32
-platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] U32 frame_count)
-{
-#if DEBUG
-	::memset(callstack, 0, frame_count * sizeof(*callstack));
-	return ::backtrace(callstack, frame_count);
-#else
-	return 0;
 #endif
-}
 
 void
 platform_callstack_resolve([[maybe_unused]] void **callstack, [[maybe_unused]] Platform_Callstack_Frame *frames, [[maybe_unused]] U32 frame_count)
