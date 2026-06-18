@@ -86,6 +86,12 @@ TESTER_TEST("[CORE]: Arena_Allocator_Mark")
 	memory::arena_allocator_reset_to_mark(arena, cross_node_mark);
 	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 24);
 	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == 24 + large_size);
+
+	Memory_Block after_cross_node_reset = memory::arena_allocator_allocate(arena, 8, 1);
+	TESTER_CHECK(after_cross_node_reset.data != nullptr);
+	TESTER_CHECK(after_cross_node_reset.data != large.data);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 32);
+	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == 24 + large_size);
 }
 
 TESTER_TEST("[CORE]: Pool_Allocator")
@@ -176,6 +182,28 @@ TESTER_TEST("[CORE]: Memory_Block allocation")
 	Memory_Block temp_after_clear_block = memory::allocate(temp, 16, alignof(U8));
 	TESTER_CHECK(temp_after_clear_block.data != nullptr);
 	memory::temp_allocator_clear();
+}
+
+TESTER_TEST("[CORE]: Temp_Allocator_Mark")
+{
+	memory::Allocator *temp = memory::temp_allocator();
+	memory::Arena_Allocator_Mark start_mark = memory::temp_allocator_mark();
+	DEFER(memory::temp_allocator_reset_to_mark(start_mark));
+
+	Memory_Block first = memory::allocate(temp, 16, alignof(U8));
+	TESTER_CHECK(first.data != nullptr);
+
+	memory::Arena_Allocator_Mark mark = memory::temp_allocator_mark();
+	Memory_Block second = memory::allocate(temp, 16, alignof(U8));
+	TESTER_CHECK(second.data != nullptr);
+
+	memory::temp_allocator_reset_to_mark(mark);
+	Memory_Block second_reused = memory::allocate(temp, 16, alignof(U8));
+	TESTER_CHECK(second_reused.data == second.data);
+
+	memory::temp_allocator_reset_to_mark(start_mark);
+	Memory_Block first_reused = memory::allocate(temp, 16, alignof(U8));
+	TESTER_CHECK(first_reused.data == first.data);
 }
 
 TESTER_TEST("[CORE]: Virtual_Memory")

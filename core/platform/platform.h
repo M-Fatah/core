@@ -115,6 +115,15 @@ platform_path_get_current_working_directory(memory::Allocator *allocator = memor
 CORE_API String
 platform_path_get_temp_directory(memory::Allocator *allocator = memory::heap_allocator());
 
+CORE_API String
+platform_environment_variable_get(const String &name, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_environment_variable_get(const char *name, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_environment_variable_get(string_literal(name), allocator);
+}
+
 CORE_API void
 platform_path_set_current_working_directory(const String &path);
 
@@ -126,6 +135,9 @@ platform_path_set_current_working_directory(const char *path)
 
 CORE_API String
 platform_path_get_executable_path(memory::Allocator *allocator = memory::heap_allocator());
+
+CORE_API String
+platform_path_get_current_module_path(memory::Allocator *allocator = memory::heap_allocator());
 
 CORE_API String
 platform_path_get_file_name(const String &path, memory::Allocator *allocator = memory::heap_allocator());
@@ -503,8 +515,21 @@ platform_sleep(U32 milliseconds);
 CORE_API U32
 platform_callstack_capture(void **callstack, U32 frame_count);
 
+#define PLATFORM_CALLSTACK_SYMBOL_LENGTH 256
+#define PLATFORM_CALLSTACK_FILE_LENGTH   512
+
+typedef struct Platform_Callstack_Frame
+{
+	void *address;
+	char symbol[PLATFORM_CALLSTACK_SYMBOL_LENGTH];
+	char file[PLATFORM_CALLSTACK_FILE_LENGTH];
+	U32 line;
+	bool symbol_found;
+	bool line_found;
+} Platform_Callstack_Frame;
+
 CORE_API void
-platform_callstack_log(void **callstack, U32 frame_count);
+platform_callstack_resolve(void **callstack, Platform_Callstack_Frame *frames, U32 frame_count);
 
 /**
  * @brief Loads the font at the specified path, and extracts information about glyphs from it.

@@ -56,7 +56,7 @@ There is no `allocate<T>(count)` API. Multi-element ownership stays explicit thr
 
 ### Heap Allocator
 
-Default allocator for containers and utilities.
+Default allocator for containers and utilities. In debug builds it tracks live allocations and reports leaks on shutdown. Callstack capture/resolve comes from the platform API, but heap owns the leak-report formatting and logging.
 
 ```cpp
 memory::Allocator *heap = memory::heap_allocator();
@@ -85,6 +85,8 @@ DEFER(memory::temp_allocator_reset_to_mark(mark));
 
 Memory_Block scratch = memory::allocate(memory::temp_allocator(), 1024, alignof(U8));
 ```
+
+Resetting to a temp mark invalidates scratch allocations made after that mark and lets later temp allocations reuse that space.
 
 ### Arena Allocator
 

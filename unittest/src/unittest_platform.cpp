@@ -23,6 +23,49 @@ TESTER_TEST("[PLATFORM] virtual memory")
 	platform_virtual_memory_release(block);
 }
 
+TESTER_TEST("[PLATFORM] callstack")
+{
+	constexpr U32 CALLSTACK_FRAME_COUNT = 16;
+	void *callstack[CALLSTACK_FRAME_COUNT] = {};
+	U32 frame_count = platform_callstack_capture(callstack, CALLSTACK_FRAME_COUNT);
+
+	#if DEBUG
+		TESTER_CHECK(frame_count > 0);
+
+		Platform_Callstack_Frame frames[CALLSTACK_FRAME_COUNT] = {};
+		platform_callstack_resolve(callstack, frames, frame_count);
+
+		bool symbol_found = false;
+		bool line_found = false;
+		for (U32 i = 0; i < frame_count; ++i)
+		{
+			TESTER_CHECK(frames[i].address == callstack[i]);
+			symbol_found = symbol_found || frames[i].symbol_found;
+			line_found = line_found || frames[i].line_found;
+		}
+		TESTER_CHECK(symbol_found);
+		#if PLATFORM_WINDOWS
+			TESTER_CHECK(line_found);
+		#endif
+	#else
+		TESTER_CHECK(frame_count == 0);
+	#endif
+}
+
+TESTER_TEST("[PLATFORM] path utilities")
+{
+	String executable_path = platform_path_get_executable_path(memory::temp_allocator());
+	TESTER_CHECK(executable_path.count > 0);
+	TESTER_CHECK(platform_path_is_file(executable_path));
+
+	String module_path = platform_path_get_current_module_path(memory::temp_allocator());
+	TESTER_CHECK(module_path.count > 0);
+	TESTER_CHECK(platform_path_is_file(module_path));
+
+	String missing_env = platform_environment_variable_get("__CORE_UNITTEST_MISSING_ENVIRONMENT_VARIABLE__", memory::temp_allocator());
+	TESTER_CHECK(missing_env.count == 0);
+}
+
 TESTER_TEST("[PLATFORM] file")
 {
 	U32 write_data[1024] = {};

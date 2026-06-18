@@ -1,7 +1,6 @@
 #include "core/platform/platform.h"
 
 #include "core/defer.h"
-#include "core/log.h"
 #include "core/validate.h"
 #include "core/math/u64.h"
 #include "core/memory/memory.h"
@@ -9,7 +8,6 @@
 
 #define NOMINMAX
 #include <Windows.h>
-#include <Psapi.h>
 #include <DbgHelp.h>
 #include <math.h>
 #include <atomic>
@@ -242,6 +240,25 @@ platform_path_get_temp_directory(memory::Allocator *allocator)
 	return path;
 }
 
+String
+platform_environment_variable_get(const String &name, memory::Allocator *allocator)
+{
+	DWORD required_length = ::GetEnvironmentVariableA(name.data, nullptr, 0);
+	if (required_length == 0)
+		return string_literal("");
+
+	String result = string_with_capacity(required_length, allocator);
+	DWORD length = ::GetEnvironmentVariableA(name.data, result.data, (DWORD)result.capacity);
+	if (length == 0 || length >= result.capacity)
+	{
+		string_deinit(result);
+		return string_literal("");
+	}
+
+	string_resize(result, length);
+	return result;
+}
+
 void
 platform_path_set_current_working_directory(const String &path)
 {
@@ -254,10 +271,24 @@ String
 platform_path_get_executable_path(memory::Allocator *allocator)
 {
 	String path_executable_temp = string_with_capacity(4096, memory::temp_allocator());
-	U64 path_executable_length = ::GetModuleFileName(0, path_executable_temp.data, (DWORD)path_executable_temp.count);
+	U64 path_executable_length = ::GetModuleFileName(0, path_executable_temp.data, (DWORD)path_executable_temp.capacity);
 	string_resize(path_executable_temp, path_executable_length);
 	string_replace(path_executable_temp, '\\', '/');
 	return string_copy(path_executable_temp, allocator);
+}
+
+String
+platform_path_get_current_module_path(memory::Allocator *allocator)
+{
+	HMODULE current_module = nullptr;
+	if (!::GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)&platform_path_get_current_module_path, &current_module))
+		return string_literal("");
+
+	String path_module_temp = string_with_capacity(4096, memory::temp_allocator());
+	U64 path_module_length = ::GetModuleFileNameA(current_module, path_module_temp.data, (DWORD)path_module_temp.capacity);
+	string_resize(path_module_temp, path_module_length);
+	string_replace(path_module_temp, '\\', '/');
+	return string_copy(path_module_temp, allocator);
 }
 
 String
@@ -991,25 +1022,98 @@ platform_sleep(U32 milliseconds)
 }
 
 
+inline static void
+_platform_callstack_copy_string(char *dst, U64 dst_size, const char *src)
+{
+	if (dst_size == 0)
+		return;
+
+	U64 i = 0;
+	if (src)
+	{
+		for (; i + 1 < dst_size && src[i] != '\0'; ++i)
+			dst[i] = src[i];
+	}
+	dst[i] = '\0';
+}
+
+inline static void
+_platform_callstack_append_symbol_path_entry(String &symbol_path, const String &entry)
+{
+	if (entry.count == 0)
+		return;
+
+	if (symbol_path.count > 0)
+		string_append(symbol_path, ';');
+	string_append(symbol_path, entry);
+}
+
+inline static void
+_platform_callstack_get_symbol_path(char *symbol_path, U64 symbol_path_size)
+{
+	if (symbol_path_size == 0)
+		return;
+
+	symbol_path[0] = '\0';
+
+	memory::Allocator *allocator = memory::temp_allocator();
+	String result = string_with_capacity(symbol_path_size, allocator);
+
+	String executable_path = platform_path_get_executable_path(allocator);
+	String executable_directory = platform_path_get_directory(executable_path, allocator);
+	_platform_callstack_append_symbol_path_entry(result, executable_directory);
+
+	String module_path = platform_path_get_current_module_path(allocator);
+	String module_directory = platform_path_get_directory(module_path, allocator);
+	_platform_callstack_append_symbol_path_entry(result, module_directory);
+
+	String current_directory = platform_path_get_current_working_directory(allocator);
+	_platform_callstack_append_symbol_path_entry(result, current_directory);
+
+	String environment_symbol_path = platform_environment_variable_get("_NT_SYMBOL_PATH", allocator);
+	_platform_callstack_append_symbol_path_entry(result, environment_symbol_path);
+
+	_platform_callstack_copy_string(symbol_path, symbol_path_size, result.data);
+}
+
 struct Callstack
 {
+	bool initialized;
+
 	Callstack()
 	{
-		SymSetOptions(SYMOPT_UNDNAME | SYMOPT_LOAD_LINES | SYMOPT_DEFERRED_LOADS);
-		SymInitialize(GetCurrentProcess(), NULL, TRUE);
-	}
+		HANDLE process = ::GetCurrentProcess();
 
-	~Callstack()
-	{
-		SymCleanup(GetCurrentProcess());
+		char symbol_path[4096] = {};
+		_platform_callstack_get_symbol_path(symbol_path, sizeof(symbol_path));
+
+		::SymSetOptions(SYMOPT_UNDNAME | SYMOPT_LOAD_LINES | SYMOPT_DEFERRED_LOADS | SYMOPT_FAIL_CRITICAL_ERRORS);
+		initialized = ::SymInitialize(process, symbol_path[0] ? symbol_path : nullptr, TRUE) != FALSE;
+		if (!initialized && ::GetLastError() == ERROR_INVALID_PARAMETER)
+			initialized = true;
+
+		if (initialized)
+		{
+			if (symbol_path[0])
+				::SymSetSearchPath(process, symbol_path);
+			::SymRefreshModuleList(process);
+		}
 	}
 };
+
+inline static bool
+_platform_callstack_init()
+{
+	static Callstack callstack;
+	return callstack.initialized;
+}
 
 U32
 platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] U32 frame_count)
 {
 #if DEBUG
-	::memset(callstack, 0, frame_count * sizeof(callstack));
+	_platform_callstack_init();
+	::memset(callstack, 0, frame_count * sizeof(*callstack));
 	return CaptureStackBackTrace(1, frame_count, callstack, NULL);
 #else
 	return 0;
@@ -1017,66 +1121,51 @@ platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] U
 }
 
 void
-platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] U32 frame_count)
+platform_callstack_resolve([[maybe_unused]] void **callstack, [[maybe_unused]] Platform_Callstack_Frame *frames, [[maybe_unused]] U32 frame_count)
 {
 #if DEBUG
-	static Callstack _callstack;
+	bool can_resolve = _platform_callstack_init();
+	HANDLE process = ::GetCurrentProcess();
+	if (can_resolve)
+		::SymRefreshModuleList(process);
 
-	// Get all loaded modules.
-	Array<void *> modules = array_init<void *>();
-	DEFER(array_deinit(modules));
-	array_push(modules, GetCurrentProcess());
-
-	// First we enumerate to get the count of modules.
-	DWORD bytes_needed = 0;
-	if (EnumProcessModules(modules[0], NULL, 0, &bytes_needed))
-	{
-		// Expand the array to account for the added modules.
-		array_resize(modules, modules.count + bytes_needed/sizeof(HMODULE));
-
-		// Then enumerate again to get the actual modules data.
-		// If this fails for some reason, we resize the array back to hold only the current process' module.
-		if (EnumProcessModules(modules[0], (HMODULE*)(modules.data + 1), bytes_needed, &bytes_needed) == FALSE)
-			array_resize(modules, 1);
-	}
-
-	// Allocate a buffer for the symbol info.
 	// Windows lays symbol info in memory in the form [struct][name buffer].
-	constexpr U64 MAX_NAME_LENGTH = 256;
-	char symbol_buffer[MAX_NAME_LENGTH + sizeof(SYMBOL_INFO)];
+	constexpr U64 MAX_NAME_LENGTH = PLATFORM_CALLSTACK_SYMBOL_LENGTH - 1;
+	alignas(SYMBOL_INFO) U8 symbol_buffer[MAX_NAME_LENGTH + sizeof(SYMBOL_INFO)] = {};
 
 	SYMBOL_INFO *symbol_info = (SYMBOL_INFO *)symbol_buffer;
-	::memset(symbol_info, 0, sizeof(SYMBOL_INFO));
-	symbol_info->MaxNameLen   = MAX_NAME_LENGTH;
+	symbol_info->MaxNameLen   = (DWORD)MAX_NAME_LENGTH;
 	symbol_info->SizeOfStruct = sizeof(SYMBOL_INFO);
 
-	log_warning("callstack:");
 	for (U64 i = 0; i < frame_count; ++i)
 	{
-		bool symbol_found = false;
-		bool line_found   = false;
+		Platform_Callstack_Frame *frame = frames + i;
+		frame->address      = callstack[i];
+		frame->line         = 0;
+		frame->symbol_found = false;
+		frame->line_found   = false;
+		frame->symbol[0]    = '\0';
+		frame->file[0]      = '\0';
 
 		IMAGEHLP_LINE64 line = {};
 		line.SizeOfStruct = sizeof(line);
 
+		DWORD64 address = (DWORD64)callstack[i];
+		DWORD64 lookup_address = address > 0 ? address - 1 : address;
 		DWORD displacement = 0;
-		for (const auto &module : modules)
+		DWORD64 symbol_displacement = 0;
+		if (can_resolve && ::SymFromAddr(process, lookup_address, &symbol_displacement, symbol_info))
 		{
-			if (SymFromAddr(module, (DWORD64)(callstack[i]), NULL, symbol_info))
-			{
-				symbol_found = true;
-				line_found   = SymGetLineFromAddr64(module, (DWORD64)(callstack[i]), &displacement, &line);
-				break;
-			}
+			frame->symbol_found = true;
+			_platform_callstack_copy_string(frame->symbol, PLATFORM_CALLSTACK_SYMBOL_LENGTH, symbol_info->Name);
 		}
 
-		log_warning(
-			"\t[{:2}]: {}, {}:{}",
-			frame_count - i - 1,
-			symbol_found ? symbol_info->Name : "<SYMBOL NOT FOUND>",
-			line_found   ? line.FileName     : "<FILE NOT FOUND>",
-			line_found   ? line.LineNumber   : 0
-		);
+		if (can_resolve && ::SymGetLineFromAddr64(process, lookup_address, &displacement, &line))
+		{
+			frame->line_found = true;
+			frame->line       = line.LineNumber;
+			_platform_callstack_copy_string(frame->file, PLATFORM_CALLSTACK_FILE_LENGTH, line.FileName);
+		}
 	}
 #endif
 }

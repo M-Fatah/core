@@ -2,7 +2,6 @@
 
 #include "core/validate.h"
 #include "core/defer.h"
-#include "core/log.h"
 #include "core/formatter.h"
 #include "core/math/u64.h"
 #include "core/memory/memory.h"
@@ -214,14 +213,21 @@ platform_path_get_current_working_directory(memory::Allocator *allocator)
 String
 platform_path_get_temp_directory(memory::Allocator *allocator)
 {
-	const char *path = ::getenv("TMPDIR");
-	if (path == nullptr || path[0] == '\0')
-		path = "/tmp/";
-
-	String result = string_from(path, allocator);
+	String result = platform_environment_variable_get("TMPDIR", allocator);
+	if (result.count == 0)
+		result = string_from("/tmp/", allocator);
 	if (result.count > 0 && result[result.count - 1] != '/')
 		string_append(result, '/');
 	return result;
+}
+
+String
+platform_environment_variable_get(const String &name, memory::Allocator *allocator)
+{
+	const char *value = ::getenv(name.data);
+	if (value == nullptr || value[0] == '\0')
+		return string_literal("");
+	return string_from(value, allocator);
 }
 
 void
@@ -246,6 +252,21 @@ platform_path_get_executable_path(memory::Allocator *allocator)
 	validate(path_absolute == module_path_absolute, "[PLATFORM]: Failed to get absolute path of the current executable.");
 
 	return string_from(path_absolute, allocator);
+}
+
+String
+platform_path_get_current_module_path(memory::Allocator *allocator)
+{
+	Dl_info info = {};
+	if (::dladdr((void *)&platform_path_get_current_module_path, &info) == 0 || info.dli_fname == nullptr)
+		return string_literal("");
+
+	char path_absolute[PATH_MAX + 1];
+	::memset(path_absolute, 0, sizeof(path_absolute));
+	char *absolute = ::realpath(info.dli_fname, path_absolute);
+	if (absolute)
+		return string_from(absolute, allocator);
+	return string_from(info.dli_fname, allocator);
 }
 
 String
@@ -1089,11 +1110,26 @@ platform_sleep(U32 milliseconds)
 	nanosleep(&ts, 0);
 }
 
+inline static void
+_platform_callstack_copy_string(char *dst, U64 dst_size, const char *src)
+{
+	if (dst_size == 0)
+		return;
+
+	U64 i = 0;
+	if (src)
+	{
+		for (; i + 1 < dst_size && src[i] != '\0'; ++i)
+			dst[i] = src[i];
+	}
+	dst[i] = '\0';
+}
+
 U32
 platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] U32 frame_count)
 {
 #if DEBUG
-	::memset(callstack, 0, frame_count * sizeof(callstack));
+	::memset(callstack, 0, frame_count * sizeof(*callstack));
 	return ::backtrace(callstack, frame_count);
 #else
 	return 0;
@@ -1101,18 +1137,24 @@ platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] U
 }
 
 void
-platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] U32 frame_count)
+platform_callstack_resolve([[maybe_unused]] void **callstack, [[maybe_unused]] Platform_Callstack_Frame *frames, [[maybe_unused]] U32 frame_count)
 {
 #if DEBUG
-	char** symbols = ::backtrace_symbols(callstack, frame_count);
-	if (symbols)
+	char **symbols = ::backtrace_symbols(callstack, frame_count);
+	for (U32 i = 0; i < frame_count; ++i)
 	{
-		log_warning("callstack:");
-		for (U32 i = 0; i < frame_count; ++i)
-			log_warning("\t[{:2}]: {}", frame_count - i - 1, symbols[i]);
-
-		::free(symbols);
+		Platform_Callstack_Frame *frame = frames + i;
+		frame->address      = callstack[i];
+		frame->line         = 0;
+		frame->symbol_found = symbols != nullptr;
+		frame->line_found   = false;
+		frame->symbol[0]    = '\0';
+		frame->file[0]      = '\0';
+		if (symbols)
+			_platform_callstack_copy_string(frame->symbol, PLATFORM_CALLSTACK_SYMBOL_LENGTH, symbols[i]);
 	}
+	if (symbols)
+		::free(symbols);
 #endif
 }
 

@@ -34,7 +34,6 @@ namespace memory
 		std::mutex mutex;
 	};
 
-
 	inline static void
 	_heap_allocator_track_allocation(Heap_Allocator *self, void *data, U64 size)
 	{
@@ -111,6 +110,24 @@ namespace memory
 	Heap_Allocator::~Heap_Allocator()
 	{
 		#if DEBUG
+			constexpr auto _heap_allocator_log_callstack = [](void **callstack, U32 frame_count) -> void {
+				Platform_Callstack_Frame frames[CALLSTACK_MAX_FRAME_COUNT] = {};
+				platform_callstack_resolve(callstack, frames, frame_count);
+
+				log_warning("callstack:");
+				for (U32 i = 0; i < frame_count; ++i)
+				{
+					Platform_Callstack_Frame &frame = frames[i];
+					log_warning(
+						"\t[{:2}]: {}, {}:{}",
+						frame_count - i - 1,
+						frame.symbol_found ? frame.symbol : "<SYMBOL NOT FOUND>",
+						frame.line_found   ? frame.file   : "<FILE NOT FOUND>",
+						frame.line_found   ? frame.line   : 0
+					);
+				}
+			};
+
 			Heap_Allocator *self = this;
 			if (self->ctx->head == nullptr)
 			{
@@ -128,7 +145,7 @@ namespace memory
 			while (node)
 			{
 				log_warning("size: {} byte{}", node->size, node->size > 1 ? "s" : "");
-				platform_callstack_log(node->callstack, node->callstack_frame_count);
+				_heap_allocator_log_callstack(node->callstack, node->callstack_frame_count);
 				log_warning("==================================================================");
 
 				++total_leak_count;

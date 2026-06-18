@@ -45,15 +45,45 @@ platform_virtual_memory_release(block);
 
 ---
 
+## Callstacks
+
+Platform exposes callstack capture and resolve primitives. It does not log callstacks directly; callers decide how to format or report resolved frames.
+
+```cpp
+void *callstack[32] = {};
+U32 frame_count = platform_callstack_capture(callstack, count_of(callstack));
+
+Platform_Callstack_Frame frames[32] = {};
+platform_callstack_resolve(callstack, frames, frame_count);
+```
+
+`Platform_Callstack_Frame` always carries the captured address. Symbol, file, and line fields are filled when the current platform and symbol data can resolve them.
+
+---
+
 ## Path Utilities
 
 ```cpp
 bool valid = platform_path_is_valid("assets/textures");
 bool is_file = platform_path_is_file("assets/albedo.png");
 bool is_dir  = platform_path_is_directory("assets/");
+
+String executable = platform_path_get_executable_path();
+String module = platform_path_get_current_module_path();
+String cwd = platform_path_get_current_working_directory();
 ```
 
 All functions accept both `String` and `const char *`.
+
+---
+
+## Environment
+
+```cpp
+String path = platform_environment_variable_get("PATH");
+```
+
+Missing environment variables return an empty `String`.
 
 ---
 
