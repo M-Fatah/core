@@ -3,6 +3,7 @@
 #include "core/validate.h"
 #include "core/defer.h"
 #include "core/formatter.h"
+#include "core/math/u64.h"
 #include "core/memory/memory.h"
 
 #include <stdio.h>
@@ -21,7 +22,6 @@
 #include <X11/XKBlib.h>
 #include <pthread.h>
 #include <atomic>
-#include <inttypes.h>
 #include <dirent.h>
 
 static char current_executable_directory[PATH_MAX] = {};
@@ -213,14 +213,21 @@ platform_path_get_current_working_directory(memory::Allocator *allocator)
 String
 platform_path_get_temp_directory(memory::Allocator *allocator)
 {
-	const char *path = ::getenv("TMPDIR");
-	if (path == nullptr || path[0] == '\0')
-		path = "/tmp/";
-
-	String result = string_from(path, allocator);
+	String result = platform_environment_variable_get("TMPDIR", allocator);
+	if (result.count == 0)
+		result = string_from("/tmp/", allocator);
 	if (result.count > 0 && result[result.count - 1] != '/')
 		string_append(result, '/');
 	return result;
+}
+
+String
+platform_environment_variable_get(const String &name, memory::Allocator *allocator)
+{
+	const char *value = ::getenv(name.data);
+	if (value == nullptr || value[0] == '\0')
+		return string_literal("");
+	return string_from(value, allocator);
 }
 
 void
@@ -245,6 +252,21 @@ platform_path_get_executable_path(memory::Allocator *allocator)
 	validate(path_absolute == module_path_absolute, "[PLATFORM]: Failed to get absolute path of the current executable.");
 
 	return string_from(path_absolute, allocator);
+}
+
+String
+platform_path_get_current_module_path(memory::Allocator *allocator)
+{
+	Dl_info info = {};
+	if (::dladdr((void *)&platform_path_get_current_module_path, &info) == 0 || info.dli_fname == nullptr)
+		return string_literal("");
+
+	char path_absolute[PATH_MAX + 1];
+	::memset(path_absolute, 0, sizeof(path_absolute));
+	char *absolute = ::realpath(info.dli_fname, path_absolute);
+	if (absolute)
+		return string_from(absolute, allocator);
+	return string_from(info.dli_fname, allocator);
 }
 
 String
@@ -282,7 +304,7 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 }
 
 U64
-platform_path_write_file(const String &path, Block block)
+platform_path_write_file(const String &path, Memory_Block block)
 {
 	I32 file_handle = ::open(path.data, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
 	if (file_handle == -1)
@@ -430,39 +452,68 @@ platform_api_load(Platform_Api *self)
 }
 
 
-Platform_Allocator
-platform_allocator_init(U64 size_in_bytes)
+U64
+platform_virtual_memory_get_page_size()
 {
-	Platform_Allocator self = {};
-	self.ptr = (U8 *)::mmap(0, size_in_bytes, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-	if(self.ptr)
-		self.size = size_in_bytes;
-	return self;
+	return (U64)::sysconf(_SC_PAGESIZE);
+}
+
+U64
+platform_virtual_memory_page_align(U64 size)
+{
+	U64 page_size = platform_virtual_memory_get_page_size();
+	return u64_align_up(size, page_size);
+}
+
+Memory_Block
+platform_virtual_memory_reserve(U64 size)
+{
+	U64 aligned_size = platform_virtual_memory_page_align(size);
+	if (aligned_size == 0)
+		return Memory_Block{};
+
+	void *data = ::mmap(nullptr, aligned_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (data == MAP_FAILED)
+		return Memory_Block{};
+	return Memory_Block{.data = data, .size = aligned_size};
+}
+
+bool
+platform_virtual_memory_commit(Memory_Block block)
+{
+	U64 page_size = platform_virtual_memory_get_page_size();
+	validate(block.data != nullptr && block.size > 0, "[PLATFORM][LINUX]: Cannot commit an empty virtual memory block.");
+	validate(((U64)block.data & (page_size - 1)) == 0, "[PLATFORM][LINUX]: Virtual memory block address is not page-aligned.");
+	validate(block.size == platform_virtual_memory_page_align(block.size), "[PLATFORM][LINUX]: Virtual memory block size is not page-aligned.");
+
+	return ::mprotect(block.data, block.size, PROT_READ|PROT_WRITE) == 0;
+}
+
+bool
+platform_virtual_memory_decommit(Memory_Block block)
+{
+	U64 page_size = platform_virtual_memory_get_page_size();
+	validate(block.data != nullptr && block.size > 0, "[PLATFORM][LINUX]: Cannot decommit an empty virtual memory block.");
+	validate(((U64)block.data & (page_size - 1)) == 0, "[PLATFORM][LINUX]: Virtual memory block address is not page-aligned.");
+	validate(block.size == platform_virtual_memory_page_align(block.size), "[PLATFORM][LINUX]: Virtual memory block size is not page-aligned.");
+
+	I32 advise_result = ::madvise(block.data, block.size, MADV_DONTNEED);
+	I32 protect_result = ::mprotect(block.data, block.size, PROT_NONE);
+	return advise_result == 0 && protect_result == 0;
 }
 
 void
-platform_allocator_deinit(Platform_Allocator *self)
+platform_virtual_memory_release(Memory_Block block)
 {
-	[[maybe_unused]] I32 result = ::munmap(self->ptr, self->size);
-	validate(result == 0, "[PLATFORM]: Failed to free virtual memory.");
-}
+	if (block.data == nullptr)
+		return;
 
-Platform_Memory
-platform_allocator_alloc(Platform_Allocator *self, U64 size_in_bytes)
-{
-	Platform_Memory res = {};
-	if (self->used + size_in_bytes >= self->size)
-		return res;
-	self->used += size_in_bytes;
-	res.ptr = self->ptr + self->used;
-	res.size = size_in_bytes;
-	return res;
-}
+	U64 page_size = platform_virtual_memory_get_page_size();
+	validate(((U64)block.data & (page_size - 1)) == 0, "[PLATFORM][LINUX]: Virtual memory block address is not page-aligned.");
+	validate(block.size == platform_virtual_memory_page_align(block.size), "[PLATFORM][LINUX]: Virtual memory block size is not page-aligned.");
 
-void
-platform_allocator_clear(Platform_Allocator *self)
-{
-	self->used = 0;
+	[[maybe_unused]] I32 result = ::munmap(block.data, block.size);
+	validate(result == 0, "[PLATFORM][LINUX]: Failed to release virtual memory.");
 }
 
 struct Platform_Task
@@ -866,13 +917,13 @@ platform_file_read(const String &file_path, memory::Allocator *allocator)
 }
 
 U64
-platform_file_read(const char *filepath, Platform_Memory mem)
+platform_file_read(const char *filepath, Memory_Block block)
 {
 	I32 file_handle = ::open(filepath, O_RDONLY, S_IRWXU);
 	if (file_handle == -1)
 		return 0;
 
-	I64 bytes_read = ::read(file_handle, mem.ptr, mem.size);
+	I64 bytes_read = ::read(file_handle, block.data, block.size);
 	[[maybe_unused]] I32 close_result = ::close(file_handle);
 	validate(close_result == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_read == -1)
@@ -881,13 +932,13 @@ platform_file_read(const char *filepath, Platform_Memory mem)
 }
 
 U64
-platform_file_write(const char *filepath, Platform_Memory mem)
+platform_file_write(const char *filepath, Memory_Block block)
 {
 	I32 file_handle = ::open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
 	if (file_handle == -1)
 		return 0;
 
-	I64 bytes_written = ::write(file_handle, mem.ptr, mem.size);
+	I64 bytes_written = ::write(file_handle, block.data, block.size);
 	[[maybe_unused]] I32 close_result = ::close(file_handle);
 	validate(close_result == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_written == -1)
@@ -1063,27 +1114,49 @@ U32
 platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] U32 frame_count)
 {
 #if DEBUG
-	::memset(callstack, 0, frame_count * sizeof(callstack));
+	::memset(callstack, 0, frame_count * sizeof(*callstack));
 	return ::backtrace(callstack, frame_count);
 #else
 	return 0;
 #endif
 }
 
+#if DEBUG
+inline static void
+_platform_callstack_copy_string(char *dst, U64 dst_size, const char *src)
+{
+	if (dst_size == 0)
+		return;
+
+	U64 i = 0;
+	if (src)
+	{
+		for (; i + 1 < dst_size && src[i] != '\0'; ++i)
+			dst[i] = src[i];
+	}
+	dst[i] = '\0';
+}
+#endif
+
 void
-platform_callstack_log([[maybe_unused]] void **callstack, [[maybe_unused]] U32 frame_count)
+platform_callstack_resolve([[maybe_unused]] void **callstack, [[maybe_unused]] Platform_Callstack_Frame *frames, [[maybe_unused]] U32 frame_count)
 {
 #if DEBUG
-	char** symbols = ::backtrace_symbols(callstack, frame_count);
-	if (symbols)
+	char **symbols = ::backtrace_symbols(callstack, frame_count);
+	for (U32 i = 0; i < frame_count; ++i)
 	{
-		// TODO: Use logger.
-		::printf("callstack:\n");
-		for (U32 i = 0; i < frame_count; ++i)
-			::printf("\t[%" PRIu32 "]: %s\n", frame_count - i - 1, symbols[i]);
-
-		::free(symbols);
+		Platform_Callstack_Frame *frame = frames + i;
+		frame->address      = callstack[i];
+		frame->line         = 0;
+		frame->symbol_found = symbols != nullptr;
+		frame->line_found   = false;
+		frame->symbol[0]    = '\0';
+		frame->file[0]      = '\0';
+		if (symbols)
+			_platform_callstack_copy_string(frame->symbol, PLATFORM_CALLSTACK_SYMBOL_LENGTH, symbols[i]);
 	}
+	if (symbols)
+		::free(symbols);
 #endif
 }
 

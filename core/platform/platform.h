@@ -115,6 +115,15 @@ platform_path_get_current_working_directory(memory::Allocator *allocator = memor
 CORE_API String
 platform_path_get_temp_directory(memory::Allocator *allocator = memory::heap_allocator());
 
+CORE_API String
+platform_environment_variable_get(const String &name, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_environment_variable_get(const char *name, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_environment_variable_get(string_literal(name), allocator);
+}
+
 CORE_API void
 platform_path_set_current_working_directory(const String &path);
 
@@ -126,6 +135,9 @@ platform_path_set_current_working_directory(const char *path)
 
 CORE_API String
 platform_path_get_executable_path(memory::Allocator *allocator = memory::heap_allocator());
+
+CORE_API String
+platform_path_get_current_module_path(memory::Allocator *allocator = memory::heap_allocator());
 
 CORE_API String
 platform_path_get_file_name(const String &path, memory::Allocator *allocator = memory::heap_allocator());
@@ -146,12 +158,12 @@ platform_path_read_file(const char *path, memory::Allocator *allocator = memory:
 }
 
 CORE_API U64
-platform_path_write_file(const String &path, Block block);
+platform_path_write_file(const String &path, Memory_Block block);
 
 inline static U64
 platform_path_write_file(const String &path, const String &content)
 {
-	return platform_path_write_file(path, Block{(void *)content.data, content.count});
+	return platform_path_write_file(path, Memory_Block{(void *)content.data, content.count});
 }
 
 inline static U64
@@ -163,7 +175,7 @@ platform_path_write_file(const String &path, const char *content)
 inline static U64
 platform_path_write_file(const char *path, const String &content)
 {
-	return platform_path_write_file(string_literal(path), Block{(void *)content.data, content.count});
+	return platform_path_write_file(string_literal(path), Memory_Block{(void *)content.data, content.count});
 }
 
 inline static U64
@@ -217,19 +229,6 @@ typedef struct Platform_Api
 	void *api;
 	I64 last_write_time;
 } Platform_Api;
-
-typedef struct Platform_Memory
-{
-	U8 *ptr;
-	U64 size;
-} Platform_Memory;
-
-typedef struct Platform_Allocator
-{
-	U8 *ptr;
-	U64 size;
-	U64 used;
-} Platform_Allocator;
 
 typedef struct Platform_Thread Platform_Thread;
 
@@ -380,15 +379,18 @@ typedef struct Platform_Font
 	U32 whitespace_width;
 	U32 max_glyph_height;
 	I32 *kerning_table;
+	Memory_Block kerning_table_block;
 
 	// Font glyphs.
 	Glyph *glyphs;
 	U32 glyph_count;
+	Memory_Block glyphs_block;
 
 	// Font atlas.
 	U8 *atlas;
 	U32 atlas_width;
 	U32 atlas_height;
+	Memory_Block atlas_block;
 } Platform_Font;
 
 
@@ -402,17 +404,23 @@ CORE_API void *
 platform_api_load(Platform_Api *self);
 
 
-CORE_API Platform_Allocator
-platform_allocator_init(U64 size_in_bytes);
+CORE_API U64
+platform_virtual_memory_get_page_size();
+
+CORE_API U64
+platform_virtual_memory_page_align(U64 size);
+
+CORE_API Memory_Block
+platform_virtual_memory_reserve(U64 size);
+
+CORE_API bool
+platform_virtual_memory_commit(Memory_Block block);
+
+CORE_API bool
+platform_virtual_memory_decommit(Memory_Block block);
 
 CORE_API void
-platform_allocator_deinit(Platform_Allocator *self);
-
-CORE_API Platform_Memory
-platform_allocator_alloc(Platform_Allocator *self, U64 size_in_bytes);
-
-CORE_API void
-platform_allocator_clear(Platform_Allocator *self);
+platform_virtual_memory_release(Memory_Block block);
 
 
 CORE_API Platform_Thread *
@@ -461,10 +469,10 @@ CORE_API U64
 platform_file_size(const char *filepath);
 
 CORE_API U64
-platform_file_read(const char *filepath, Platform_Memory mem);
+platform_file_read(const char *filepath, Memory_Block block);
 
 CORE_API U64
-platform_file_write(const char *filepath, Platform_Memory mem);
+platform_file_write(const char *filepath, Memory_Block block);
 
 CORE_API bool
 platform_file_copy(const char *from, const char *to);
@@ -507,8 +515,21 @@ platform_sleep(U32 milliseconds);
 CORE_API U32
 platform_callstack_capture(void **callstack, U32 frame_count);
 
+#define PLATFORM_CALLSTACK_SYMBOL_LENGTH 256
+#define PLATFORM_CALLSTACK_FILE_LENGTH   512
+
+typedef struct Platform_Callstack_Frame
+{
+	void *address;
+	char symbol[PLATFORM_CALLSTACK_SYMBOL_LENGTH];
+	char file[PLATFORM_CALLSTACK_FILE_LENGTH];
+	U32 line;
+	bool symbol_found;
+	bool line_found;
+} Platform_Callstack_Frame;
+
 CORE_API void
-platform_callstack_log(void **callstack, U32 frame_count);
+platform_callstack_resolve(void **callstack, Platform_Callstack_Frame *frames, U32 frame_count);
 
 /**
  * @brief Loads the font at the specified path, and extracts information about glyphs from it.

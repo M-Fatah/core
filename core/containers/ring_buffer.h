@@ -63,7 +63,7 @@ ring_buffer_deinit(Ring_Buffer<T> &self)
 	if (self.data == nullptr)
 		return;
 
-	memory::deallocate(self.allocator, self.data);
+	memory::deallocate(self.allocator, Memory_Block{self.data, self.capacity * sizeof(T)});
 	self = Ring_Buffer<T>{.allocator = self.allocator};
 }
 
@@ -81,7 +81,7 @@ ring_buffer_reserve(Ring_Buffer<T> &self, U64 added_capacity)
 	U64 needed_cap   = self.count + added_capacity;
 	U64 new_capacity = next_cap > needed_cap ? next_cap : needed_cap;
 
-	T *new_data = memory::allocate<T>(self.allocator, new_capacity);
+	T *new_data = (T *)memory::allocate(self.allocator, new_capacity * sizeof(T), alignof(T)).data;
 
 	if (self.count)
 	{
@@ -98,7 +98,7 @@ ring_buffer_reserve(Ring_Buffer<T> &self, U64 added_capacity)
 	}
 
 	if (self.capacity)
-		memory::deallocate(self.allocator, self.data);
+		memory::deallocate(self.allocator, Memory_Block{self.data, self.capacity * sizeof(T)});
 
 	self.data     = new_data;
 	self.capacity = new_capacity;

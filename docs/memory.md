@@ -2,7 +2,7 @@
 
 **Header:** `core/memory/memory.h`
 
-All containers and most utilities accept a `memory::Allocator *`. This makes the source of every allocation explicit and swappable.
+All containers and most utilities accept a `memory::Allocator *`. The allocator API returns a `Memory_Block`, so ownership carries both the pointer and the allocation size.
 
 ---
 
@@ -11,12 +11,44 @@ All containers and most utilities accept a `memory::Allocator *`. This makes the
 ```cpp
 namespace memory {
     struct Allocator {
-        virtual void *allocate(u64 size) = 0;
-        virtual void  deallocate(void *data) = 0;
-        virtual void  clear() {}   // optional — only arena supports it
+        virtual Memory_Block allocate(U64 size, U64 alignment) = 0;
+        virtual void deallocate(Memory_Block block) = 0;
     };
 }
 ```
+
+`memory::allocate` and `memory::deallocate` are convenience wrappers over the allocator interface. `Memory_Block{nullptr, 0}` is valid to deallocate. Alignment must be non-zero and a power of two.
+
+---
+
+## Raw Blocks
+
+Use raw `Memory_Block` allocation for byte buffers and multi-element allocations.
+
+```cpp
+memory::Allocator *allocator = memory::heap_allocator();
+
+Memory_Block block = memory::allocate(allocator, sizeof(I32) * count, alignof(I32));
+I32 *values = (I32 *)block.data;
+
+memory::deallocate(allocator, block);
+```
+
+---
+
+## Typed Helpers
+
+Typed helpers allocate one object only.
+
+```cpp
+MyStruct *value = memory::allocate<MyStruct>(allocator);
+memory::deallocate(allocator, value);
+
+MyStruct *constructed = memory::allocate_and_call_constructor<MyStruct>(allocator, arg1, arg2);
+memory::deallocate_and_call_destructor(allocator, constructed);
+```
+
+There is no `allocate<T>(count)` API. Multi-element ownership stays explicit through `Memory_Block`.
 
 ---
 
@@ -24,49 +56,59 @@ namespace memory {
 
 ### Heap Allocator
 
-Wraps `malloc` / `free`. The default for all containers.
+Default allocator for containers and utilities. In debug builds it tracks live allocations and reports leaks on shutdown. Callstack capture/resolve comes from the platform API, but heap owns the leak-report formatting and logging.
 
 ```cpp
-memory::Allocator *alloc = memory::heap_allocator();
-void *ptr = memory::allocate(alloc, 1024);
-memory::deallocate(alloc, ptr);
+memory::Allocator *heap = memory::heap_allocator();
+Memory_Block block = memory::allocate(heap, 1024, alignof(U8));
+memory::deallocate(heap, block);
 ```
 
-### Temp (Scratch) Allocator
+### Temp Allocator
 
-A per-thread arena that is intended to be cleared every frame / tick. Use it for short-lived strings and intermediate buffers. **Never store pointers from it across frames.**
+A global arena intended to be cleared every frame or tick. Use it for short-lived strings and intermediate buffers. Do not store pointers from it across frames. `memory::temp_allocator()` returns `memory::Allocator *`. The global temp arena is embedded in Core's memory context and does not depend on the heap allocator, so it remains available during heap leak reporting.
 
 ```cpp
 String msg = format("Hello {}!", name, memory::temp_allocator());
 // msg.data is valid until temp_allocator is cleared
+
+memory::temp_allocator_clear();
 ```
 
-### Arena Allocator
-
-Bump-pointer allocator. `deallocate` is a no-op — memory is reclaimed all at once with `clear()` or `deinit`. Default capacity is 4 MB.
+For scoped scratch work, use a temp mark.
 
 ```cpp
 #include <core/memory/arena_allocator.h>
 
-auto *arena = memory::arena_allocator_init();           // 4 MB default
-// or: memory::arena_allocator_init(64 * 1024 * 1024); // 64 MB
+memory::Arena_Allocator_Mark mark = memory::temp_allocator_mark();
+DEFER(memory::temp_allocator_reset_to_mark(mark));
+
+Memory_Block scratch = memory::allocate(memory::temp_allocator(), 1024, alignof(U8));
+```
+
+Resetting to a temp mark invalidates scratch allocations made after that mark and lets later temp allocations reuse that space.
+
+### Arena Allocator
+
+Bump-pointer allocator. `deallocate` is a no-op; memory is reclaimed all at once with `clear()` or `deinit`. Default capacity is 1 GB. Arena nodes use platform virtual memory internally: they reserve their address range up front and commit pages on demand. User-created arena objects are allocated through the heap allocator, so forgotten `arena_allocator_deinit` calls are visible in heap leak reports.
+
+```cpp
+#include <core/memory/arena_allocator.h>
+
+auto *arena = memory::arena_allocator_init();
 
 auto arr = array_init<int>(arena);
 array_push(arr, 42);
 
-memory::arena_allocator_clear(arena);   // reclaim all at once
-memory::arena_allocator_deinit(arena);  // free the arena itself
+memory::Arena_Allocator_Mark mark = memory::arena_allocator_mark(arena);
+Memory_Block scratch = memory::arena_allocator_allocate(arena, 1024, alignof(U8));
+memory::arena_allocator_reset_to_mark(arena, mark);
+
+memory::arena_allocator_clear(arena);
+memory::arena_allocator_deinit(arena);
 ```
 
-Key functions:
-
-| Function | Description |
-|---|---|
-| `arena_allocator_init(capacity, backing)` | Create arena with given capacity |
-| `arena_allocator_deinit(arena)` | Destroy arena |
-| `arena_allocator_clear(arena)` | Reset offset to 0 (reuse memory) |
-| `arena_allocator_get_used_size(arena)` | Bytes currently in use |
-| `arena_allocator_get_peak_size(arena)` | Peak usage since last clear |
+Marks reset the arena to a previous stack position and free newer arena nodes. Resetting to a mark invalidates marks taken after it. The reported peak remains a high-water mark.
 
 ### Pool Allocator
 
@@ -75,42 +117,22 @@ Fixed-size chunk allocator. All chunks are the same size. O(1) alloc and dealloc
 ```cpp
 #include <core/memory/pool_allocator.h>
 
-// Pool of 256 chunks, each 64 bytes
 auto *pool = memory::pool_allocator_init(64, 256);
 
-void *chunk = memory::pool_allocator_allocate(pool);
-// ... use chunk ...
+Memory_Block chunk = memory::pool_allocator_allocate(pool);
 memory::pool_allocator_deallocate(pool, chunk);
+
 memory::pool_allocator_deinit(pool);
 ```
 
----
-
-## Typed helpers
-
-`memory.h` provides typed wrappers for convenience:
-
-```cpp
-// Allocate sizeof(T) bytes
-MyStruct *s = memory::allocate<MyStruct>(allocator);
-
-// Allocate + call constructor
-MyStruct *s = memory::allocate_and_call_constructor<MyStruct>(allocator, arg1, arg2);
-
-// Allocate zeroed
-void *p = memory::allocate_zeroed(allocator, size);
-```
-
----
-
 ## Custom Allocator
 
-Inherit from `memory::Allocator` and implement `allocate` / `deallocate`:
+Inherit from `memory::Allocator` and implement the `Memory_Block` allocation contract.
 
 ```cpp
 struct My_Allocator : memory::Allocator
 {
-    void *allocate(u64 size) override { return my_malloc(size); }
-    void  deallocate(void *data) override { my_free(data); }
+    Memory_Block allocate(U64 size, U64 alignment) override;
+    void deallocate(Memory_Block block) override;
 };
 ```

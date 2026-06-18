@@ -10,32 +10,88 @@
 
 TESTER_TEST("[CORE]: Arena_Allocator")
 {
+	U64 page_size = platform_virtual_memory_get_page_size();
+
 	memory::Arena_Allocator *arena = memory::arena_allocator_init(1024);
 	DEFER(memory::arena_allocator_deinit(arena));
 
-	void *a = memory::arena_allocator_allocate(arena, 4, 1);
-	void *b = memory::arena_allocator_allocate(arena, 8, 1);
+	Memory_Block a = memory::arena_allocator_allocate(arena, 4, 1);
+	Memory_Block b = memory::arena_allocator_allocate(arena, 8, 1);
 
-	TESTER_CHECK(a != nullptr);
-	TESTER_CHECK(b != nullptr);
+	TESTER_CHECK(a.data != nullptr);
+	TESTER_CHECK(b.data != nullptr);
 
-	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 12);
-	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 12);
-
-	arena_allocator_clear(arena);
-
-	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 0);
-	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 12);
-
-	arena_allocator_allocate(arena, 2048, 1);
-
-	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 2048);
-	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 2048);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 12);
+	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == 12);
 
 	arena_allocator_clear(arena);
 
-	TESTER_CHECK(memory::arena_allocator_get_used_size(arena) == 0);
-	TESTER_CHECK(memory::arena_allocator_get_peak_size(arena) == 2048);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 0);
+	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == 12);
+
+	Memory_Block large = memory::arena_allocator_allocate(arena, page_size + 32, 1);
+	U8 *large_bytes = (U8 *)large.data;
+	large_bytes[0] = 1;
+	large_bytes[page_size + 31] = 2;
+
+	TESTER_CHECK(large_bytes[0] == 1);
+	TESTER_CHECK(large_bytes[page_size + 31] == 2);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == page_size + 32);
+	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == page_size + 32);
+
+	arena_allocator_clear(arena);
+
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 0);
+	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == page_size + 32);
+}
+
+TESTER_TEST("[CORE]: Arena_Allocator_Mark")
+{
+	U64 page_size = platform_virtual_memory_get_page_size();
+
+	memory::Arena_Allocator *arena = memory::arena_allocator_init(64);
+	DEFER(memory::arena_allocator_deinit(arena));
+
+	Memory_Block base = memory::arena_allocator_allocate(arena, 16, 1);
+	TESTER_CHECK(base.data != nullptr);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 16);
+	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == 16);
+
+	memory::Arena_Allocator_Mark mark = memory::arena_allocator_mark(arena);
+	Memory_Block tail = memory::arena_allocator_allocate(arena, 8, 1);
+	TESTER_CHECK(tail.data != nullptr);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 24);
+	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == 24);
+
+	memory::arena_allocator_reset_to_mark(arena, mark);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 16);
+	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == 24);
+
+	Memory_Block reused_tail = memory::arena_allocator_allocate(arena, 8, 1);
+	TESTER_CHECK(reused_tail.data == tail.data);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 24);
+
+	memory::Arena_Allocator_Mark cross_node_mark = memory::arena_allocator_mark(arena);
+	U64 large_size = page_size * 2;
+	Memory_Block large = memory::arena_allocator_allocate(arena, large_size, 1);
+	TESTER_CHECK(large.data != nullptr);
+	U8 *large_bytes = (U8 *)large.data;
+	large_bytes[0] = 3;
+	large_bytes[large_size - 1] = 4;
+	TESTER_CHECK(large_bytes[0] == 3);
+	TESTER_CHECK(large_bytes[large_size - 1] == 4);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 24 + large_size);
+	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == 24 + large_size);
+
+	memory::arena_allocator_reset_to_mark(arena, cross_node_mark);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 24);
+	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == 24 + large_size);
+
+	Memory_Block after_cross_node_reset = memory::arena_allocator_allocate(arena, 8, 1);
+	TESTER_CHECK(after_cross_node_reset.data != nullptr);
+	TESTER_CHECK(after_cross_node_reset.data != large.data);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 32);
+	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == 24 + large_size);
 }
 
 TESTER_TEST("[CORE]: Pool_Allocator")
@@ -48,23 +104,128 @@ TESTER_TEST("[CORE]: Pool_Allocator")
 	memory::Pool_Allocator *pool = memory::pool_allocator_init(sizeof(Entity), 10);
 	DEFER(memory::pool_allocator_deinit(pool));
 
-	Entity *e1 = (Entity *)memory::pool_allocator_allocate(pool);
+	Entity *e1 = (Entity *)memory::pool_allocator_allocate(pool).data;
 	TESTER_CHECK(e1 != nullptr);
 	*e1 = Entity{1.0f, 2.0f, 3.0f};
-	memory::pool_allocator_deallocate(pool, e1);
+	memory::pool_allocator_deallocate(pool, Memory_Block{e1, sizeof(Entity)});
 
-	Entity *e2 = (Entity *)memory::pool_allocator_allocate(pool);
+	Entity *e2 = (Entity *)memory::pool_allocator_allocate(pool).data;
 	TESTER_CHECK(e2 == e1);
 
-	Entity *e3 = (Entity *)memory::pool_allocator_allocate(pool);
-	memory::pool_allocator_deallocate(pool, e3);
-	memory::pool_allocator_deallocate(pool, e2);
+	Entity *e3 = (Entity *)memory::pool_allocator_allocate(pool).data;
+	memory::pool_allocator_deallocate(pool, Memory_Block{e3, sizeof(Entity)});
+	memory::pool_allocator_deallocate(pool, Memory_Block{e2, sizeof(Entity)});
 
-	Entity *p4 = (Entity *)memory::pool_allocator_allocate(pool);
+	Entity *p4 = (Entity *)memory::pool_allocator_allocate(pool).data;
 	TESTER_CHECK(p4 == e2);
 
-	Entity *p5 = (Entity *)memory::pool_allocator_allocate(pool);
+	Entity *p5 = (Entity *)memory::pool_allocator_allocate(pool).data;
 	TESTER_CHECK(p5 == e3);
+}
+
+TESTER_TEST("[CORE]: Memory_Block allocation")
+{
+	struct Tracking_Allocator final : memory::Allocator
+	{
+		bool allocated;
+		bool deallocated;
+
+		Memory_Block
+		allocate(U64 size, U64 alignment) override
+		{
+			allocated = true;
+			return memory::heap_allocator()->allocate(size, alignment);
+		}
+
+		void
+		deallocate(Memory_Block block) override
+		{
+			deallocated = true;
+			memory::heap_allocator()->deallocate(block);
+		}
+	};
+
+	Memory_Block block = memory::allocate(sizeof(I32) * 4, alignof(I32));
+	DEFER(memory::deallocate(block));
+
+	TESTER_CHECK(block.data != nullptr);
+	TESTER_CHECK(block.size == sizeof(I32) * 4);
+
+	I32 *values = (I32 *)block.data;
+	for (U64 i = 0; i < 4; ++i)
+		values[i] = (I32)i;
+
+	for (U64 i = 0; i < 4; ++i)
+		TESTER_CHECK(values[i] == (I32)i);
+
+	I32 *single = memory::allocate<I32>();
+	DEFER(memory::deallocate(single));
+	*single = 42;
+	TESTER_CHECK(*single == 42);
+
+	Tracking_Allocator tracking_allocator = {};
+	Memory_Block tracked_block = memory::allocate(&tracking_allocator, sizeof(I32), alignof(I32));
+	TESTER_CHECK(tracking_allocator.allocated);
+	memory::deallocate(&tracking_allocator, tracked_block);
+	TESTER_CHECK(tracking_allocator.deallocated);
+
+	memory::Allocator *temp = memory::temp_allocator();
+	TESTER_CHECK(temp != nullptr);
+	memory::Arena_Allocator_Mark mark = memory::temp_allocator_mark();
+	Memory_Block temp_block = memory::allocate(temp, 16, alignof(U8));
+	TESTER_CHECK(temp_block.data != nullptr);
+	memory::temp_allocator_reset_to_mark(mark);
+
+	Memory_Block temp_clear_block = memory::allocate(temp, 16, alignof(U8));
+	TESTER_CHECK(temp_clear_block.data != nullptr);
+	memory::temp_allocator_clear();
+	Memory_Block temp_after_clear_block = memory::allocate(temp, 16, alignof(U8));
+	TESTER_CHECK(temp_after_clear_block.data != nullptr);
+	memory::temp_allocator_clear();
+}
+
+TESTER_TEST("[CORE]: Temp_Allocator_Mark")
+{
+	memory::Allocator *temp = memory::temp_allocator();
+	memory::Arena_Allocator_Mark start_mark = memory::temp_allocator_mark();
+	DEFER(memory::temp_allocator_reset_to_mark(start_mark));
+
+	Memory_Block first = memory::allocate(temp, 16, alignof(U8));
+	TESTER_CHECK(first.data != nullptr);
+
+	memory::Arena_Allocator_Mark mark = memory::temp_allocator_mark();
+	Memory_Block second = memory::allocate(temp, 16, alignof(U8));
+	TESTER_CHECK(second.data != nullptr);
+
+	memory::temp_allocator_reset_to_mark(mark);
+	Memory_Block second_reused = memory::allocate(temp, 16, alignof(U8));
+	TESTER_CHECK(second_reused.data == second.data);
+
+	memory::temp_allocator_reset_to_mark(start_mark);
+	Memory_Block first_reused = memory::allocate(temp, 16, alignof(U8));
+	TESTER_CHECK(first_reused.data == first.data);
+}
+
+TESTER_TEST("[CORE]: Virtual_Memory")
+{
+	U64 page_size = platform_virtual_memory_get_page_size();
+	TESTER_CHECK(page_size > 0);
+	TESTER_CHECK((page_size & (page_size - 1)) == 0);
+
+	Memory_Block reserved = platform_virtual_memory_reserve(page_size);
+	TESTER_CHECK(reserved.data != nullptr);
+	TESTER_CHECK(reserved.size == page_size);
+	TESTER_CHECK(platform_virtual_memory_commit(reserved));
+
+	U8 *bytes = (U8 *)reserved.data;
+	bytes[0] = 1;
+	bytes[page_size - 1] = 2;
+	TESTER_CHECK(bytes[0] == 1);
+	TESTER_CHECK(bytes[page_size - 1] == 2);
+
+	TESTER_CHECK(platform_virtual_memory_decommit(reserved));
+	TESTER_CHECK(platform_virtual_memory_commit(reserved));
+	platform_virtual_memory_release(reserved);
 }
 
 inline static Result<I32>

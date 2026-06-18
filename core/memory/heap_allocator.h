@@ -6,20 +6,21 @@
 
 namespace memory
 {
-	struct Heap_Allocator : Allocator
+	struct Heap_Allocator final : Allocator
 	{
-#if DEBUG
-		struct Heap_Allocator_Context *ctx;
-#endif
+		#if DEBUG
+			struct Heap_Allocator_Context *ctx;
+		#endif
+
 		Heap_Allocator();
 
-		~Heap_Allocator() override;
+		~Heap_Allocator();
 
-		void *
+		Memory_Block
 		allocate(U64 size, U64 alignment) override;
 
 		void
-		deallocate(void *data) override;
+		deallocate(Memory_Block block) override;
 	};
 
 	CORE_API Heap_Allocator *
@@ -28,9 +29,9 @@ namespace memory
 	CORE_API void
 	heap_allocator_deinit(Heap_Allocator *self);
 
-	CORE_API void *
+	CORE_API Memory_Block
 	heap_allocator_allocate(Heap_Allocator *self, U64 size, U64 alignment);
 
 	CORE_API void
-	heap_allocator_deallocate(Heap_Allocator *self, void *data);
+	heap_allocator_deallocate(Heap_Allocator *self, Memory_Block block);
 }

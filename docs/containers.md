@@ -338,7 +338,7 @@ int front = ring_buffer_front(rb);  // 2
 int back  = ring_buffer_back(rb);   // 3
 ```
 
-> Range-based `for` is **not** supported — the data is circular and raw pointer iteration would yield incorrect results.  
+> Range-based `for` is **not** supported — the data is circular and raw pointer iteration would yield incorrect results.
 > Use indexed access instead: `for (u64 i = 0; i < rb.count; ++i) rb[i]`
 
 ### Construction

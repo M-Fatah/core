@@ -7,20 +7,8 @@ namespace memory
 {
 	struct Context
 	{
-		Heap_Allocator *heap_allocator;
-		Arena_Allocator *temp_allocator;
-
-		Context()
-		{
-			heap_allocator = heap_allocator_init();
-			temp_allocator = arena_allocator_init(ARENA_ALLOCATOR_INITIAL_CAPACITY, heap_allocator);
-		}
-
-		~Context()
-		{
-			arena_allocator_deinit(temp_allocator);
-			heap_allocator_deinit(heap_allocator);
-		}
+		Arena_Allocator temp_allocator;
+		Heap_Allocator  heap_allocator;
 	};
 
 	static Context *
@@ -34,13 +22,34 @@ namespace memory
 	heap_allocator()
 	{
 		Context *ctx = context_get();
-		return ctx->heap_allocator;
+		return &ctx->heap_allocator;
 	}
 
 	Allocator *
 	temp_allocator()
 	{
 		Context *ctx = context_get();
-		return ctx->temp_allocator;
+		return &ctx->temp_allocator;
+	}
+
+	void
+	temp_allocator_clear()
+	{
+		Context *ctx = context_get();
+		ctx->temp_allocator.clear();
+	}
+
+	Arena_Allocator_Mark
+	temp_allocator_mark()
+	{
+		Context *ctx = context_get();
+		return arena_allocator_mark(&ctx->temp_allocator);
+	}
+
+	void
+	temp_allocator_reset_to_mark(Arena_Allocator_Mark mark)
+	{
+		Context *ctx = context_get();
+		arena_allocator_reset_to_mark(&ctx->temp_allocator, mark);
 	}
 }

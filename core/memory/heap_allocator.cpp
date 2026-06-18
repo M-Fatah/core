@@ -1,11 +1,14 @@
 #include "core/memory/heap_allocator.h"
 
 #include "core/log.h"
+#include "core/validate.h"
+#include "core/math/u64.h"
 #include "core/platform/platform.h"
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <inttypes.h>
+#if COMPILER_MSVC
+#include <malloc.h>
+#endif
 #if DEBUG
 #include <mutex>
 #endif
@@ -15,9 +18,6 @@ namespace memory
 #if DEBUG
 	inline static constexpr U32 CALLSTACK_MAX_FRAME_COUNT = 20;
 
-	// In DEBUG we track each live allocation in a linked list. The node lives in its
-	// own ::malloc (independent from the user's aligned payload) and is reachable O(1)
-	// from the user pointer via a back-pointer slot placed just before the aligned data.
 	struct Heap_Allocator_Node
 	{
 		U64 size;
@@ -33,44 +33,68 @@ namespace memory
 		Heap_Allocator_Node *head;
 		std::mutex mutex;
 	};
-#endif
 
-	// Allocate aligned memory via plain malloc, reserving extra slot(s) before the returned
-	// pointer for bookkeeping. Layout:
-	//
-	//   [ ... wasted padding ... ][ slot[-N] ... slot[-1] ][ user data aligned ]
-	//                             ^ header_slots * sizeof(void*) before user data
-	//
-	// slot[-1] always stores the raw ::malloc base so deallocate() can free it.
-	// slot[-2] (when reserved) stores the debug Heap_Allocator_Node pointer.
-	//
-	// This works with any alignment >= alignof(void*) and avoids the _aligned_malloc vs
-	// posix_memalign vs free/_aligned_free platform fork — single ::malloc/::free path.
-	static void *
-	_aligned_malloc_with_slots(U64 size, U64 alignment, U64 extra_slots_before)
+	inline static void
+	_heap_allocator_track_allocation(Heap_Allocator *self, void *data, U64 size)
 	{
-		if (size == 0)
-			return nullptr;
+		constexpr auto _node_init = [](void *data, U64 size) -> Heap_Allocator_Node * {
+			Heap_Allocator_Node *node = (Heap_Allocator_Node *)::malloc(sizeof(Heap_Allocator_Node));
+			if (node == nullptr)
+				log_fatal("[HEAP_ALLOCATOR]: Could not allocate debug tracking node.");
 
-		U64 min_align = alignment;
-		if (min_align < alignof(void *))
-			min_align = alignof(void *);
+			node->size                  = size;
+			node->data                  = data;
+			node->next                  = nullptr;
+			node->prev                  = nullptr;
+			node->callstack_frame_count = platform_callstack_capture(node->callstack, CALLSTACK_MAX_FRAME_COUNT);
+			return node;
+		};
 
-		U64 header_bytes = sizeof(void *) * (extra_slots_before + 1);
-		U64 total = size + header_bytes + (min_align - 1);
+		Heap_Allocator_Node *node = _node_init(data, size);
 
-		void *raw = ::malloc(total);
-		if (raw == nullptr)
-			return nullptr;
-
-		U64 raw_addr = (U64)raw;
-		U64 user_addr = (raw_addr + header_bytes + (min_align - 1)) & ~((U64)min_align - 1);
-
-		void **slots = (void **)user_addr;
-		slots[-1] = raw;
-
-		return (void *)user_addr;
+		self->ctx->mutex.lock();
+		{
+			node->prev = self->ctx->head;
+			if (self->ctx->head != nullptr)
+				self->ctx->head->next = node;
+			self->ctx->head = node;
+		}
+		self->ctx->mutex.unlock();
 	}
+
+	inline static Heap_Allocator_Node *
+	_heap_allocator_untrack_allocation(Heap_Allocator *self, Memory_Block block)
+	{
+		Heap_Allocator_Node *node = nullptr;
+
+		self->ctx->mutex.lock();
+		{
+			for (Heap_Allocator_Node *it = self->ctx->head; it != nullptr; it = it->prev)
+			{
+				if (it->data == block.data)
+				{
+					node = it;
+					break;
+				}
+			}
+
+			validate(node != nullptr, "[HEAP_ALLOCATOR]: Tried to deallocate a block that was not allocated by this allocator.");
+			validate(node->size == block.size, "[HEAP_ALLOCATOR]: Deallocated block size does not match allocated block size.");
+
+			if (node == self->ctx->head)
+				self->ctx->head = node->prev;
+
+			if (node->next)
+				node->next->prev = node->prev;
+
+			if (node->prev)
+				node->prev->next = node->next;
+		}
+		self->ctx->mutex.unlock();
+
+		return node;
+	}
+#endif
 
 	Heap_Allocator::Heap_Allocator()
 	{
@@ -85,120 +109,106 @@ namespace memory
 
 	Heap_Allocator::~Heap_Allocator()
 	{
-#if DEBUG
-		Heap_Allocator *self = this;
-		if (self->ctx->head == nullptr)
-		{
+		#if DEBUG
+			constexpr auto _heap_allocator_log_callstack = [](void **callstack, U32 frame_count) -> void {
+				Platform_Callstack_Frame frames[CALLSTACK_MAX_FRAME_COUNT] = {};
+				platform_callstack_resolve(callstack, frames, frame_count);
+
+				log_warning("callstack:");
+				for (U32 i = 0; i < frame_count; ++i)
+				{
+					Platform_Callstack_Frame &frame = frames[i];
+					log_warning(
+						"\t[{:2}]: {}, {}:{}",
+						frame_count - i - 1,
+						frame.symbol_found ? frame.symbol : "<SYMBOL NOT FOUND>",
+						frame.line_found   ? frame.file   : "<FILE NOT FOUND>",
+						frame.line_found   ? frame.line   : 0
+					);
+				}
+			};
+
+			Heap_Allocator *self = this;
+			if (self->ctx->head == nullptr)
+			{
+				::delete self->ctx;
+				return;
+			}
+
+			U64 total_leak_count = 0;
+			U64 total_leak_size  = 0;
+
+			log_warning("Memory leak detected:");
+			log_warning("==================================================================");
+
+			Heap_Allocator_Node *node = self->ctx->head;
+			while (node)
+			{
+				log_warning("size: {} byte{}", node->size, node->size > 1 ? "s" : "");
+				_heap_allocator_log_callstack(node->callstack, node->callstack_frame_count);
+				log_warning("==================================================================");
+
+				++total_leak_count;
+				total_leak_size += node->size;
+				node = node->prev;
+			}
+
+			log_warning("Total count = {} and size = {} byte{}", total_leak_count, total_leak_size, total_leak_size > 1 ? "s" : "");
+
 			::delete self->ctx;
-			return;
-		}
-
-		U64 total_leak_count = 0;
-		U64 total_leak_size  = 0;
-
-		// TODO: Use logger.
-		::printf("memory leak detected:\n");
-		::printf("==================================================================\n");
-
-		Heap_Allocator_Node *node = self->ctx->head;
-		while (node)
-		{
-			// TODO: Use logger.
-			::printf("size: %" PRIu64 " byte%s\n", node->size, node->size > 1 ? "s" : "");
-
-			platform_callstack_log(node->callstack, node->callstack_frame_count);
-
-			// TODO: Use logger.
-			::printf("==================================================================\n");
-
-			++total_leak_count;
-			total_leak_size += node->size;
-			node = node->prev;
-		}
-
-		// TODO: Use logger.
-		::printf("total count: %" PRIu64 ", total size: %" PRIu64 "byte%s\n", total_leak_count, total_leak_size, total_leak_size > 1 ? "s" : "");
-
-		::delete self->ctx;
-#endif
+		#endif
 	}
 
-	void *
+	Memory_Block
 	Heap_Allocator::allocate(U64 size, U64 alignment)
 	{
+		constexpr auto _aligned_allocate = [](U64 size, U64 alignment) -> void * {
+			#if COMPILER_MSVC
+				return ::_aligned_malloc(size, u64_max(alignment, alignof(void *)));
+			#else
+				void *data = nullptr;
+				if (::posix_memalign(&data, u64_max(alignment, alignof(void *)), size) != 0)
+					data = nullptr;
+				return data;
+			#endif
+		};
+
 		if (size == 0)
-			return nullptr;
+			return Memory_Block{};
 
-#if DEBUG
-		// Reserve 2 slots before user data: slot[-1]=raw base, slot[-2]=debug node pointer.
-		void *data = _aligned_malloc_with_slots(size, alignment, /* extra_slots_before */ 1);
+		validate(u64_is_power_of_two(alignment), "[HEAP_ALLOCATOR]: Alignment must be a non-zero power of two.");
+
+		void *data = _aligned_allocate(size, alignment);
 		if (data == nullptr)
 			log_fatal("[HEAP_ALLOCATOR]: Could not allocate memory with size {} alignment {}.", size, alignment);
 
-		Heap_Allocator *self = this;
+		#if DEBUG
+			_heap_allocator_track_allocation(this, data, size);
+		#endif
 
-		Heap_Allocator_Node *node = (Heap_Allocator_Node *)::malloc(sizeof(Heap_Allocator_Node));
-		if (node == nullptr)
-			log_fatal("[HEAP_ALLOCATOR]: Could not allocate debug tracking node.");
-
-		node->size = size;
-		node->data = data;
-		node->next = nullptr;
-		node->callstack_frame_count = platform_callstack_capture(node->callstack, CALLSTACK_MAX_FRAME_COUNT);
-
-		self->ctx->mutex.lock();
-		{
-			node->prev = self->ctx->head;
-			if (self->ctx->head != nullptr)
-				self->ctx->head->next = node;
-			self->ctx->head = node;
-		}
-		self->ctx->mutex.unlock();
-
-		((void **)data)[-2] = node;
-
-		return data;
-#else
-		// Release: only the raw-base back-pointer slot, no debug node.
-		void *data = _aligned_malloc_with_slots(size, alignment, /* extra_slots_before */ 0);
-		if (data == nullptr)
-			log_fatal("[HEAP_ALLOCATOR]: Could not allocate memory with size {} alignment {}.", size, alignment);
-		return data;
-#endif
+		return Memory_Block{data, size};
 	}
 
 	void
-	Heap_Allocator::deallocate(void *data)
+	Heap_Allocator::deallocate(Memory_Block block)
 	{
-		if (data == nullptr)
+		constexpr auto _aligned_deallocate = [](void *data) -> void {
+			#if COMPILER_MSVC
+				::_aligned_free(data);
+			#else
+				::free(data);
+			#endif
+		};
+
+		if (block.data == nullptr)
 			return;
 
-		void **slots = (void **)data;
-		void *raw = slots[-1];
-
-#if DEBUG
-		Heap_Allocator *self = this;
-		Heap_Allocator_Node *node = (Heap_Allocator_Node *)slots[-2];
-		if (node != nullptr)
-		{
-			self->ctx->mutex.lock();
-			{
-				if (node == self->ctx->head)
-					self->ctx->head = node->prev;
-
-				if (node->next)
-					node->next->prev = node->prev;
-
-				if (node->prev)
-					node->prev->next = node->next;
-			}
-			self->ctx->mutex.unlock();
-
+		#if DEBUG
+			Heap_Allocator_Node *node = _heap_allocator_untrack_allocation(this, block);
 			::free(node);
-		}
-#endif
+		#endif
 
-		::free(raw);
+		_aligned_deallocate(block.data);
 	}
 
 	Heap_Allocator *
@@ -213,15 +223,15 @@ namespace memory
 		::delete self;
 	}
 
-	void *
+	Memory_Block
 	heap_allocator_allocate(Heap_Allocator *self, U64 size, U64 alignment)
 	{
 		return self->allocate(size, alignment);
 	}
 
 	void
-	heap_allocator_deallocate(Heap_Allocator *self, void *data)
+	heap_allocator_deallocate(Heap_Allocator *self, Memory_Block block)
 	{
-		self->deallocate(data);
+		self->deallocate(block);
 	}
 }

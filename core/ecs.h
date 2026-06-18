@@ -3,6 +3,7 @@
 #include "core/export.h"
 #include "core/defines.h"
 #include "core/memory/pool_allocator.h"
+#include "core/memory/arena_allocator.h"
 #include "core/containers/hash_table.h"
 
 #include <type_traits>
@@ -42,6 +43,7 @@ namespace ecs
 		[[nodiscard]] virtual const char *name() const = 0;
 		[[nodiscard]] virtual Array<Entity> entities() const = 0;
 		[[nodiscard]] virtual IComponent_Table *reload() = 0;
+		virtual void deinit() = 0;
 	};
 
 	template <typename T>
@@ -80,7 +82,7 @@ namespace ecs
 			auto entry = hash_table_find(components, e.id);
 			if (entry == nullptr)
 			{
-				T *new_component = (T *)memory::pool_allocator_allocate(pool);
+				T *new_component = (T *)memory::pool_allocator_allocate(pool).data;
 				entry = hash_table_insert(components, e.id, new_component);
 			}
 			return entry->value;
@@ -91,7 +93,7 @@ namespace ecs
 		{
 			if (auto entry = hash_table_find(components, e.id))
 			{
-				memory::pool_allocator_deallocate(pool, entry->value);
+				memory::pool_allocator_deallocate(pool, Memory_Block{entry->value, sizeof(T)});
 				hash_table_remove(components, e.id);
 			}
 		}
@@ -118,6 +120,12 @@ namespace ecs
 			std::swap(res->pool, this->pool);
 			std::swap(res->components, this->components);
 			return res;
+		}
+
+		void
+		deinit() override
+		{
+			memory::deallocate_and_call_destructor(this);
 		}
 	};
 
@@ -174,7 +182,7 @@ namespace ecs
 			{
 				auto temp = v->reload();
 				std::swap(temp, v);
-				memory::deallocate_and_call_destructor(temp);
+				temp->deinit();
 			}
 		}
 
@@ -196,7 +204,7 @@ namespace ecs
 	ecs_free(ECS &self)
 	{
 		for (auto &[_, v] : self.component_tables)
-			memory::deallocate_and_call_destructor(v);
+			v->deinit();
 
 		hash_table_deinit(self.component_tables);
 	}
