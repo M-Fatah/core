@@ -29,6 +29,10 @@ TESTER_TEST("[CORE]: Arena_Allocator")
 	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 0);
 	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == 12);
 
+	Memory_Block reused = memory::arena_allocator_allocate(arena, 4, 1);
+	TESTER_CHECK(reused.data == a.data);
+	arena_allocator_clear(arena);
+
 	Memory_Block large = memory::arena_allocator_allocate(arena, page_size + 32, 1);
 	U8 *large_bytes = (U8 *)large.data;
 	large_bytes[0] = 1;
@@ -43,6 +47,36 @@ TESTER_TEST("[CORE]: Arena_Allocator")
 
 	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 0);
 	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == page_size + 32);
+
+	Memory_Block after_large_clear = memory::arena_allocator_allocate(arena, 4, 1);
+	TESTER_CHECK(after_large_clear.data == large.data);
+}
+
+TESTER_TEST("[CORE]: Arena_Allocator_Clear_Growth")
+{
+	U64 page_size = platform_virtual_memory_get_page_size();
+	U64 half_page = page_size / 2;
+
+	memory::Arena_Allocator *arena = memory::arena_allocator_init(1024);
+	DEFER(memory::arena_allocator_deinit(arena));
+
+	Memory_Block first = memory::arena_allocator_allocate(arena, half_page, 1);
+	Memory_Block second = memory::arena_allocator_allocate(arena, half_page, 1);
+	TESTER_CHECK(first.data != nullptr);
+	TESTER_CHECK(second.data != nullptr);
+	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == page_size);
+
+	arena_allocator_clear(arena);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 0);
+	TESTER_CHECK(memory::arena_allocator_get_peak(arena) == page_size);
+
+	Memory_Block retained = memory::arena_allocator_allocate(arena, page_size, 1);
+	U8 *bytes = (U8 *)retained.data;
+	bytes[0] = 1;
+	bytes[page_size - 1] = 2;
+	TESTER_CHECK(bytes[0] == 1);
+	TESTER_CHECK(bytes[page_size - 1] == 2);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == page_size);
 }
 
 TESTER_TEST("[CORE]: Arena_Allocator_Mark")
