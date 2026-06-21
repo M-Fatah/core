@@ -59,6 +59,17 @@ namespace memory
 	}
 
 	inline static void
+	_arena_allocator_node_deinit_list(Arena_Allocator_Node *node)
+	{
+		while (node)
+		{
+			Arena_Allocator_Node *next = node->next;
+			_arena_allocator_node_deinit(node);
+			node = next;
+		}
+	}
+
+	inline static void
 	_arena_allocator_node_commit_to_used(Arena_Allocator_Node *node, U64 used)
 	{
 		Memory_Block block = Memory_Block {
@@ -67,28 +78,6 @@ namespace memory
 		};
 		if (!platform_virtual_memory_commit(block))
 			log_fatal("[ARENA_ALLOCATOR]: Could not commit arena node memory.");
-	}
-
-	inline static void
-	_arena_allocator_node_decommit_to_used(Arena_Allocator_Node *node, U64 used)
-	{
-		if (used >= node->capacity)
-			return;
-
-		U64 page_size       = platform_virtual_memory_get_page_size();
-		U8 *payload_start   = (U8 *)(node + 1);
-		U64 decommit_start  = u64_align_up((U64)(payload_start + used), page_size);
-		U64 node_end        = (U64)node + sizeof(Arena_Allocator_Node) + node->capacity;
-		U64 decommit_end    = u64_align_down(node_end, page_size);
-		if (decommit_start >= decommit_end)
-			return;
-
-		Memory_Block block = Memory_Block {
-			.data = (void *)decommit_start,
-			.size = decommit_end - decommit_start
-		};
-		if (!platform_virtual_memory_decommit(block))
-			log_fatal("[ARENA_ALLOCATOR]: Could not decommit arena node memory.");
 	}
 
 	Arena_Allocator::Arena_Allocator(U64 initial_capacity)
@@ -106,13 +95,7 @@ namespace memory
 	Arena_Allocator::~Arena_Allocator()
 	{
 		Arena_Allocator *self = this;
-		Arena_Allocator_Node *node = self->ctx->head;
-		while (node)
-		{
-			Arena_Allocator_Node *next = node->next;
-			_arena_allocator_node_deinit(node);
-			node = next;
-		}
+		_arena_allocator_node_deinit_list(self->ctx->head);
 		::free(self->ctx);
 	}
 
@@ -162,19 +145,11 @@ namespace memory
 		Arena_Allocator *self = this;
 		if (self->ctx->peak > self->ctx->head->capacity)
 		{
-			Arena_Allocator_Node *node = self->ctx->head;
-			while (node)
-			{
-				Arena_Allocator_Node *next = node->next;
-				_arena_allocator_node_deinit(node);
-				node = next;
-			}
+			_arena_allocator_node_deinit_list(self->ctx->head);
 			self->ctx->head = _arena_allocator_node_init(self->ctx->peak);
+			_arena_allocator_node_commit_to_used(self->ctx->head, self->ctx->peak);
 		}
-		else
-		{
-			_arena_allocator_node_decommit_to_used(self->ctx->head, 0);
-		}
+
 		self->ctx->head->used = 0;
 		self->ctx->used       = 0;
 	}
@@ -235,7 +210,6 @@ namespace memory
 		}
 
 		self->ctx->head = mark.head;
-		_arena_allocator_node_decommit_to_used(self->ctx->head, mark.head_used);
 		self->ctx->head->used = mark.head_used;
 		self->ctx->used       = mark.arena_used;
 	}

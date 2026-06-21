@@ -90,7 +90,7 @@ Resetting to a temp mark invalidates scratch allocations made after that mark an
 
 ### Arena Allocator
 
-Bump-pointer allocator. `deallocate` is a no-op; memory is reclaimed all at once with `clear()` or `deinit`. Default capacity is 1 GB. Arena nodes use platform virtual memory internally: they reserve their address range up front and commit pages on demand. User-created arena objects are allocated through the heap allocator, so forgotten `arena_allocator_deinit` calls are visible in heap leak reports.
+Bump-pointer allocator. `deallocate` is a no-op; memory is reclaimed all at once with `clear()` or `deinit`. Default capacity is 1 GB. Arena nodes use platform virtual memory internally: they reserve their address range up front and commit pages on demand. `clear()` is a fast reset: it keeps committed memory and sets used memory to zero. If the recorded peak outgrows the current head capacity, `clear()` releases all nodes and creates one committed node large enough for the peak. User-created arena objects are allocated through the heap allocator, so forgotten `arena_allocator_deinit` calls are visible in heap leak reports.
 
 ```cpp
 #include <core/memory/arena_allocator.h>
@@ -108,7 +108,7 @@ memory::arena_allocator_clear(arena);
 memory::arena_allocator_deinit(arena);
 ```
 
-Marks reset the arena to a previous stack position and free newer arena nodes. Resetting to a mark invalidates marks taken after it. The reported peak remains a high-water mark.
+Marks reset the arena to a previous stack position and free newer arena nodes. The retained node keeps its committed memory. Resetting to a mark invalidates marks taken after it. The reported peak remains a high-water mark.
 
 ### Pool Allocator
 
