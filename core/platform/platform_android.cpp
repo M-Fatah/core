@@ -1511,6 +1511,7 @@ platform_sleep(U32 milliseconds)
 	::nanosleep(&ts, nullptr);
 }
 
+#if DEBUG
 struct Platform_Android_Callstack_State
 {
 	void **callstack;
@@ -1518,7 +1519,7 @@ struct Platform_Android_Callstack_State
 	U32 max_frame_count;
 };
 
-static _Unwind_Reason_Code
+inline static _Unwind_Reason_Code
 _platform_android_callstack_trace(struct _Unwind_Context *context, void *user_data)
 {
 	Platform_Android_Callstack_State *state = (Platform_Android_Callstack_State *)user_data;
@@ -1531,6 +1532,7 @@ _platform_android_callstack_trace(struct _Unwind_Context *context, void *user_da
 
 	return _URC_NO_REASON;
 }
+#endif
 
 U32
 platform_callstack_capture([[maybe_unused]] void **callstack, [[maybe_unused]] U32 frame_count)
