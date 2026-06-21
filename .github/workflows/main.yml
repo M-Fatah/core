@@ -44,3 +44,26 @@ jobs:
 
       - name: Running tests
         run: build/bin/${{matrix.build-variant}}/unittest
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installing Android dependencies
+        run: |
+            sudo apt update
+            sudo apt-get install -y ninja-build
+            yes | sdkmanager --licenses
+            sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+
+      - name: Configuring Android smoke
+        run: |
+            cmake -S examples/android/smoke -B build/android-smoke -G Ninja \
+              -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/27.2.12479018/build/cmake/android.toolchain.cmake" \
+              -DANDROID_ABI=arm64-v8a \
+              -DANDROID_PLATFORM=android-26 \
+              -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Building Android smoke APK
+        run: cmake --build build/android-smoke --target core_android_smoke_apk

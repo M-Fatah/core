@@ -82,7 +82,7 @@ if(WIN32)
         winmm.lib
         dbghelp
     )
-elseif(UNIX AND NOT APPLE)
+elseif(LINUX)
     list(APPEND SOURCE_FILES
         platform/platform_linux.cpp
     )
@@ -100,10 +100,18 @@ elseif(APPLE)
     list(APPEND LIBS
         core-platform-macos
     )
+elseif(ANDROID)
+    list(APPEND SOURCE_FILES
+        platform/platform_android.cpp
+    )
+    list(APPEND LIBS
+        android
+        dl
+    )
 endif()
 
 set(BUILD_TYPE SHARED)
-if(${CORE_BUILD_STATIC})
+if(CORE_BUILD_STATIC)
     set(BUILD_TYPE STATIC)
 endif()
 

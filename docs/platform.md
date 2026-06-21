@@ -2,7 +2,7 @@
 
 **Header:** `core/platform/platform.h`
 
-Cross-platform file I/O, path utilities, and native dialogs. Implementations provided for Windows, Linux, and macOS.
+Cross-platform file I/O, path utilities, native dialogs, windows, and low-level platform primitives. Implementations provided for Windows, Linux, macOS, and Android.
 
 ---
 
@@ -77,6 +77,19 @@ All functions accept both `String` and `const char *`.
 
 ---
 
+## Resources
+
+Resources are separate from normal filesystem APIs. On Windows, Linux, and macOS, resource reads use the filesystem path directly. On Android, resource reads use APK assets through Core's internal NativeActivity context.
+
+```cpp
+String shader = platform_resource_read("shaders/basic.vert", memory::temp_allocator());
+Array<String> textures = platform_resource_list_files("textures", "png", memory::temp_allocator());
+```
+
+`platform_file_read` and `platform_path_read_file` do not fall back to APK assets.
+
+---
+
 ## Environment
 
 ```cpp
@@ -87,21 +100,57 @@ Missing environment variables return an empty `String`.
 
 ---
 
+## Android
+
+Android support is NDK-only. Core uses Android system APIs and does not depend on GameActivity, AndroidX, Jetpack, Gradle libraries, or `android_native_app_glue`.
+
+The app owns the raw `ANativeActivity_onCreate` entrypoint. The Android smoke example keeps a tiny `core_android_native_activity` object library beside the example that hands `ANativeActivity` to Core and starts the example main function. A real app repo should use the same ownership shape in its own app layer.
+
+```cpp
+#include <core/platform/platform.h>
+
+void
+android_app_loop()
+{
+	Platform_Window window = platform_window_init(1280, 720, "Core Android App");
+
+	while (platform_window_poll(&window))
+	{
+		void *native_window = nullptr;
+		void *native_activity = nullptr;
+		platform_window_get_native_handles(&window, &native_window, &native_activity);
+
+		if (!native_window)
+			continue;
+	}
+
+	platform_window_deinit(&window);
+}
+```
+
+`platform_window_get_native_handles` returns `ANativeWindow *` as `native_handle` and `ANativeActivity *` as `native_connection` on Android.
+Android windows use the normal `platform_window_init` entry point. The app-side NativeActivity shim initializes Core before app code creates the window.
+
+Soft keyboard text input is not part of the initial Android backend. If needed, it should be added as a small Core-owned IME bridge instead of adopting GameActivity.
+
+---
+
 ## Dialogs
 
 ```cpp
-// Open file picker — returns chosen path or empty string
-String path = platform_dialog_file_open("Open Scene", "*.scene");
-DEFER(string_deinit(path));
+char path[4096] = {};
+bool selected = platform_file_dialog_open(path, count_of(path), "Scene (*.scene)\0*.scene\0");
 
-if (!string_is_empty(path))
+if (selected)
     load_scene(path);
 ```
 
 ```cpp
-// Save file picker
-String path = platform_dialog_file_save("Save Scene", "*.scene");
+char path[4096] = {};
+bool selected = platform_file_dialog_save(path, count_of(path), "Scene (*.scene)\0*.scene\0");
 ```
+
+File dialogs are currently implemented on Windows and macOS. Linux and Android return `false` because Core does not depend on external dialog providers such as toolkit helpers, desktop portals, or Android activity intents.
 
 ---
 
@@ -114,6 +163,7 @@ The build system defines these so you can conditionally compile:
 | `PLATFORM_WINDOWS` | Windows |
 | `PLATFORM_LINUX` | Linux |
 | `PLATFORM_MACOS` | macOS |
+| `PLATFORM_ANDROID` | Android |
 | `COMPILER_MSVC` | MSVC |
 | `COMPILER_CLANG` | Clang / Apple Clang |
 | `COMPILER_GCC` | GCC |

@@ -1,0 +1,24 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.mfatah.core.smoke">
+
+    <uses-sdk android:minSdkVersion="26" />
+
+    <application
+        android:extractNativeLibs="true"
+        android:hasCode="false"
+        android:label="Core Android Smoke">
+        <activity
+            android:name="android.app.NativeActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:exported="true"
+            android:label="Core Android Smoke">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="core_android_smoke" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

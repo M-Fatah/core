@@ -553,6 +553,18 @@ platform_path_list_files(const String &directory, const String &extension_filter
 	return files;
 }
 
+String
+platform_resource_read(const String &path, memory::Allocator *allocator)
+{
+	return platform_path_read_file(path, allocator);
+}
+
+Array<String>
+platform_resource_list_files(const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	return platform_path_list_files(directory, extension_filter, allocator);
+}
+
 // C.
 Platform_Api
 platform_api_init(const char *filepath)
@@ -1226,16 +1238,4 @@ platform_callstack_resolve([[maybe_unused]] void **callstack, [[maybe_unused]] P
 	if (symbols)
 		::free(symbols);
 #endif
-}
-
-Platform_Font
-platform_font_init(const char *, const char *, U32, bool)
-{
-	return {};
-}
-
-void
-platform_font_deinit(Platform_Font *)
-{
-
 }

@@ -205,6 +205,36 @@ platform_path_list_files(const char *directory, const char *extension_filter, me
 	return platform_path_list_files(string_literal(directory), string_literal(extension_filter), allocator);
 }
 
+CORE_API String
+platform_resource_read(const String &path, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_resource_read(const char *path, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_resource_read(string_literal(path), allocator);
+}
+
+CORE_API Array<String>
+platform_resource_list_files(const String &directory, const String &extension_filter, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static Array<String>
+platform_resource_list_files(const String &directory, const char *extension_filter, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_resource_list_files(directory, string_literal(extension_filter), allocator);
+}
+
+inline static Array<String>
+platform_resource_list_files(const char *directory, const String &extension_filter, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_resource_list_files(string_literal(directory), extension_filter, allocator);
+}
+
+inline static Array<String>
+platform_resource_list_files(const char *directory, const char *extension_filter, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_resource_list_files(string_literal(directory), string_literal(extension_filter), allocator);
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -343,12 +373,25 @@ typedef struct Platform_Key_State
 	I32 release_count;
 } Platform_Key_State;
 
+#define PLATFORM_TOUCH_MAX_COUNT 10
+
+typedef struct Platform_Touch_State
+{
+	I32 id;
+	I32 x, y;
+	I32 dx, dy;
+	bool pressed;
+	bool released;
+	bool down;
+} Platform_Touch_State;
+
 typedef struct Platform_Input
 {
 	I32 mouse_x, mouse_y;
 	I32 mouse_dx, mouse_dy;
 	F32 mouse_wheel;
 	Platform_Key_State keys[PLATFORM_KEY_COUNT];
+	Platform_Touch_State touches[PLATFORM_TOUCH_MAX_COUNT];
 } Platform_Input;
 
 typedef struct Platform_Window
@@ -357,41 +400,6 @@ typedef struct Platform_Window
 	U32 width, height;
 	Platform_Input input;
 } Platform_Window;
-
-typedef struct Glyph
-{
-	I32 codepoint;
-	I32 yadvance;
-	U32 width;
-	U32 height;
-	F32 uv_min_x;
-	F32 uv_min_y;
-	F32 uv_max_x;
-	F32 uv_max_y;
-} Glyph;
-
-typedef struct Platform_Font
-{
-	// Font data.
-	I32 ascent;
-	I32 descent;
-	I32 line_spacing;
-	U32 whitespace_width;
-	U32 max_glyph_height;
-	I32 *kerning_table;
-	Memory_Block kerning_table_block;
-
-	// Font glyphs.
-	Glyph *glyphs;
-	U32 glyph_count;
-	Memory_Block glyphs_block;
-
-	// Font atlas.
-	U8 *atlas;
-	U32 atlas_width;
-	U32 atlas_height;
-	Memory_Block atlas_block;
-} Platform_Font;
 
 
 CORE_API Platform_Api
@@ -486,6 +494,7 @@ platform_file_delete(const char *filepath);
  * @param path_length is the size of the 'path' buffer in bytes.
  * @param filters a pair of null-terminated strings, that specify what to filter in the file dialog; for example, if you want to filter by models you can use "Models (*.obj)\0*.obj\0".
  * @return 'true' on file select success, otherwise 'false'.
+ * Unsupported platforms return 'false'.
  * Note that in case the path was larger than the supplied buffer, the dialog will return 'false'.
  */
 CORE_API bool
@@ -497,6 +506,7 @@ platform_file_dialog_open(char *path, U32 path_length, const char *filters);
  * @param path_length is the size of the 'path' buffer in bytes.
  * @param filters a pair of null-terminated strings, that specify what to filter in the file dialog; for example, if you want to filter by models you can use "Models (*.obj)\0*.obj\0".
  * @return 'true' on file select success, otherwise 'false'.
+ * Unsupported platforms return 'false'.
  * Note that in case the path was larger than the supplied buffer, the dialog will return 'false'.
  */
 CORE_API bool
@@ -530,25 +540,6 @@ typedef struct Platform_Callstack_Frame
 
 CORE_API void
 platform_callstack_resolve(void **callstack, Platform_Callstack_Frame *frames, U32 frame_count);
-
-/**
- * @brief Loads the font at the specified path, and extracts information about glyphs from it.
- * @param filepath is the full path of the font resource to be loaded.
- * @param face_name is the name of the font's face to be loaded (Font files may contain more than one face).
- * @param font_height is the desired height to rasterize the font in.
- * @param origin_top_left is a flag used to flip the rasterization 'Y' axis. The default origin is bottom left.
- * @return a font structure that holds information about the loaded font and each glyph in the range '!' to '~'.
- * The font atlas stores only the alpha channel of the font glyphs.
- */
-CORE_API Platform_Font
-platform_font_init(const char *filepath, const char *face_name, U32 font_height, bool origin_top_left);
-
-/**
- * @brief Frees resources held by a previously loaded 'Font' structure.
- * @param font is the pointer to the font structure to be freed.
- */
-CORE_API void
-platform_font_deinit(Platform_Font *font);
 
 #ifdef __cplusplus
 }
