@@ -710,6 +710,9 @@ platform_window_init(U32 width, U32 height, const char *title)
 
 	self.width  = width;
 	self.height = height;
+	self.focused = true;
+	self.surface_valid = true;
+	self.surface_changed = true;
 
 	return self;
 }
@@ -720,11 +723,17 @@ platform_window_deinit(Platform_Window *self)
 	bool res = false;
 	res = DestroyWindow((HWND)self->handle);
 	validate(res, "[PLATFORM]: Failed to destroy window.");
+	self->handle = nullptr;
+	self->close_requested = true;
+	self->surface_valid = false;
 }
 
 bool
 platform_window_poll(Platform_Window *self)
 {
+	bool surface_changed = self->surface_changed;
+	self->surface_changed = false;
+
 	for (I32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{
 		self->input.keys[i].pressed       = false;
@@ -743,6 +752,8 @@ platform_window_poll(Platform_Window *self)
 		{
 			case WM_QUIT:
 			{
+				self->close_requested = true;
+				self->surface_valid = false;
 				return false;
 			}
 			case WM_LBUTTONDOWN:
@@ -809,8 +820,14 @@ platform_window_poll(Platform_Window *self)
 		// NOTE: Resizing.
 		RECT rect;
 		GetClientRect((HWND)self->handle, &rect);
-		self->width = rect.right - rect.left;
-		self->height = rect.bottom - rect.top;
+		U32 width = rect.right - rect.left;
+		U32 height = rect.bottom - rect.top;
+		if (self->width != width || self->height != height)
+		{
+			self->width = width;
+			self->height = height;
+			surface_changed = true;
+		}
 	}
 
 	{
@@ -827,7 +844,11 @@ platform_window_poll(Platform_Window *self)
 		self->input.mouse_y  = mouse_point_y_inverted;
 	}
 
-	return true;
+	self->focused = GetForegroundWindow() == (HWND)self->handle;
+	self->paused = false;
+	self->surface_valid = !self->close_requested && self->width > 0 && self->height > 0;
+	self->surface_changed = surface_changed;
+	return !self->close_requested;
 }
 
 Platform_Window_Native_Handles
@@ -848,6 +869,8 @@ platform_window_set_title(Platform_Window *self, const char *title)
 void
 platform_window_close(Platform_Window *self)
 {
+	self->close_requested = true;
+	self->surface_valid = false;
 	PostMessageW((HWND)self->handle, WM_QUIT, 0, 0);
 }
 

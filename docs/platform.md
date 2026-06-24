@@ -197,10 +197,21 @@ android_app_loop()
 
 	while (platform_window_poll(&window))
 	{
+		if (window.paused || !window.surface_valid)
+		{
+			platform_sleep(16);
+			continue;
+		}
+
 		Platform_Window_Native_Handles native = platform_window_get_native_handles(&window);
 
 		if (!native.window)
 			continue;
+
+		if (window.surface_changed)
+		{
+			// Recreate renderer surface/swapchain here.
+		}
 	}
 
 	platform_window_deinit(&window);
@@ -209,6 +220,8 @@ android_app_loop()
 
 `platform_window_get_native_handles` returns `ANativeWindow *` as `window` and `ANativeActivity *` as `context` on Android.
 Returned handles are borrowed. On Android, Core keeps the returned `ANativeWindow *` valid until the next `platform_window_poll` or `platform_window_deinit`; do not cache it across frames.
+`Platform_Window::surface_valid` reports whether a native render surface currently exists. `surface_changed` is true on the first poll after window creation and when the native surface or size changes, then is refreshed by the next poll.
+`Platform_Window::paused` is driven by Android Activity pause/resume and remains false on desktop platforms.
 Android windows use the normal `platform_window_init` entry point. The app-side NativeActivity shim initializes Core before app code creates the window.
 
 Soft keyboard text input is not part of the initial Android backend. If needed, it should be added as a small Core-owned IME bridge instead of adopting GameActivity.

@@ -399,6 +399,11 @@ typedef struct Platform_Window
 	void *handle; // TODO: Rename to context.
 	U32 width, height;
 	Platform_Input input;
+	bool close_requested; // Window should stop running.
+	bool focused;         // Window is the active input target when the platform can report it.
+	bool paused;          // App/window is paused by the platform; false on desktop.
+	bool surface_valid;   // Native render surface exists.
+	bool surface_changed; // Native render surface or size changed since the previous poll.
 } Platform_Window;
 
 typedef struct Platform_Window_Native_Handles
@@ -454,7 +459,8 @@ platform_window_deinit(Platform_Window *self);
 
 /**
  * @brief Poll events from the supplied platform window.
- * @param self a pointer to the platform window to be po.
+ * @param self a pointer to the platform window to poll.
+ * Updates Platform_Window input, size, close, focus, pause, and surface fields.
  * @return 'false' when window is closed.
  */
 CORE_API bool

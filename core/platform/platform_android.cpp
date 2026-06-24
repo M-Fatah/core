@@ -54,27 +54,22 @@ struct Platform_Context
 	ANativeWindow *native_window;
 	ANativeWindow *native_window_lease;
 	ALooper *looper;
-	memory::Allocator *allocator;
 	pthread_mutex_t mutex;
 	U32 width;
 	U32 height;
 	bool input_queue_attached;
-	bool started;
-	bool resumed;
-	bool has_focus;
 	bool close_requested;
-	bool destroy_requested;
-	bool finish_requested;
-	bool activity_destroyed;
+	bool paused;
+	bool focused;
+	bool surface_changed;
 	bool window_deinitialized;
-	bool window_deinit_running;
-	bool deinitialized;
+	bool window_deinit_in_progress;
 };
 
 static Platform_Context *_platform_android_context = nullptr;
 
 inline static void
-_platform_android_context_deinit(Platform_Context *context, bool finish_window_deinit = false);
+_platform_android_context_try_deinit(Platform_Context *context, bool window_deinit_finished = false);
 
 inline static Platform_Context *
 _platform_android_context_get()
@@ -167,6 +162,7 @@ _platform_android_window_set_locked(Platform_Context *context, ANativeWindow *wi
 	if (context->native_window == window)
 		return;
 
+	context->surface_changed = true;
 	if (context->native_window)
 		::ANativeWindow_release(context->native_window);
 
@@ -205,18 +201,6 @@ _platform_android_input_queue_detach_locked(Platform_Context *context)
 }
 
 inline static void
-_platform_android_on_start(ANativeActivity *activity)
-{
-	Platform_Context *context = _platform_android_context_from_activity(activity);
-	if (context)
-	{
-		_platform_android_context_lock(context);
-		DEFER(_platform_android_context_unlock(context););
-		context->started = true;
-	}
-}
-
-inline static void
 _platform_android_on_resume(ANativeActivity *activity)
 {
 	Platform_Context *context = _platform_android_context_from_activity(activity);
@@ -224,7 +208,7 @@ _platform_android_on_resume(ANativeActivity *activity)
 	{
 		_platform_android_context_lock(context);
 		DEFER(_platform_android_context_unlock(context););
-		context->resumed = true;
+		context->paused = false;
 	}
 }
 
@@ -236,19 +220,7 @@ _platform_android_on_pause(ANativeActivity *activity)
 	{
 		_platform_android_context_lock(context);
 		DEFER(_platform_android_context_unlock(context););
-		context->resumed = false;
-	}
-}
-
-inline static void
-_platform_android_on_stop(ANativeActivity *activity)
-{
-	Platform_Context *context = _platform_android_context_from_activity(activity);
-	if (context)
-	{
-		_platform_android_context_lock(context);
-		DEFER(_platform_android_context_unlock(context););
-		context->started = false;
+		context->paused = true;
 	}
 }
 
@@ -260,20 +232,11 @@ _platform_android_on_destroy(ANativeActivity *activity)
 	{
 		_platform_android_context_lock(context);
 		DEFER(_platform_android_context_unlock(context););
-		context->destroy_requested = true;
-		context->activity_destroyed = true;
+		context->close_requested = true;
 		context->activity = nullptr;
 		activity->instance = nullptr;
 	}
-	_platform_android_context_deinit(context);
-}
-
-inline static void *
-_platform_android_on_save_instance_state(ANativeActivity *, size_t *out_size)
-{
-	if (out_size)
-		*out_size = 0;
-	return nullptr;
+	_platform_android_context_try_deinit(context);
 }
 
 inline static void
@@ -284,7 +247,7 @@ _platform_android_on_window_focus_changed(ANativeActivity *activity, int has_foc
 	{
 		_platform_android_context_lock(context);
 		DEFER(_platform_android_context_unlock(context););
-		context->has_focus = has_focus != 0;
+		context->focused = has_focus != 0;
 	}
 }
 
@@ -310,6 +273,28 @@ _platform_android_on_native_window_destroyed(ANativeActivity *activity, ANativeW
 		DEFER(_platform_android_context_unlock(context););
 		if (context->native_window == window)
 			_platform_android_window_set_locked(context, nullptr);
+	}
+}
+
+inline static void
+_platform_android_on_configuration_changed(ANativeActivity *activity)
+{
+	Platform_Context *context = _platform_android_context_from_activity(activity);
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		DEFER(_platform_android_context_unlock(context););
+		if (context->native_window)
+		{
+			U32 width = (U32)::ANativeWindow_getWidth(context->native_window);
+			U32 height = (U32)::ANativeWindow_getHeight(context->native_window);
+			if (context->width != width || context->height != height)
+			{
+				context->width = width;
+				context->height = height;
+				context->surface_changed = true;
+			}
+		}
 	}
 }
 
@@ -340,28 +325,6 @@ _platform_android_on_input_queue_destroyed(ANativeActivity *activity, AInputQueu
 			context->input_queue = nullptr;
 		}
 	}
-}
-
-inline static void
-_platform_android_on_configuration_changed(ANativeActivity *activity)
-{
-	Platform_Context *context = _platform_android_context_from_activity(activity);
-	if (context)
-	{
-		_platform_android_context_lock(context);
-		DEFER(_platform_android_context_unlock(context););
-		if (context->native_window)
-		{
-			context->width  = (U32)::ANativeWindow_getWidth(context->native_window);
-			context->height = (U32)::ANativeWindow_getHeight(context->native_window);
-		}
-	}
-}
-
-inline static void
-_platform_android_on_low_memory(ANativeActivity *)
-{
-
 }
 
 inline static PLATFORM_KEY
@@ -646,7 +609,6 @@ _platform_android_handle_input_event(Platform_Window *window, AInputEvent *event
 		{
 			Platform_Context *context = (Platform_Context *)window->handle;
 			context->close_requested = true;
-			context->finish_requested = true;
 		}
 
 		return key != PLATFORM_KEY_COUNT;
@@ -703,27 +665,21 @@ _platform_input_reset_transitions(Platform_Input *input)
 	input->mouse_wheel = 0.0f;
 }
 
-inline static Platform_Context *
-_platform_android_context_init(ANativeActivity *activity, void *saved_state, U64 saved_state_size, memory::Allocator *allocator)
+inline static void
+_platform_android_context_init(ANativeActivity *activity)
 {
-	unused(saved_state, saved_state_size);
 	validate(_platform_android_context == nullptr, "[PLATFORM][ANDROID]: Android context is already initialized.");
 	validate(activity != nullptr, "[PLATFORM][ANDROID]: NativeActivity is required.");
 	validate(activity->callbacks != nullptr, "[PLATFORM][ANDROID]: NativeActivity callbacks are required.");
 
-	allocator = allocator ? allocator : memory::heap_allocator();
-	Platform_Context *context = (Platform_Context *)memory::allocate_zeroed(allocator, sizeof(Platform_Context), alignof(Platform_Context)).data;
+	Platform_Context *context = memory::allocate_zeroed<Platform_Context>();
 	context->activity = activity;
 	context->asset_manager = activity->assetManager;
-	context->allocator = allocator;
 	validate(::pthread_mutex_init(&context->mutex, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize context mutex.");
 
 	activity->instance = context;
-	activity->callbacks->onStart = _platform_android_on_start;
 	activity->callbacks->onResume = _platform_android_on_resume;
-	activity->callbacks->onSaveInstanceState = _platform_android_on_save_instance_state;
 	activity->callbacks->onPause = _platform_android_on_pause;
-	activity->callbacks->onStop = _platform_android_on_stop;
 	activity->callbacks->onDestroy = _platform_android_on_destroy;
 	activity->callbacks->onWindowFocusChanged = _platform_android_on_window_focus_changed;
 	activity->callbacks->onNativeWindowCreated = _platform_android_on_native_window_created;
@@ -731,14 +687,12 @@ _platform_android_context_init(ANativeActivity *activity, void *saved_state, U64
 	activity->callbacks->onInputQueueCreated = _platform_android_on_input_queue_created;
 	activity->callbacks->onInputQueueDestroyed = _platform_android_on_input_queue_destroyed;
 	activity->callbacks->onConfigurationChanged = _platform_android_on_configuration_changed;
-	activity->callbacks->onLowMemory = _platform_android_on_low_memory;
 
 	_platform_android_context = context;
-	return context;
 }
 
 inline static void
-_platform_android_context_deinit(Platform_Context *context, bool finish_window_deinit)
+_platform_android_context_try_deinit(Platform_Context *context, bool window_deinit_finished)
 {
 	if (context == nullptr)
 		return;
@@ -746,10 +700,10 @@ _platform_android_context_deinit(Platform_Context *context, bool finish_window_d
 	validate(context == _platform_android_context, "[PLATFORM][ANDROID]: Android context mismatch during deinit.");
 
 	_platform_android_context_lock(context);
-	if (finish_window_deinit)
-		context->window_deinit_running = false;
+	if (window_deinit_finished)
+		context->window_deinit_in_progress = false;
 
-	if (context->deinitialized || !context->activity_destroyed || !context->window_deinitialized || context->window_deinit_running)
+	if (context->activity || !context->window_deinitialized || context->window_deinit_in_progress)
 	{
 		_platform_android_context_unlock(context);
 		return;
@@ -758,20 +712,18 @@ _platform_android_context_deinit(Platform_Context *context, bool finish_window_d
 	_platform_android_input_queue_detach_locked(context);
 	_platform_android_window_lease_release_locked(context);
 	_platform_android_window_set_locked(context, nullptr);
-	context->deinitialized = true;
 	_platform_android_context = nullptr;
 	_platform_android_context_unlock(context);
 
 	validate(::pthread_mutex_destroy(&context->mutex) == 0, "[PLATFORM][ANDROID]: Failed to destroy context mutex.");
-
-	memory::Allocator *allocator = context->allocator ? context->allocator : memory::heap_allocator();
-	memory::deallocate(allocator, Memory_Block{context, sizeof(Platform_Context)});
+	memory::deallocate(context);
 }
 
 extern "C" CORE_API void
 platform_android_native_activity_on_create(void *native_activity, void *saved_state, U64 saved_state_size)
 {
-	_platform_android_context_init((ANativeActivity *)native_activity, saved_state, saved_state_size, memory::heap_allocator());
+	unused(saved_state, saved_state_size);
+	_platform_android_context_init((ANativeActivity *)native_activity);
 }
 
 String
@@ -1236,7 +1188,12 @@ platform_window_init(U32, U32, const char *)
 		.handle = context,
 		.width = width,
 		.height = height,
-		.input = {}
+		.input = {},
+		.close_requested = context->close_requested,
+		.focused = context->focused,
+		.paused = context->paused,
+		.surface_valid = context->native_window != nullptr,
+		.surface_changed = context->native_window != nullptr
 	};
 }
 
@@ -1248,17 +1205,14 @@ platform_window_deinit(Platform_Window *self)
 	if (context)
 	{
 		_platform_android_context_lock(context);
-		context->window_deinit_running = true;
+		context->window_deinit_in_progress = true;
 		context->window_deinitialized = true;
 		context->close_requested = true;
 		_platform_android_input_queue_detach_locked(context);
 		_platform_android_window_lease_release_locked(context);
 		_platform_android_window_set_locked(context, nullptr);
-		if (!context->activity_destroyed)
-		{
-			context->finish_requested = true;
+		if (context->activity)
 			activity = context->activity;
-		}
 		_platform_android_context_unlock(context);
 	}
 
@@ -1266,11 +1220,14 @@ platform_window_deinit(Platform_Window *self)
 	self->width = 0;
 	self->height = 0;
 	self->input = {};
+	self->close_requested = true;
+	self->surface_valid = false;
+	self->surface_changed = true;
 
 	if (activity)
 		::ANativeActivity_finish(activity);
 
-	_platform_android_context_deinit(context, true);
+	_platform_android_context_try_deinit(context, true);
 }
 
 bool
@@ -1279,6 +1236,9 @@ platform_window_poll(Platform_Window *self)
 	Platform_Context *context = (Platform_Context *)self->handle;
 	if (context == nullptr)
 		return false;
+
+	bool surface_changed = self->surface_changed;
+	self->surface_changed = false;
 
 	_platform_input_reset_transitions(&self->input);
 
@@ -1306,29 +1266,44 @@ platform_window_poll(Platform_Window *self)
 		}
 	}
 
-	bool destroy_requested = false;
 	bool close_requested = false;
-	bool finish_requested = false;
+	bool paused = false;
+	bool focused = false;
+	bool surface_valid = false;
 	ANativeActivity *activity = nullptr;
 	_platform_android_context_lock(context);
 	if (context->native_window)
 	{
-		context->width = (U32)::ANativeWindow_getWidth(context->native_window);
-		context->height = (U32)::ANativeWindow_getHeight(context->native_window);
+		U32 width = (U32)::ANativeWindow_getWidth(context->native_window);
+		U32 height = (U32)::ANativeWindow_getHeight(context->native_window);
+		if (context->width != width || context->height != height)
+		{
+			context->width = width;
+			context->height = height;
+			context->surface_changed = true;
+		}
 	}
 	self->width = context->width;
 	self->height = context->height;
-	destroy_requested = context->destroy_requested;
 	close_requested = context->close_requested;
-	finish_requested = context->finish_requested;
-	context->finish_requested = false;
-	activity = context->activity;
+	paused = context->paused;
+	focused = context->focused;
+	surface_valid = context->native_window != nullptr;
+	surface_changed = surface_changed || context->surface_changed;
+	context->surface_changed = false;
+	if (close_requested)
+		activity = context->activity;
 	_platform_android_context_unlock(context);
 
-	if (finish_requested && activity)
+	if (activity)
 		::ANativeActivity_finish(activity);
 
-	return !close_requested && !destroy_requested;
+	self->close_requested = close_requested;
+	self->focused = focused;
+	self->paused = paused;
+	self->surface_valid = surface_valid;
+	self->surface_changed = surface_changed;
+	return !close_requested;
 }
 
 Platform_Window_Native_Handles
@@ -1369,10 +1344,11 @@ platform_window_close(Platform_Window *self)
 	ANativeActivity *activity = nullptr;
 	_platform_android_context_lock(context);
 	context->close_requested = true;
-	context->finish_requested = true;
 	activity = context->activity;
 	_platform_android_context_unlock(context);
 
+	self->close_requested = true;
+	self->surface_valid = false;
 	if (activity)
 		::ANativeActivity_finish(activity);
 }

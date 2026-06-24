@@ -820,7 +820,10 @@ platform_window_init(U32 width, U32 height, const char *title)
 		.handle = ctx,
 		.width  = width,
 		.height = height,
-		.input  = {}
+		.input  = {},
+		.focused = true,
+		.surface_valid = true,
+		.surface_changed = true
 	};
 }
 
@@ -840,12 +843,17 @@ platform_window_deinit(Platform_Window *self)
 	}
 
 	memory::deallocate(ctx);
+	self->handle = nullptr;
+	self->close_requested = true;
+	self->surface_valid = false;
 }
 
 bool
 platform_window_poll(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	bool surface_changed = self->surface_changed;
+	self->surface_changed = false;
 
 	for (I32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{
@@ -926,8 +934,14 @@ platform_window_poll(Platform_Window *self)
 
 		// NOTE: Window size.
 		NSSize window_size = ctx->content_view.frame.size;
-		self->width  = window_size.width;
-		self->height = window_size.height;
+		U32 width = (U32)window_size.width;
+		U32 height = (U32)window_size.height;
+		if (self->width != width || self->height != height)
+		{
+			self->width = width;
+			self->height = height;
+			surface_changed = true;
+		}
 
 		// NOTE: Mouse movement.
 		NSPoint mouse_position = [ctx->content_view convertPoint:[ctx->window convertScreenToBase:[NSEvent mouseLocation]] fromView:nil];
@@ -935,9 +949,15 @@ platform_window_poll(Platform_Window *self)
 		self->input.mouse_dy = mouse_position.y - self->input.mouse_y;
 		self->input.mouse_x  = mouse_position.x;
 		self->input.mouse_y  = mouse_position.y;
+
+		self->focused = [ctx->window isKeyWindow];
 	}
 
-	return !ctx->should_quit;
+	self->close_requested = ctx->should_quit;
+	self->paused = false;
+	self->surface_valid = !self->close_requested && self->width > 0 && self->height > 0;
+	self->surface_changed = surface_changed;
+	return !self->close_requested;
 }
 
 Platform_Window_Native_Handles
@@ -963,6 +983,8 @@ platform_window_close(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 
+	self->close_requested = true;
+	self->surface_valid = false;
 	[ctx->window performClose:ctx->window];
 }
 

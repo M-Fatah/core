@@ -616,6 +616,7 @@ platform_window_init(U32 width, U32 height, const char *title)
 					   XCB_EVENT_MASK_KEY_RELEASE    |
 					   XCB_EVENT_MASK_EXPOSURE       |
 					   XCB_EVENT_MASK_POINTER_MOTION |
+					   XCB_EVENT_MASK_FOCUS_CHANGE   |
 					   XCB_EVENT_MASK_STRUCTURE_NOTIFY;
 
 	U32 value_list[] = {screen->black_pixel, event_values};
@@ -682,7 +683,10 @@ platform_window_init(U32 width, U32 height, const char *title)
 		.handle = ctx,
 		.width  = width,
 		.height = height,
-		.input  = {}
+		.input  = {},
+		.focused = true,
+		.surface_valid = true,
+		.surface_changed = true
 	};
 }
 
@@ -696,12 +700,17 @@ platform_window_deinit(Platform_Window *self)
 	::xcb_destroy_window(ctx->connection, ctx->window);
 
 	memory::deallocate(ctx);
+	self->handle = nullptr;
+	self->close_requested = true;
+	self->surface_valid = false;
 }
 
 bool
 platform_window_poll(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	bool surface_changed = self->surface_changed;
+	self->surface_changed = false;
 
 	for (I32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{
@@ -720,9 +729,14 @@ platform_window_poll(Platform_Window *self)
 			{
 				xcb_client_message_event_t *xcb_client_message = (xcb_client_message_event_t *)xcb_event;
 				if (xcb_client_message->data.data32[0] == ctx->wm_delete_window_atom)
-					return false;
+				{
+					self->close_requested = true;
+					self->surface_valid = false;
+				}
 				break;
 			}
+			case XCB_FOCUS_IN:  self->focused = true;  break;
+			case XCB_FOCUS_OUT: self->focused = false; break;
 			case XCB_BUTTON_PRESS:
 			{
 				xcb_button_press_event_t *xcb_mouse_press_event = (xcb_button_press_event_t *)xcb_event;
@@ -788,6 +802,7 @@ platform_window_poll(Platform_Window *self)
 				{
 					self->width  = xcb_configure_notify_event->width;
 					self->height = xcb_configure_notify_event->height;
+					surface_changed = true;
 				}
 				break;
 			}
@@ -797,6 +812,9 @@ platform_window_poll(Platform_Window *self)
 
 		::free(xcb_event);
 	}
+
+	if (self->close_requested)
+		return false;
 
 	{
 		// NOTE: Mouse movement.
@@ -821,7 +839,10 @@ platform_window_poll(Platform_Window *self)
 		::free(xcb_query_pointer_reply);
 	}
 
-	return true;
+	self->paused = false;
+	self->surface_valid = self->width > 0 && self->height > 0;
+	self->surface_changed = surface_changed;
+	return !self->close_requested;
 }
 
 Platform_Window_Native_Handles
@@ -846,6 +867,8 @@ void
 platform_window_close(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	self->close_requested = true;
+	self->surface_valid = false;
 
 	XEvent event;
 	::memset(&event, 0, sizeof(event));
