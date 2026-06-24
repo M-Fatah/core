@@ -13,6 +13,7 @@
 #include <android/native_window.h>
 #include <dlfcn.h>
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <pthread.h>
@@ -126,6 +127,54 @@ inline static I32
 _platform_file_handle_to_fd(Platform_File_Handle handle)
 {
 	return (I32)((intptr_t)handle - 1);
+}
+
+inline static I64
+_platform_android_read(I32 fd, void *data, U64 size)
+{
+	char *cursor = (char *)data;
+	U64 bytes_read = 0;
+	while (bytes_read < size)
+	{
+		U64 bytes_to_read = u64_min(size - bytes_read, (U64)SSIZE_MAX);
+		I64 result = ::read(fd, cursor + bytes_read, (size_t)bytes_to_read);
+		if (result == 0)
+			break;
+
+		if (result < 0)
+		{
+			if (errno == EINTR)
+				continue;
+			return -1;
+		}
+
+		bytes_read += (U64)result;
+	}
+	return (I64)bytes_read;
+}
+
+inline static I64
+_platform_android_write(I32 fd, const void *data, U64 size)
+{
+	const char *cursor = (const char *)data;
+	U64 bytes_written = 0;
+	while (bytes_written < size)
+	{
+		U64 bytes_to_write = u64_min(size - bytes_written, (U64)SSIZE_MAX);
+		I64 result = ::write(fd, cursor + bytes_written, (size_t)bytes_to_write);
+		if (result == 0)
+			break;
+
+		if (result < 0)
+		{
+			if (errno == EINTR)
+				continue;
+			return -1;
+		}
+
+		bytes_written += (U64)result;
+	}
+	return (I64)bytes_written;
 }
 
 inline static Platform_Context *
@@ -618,10 +667,19 @@ _platform_android_handle_input_event(Platform_Window *window, AInputEvent *event
 	{
 		I32 source = ::AInputEvent_getSource(event);
 		if ((source & AINPUT_SOURCE_MOUSE) == AINPUT_SOURCE_MOUSE)
+		{
 			_platform_android_handle_mouse(window, event);
-		else
+			return 1;
+		}
+
+		if ((source & AINPUT_SOURCE_TOUCHSCREEN) == AINPUT_SOURCE_TOUCHSCREEN || (source & AINPUT_SOURCE_STYLUS) == AINPUT_SOURCE_STYLUS || (source & AINPUT_SOURCE_TOUCHPAD) == AINPUT_SOURCE_TOUCHPAD)
+		{
 			_platform_android_handle_touch(window, event);
-		return 1;
+			return 1;
+		}
+
+		if ((source & AINPUT_SOURCE_JOYSTICK) == AINPUT_SOURCE_JOYSTICK || (source & AINPUT_SOURCE_GAMEPAD) == AINPUT_SOURCE_GAMEPAD)
+			return 0;
 	}
 
 	return 0;
@@ -942,11 +1000,15 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 		return content;
 
 	string_resize(content, file_size);
-	I64 bytes_read = ::read(file_handle, content.data, content.count);
-	if (bytes_read == -1)
+	I64 bytes_read = _platform_android_read(file_handle, content.data, content.count);
+	if (bytes_read < 0)
+	{
+		string_resize(content, 0);
 		return content;
+	}
 
-	validate((I64)content.count == bytes_read, "[PLATFORM][ANDROID]: File read size mismatch.");
+	if ((U64)bytes_read != content.count)
+		string_resize(content, (U64)bytes_read);
 	return content;
 }
 
@@ -958,8 +1020,8 @@ platform_path_write_file(const String &path, Memory_Block block)
 		return 0;
 	DEFER(validate(::close(file_handle) == 0, "[PLATFORM][ANDROID]: Failed to close file handle."););
 
-	I64 bytes_written = ::write(file_handle, block.data, block.size);
-	if (bytes_written == -1)
+	I64 bytes_written = _platform_android_write(file_handle, block.data, block.size);
+	if (bytes_written < 0)
 		return 0;
 	return (U64)bytes_written;
 }
@@ -1392,8 +1454,8 @@ platform_file_read(const char *filepath, Memory_Block block)
 		return 0;
 	DEFER(validate(::close(file_handle) == 0, "[PLATFORM][ANDROID]: Failed to close file handle."););
 
-	I64 bytes_read = ::read(file_handle, block.data, block.size);
-	if (bytes_read == -1)
+	I64 bytes_read = _platform_android_read(file_handle, block.data, block.size);
+	if (bytes_read < 0)
 		return 0;
 	return (U64)bytes_read;
 }
@@ -1406,8 +1468,8 @@ platform_file_write(const char *filepath, Memory_Block block)
 		return 0;
 	DEFER(validate(::close(file_handle) == 0, "[PLATFORM][ANDROID]: Failed to close file handle."););
 
-	I64 bytes_written = ::write(file_handle, block.data, block.size);
-	if (bytes_written == -1)
+	I64 bytes_written = _platform_android_write(file_handle, block.data, block.size);
+	if (bytes_written < 0)
 		return 0;
 	return (U64)bytes_written;
 }
@@ -1442,14 +1504,14 @@ platform_file_close(Platform_File_Handle handle)
 U64
 platform_file_read(Platform_File_Handle handle, void *data, U64 size)
 {
-	I64 bytes_read = ::read(_platform_file_handle_to_fd(handle), data, size);
+	I64 bytes_read = _platform_android_read(_platform_file_handle_to_fd(handle), data, size);
 	return bytes_read < 0 ? 0 : (U64)bytes_read;
 }
 
 U64
 platform_file_write(Platform_File_Handle handle, const void *data, U64 size)
 {
-	I64 bytes_written = ::write(_platform_file_handle_to_fd(handle), data, size);
+	I64 bytes_written = _platform_android_write(_platform_file_handle_to_fd(handle), data, size);
 	return bytes_written < 0 ? 0 : (U64)bytes_written;
 }
 
@@ -1503,14 +1565,14 @@ platform_file_copy(const char *from, const char *to)
 	char buffer[8192];
 	while (true)
 	{
-		I64 bytes_read = ::read(src_file, buffer, sizeof(buffer));
+		I64 bytes_read = _platform_android_read(src_file, buffer, sizeof(buffer));
 		if (bytes_read == 0)
 			break;
 
-		if (bytes_read == -1)
+		if (bytes_read < 0)
 			return false;
 
-		I64 bytes_written = ::write(dst_file, buffer, bytes_read);
+		I64 bytes_written = _platform_android_write(dst_file, buffer, (U64)bytes_read);
 		if (bytes_written != bytes_read)
 			return false;
 	}

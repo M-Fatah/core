@@ -139,6 +139,8 @@ ANativeActivity_onCreate(ANativeActivity *activity, void *saved_state, size_t sa
 }
 ```
 
+The Android app thread must leave its loop when `platform_window_poll` returns false and must call `platform_window_deinit` before the process starts another Core Android window. Core requests that shutdown from Activity destroy and Back/close events.
+
 The app shared library links Core:
 
 ```cmake
@@ -170,7 +172,7 @@ The app manifest declares `NativeActivity` and names the shared library without 
         android:label="My App">
         <activity
             android:name="android.app.NativeActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:configChanges="colorMode|density|fontScale|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|touchscreen|uiMode"
             android:exported="true"
             android:label="My App">
             <meta-data
@@ -184,6 +186,8 @@ The app manifest declares `NativeActivity` and names the shared library without 
     </application>
 </manifest>
 ```
+
+The `configChanges` list is part of the Core NativeActivity contract. Android should deliver those changes to the existing Activity while Core owns the app loop; if an app intentionally allows Activity recreation, it must wait until the old app thread exits and `platform_window_deinit` has released the Core Android context before initializing Core again.
 
 APK packaging belongs in the app repo. A CMake-only app can package with Android SDK tools (`aapt2`, `zipalign`, `apksigner`, `adb`), or the app can use Gradle. Either way, package `libmy_android_app.so` into `lib/<abi>/`, package Core resources into APK `assets/`, sign the APK, install it, then launch the manifest package.
 

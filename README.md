@@ -132,7 +132,7 @@ build/bin/Debug/
 Build Core as an Android static library:
 
 ```powershell
-cmake -B build/android-core -G Ninja `
+cmake -B build -G Ninja `
   -DCMAKE_TOOLCHAIN_FILE="$env:ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" `
   -DANDROID_ABI=arm64-v8a `
   -DANDROID_PLATFORM=android-26 `
@@ -142,7 +142,7 @@ cmake -B build/android-core -G Ninja `
   -DCORE_INSTALL=OFF `
   -DCMAKE_BUILD_TYPE=Debug
 
-cmake --build build/android-core
+cmake --build build --target core
 ```
 
 An Android app repo should link Core into its own NativeActivity shared library:

@@ -69,9 +69,54 @@ jobs:
               "$sdkmanager" --install "ndk;$ndk_version"
             fi
 
-      - name: Configuring Android Core
+      - name: Preparing Android link smoke
         run: |
-            cmake -B build/android-core-${{matrix.build-variant}} -G Ninja \
+            set -euo pipefail
+            smoke_dir="$RUNNER_TEMP/core_android_link_smoke_${{matrix.build-variant}}"
+            mkdir -p "$smoke_dir/src"
+            cat > "$smoke_dir/CMakeLists.txt" <<'CMAKE'
+            cmake_minimum_required(VERSION 3.25)
+
+            project(core_android_link_smoke CXX)
+
+            set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
+            set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
+            set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
+
+            set(CORE_BUILD_STATIC ON CACHE BOOL "" FORCE)
+            set(CORE_BUILD_TEST OFF CACHE BOOL "" FORCE)
+            set(CORE_BUILD_UNITTEST OFF CACHE BOOL "" FORCE)
+            set(CORE_INSTALL OFF CACHE BOOL "" FORCE)
+
+            add_subdirectory("$ENV{GITHUB_WORKSPACE}" core)
+
+            add_library(core_android_link_smoke SHARED
+                src/android_link_smoke.cpp
+            )
+            target_link_libraries(core_android_link_smoke PRIVATE core)
+            CMAKE
+            cat > "$smoke_dir/src/android_link_smoke.cpp" <<'CPP'
+            #include <core/defines.h>
+            #include <core/platform/platform.h>
+
+            #include <android/native_activity.h>
+            #include <stddef.h>
+
+            extern "C" void
+            platform_android_native_activity_on_create(void *native_activity, void *saved_state, U64 saved_state_size);
+
+            extern "C" __attribute__((visibility("default"))) void
+            ANativeActivity_onCreate(ANativeActivity *activity, void *saved_state, size_t saved_state_size)
+            {
+                platform_android_native_activity_on_create(activity, saved_state, (U64)saved_state_size);
+            }
+            CPP
+
+      - name: Configuring Android link smoke
+        run: |
+            set -euo pipefail
+            smoke_dir="$RUNNER_TEMP/core_android_link_smoke_${{matrix.build-variant}}"
+            cmake -B build -S "$smoke_dir" -G Ninja \
               -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/27.2.12479018/build/cmake/android.toolchain.cmake" \
               -DANDROID_ABI=arm64-v8a \
               -DANDROID_PLATFORM=android-26 \
@@ -81,5 +126,5 @@ jobs:
               -DCORE_INSTALL=OFF \
               -DCMAKE_BUILD_TYPE=${{matrix.build-variant}}
 
-      - name: Building Android Core
-        run: cmake --build build/android-core-${{matrix.build-variant}} --target core
+      - name: Building Android link smoke
+        run: cmake --build build --target core_android_link_smoke
