@@ -52,6 +52,7 @@ struct Platform_Context
 	AAssetManager *asset_manager;
 	AInputQueue *input_queue;
 	ANativeWindow *native_window;
+	ANativeWindow *native_window_lease;
 	ALooper *looper;
 	memory::Allocator *allocator;
 	pthread_mutex_t mutex;
@@ -61,11 +62,19 @@ struct Platform_Context
 	bool started;
 	bool resumed;
 	bool has_focus;
+	bool close_requested;
 	bool destroy_requested;
 	bool finish_requested;
+	bool activity_destroyed;
+	bool window_deinitialized;
+	bool window_deinit_running;
+	bool deinitialized;
 };
 
 static Platform_Context *_platform_android_context = nullptr;
+
+inline static void
+_platform_android_context_deinit(Platform_Context *context, bool finish_window_deinit = false);
 
 inline static Platform_Context *
 _platform_android_context_get()
@@ -140,6 +149,16 @@ inline static void
 _platform_android_context_unlock(Platform_Context *context)
 {
 	validate(::pthread_mutex_unlock(&context->mutex) == 0, "[PLATFORM][ANDROID]: Failed to unlock context mutex.");
+}
+
+inline static void
+_platform_android_window_lease_release_locked(Platform_Context *context)
+{
+	if (context->native_window_lease)
+	{
+		::ANativeWindow_release(context->native_window_lease);
+		context->native_window_lease = nullptr;
+	}
 }
 
 inline static void
@@ -242,7 +261,11 @@ _platform_android_on_destroy(ANativeActivity *activity)
 		_platform_android_context_lock(context);
 		DEFER(_platform_android_context_unlock(context););
 		context->destroy_requested = true;
+		context->activity_destroyed = true;
+		context->activity = nullptr;
+		activity->instance = nullptr;
 	}
+	_platform_android_context_deinit(context);
 }
 
 inline static void *
@@ -622,7 +645,7 @@ _platform_android_handle_input_event(Platform_Window *window, AInputEvent *event
 		if (keycode == AKEYCODE_BACK && action == AKEY_EVENT_ACTION_UP)
 		{
 			Platform_Context *context = (Platform_Context *)window->handle;
-			context->destroy_requested = true;
+			context->close_requested = true;
 			context->finish_requested = true;
 		}
 
@@ -715,7 +738,7 @@ _platform_android_context_init(ANativeActivity *activity, void *saved_state, U64
 }
 
 inline static void
-_platform_android_context_deinit(Platform_Context *context)
+_platform_android_context_deinit(Platform_Context *context, bool finish_window_deinit)
 {
 	if (context == nullptr)
 		return;
@@ -723,18 +746,26 @@ _platform_android_context_deinit(Platform_Context *context)
 	validate(context == _platform_android_context, "[PLATFORM][ANDROID]: Android context mismatch during deinit.");
 
 	_platform_android_context_lock(context);
-	_platform_android_input_queue_detach_locked(context);
-	_platform_android_window_set_locked(context, nullptr);
-	_platform_android_context_unlock(context);
+	if (finish_window_deinit)
+		context->window_deinit_running = false;
 
-	if (context->activity)
-		context->activity->instance = nullptr;
+	if (context->deinitialized || !context->activity_destroyed || !context->window_deinitialized || context->window_deinit_running)
+	{
+		_platform_android_context_unlock(context);
+		return;
+	}
+
+	_platform_android_input_queue_detach_locked(context);
+	_platform_android_window_lease_release_locked(context);
+	_platform_android_window_set_locked(context, nullptr);
+	context->deinitialized = true;
+	_platform_android_context = nullptr;
+	_platform_android_context_unlock(context);
 
 	validate(::pthread_mutex_destroy(&context->mutex) == 0, "[PLATFORM][ANDROID]: Failed to destroy context mutex.");
 
 	memory::Allocator *allocator = context->allocator ? context->allocator : memory::heap_allocator();
 	memory::deallocate(allocator, Memory_Block{context, sizeof(Platform_Context)});
-	_platform_android_context = nullptr;
 }
 
 extern "C" CORE_API void
@@ -865,6 +896,25 @@ platform_path_get_current_working_directory(memory::Allocator *allocator)
 String
 platform_path_get_temp_directory(memory::Allocator *allocator)
 {
+	Platform_Context *context = _platform_android_context;
+	if (context)
+	{
+		String result = {};
+		_platform_android_context_lock(context);
+		if (context->activity && context->activity->internalDataPath)
+			result = string_from(context->activity->internalDataPath, allocator);
+		else if (context->activity && context->activity->externalDataPath)
+			result = string_from(context->activity->externalDataPath, allocator);
+		_platform_android_context_unlock(context);
+
+		if (result.count > 0)
+		{
+			if (result[result.count - 1] != '/')
+				string_append(result, '/');
+			return result;
+		}
+	}
+
 	String result = platform_environment_variable_get("TMPDIR", allocator);
 	if (result.count == 0)
 		result = string_from("/data/local/tmp/", allocator);
@@ -1194,11 +1244,33 @@ void
 platform_window_deinit(Platform_Window *self)
 {
 	Platform_Context *context = (Platform_Context *)self->handle;
+	ANativeActivity *activity = nullptr;
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		context->window_deinit_running = true;
+		context->window_deinitialized = true;
+		context->close_requested = true;
+		_platform_android_input_queue_detach_locked(context);
+		_platform_android_window_lease_release_locked(context);
+		_platform_android_window_set_locked(context, nullptr);
+		if (!context->activity_destroyed)
+		{
+			context->finish_requested = true;
+			activity = context->activity;
+		}
+		_platform_android_context_unlock(context);
+	}
+
 	self->handle = nullptr;
 	self->width = 0;
 	self->height = 0;
 	self->input = {};
-	_platform_android_context_deinit(context);
+
+	if (activity)
+		::ANativeActivity_finish(activity);
+
+	_platform_android_context_deinit(context, true);
 }
 
 bool
@@ -1211,6 +1283,7 @@ platform_window_poll(Platform_Window *self)
 	_platform_input_reset_transitions(&self->input);
 
 	_platform_android_context_lock(context);
+	_platform_android_window_lease_release_locked(context);
 	if (context->looper == nullptr)
 	{
 		context->looper = ::ALooper_prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS);
@@ -1234,6 +1307,7 @@ platform_window_poll(Platform_Window *self)
 	}
 
 	bool destroy_requested = false;
+	bool close_requested = false;
 	bool finish_requested = false;
 	ANativeActivity *activity = nullptr;
 	_platform_android_context_lock(context);
@@ -1245,6 +1319,7 @@ platform_window_poll(Platform_Window *self)
 	self->width = context->width;
 	self->height = context->height;
 	destroy_requested = context->destroy_requested;
+	close_requested = context->close_requested;
 	finish_requested = context->finish_requested;
 	context->finish_requested = false;
 	activity = context->activity;
@@ -1253,28 +1328,29 @@ platform_window_poll(Platform_Window *self)
 	if (finish_requested && activity)
 		::ANativeActivity_finish(activity);
 
-	return !destroy_requested;
+	return !close_requested && !destroy_requested;
 }
 
-void
-platform_window_get_native_handles(Platform_Window *self, void **native_handle, void **native_connection)
+Platform_Window_Native_Handles
+platform_window_get_native_handles(Platform_Window *self)
 {
 	Platform_Context *context = (Platform_Context *)self->handle;
 	if (context)
 	{
 		_platform_android_context_lock(context);
 		DEFER(_platform_android_context_unlock(context););
-		if (native_handle)
-			*native_handle = context->native_window;
-		if (native_connection)
-			*native_connection = context->activity;
-		return;
+		if (context->native_window_lease == nullptr && context->native_window)
+		{
+			context->native_window_lease = context->native_window;
+			::ANativeWindow_acquire(context->native_window_lease);
+		}
+		return Platform_Window_Native_Handles {
+			.window = context->native_window_lease,
+			.context = context->activity
+		};
 	}
 
-	if (native_handle)
-		*native_handle = nullptr;
-	if (native_connection)
-		*native_connection = nullptr;
+	return Platform_Window_Native_Handles {};
 }
 
 void
@@ -1292,7 +1368,8 @@ platform_window_close(Platform_Window *self)
 
 	ANativeActivity *activity = nullptr;
 	_platform_android_context_lock(context);
-	context->destroy_requested = true;
+	context->close_requested = true;
+	context->finish_requested = true;
 	activity = context->activity;
 	_platform_android_context_unlock(context);
 

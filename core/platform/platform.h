@@ -401,6 +401,11 @@ typedef struct Platform_Window
 	Platform_Input input;
 } Platform_Window;
 
+typedef struct Platform_Window_Native_Handles
+{
+	void *window;
+	void *context;
+} Platform_Window_Native_Handles;
 
 CORE_API Platform_Api
 platform_api_init(const char *filepath);
@@ -455,8 +460,12 @@ platform_window_deinit(Platform_Window *self);
 CORE_API bool
 platform_window_poll(Platform_Window *self);
 
-CORE_API void
-platform_window_get_native_handles(Platform_Window *self, void **native_handle, void **native_connection);
+/**
+ * @brief Gets native handles for the supplied platform window.
+ * Returned handles are borrowed and should not be cached across frames.
+ */
+CORE_API Platform_Window_Native_Handles
+platform_window_get_native_handles(Platform_Window *self);
 
 CORE_API void
 platform_window_set_title(Platform_Window *self, const char *title);

@@ -830,13 +830,13 @@ platform_window_poll(Platform_Window *self)
 	return true;
 }
 
-void
-platform_window_get_native_handles(Platform_Window *self, void **native_handle, void **native_connection)
+Platform_Window_Native_Handles
+platform_window_get_native_handles(Platform_Window *self)
 {
-	if (native_handle)
-		*native_handle = self->handle;
-	if (native_connection)
-		*native_connection = nullptr;
+	return Platform_Window_Native_Handles {
+		.window = self->handle,
+		.context = nullptr
+	};
 }
 
 void

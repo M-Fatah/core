@@ -104,7 +104,88 @@ Missing environment variables return an empty `String`.
 
 Android support is NDK-only. Core uses Android system APIs and does not depend on GameActivity, AndroidX, Jetpack, Gradle libraries, or `android_native_app_glue`.
 
-The app owns the raw `ANativeActivity_onCreate` entrypoint. The Android smoke example keeps a tiny `core_android_native_activity` object library beside the example that hands `ANativeActivity` to Core and starts the example main function. A real app repo should use the same ownership shape in its own app layer.
+Core is a library, not an APK packager. The app repo owns the raw `ANativeActivity_onCreate` entrypoint, app thread, manifest, package name, permissions, assets, signing, install, and launch steps.
+
+The app entrypoint hands `ANativeActivity` to Core before app code creates a platform window:
+
+```cpp
+#include <core/defines.h>
+#include <core/validate.h>
+
+#include <android/native_activity.h>
+#include <pthread.h>
+
+extern "C" void
+platform_android_native_activity_on_create(void *native_activity, void *saved_state, U64 saved_state_size);
+
+extern "C" void
+app_main();
+
+inline static void *
+_android_app_thread_main(void *)
+{
+	app_main();
+	return nullptr;
+}
+
+extern "C" __attribute__((visibility("default"))) void
+ANativeActivity_onCreate(ANativeActivity *activity, void *saved_state, size_t saved_state_size)
+{
+	platform_android_native_activity_on_create(activity, saved_state, (U64)saved_state_size);
+
+	pthread_t thread = {};
+	validate(::pthread_create(&thread, nullptr, _android_app_thread_main, nullptr) == 0, "[ANDROID]: Failed to create app thread.");
+	validate(::pthread_detach(thread) == 0, "[ANDROID]: Failed to detach app thread.");
+}
+```
+
+The app shared library links Core:
+
+```cmake
+set(CORE_BUILD_STATIC ON CACHE BOOL "" FORCE)
+set(CORE_BUILD_TEST OFF CACHE BOOL "" FORCE)
+set(CORE_BUILD_UNITTEST OFF CACHE BOOL "" FORCE)
+set(CORE_INSTALL OFF CACHE BOOL "" FORCE)
+
+add_subdirectory(path/to/core core)
+
+add_library(my_android_app SHARED
+    src/android_native_activity_entry.cpp
+    src/app.cpp
+)
+target_link_libraries(my_android_app PRIVATE core)
+```
+
+The app manifest declares `NativeActivity` and names the shared library without the `lib` prefix:
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.myapp">
+
+    <uses-sdk android:minSdkVersion="26" />
+
+    <application
+        android:extractNativeLibs="true"
+        android:hasCode="false"
+        android:label="My App">
+        <activity
+            android:name="android.app.NativeActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:exported="true"
+            android:label="My App">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="my_android_app" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+```
+
+APK packaging belongs in the app repo. A CMake-only app can package with Android SDK tools (`aapt2`, `zipalign`, `apksigner`, `adb`), or the app can use Gradle. Either way, package `libmy_android_app.so` into `lib/<abi>/`, package Core resources into APK `assets/`, sign the APK, install it, then launch the manifest package.
 
 ```cpp
 #include <core/platform/platform.h>
@@ -116,11 +197,9 @@ android_app_loop()
 
 	while (platform_window_poll(&window))
 	{
-		void *native_window = nullptr;
-		void *native_activity = nullptr;
-		platform_window_get_native_handles(&window, &native_window, &native_activity);
+		Platform_Window_Native_Handles native = platform_window_get_native_handles(&window);
 
-		if (!native_window)
+		if (!native.window)
 			continue;
 	}
 
@@ -128,7 +207,8 @@ android_app_loop()
 }
 ```
 
-`platform_window_get_native_handles` returns `ANativeWindow *` as `native_handle` and `ANativeActivity *` as `native_connection` on Android.
+`platform_window_get_native_handles` returns `ANativeWindow *` as `window` and `ANativeActivity *` as `context` on Android.
+Returned handles are borrowed. On Android, Core keeps the returned `ANativeWindow *` valid until the next `platform_window_poll` or `platform_window_deinit`; do not cache it across frames.
 Android windows use the normal `platform_window_init` entry point. The app-side NativeActivity shim initializes Core before app code creates the window.
 
 Soft keyboard text input is not part of the initial Android backend. If needed, it should be added as a small Core-owned IME bridge instead of adopting GameActivity.

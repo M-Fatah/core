@@ -52,19 +52,34 @@ jobs:
 
       - name: Installing Android dependencies
         run: |
+            set -euo pipefail
             sudo apt-get update
             sudo apt-get install -y ninja-build
+            ndk_version="27.2.12479018"
             sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-            yes | "$sdkmanager" --licenses
-            "$sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+            if [ ! -x "$sdkmanager" ]; then
+              sdkmanager="$(command -v sdkmanager || true)"
+            fi
+            if [ ! -f "$ANDROID_HOME/ndk/$ndk_version/build/cmake/android.toolchain.cmake" ]; then
+              if [ -z "$sdkmanager" ]; then
+                echo "::error::sdkmanager was not found. Install Android command line tools or preinstall NDK $ndk_version."
+                exit 1
+              fi
+              yes | "$sdkmanager" --licenses >/dev/null || true
+              "$sdkmanager" --install "ndk;$ndk_version"
+            fi
 
-      - name: Configuring Android smoke
+      - name: Configuring Android Core
         run: |
-            cmake -S examples/android/smoke -B build/android-smoke-${{matrix.build-variant}} -G Ninja \
+            cmake -B build/android-core-${{matrix.build-variant}} -G Ninja \
               -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/27.2.12479018/build/cmake/android.toolchain.cmake" \
               -DANDROID_ABI=arm64-v8a \
               -DANDROID_PLATFORM=android-26 \
+              -DCORE_BUILD_STATIC=ON \
+              -DCORE_BUILD_TEST=OFF \
+              -DCORE_BUILD_UNITTEST=OFF \
+              -DCORE_INSTALL=OFF \
               -DCMAKE_BUILD_TYPE=${{matrix.build-variant}}
 
-      - name: Building Android smoke APK
-        run: cmake --build build/android-smoke-${{matrix.build-variant}} --target core_android_smoke_apk
+      - name: Building Android Core
+        run: cmake --build build/android-core-${{matrix.build-variant}} --target core

@@ -145,27 +145,24 @@ cmake -B build/android-core -G Ninja `
 cmake --build build/android-core
 ```
 
-Build, package, install, and launch the NativeActivity smoke app:
+An Android app repo should link Core into its own NativeActivity shared library:
 
-```powershell
-cmake -S examples/android/smoke -B build/android-smoke -G Ninja `
-  -DCMAKE_TOOLCHAIN_FILE="$env:ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" `
-  -DANDROID_ABI=arm64-v8a `
-  -DANDROID_PLATFORM=android-26 `
-  -DCMAKE_BUILD_TYPE=Debug
+```cmake
+set(CORE_BUILD_STATIC ON CACHE BOOL "" FORCE)
+set(CORE_BUILD_TEST OFF CACHE BOOL "" FORCE)
+set(CORE_BUILD_UNITTEST OFF CACHE BOOL "" FORCE)
+set(CORE_INSTALL OFF CACHE BOOL "" FORCE)
 
-cmake --build build/android-smoke --target core_android_smoke_run
+add_subdirectory(path/to/core core)
+
+add_library(my_android_app SHARED
+    src/android_native_activity_entry.cpp
+    src/app.cpp
+)
+target_link_libraries(my_android_app PRIVATE core)
 ```
 
-Useful Android smoke targets:
-
-| Target | Action |
-|---|---|
-| `core_android_smoke_apk` | Build `.so`, package assets, align, and sign the APK |
-| `core_android_smoke_install` | Install `build/bin/Debug/core_android_smoke.apk` with `adb install -r` |
-| `core_android_smoke_run` | Install and launch `com.mfatah.core.smoke` |
-
-The smoke app keeps `ANativeActivity_onCreate` in a tiny example-side library. Core provides the Android platform backend; the app owns the Android entrypoint.
+The app owns `ANativeActivity_onCreate`, the manifest, APK packaging, signing, install, and launch steps. See [`docs/platform.md`](docs/platform.md) for the minimal entrypoint and packaging recipe.
 
 ## CMake Options
 
