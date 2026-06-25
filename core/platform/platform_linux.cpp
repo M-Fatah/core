@@ -639,7 +639,9 @@ _platform_linux_clipboard_handle_selection_request(Platform_Window_Context *ctx,
 		}
 		else if (request->target == ctx->utf8_string_atom || request->target == ctx->text_atom || request->target == XCB_ATOM_STRING)
 		{
-			xcb_atom_t type = request->target == XCB_ATOM_STRING ? XCB_ATOM_STRING : ctx->utf8_string_atom;
+			xcb_atom_t type = ctx->utf8_string_atom;
+			if (request->target == XCB_ATOM_STRING)
+				type = XCB_ATOM_STRING;
 			::xcb_change_property(ctx->connection, XCB_PROP_MODE_REPLACE, request->requestor, property, type, 8, (U32)ctx->clipboard_text.count, ctx->clipboard_text.data);
 			response.property = property;
 		}
