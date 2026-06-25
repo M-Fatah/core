@@ -11,6 +11,7 @@
 #include <android/looper.h>
 #include <android/native_activity.h>
 #include <android/native_window.h>
+#include <jni.h>
 #include <dlfcn.h>
 #include <dirent.h>
 #include <errno.h>
@@ -51,13 +52,26 @@ struct Platform_Context
 {
 	ANativeActivity *activity;
 	AAssetManager *asset_manager;
+	JavaVM *vm;
+	jobject activity_object;
+	jclass activity_class;
+	jmethodID file_dialog_open_method;
+	jmethodID file_dialog_save_method;
+	jmethodID content_open_fd_method;
+	jmethodID content_size_method;
+	jmethodID clipboard_read_text_method;
+	jmethodID clipboard_write_text_method;
 	AInputQueue *input_queue;
 	ANativeWindow *native_window;
 	ANativeWindow *native_window_lease;
 	ALooper *looper;
 	pthread_mutex_t mutex;
+	pthread_cond_t file_dialog_condition;
 	U32 width;
 	U32 height;
+	U64 file_dialog_next_id;
+	U64 file_dialog_active_id;
+	String file_dialog_path;
 	bool input_queue_attached;
 	bool close_requested;
 	bool paused;
@@ -65,6 +79,9 @@ struct Platform_Context
 	bool surface_changed;
 	bool window_deinitialized;
 	bool window_deinit_in_progress;
+	bool file_dialog_waiting;
+	bool file_dialog_completed;
+	bool file_dialog_accepted;
 };
 
 static Platform_Context *_platform_android_context = nullptr;
@@ -92,6 +109,12 @@ _platform_copy_string(char *dst, U64 dst_size, const char *src)
 			dst[i] = src[i];
 	}
 	dst[i] = '\0';
+}
+
+inline static bool
+_platform_android_is_content_uri(const char *path)
+{
+	return path != nullptr && ::strncmp(path, "content://", 10) == 0;
 }
 
 inline static bool
@@ -195,6 +218,106 @@ _platform_android_context_unlock(Platform_Context *context)
 	validate(::pthread_mutex_unlock(&context->mutex) == 0, "[PLATFORM][ANDROID]: Failed to unlock context mutex.");
 }
 
+inline static JNIEnv *
+_platform_android_jni_env(Platform_Context *context, bool *needs_detach)
+{
+	*needs_detach = false;
+	if (context->vm == nullptr)
+		return nullptr;
+
+	JNIEnv *env = nullptr;
+	I32 result = context->vm->GetEnv((void **)&env, JNI_VERSION_1_6);
+	if (result == JNI_OK)
+		return env;
+
+	if (result != JNI_EDETACHED)
+		return nullptr;
+
+	if (context->vm->AttachCurrentThread(&env, nullptr) != JNI_OK)
+		return nullptr;
+
+	*needs_detach = true;
+	return env;
+}
+
+inline static void
+_platform_android_jni_detach(Platform_Context *context, bool needs_detach)
+{
+	if (needs_detach && context->vm)
+		context->vm->DetachCurrentThread();
+}
+
+inline static bool
+_platform_android_jni_clear_exception(JNIEnv *env)
+{
+	if (env == nullptr || !env->ExceptionCheck())
+		return false;
+
+	env->ExceptionClear();
+	return true;
+}
+
+inline static jmethodID
+_platform_android_jni_get_method(JNIEnv *env, jclass klass, const char *name, const char *signature)
+{
+	jmethodID method = env->GetMethodID(klass, name, signature);
+	_platform_android_jni_clear_exception(env);
+	return method;
+}
+
+inline static void
+_platform_android_jni_bridge_init(Platform_Context *context, ANativeActivity *activity)
+{
+	context->vm = activity->vm;
+	JNIEnv *env = activity->env;
+	if (env == nullptr || activity->clazz == nullptr)
+		return;
+
+	context->activity_object = env->NewGlobalRef(activity->clazz);
+	if (_platform_android_jni_clear_exception(env) || context->activity_object == nullptr)
+		return;
+
+	jclass activity_class = env->GetObjectClass(activity->clazz);
+	if (_platform_android_jni_clear_exception(env) || activity_class == nullptr)
+		return;
+
+	context->activity_class = (jclass)env->NewGlobalRef(activity_class);
+	env->DeleteLocalRef(activity_class);
+	if (_platform_android_jni_clear_exception(env) || context->activity_class == nullptr)
+		return;
+
+	context->file_dialog_open_method = _platform_android_jni_get_method(env, context->activity_class, "coreOpenFileDialog", "(JLjava/lang/String;)V");
+	context->file_dialog_save_method = _platform_android_jni_get_method(env, context->activity_class, "coreSaveFileDialog", "(JLjava/lang/String;)V");
+	context->content_open_fd_method = _platform_android_jni_get_method(env, context->activity_class, "coreOpenContentFd", "(Ljava/lang/String;Ljava/lang/String;)I");
+	context->content_size_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentSize", "(Ljava/lang/String;)J");
+	context->clipboard_read_text_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardReadText", "()Ljava/lang/String;");
+	context->clipboard_write_text_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardWriteText", "(Ljava/lang/String;)Z");
+}
+
+inline static void
+_platform_android_jni_bridge_deinit(Platform_Context *context)
+{
+	bool needs_detach = false;
+	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+	if (env)
+	{
+		if (context->activity_object)
+			env->DeleteGlobalRef(context->activity_object);
+		if (context->activity_class)
+			env->DeleteGlobalRef(context->activity_class);
+	}
+
+	context->activity_object = nullptr;
+	context->activity_class = nullptr;
+	context->file_dialog_open_method = nullptr;
+	context->file_dialog_save_method = nullptr;
+	context->content_open_fd_method = nullptr;
+	context->content_size_method = nullptr;
+	context->clipboard_read_text_method = nullptr;
+	context->clipboard_write_text_method = nullptr;
+	_platform_android_jni_detach(context, needs_detach);
+}
+
 inline static void
 _platform_android_window_lease_release_locked(Platform_Context *context)
 {
@@ -250,6 +373,21 @@ _platform_android_input_queue_detach_locked(Platform_Context *context)
 }
 
 inline static void
+_platform_android_file_dialog_cancel_locked(Platform_Context *context)
+{
+	if (!context->file_dialog_waiting)
+		return;
+
+	if (context->file_dialog_path.capacity > 0)
+		string_deinit(context->file_dialog_path);
+	context->file_dialog_path = {};
+
+	context->file_dialog_accepted = false;
+	context->file_dialog_completed = true;
+	validate(::pthread_cond_signal(&context->file_dialog_condition) == 0, "[PLATFORM][ANDROID]: Failed to signal file dialog condition.");
+}
+
+inline static void
 _platform_android_on_resume(ANativeActivity *activity)
 {
 	Platform_Context *context = _platform_android_context_from_activity(activity);
@@ -284,6 +422,7 @@ _platform_android_on_destroy(ANativeActivity *activity)
 		context->close_requested = true;
 		context->activity = nullptr;
 		activity->instance = nullptr;
+		_platform_android_file_dialog_cancel_locked(context);
 	}
 	_platform_android_context_try_deinit(context);
 }
@@ -734,6 +873,8 @@ _platform_android_context_init(ANativeActivity *activity)
 	context->activity = activity;
 	context->asset_manager = activity->assetManager;
 	validate(::pthread_mutex_init(&context->mutex, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize context mutex.");
+	validate(::pthread_cond_init(&context->file_dialog_condition, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize file dialog condition.");
+	_platform_android_jni_bridge_init(context, activity);
 
 	activity->instance = context;
 	activity->callbacks->onResume = _platform_android_on_resume;
@@ -768,11 +909,14 @@ _platform_android_context_try_deinit(Platform_Context *context, bool window_dein
 	}
 
 	_platform_android_input_queue_detach_locked(context);
+	_platform_android_file_dialog_cancel_locked(context);
 	_platform_android_window_lease_release_locked(context);
 	_platform_android_window_set_locked(context, nullptr);
 	_platform_android_context = nullptr;
 	_platform_android_context_unlock(context);
 
+	_platform_android_jni_bridge_deinit(context);
+	validate(::pthread_cond_destroy(&context->file_dialog_condition) == 0, "[PLATFORM][ANDROID]: Failed to destroy file dialog condition.");
 	validate(::pthread_mutex_destroy(&context->mutex) == 0, "[PLATFORM][ANDROID]: Failed to destroy context mutex.");
 	memory::deallocate(context);
 }
@@ -782,6 +926,243 @@ platform_android_native_activity_on_create(void *native_activity, void *saved_st
 {
 	unused(saved_state, saved_state_size);
 	_platform_android_context_init((ANativeActivity *)native_activity);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_core_android_CoreNativeActivity_nativeFileDialogResult(JNIEnv *env, jclass, jlong request_id, jboolean accepted, jstring uri)
+{
+	const char *uri_chars = nullptr;
+	if (accepted && uri)
+		uri_chars = env->GetStringUTFChars(uri, nullptr);
+	bool result_accepted = accepted && uri_chars != nullptr;
+
+	Platform_Context *context = _platform_android_context;
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		if (context->file_dialog_waiting && context->file_dialog_active_id == (U64)request_id)
+		{
+			if (context->file_dialog_path.capacity > 0)
+				string_deinit(context->file_dialog_path);
+			context->file_dialog_path = result_accepted ? string_from(uri_chars) : String {};
+			context->file_dialog_accepted = result_accepted;
+			context->file_dialog_completed = true;
+			validate(::pthread_cond_signal(&context->file_dialog_condition) == 0, "[PLATFORM][ANDROID]: Failed to signal file dialog condition.");
+		}
+		_platform_android_context_unlock(context);
+	}
+
+	if (uri_chars)
+		env->ReleaseStringUTFChars(uri, uri_chars);
+}
+
+inline static I32
+_platform_android_content_open_fd(const char *uri, const char *mode)
+{
+	Platform_Context *context = _platform_android_context_get();
+	if (context->activity_object == nullptr || context->content_open_fd_method == nullptr)
+		return -1;
+
+	bool needs_detach = false;
+	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+	if (env == nullptr)
+		return -1;
+
+	jstring uri_string = env->NewStringUTF(uri);
+	jstring mode_string = env->NewStringUTF(mode);
+	I32 fd = -1;
+	if (uri_string && mode_string)
+	{
+		fd = env->CallIntMethod(context->activity_object, context->content_open_fd_method, uri_string, mode_string);
+		if (_platform_android_jni_clear_exception(env))
+			fd = -1;
+	}
+	else
+	{
+		_platform_android_jni_clear_exception(env);
+	}
+
+	if (uri_string)
+		env->DeleteLocalRef(uri_string);
+	if (mode_string)
+		env->DeleteLocalRef(mode_string);
+	_platform_android_jni_detach(context, needs_detach);
+	return fd;
+}
+
+inline static I64
+_platform_android_content_size(const char *uri)
+{
+	Platform_Context *context = _platform_android_context_get();
+	if (context->activity_object == nullptr || context->content_size_method == nullptr)
+		return -1;
+
+	bool needs_detach = false;
+	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+	if (env == nullptr)
+		return -1;
+
+	jstring uri_string = env->NewStringUTF(uri);
+	I64 size = -1;
+	if (uri_string)
+	{
+		size = (I64)env->CallLongMethod(context->activity_object, context->content_size_method, uri_string);
+		if (_platform_android_jni_clear_exception(env))
+			size = -1;
+		env->DeleteLocalRef(uri_string);
+	}
+	else
+	{
+		_platform_android_jni_clear_exception(env);
+	}
+
+	_platform_android_jni_detach(context, needs_detach);
+	return size;
+}
+
+inline static void
+_platform_android_file_dialog_extension(char *extension, U64 extension_size, const char *filters)
+{
+	if (extension_size == 0)
+		return;
+
+	extension[0] = '\0';
+	if (filters == nullptr || filters[0] == '\0')
+		return;
+
+	const char *pattern = filters;
+	while (*pattern != '\0')
+		++pattern;
+	++pattern;
+
+	while (*pattern == '*' || *pattern == '.' || *pattern == ' ')
+		++pattern;
+
+	U64 count = 0;
+	while (pattern[count] != '\0' && pattern[count] != ';' && pattern[count] != ',' && count + 1 < extension_size)
+	{
+		extension[count] = pattern[count];
+		++count;
+	}
+	extension[count] = '\0';
+}
+
+inline static String
+_platform_android_file_dialog_run(const char *filters, bool save, memory::Allocator *allocator)
+{
+	String result = string_init(allocator);
+
+	Platform_Context *context = _platform_android_context_get();
+	jmethodID method = save ? context->file_dialog_save_method : context->file_dialog_open_method;
+	if (context->activity_object == nullptr || method == nullptr)
+		return result;
+
+	bool needs_detach = false;
+	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+	if (env == nullptr)
+		return result;
+
+	char extension[64] = {};
+	_platform_android_file_dialog_extension(extension, sizeof(extension), filters);
+	jstring extension_string = env->NewStringUTF(extension);
+	if (extension_string == nullptr)
+	{
+		_platform_android_jni_clear_exception(env);
+		_platform_android_jni_detach(context, needs_detach);
+		return result;
+	}
+
+	U64 request_id = 0;
+	_platform_android_context_lock(context);
+	if (context->activity == nullptr || context->file_dialog_waiting)
+	{
+		_platform_android_context_unlock(context);
+		env->DeleteLocalRef(extension_string);
+		_platform_android_jni_detach(context, needs_detach);
+		return result;
+	}
+
+	request_id = ++context->file_dialog_next_id;
+	if (request_id == 0)
+		request_id = ++context->file_dialog_next_id;
+	context->file_dialog_active_id = request_id;
+	if (context->file_dialog_path.capacity > 0)
+		string_deinit(context->file_dialog_path);
+	context->file_dialog_path = {};
+	context->file_dialog_waiting = true;
+	context->file_dialog_completed = false;
+	context->file_dialog_accepted = false;
+	_platform_android_context_unlock(context);
+
+	env->CallVoidMethod(context->activity_object, method, (jlong)request_id, extension_string);
+	bool call_failed = _platform_android_jni_clear_exception(env);
+	env->DeleteLocalRef(extension_string);
+	_platform_android_jni_detach(context, needs_detach);
+
+	if (call_failed)
+	{
+		_platform_android_context_lock(context);
+		if (context->file_dialog_waiting && context->file_dialog_active_id == request_id)
+		{
+			context->file_dialog_waiting = false;
+			context->file_dialog_completed = false;
+			context->file_dialog_accepted = false;
+			context->file_dialog_active_id = 0;
+			if (context->file_dialog_path.capacity > 0)
+				string_deinit(context->file_dialog_path);
+			context->file_dialog_path = {};
+		}
+		_platform_android_context_unlock(context);
+		return result;
+	}
+
+	_platform_android_context_lock(context);
+	while (context->file_dialog_waiting && !context->file_dialog_completed)
+		validate(::pthread_cond_wait(&context->file_dialog_condition, &context->mutex) == 0, "[PLATFORM][ANDROID]: Failed to wait for file dialog condition.");
+
+	bool accepted = context->file_dialog_completed && context->file_dialog_accepted;
+	if (accepted)
+	{
+		string_deinit(result);
+		result = string_copy(context->file_dialog_path, allocator);
+	}
+	context->file_dialog_waiting = false;
+	context->file_dialog_completed = false;
+	context->file_dialog_accepted = false;
+	context->file_dialog_active_id = 0;
+	if (context->file_dialog_path.capacity > 0)
+		string_deinit(context->file_dialog_path);
+	context->file_dialog_path = {};
+	_platform_android_context_unlock(context);
+	return result;
+}
+
+inline static String
+_platform_android_file_read_handle(Platform_File_Handle handle, U64 size, memory::Allocator *allocator)
+{
+	String content = string_init(allocator);
+	if (size > 0)
+	{
+		string_resize(content, size);
+		U64 bytes_read = platform_file_read(handle, content.data, content.count);
+		if (bytes_read != content.count)
+			string_resize(content, bytes_read);
+		return content;
+	}
+
+	char buffer[8192];
+	while (true)
+	{
+		U64 bytes_read = platform_file_read(handle, buffer, sizeof(buffer));
+		if (bytes_read == 0)
+			break;
+
+		U64 old_count = content.count;
+		string_resize(content, old_count + bytes_read);
+		::memcpy(content.data + old_count, buffer, bytes_read);
+	}
+
+	return content;
 }
 
 String
@@ -845,6 +1226,9 @@ platform_resource_list_files(const String &directory, const String &extension_fi
 bool
 platform_path_is_valid(const String &path)
 {
+	if (_platform_android_is_content_uri(path.data))
+		return platform_file_exists(path.data);
+
 	struct stat path_stat = {};
 	return ::stat(path.data, &path_stat) == 0;
 }
@@ -852,6 +1236,9 @@ platform_path_is_valid(const String &path)
 bool
 platform_path_is_file(const String &path)
 {
+	if (_platform_android_is_content_uri(path.data))
+		return platform_file_exists(path.data);
+
 	struct stat path_stat = {};
 	return ::stat(path.data, &path_stat) == 0 && S_ISREG(path_stat.st_mode);
 }
@@ -866,6 +1253,9 @@ platform_path_is_directory(const String &path)
 String
 platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 {
+	if (_platform_android_is_content_uri(path.data))
+		return string_copy(path, allocator);
+
 	char buffer[PATH_MAX] = {};
 	if (::realpath(path.data, buffer))
 		return string_from(buffer, allocator);
@@ -988,42 +1378,18 @@ platform_path_get_file_name(const String &path, memory::Allocator *allocator)
 String
 platform_path_read_file(const String &path, memory::Allocator *allocator)
 {
-	String content = string_init(allocator);
+	Platform_File_Handle file = platform_file_open(path, PLATFORM_FILE_MODE_READ);
+	if (file == PLATFORM_FILE_HANDLE_INVALID)
+		return string_init(allocator);
+	DEFER(platform_file_close(file));
 
-	I32 file_handle = ::open(path.data, O_RDONLY);
-	if (file_handle == -1)
-		return content;
-	DEFER(validate(::close(file_handle) == 0, "[PLATFORM][ANDROID]: Failed to close file handle."););
-
-	U64 file_size = platform_file_size(path.data);
-	if (file_size == 0)
-		return content;
-
-	string_resize(content, file_size);
-	I64 bytes_read = _platform_android_read(file_handle, content.data, content.count);
-	if (bytes_read < 0)
-	{
-		string_resize(content, 0);
-		return content;
-	}
-
-	if ((U64)bytes_read != content.count)
-		string_resize(content, (U64)bytes_read);
-	return content;
+	return _platform_android_file_read_handle(file, platform_file_size(path.data), allocator);
 }
 
 U64
 platform_path_write_file(const String &path, Memory_Block block)
 {
-	I32 file_handle = ::open(path.data, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
-	if (file_handle == -1)
-		return 0;
-	DEFER(validate(::close(file_handle) == 0, "[PLATFORM][ANDROID]: Failed to close file handle."););
-
-	I64 bytes_written = _platform_android_write(file_handle, block.data, block.size);
-	if (bytes_written < 0)
-		return 0;
-	return (U64)bytes_written;
+	return platform_file_write(path.data, block);
 }
 
 Array<String>
@@ -1427,6 +1793,15 @@ platform_set_current_directory()
 bool
 platform_file_exists(const char *filepath)
 {
+	if (_platform_android_is_content_uri(filepath))
+	{
+		Platform_File_Handle file = platform_file_open(filepath, PLATFORM_FILE_MODE_READ);
+		if (file == PLATFORM_FILE_HANDLE_INVALID)
+			return false;
+		platform_file_close(file);
+		return true;
+	}
+
 	struct stat file_stat = {};
 	return ::stat(filepath, &file_stat) == 0;
 }
@@ -1434,6 +1809,12 @@ platform_file_exists(const char *filepath)
 U64
 platform_file_size(const char *filepath)
 {
+	if (_platform_android_is_content_uri(filepath))
+	{
+		I64 size = _platform_android_content_size(filepath);
+		return size > 0 ? (U64)size : 0;
+	}
+
 	struct stat file_stat = {};
 	if (::stat(filepath, &file_stat) == 0)
 		return file_stat.st_size;
@@ -1449,34 +1830,43 @@ platform_file_read(const String &file_path, memory::Allocator *allocator)
 U64
 platform_file_read(const char *filepath, Memory_Block block)
 {
-	I32 file_handle = ::open(filepath, O_RDONLY);
-	if (file_handle == -1)
+	Platform_File_Handle file = platform_file_open(filepath, PLATFORM_FILE_MODE_READ);
+	if (file == PLATFORM_FILE_HANDLE_INVALID)
 		return 0;
-	DEFER(validate(::close(file_handle) == 0, "[PLATFORM][ANDROID]: Failed to close file handle."););
+	DEFER(platform_file_close(file));
 
-	I64 bytes_read = _platform_android_read(file_handle, block.data, block.size);
-	if (bytes_read < 0)
-		return 0;
-	return (U64)bytes_read;
+	return platform_file_read(file, block.data, block.size);
 }
 
 U64
 platform_file_write(const char *filepath, Memory_Block block)
 {
-	I32 file_handle = ::open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
-	if (file_handle == -1)
+	Platform_File_Handle file = platform_file_open(filepath, PLATFORM_FILE_MODE_WRITE);
+	if (file == PLATFORM_FILE_HANDLE_INVALID)
 		return 0;
-	DEFER(validate(::close(file_handle) == 0, "[PLATFORM][ANDROID]: Failed to close file handle."););
+	DEFER(platform_file_close(file));
 
-	I64 bytes_written = _platform_android_write(file_handle, block.data, block.size);
-	if (bytes_written < 0)
-		return 0;
-	return (U64)bytes_written;
+	return platform_file_write(file, block.data, block.size);
 }
 
 Platform_File_Handle
 platform_file_open(const String &path, Platform_File_Mode mode)
 {
+	if (_platform_android_is_content_uri(path.data))
+	{
+		const char *content_mode = "r";
+		switch (mode)
+		{
+			case PLATFORM_FILE_MODE_READ:       content_mode = "r";  break;
+			case PLATFORM_FILE_MODE_WRITE:      content_mode = "wt"; break;
+			case PLATFORM_FILE_MODE_READ_WRITE: content_mode = "rw"; break;
+			case PLATFORM_FILE_MODE_APPEND:     content_mode = "wa"; break;
+		}
+
+		I32 content_fd = _platform_android_content_open_fd(path.data, content_mode);
+		return content_fd == -1 ? PLATFORM_FILE_HANDLE_INVALID : _platform_file_handle_from_fd(content_fd);
+	}
+
 	I32 flags = 0;
 	switch (mode)
 	{
@@ -1546,33 +1936,24 @@ platform_file_size(Platform_File_Handle handle)
 bool
 platform_file_copy(const char *from, const char *to)
 {
-	I32 src_file = ::open(from, O_RDONLY);
-	if (src_file < 0)
+	Platform_File_Handle src_file = platform_file_open(from, PLATFORM_FILE_MODE_READ);
+	if (src_file == PLATFORM_FILE_HANDLE_INVALID)
 		return false;
+	DEFER(platform_file_close(src_file));
 
-	I32 dst_file = ::open(to, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
-	if (dst_file < 0)
-	{
-		::close(src_file);
+	Platform_File_Handle dst_file = platform_file_open(to, PLATFORM_FILE_MODE_WRITE);
+	if (dst_file == PLATFORM_FILE_HANDLE_INVALID)
 		return false;
-	}
-
-	DEFER({
-		::close(src_file);
-		::close(dst_file);
-	});
+	DEFER(platform_file_close(dst_file));
 
 	char buffer[8192];
 	while (true)
 	{
-		I64 bytes_read = _platform_android_read(src_file, buffer, sizeof(buffer));
+		U64 bytes_read = platform_file_read(src_file, buffer, sizeof(buffer));
 		if (bytes_read == 0)
 			break;
 
-		if (bytes_read < 0)
-			return false;
-
-		I64 bytes_written = _platform_android_write(dst_file, buffer, (U64)bytes_read);
+		U64 bytes_written = platform_file_write(dst_file, buffer, bytes_read);
 		if (bytes_written != bytes_read)
 			return false;
 	}
@@ -1583,23 +1964,83 @@ platform_file_copy(const char *from, const char *to)
 bool
 platform_file_delete(const char *filepath)
 {
+	if (_platform_android_is_content_uri(filepath))
+		return false;
+
 	return ::unlink(filepath) == 0;
 }
 
-bool
-platform_file_dialog_open(char *path, U32 path_length, const char *)
+String
+platform_file_dialog_open(const char *filters, memory::Allocator *allocator)
 {
-	if (path && path_length > 0)
-		::memset(path, 0, path_length);
-	return false;
+	return _platform_android_file_dialog_run(filters, false, allocator);
+}
+
+String
+platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
+{
+	return _platform_android_file_dialog_run(filters, true, allocator);
+}
+
+String
+platform_window_clipboard_read_text(Platform_Window &, memory::Allocator *allocator)
+{
+	String result = string_init(allocator);
+	Platform_Context *context = _platform_android_context_get();
+	if (context->activity_object == nullptr || context->clipboard_read_text_method == nullptr)
+		return result;
+
+	bool needs_detach = false;
+	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+	if (env == nullptr)
+		return result;
+
+	jstring text_string = (jstring)env->CallObjectMethod(context->activity_object, context->clipboard_read_text_method);
+	if (_platform_android_jni_clear_exception(env) || text_string == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return result;
+	}
+
+	const char *text_chars = env->GetStringUTFChars(text_string, nullptr);
+	if (text_chars)
+	{
+		string_deinit(result);
+		result = string_from(text_chars, allocator);
+		env->ReleaseStringUTFChars(text_string, text_chars);
+	}
+	env->DeleteLocalRef(text_string);
+	_platform_android_jni_detach(context, needs_detach);
+	return result;
 }
 
 bool
-platform_file_dialog_save(char *path, U32 path_length, const char *)
+platform_window_clipboard_write_text(Platform_Window &, const String &text)
 {
-	if (path && path_length > 0)
-		::memset(path, 0, path_length);
-	return false;
+	Platform_Context *context = _platform_android_context_get();
+	if (context->activity_object == nullptr || context->clipboard_write_text_method == nullptr)
+		return false;
+
+	bool needs_detach = false;
+	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+	if (env == nullptr)
+		return false;
+
+	jstring text_string = env->NewStringUTF(text.data ? text.data : "");
+	if (text_string == nullptr)
+	{
+		_platform_android_jni_clear_exception(env);
+		_platform_android_jni_detach(context, needs_detach);
+		return false;
+	}
+
+	bool result = env->CallBooleanMethod(context->activity_object, context->clipboard_write_text_method, text_string);
+	if (_platform_android_jni_clear_exception(env))
+		result = false;
+
+	env->DeleteLocalRef(text_string);
+	_platform_android_jni_detach(context, needs_detach);
+	return result;
 }
 
 U64

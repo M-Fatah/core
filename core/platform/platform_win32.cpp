@@ -979,15 +979,15 @@ platform_file_delete(const char *filepath)
 	return DeleteFileA(filepath);
 }
 
-bool
-platform_file_dialog_open(char *path, U32 path_length, const char *filters)
+String
+platform_file_dialog_open(const char *filters, memory::Allocator *allocator)
 {
-	::memset(path, 0, path_length);
+	char path[4096] = {};
 
 	OPENFILENAME ofn = {};
 	ofn.lStructSize     = sizeof(ofn);
 	ofn.lpstrFile       = path;
-	ofn.nMaxFile        = path_length;
+	ofn.nMaxFile        = sizeof(path);
 	ofn.lpstrFilter     = filters;
 	ofn.nFilterIndex    = 1;
 	ofn.lpstrFileTitle  = NULL;
@@ -996,20 +996,20 @@ platform_file_dialog_open(char *path, U32 path_length, const char *filters)
 	ofn.Flags           = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
 
 	if (GetOpenFileName(&ofn) == TRUE)
-		return true;
+		return string_from(path, allocator);
 
-	return false;
+	return string_init(allocator);
 }
 
-bool
-platform_file_dialog_save(char *path, U32 path_length, const char *filters)
+String
+platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
 {
-	::memset(path, 0, path_length);
+	char path[4096] = {};
 
 	OPENFILENAME ofn = {};
 	ofn.lStructSize     = sizeof(ofn);
 	ofn.lpstrFile       = path;
-	ofn.nMaxFile        = path_length;
+	ofn.nMaxFile        = sizeof(path);
 	ofn.lpstrFilter     = filters;
 	ofn.nFilterIndex    = 1;
 	ofn.lpstrFileTitle  = NULL;
@@ -1019,9 +1019,81 @@ platform_file_dialog_save(char *path, U32 path_length, const char *filters)
 
 	// TODO: Ensure that we write extension, if the user forgets to do so.
 	if (GetSaveFileName(&ofn) == TRUE)
-		return true;
+		return string_from(path, allocator);
 
-	return false;
+	return string_init(allocator);
+}
+
+String
+platform_window_clipboard_read_text(Platform_Window &, memory::Allocator *allocator)
+{
+	String result = string_init(allocator);
+	if (!::OpenClipboard(nullptr))
+		return result;
+	DEFER(::CloseClipboard(););
+
+	HANDLE clipboard_data = ::GetClipboardData(CF_UNICODETEXT);
+	if (clipboard_data == nullptr)
+		return result;
+
+	wchar_t *text_wide = (wchar_t *)::GlobalLock(clipboard_data);
+	if (text_wide == nullptr)
+		return result;
+	DEFER(::GlobalUnlock(clipboard_data););
+
+	I32 utf8_count_with_null = ::WideCharToMultiByte(CP_UTF8, 0, text_wide, -1, nullptr, 0, nullptr, nullptr);
+	if (utf8_count_with_null <= 1)
+		return result;
+
+	string_resize(result, (U64)utf8_count_with_null - 1);
+	::WideCharToMultiByte(CP_UTF8, 0, text_wide, -1, result.data, utf8_count_with_null, nullptr, nullptr);
+	return result;
+}
+
+bool
+platform_window_clipboard_write_text(Platform_Window &, const String &text)
+{
+	const char *text_data = text.data ? text.data : "";
+	I32 text_count = text.data ? (I32)text.count : 0;
+	I32 wide_count = ::MultiByteToWideChar(CP_UTF8, 0, text_data, text_count, nullptr, 0);
+	if (wide_count < 0)
+		return false;
+
+	HGLOBAL clipboard_data = ::GlobalAlloc(GMEM_MOVEABLE, ((U64)wide_count + 1) * sizeof(wchar_t));
+	if (clipboard_data == nullptr)
+		return false;
+
+	wchar_t *text_wide = (wchar_t *)::GlobalLock(clipboard_data);
+	if (text_wide == nullptr)
+	{
+		::GlobalFree(clipboard_data);
+		return false;
+	}
+
+	::MultiByteToWideChar(CP_UTF8, 0, text_data, text_count, text_wide, wide_count);
+	text_wide[wide_count] = L'\0';
+	::GlobalUnlock(clipboard_data);
+
+	if (!::OpenClipboard(nullptr))
+	{
+		::GlobalFree(clipboard_data);
+		return false;
+	}
+	DEFER(::CloseClipboard(););
+
+	if (!::EmptyClipboard())
+	{
+		::GlobalFree(clipboard_data);
+		return false;
+	}
+
+	if (::SetClipboardData(CF_UNICODETEXT, clipboard_data) == nullptr)
+	{
+		::GlobalFree(clipboard_data);
+		return false;
+	}
+
+	return true;
 }
 
 

@@ -30,7 +30,7 @@ jobs:
         name: Installing Linux dependencies
         run: |
             sudo apt-get update
-            sudo apt-get install -y libx11-dev libxkbcommon-x11-dev libx11-xcb-dev
+            sudo apt-get install -y pkg-config libdbus-1-dev libx11-dev libxkbcommon-x11-dev libx11-xcb-dev
 
       - name: Configuring
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{matrix.build-variant}} -DCORE_BUILD_UNITY=ON
@@ -125,6 +125,25 @@ jobs:
               -DCORE_BUILD_UNITTEST=OFF \
               -DCORE_INSTALL=OFF \
               -DCMAKE_BUILD_TYPE=${{matrix.build-variant}}
+
+      - name: Checking Android Java bridge
+        run: |
+            set -euo pipefail
+            java_source="$(find build -path '*/android/java/core/android/CoreNativeActivity.java' -print -quit)"
+            if [ -z "$java_source" ]; then
+              echo "::error::Generated CoreNativeActivity.java was not found."
+              exit 1
+            fi
+            android_jar=""
+            if [ -d "$ANDROID_HOME/platforms" ]; then
+              android_jar="$(find "$ANDROID_HOME/platforms" -name android.jar | sort -V | tail -n 1)"
+            fi
+            if [ -z "$android_jar" ]; then
+              echo "::error::No Android platform android.jar was found."
+              exit 1
+            fi
+            mkdir -p build/android-java-classes
+            javac -classpath "$android_jar" -d build/android-java-classes "$java_source"
 
       - name: Building Android link smoke
         run: cmake --build build --target core_android_link_smoke

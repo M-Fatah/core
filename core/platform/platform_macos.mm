@@ -1130,11 +1130,9 @@ platform_file_delete(const char *filepath)
 	return ::unlink(filepath) == 0;
 }
 
-bool
-platform_file_dialog_open(char *path, U32 path_length, const char *filters)
+String
+platform_file_dialog_open(const char *filters, memory::Allocator *allocator)
 {
-	::memset(path, 0, path_length);
-
 	@autoreleasepool
 	{
 		NSApplication *application = [NSApplication sharedApplication];
@@ -1150,20 +1148,16 @@ platform_file_dialog_open(char *path, U32 path_length, const char *filters)
 		if ([open_panel runModal] == NSModalResponseOK)
 		{
 			NSURL *url = [[open_panel URLs] objectAtIndex:0];
-			validate(url.path.length <= path_length, "[PLATFORM][MACOS]: Open file dialog selected path is longer than passed path length.");
-			::snprintf(path, path_length, "%s", [url.path cStringUsingEncoding:(NSASCIIStringEncoding)]);
-			return true;
+			return string_from([url.path UTF8String], allocator);
 		}
 	}
 
-	return false;
+	return string_init(allocator);
 }
 
-bool
-platform_file_dialog_save(char *path, U32 path_length, const char *filters)
+String
+platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
 {
-	::memset(path, 0, path_length);
-
 	@autoreleasepool
 	{
 		NSApplication *application = [NSApplication sharedApplication];
@@ -1177,13 +1171,40 @@ platform_file_dialog_save(char *path, U32 path_length, const char *filters)
 		if ([save_panel runModal] == NSModalResponseOK)
 		{
 			NSURL *url = [save_panel URL];
-			validate(url.path.length <= path_length, "[PLATFORM][MACOS]: Save file dialog selected path is longer than passed path length.");
-			::snprintf(path, path_length, "%s", [url.path cStringUsingEncoding:(NSASCIIStringEncoding)]);
-			return true;
+			return string_from([url.path UTF8String], allocator);
 		}
 	}
 
-	return false;
+	return string_init(allocator);
+}
+
+String
+platform_window_clipboard_read_text(Platform_Window &, memory::Allocator *allocator)
+{
+	@autoreleasepool
+	{
+		NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+		NSString *text = [pasteboard stringForType:NSPasteboardTypeString];
+		if (text == nil)
+			return string_init(allocator);
+
+		return string_from([text UTF8String], allocator);
+	}
+}
+
+bool
+platform_window_clipboard_write_text(Platform_Window &, const String &text)
+{
+	@autoreleasepool
+	{
+		NSString *text_ns = [NSString stringWithUTF8String:(text.data ? text.data : "")];
+		if (text_ns == nil)
+			return false;
+
+		NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+		[pasteboard clearContents];
+		return [pasteboard setString:text_ns forType:NSPasteboardTypeString];
+	}
 }
 
 U64

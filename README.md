@@ -68,18 +68,18 @@ log_info("loaded {} vertices, view matrix:\n{}", vertices.count, view);
 | Platform | Backend |
 |---|---|
 | Windows | Win32 |
-| Linux | X11/XCB |
+| Linux | X11/XCB, xdg-desktop-portal dialogs |
 | macOS | Cocoa |
 | Android | NDK NativeActivity |
 
-Android support is NDK-only: no GameActivity, AndroidX, Jetpack, Gradle dependency, Java app layer, or `android_native_app_glue`.
+Android support is NDK-only: no GameActivity, AndroidX, Jetpack, Gradle dependency, or `android_native_app_glue`. Core generates a tiny Java `NativeActivity` bridge for Android framework features such as file dialogs and clipboard.
 
 ## Prerequisites
 
 | Platform | Requirements |
 |---|---|
 | Windows | CMake 3.25+ |
-| Linux | CMake 3.25+, X11/XCB development packages |
+| Linux | CMake 3.25+, pkg-config, X11/XCB and D-Bus development packages |
 | macOS | CMake 3.25+, Xcode Command Line Tools |
 | Android | Android SDK, Android NDK, SDK Build Tools, Platform Tools, Ninja |
 
@@ -87,7 +87,7 @@ Linux packages:
 
 ```bash
 sudo apt update
-sudo apt-get install -y cmake libx11-dev libxkbcommon-x11-dev libx11-xcb-dev
+sudo apt-get install -y cmake pkg-config libdbus-1-dev libx11-dev libxkbcommon-x11-dev libx11-xcb-dev
 ```
 
 Android expects these environment variables when building from the command line:
@@ -145,7 +145,7 @@ cmake -B build -G Ninja `
 cmake --build build --target core
 ```
 
-An Android app repo should link Core into its own NativeActivity shared library:
+An Android app repo should link Core into its own NativeActivity shared library. Core also generates a tiny `core.android.CoreNativeActivity` Java bridge for Android framework features such as file dialogs and `content://` file access:
 
 ```cmake
 set(CORE_BUILD_STATIC ON CACHE BOOL "" FORCE)
@@ -160,9 +160,11 @@ add_library(my_android_app SHARED
     src/app.cpp
 )
 target_link_libraries(my_android_app PRIVATE core)
+
+get_target_property(CORE_ANDROID_JAVA_SOURCE_DIR core CORE_ANDROID_JAVA_SOURCE_DIR)
 ```
 
-The app owns `ANativeActivity_onCreate`, the manifest, APK packaging, signing, install, and launch steps. See [`docs/platform.md`](docs/platform.md) for the minimal entrypoint and packaging recipe.
+The app owns `ANativeActivity_onCreate`, the manifest, APK packaging, Java compilation, signing, install, and launch steps. See [`docs/platform.md`](docs/platform.md) for the minimal entrypoint and packaging recipe.
 
 ## CMake Options
 

@@ -505,28 +505,27 @@ platform_file_delete(const char *filepath);
 
 /**
  * @brief Opens a file dialog.
- * @param path is the buffer that will store the path of the selected file.
- * @param path_length is the size of the 'path' buffer in bytes.
  * @param filters a pair of null-terminated strings, that specify what to filter in the file dialog; for example, if you want to filter by models you can use "Models (*.obj)\0*.obj\0".
- * @return 'true' on file select success, otherwise 'false'.
- * Unsupported platforms return 'false'.
- * Note that in case the path was larger than the supplied buffer, the dialog will return 'false'.
+ * @return the selected path, or empty string on cancel, failure, or unsupported platforms.
+ * On Android, this may be a content URI usable with Core file APIs.
  */
-CORE_API bool
-platform_file_dialog_open(char *path, U32 path_length, const char *filters);
+CORE_API String
+platform_file_dialog_open(const char *filters, memory::Allocator *allocator = memory::heap_allocator());
 
 /**
  * @brief Opens a file dialog for saving.
- * @param path is the buffer that will store the path of the specified file name.
- * @param path_length is the size of the 'path' buffer in bytes.
  * @param filters a pair of null-terminated strings, that specify what to filter in the file dialog; for example, if you want to filter by models you can use "Models (*.obj)\0*.obj\0".
- * @return 'true' on file select success, otherwise 'false'.
- * Unsupported platforms return 'false'.
- * Note that in case the path was larger than the supplied buffer, the dialog will return 'false'.
+ * @return the selected path, or empty string on cancel, failure, or unsupported platforms.
+ * On Android, this may be a content URI usable with Core file APIs.
  */
-CORE_API bool
-platform_file_dialog_save(char *path, U32 path_length, const char *filters);
+CORE_API String
+platform_file_dialog_save(const char *filters, memory::Allocator *allocator = memory::heap_allocator());
 
+CORE_API String
+platform_window_clipboard_read_text(Platform_Window &window, memory::Allocator *allocator = memory::heap_allocator());
+
+CORE_API bool
+platform_window_clipboard_write_text(Platform_Window &window, const String &text);
 
 CORE_API U64
 platform_query_microseconds(void);
@@ -557,5 +556,11 @@ CORE_API void
 platform_callstack_resolve(void **callstack, Platform_Callstack_Frame *frames, U32 frame_count);
 
 #ifdef __cplusplus
+}
+
+inline static bool
+platform_window_clipboard_write_text(Platform_Window &window, const char *text)
+{
+	return platform_window_clipboard_write_text(window, string_literal(text));
 }
 #endif

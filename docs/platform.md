@@ -104,7 +104,7 @@ Missing environment variables return an empty `String`.
 
 Android support is NDK-only. Core uses Android system APIs and does not depend on GameActivity, AndroidX, Jetpack, Gradle libraries, or `android_native_app_glue`.
 
-Core is a library, not an APK packager. The app repo owns the raw `ANativeActivity_onCreate` entrypoint, app thread, manifest, package name, permissions, assets, signing, install, and launch steps.
+Core is a library, not an APK packager. The app repo owns the raw `ANativeActivity_onCreate` entrypoint, app thread, manifest, package name, permissions, assets, signing, install, and launch steps. For Android framework features that cannot be reached from pure NDK APIs, Core generates a tiny `core.android.CoreNativeActivity` Java bridge in the build directory. The app repo compiles and packages that generated Java source with the APK.
 
 The app entrypoint hands `ANativeActivity` to Core before app code creates a platform window:
 
@@ -156,9 +156,11 @@ add_library(my_android_app SHARED
     src/app.cpp
 )
 target_link_libraries(my_android_app PRIVATE core)
+
+get_target_property(CORE_ANDROID_JAVA_SOURCE_DIR core CORE_ANDROID_JAVA_SOURCE_DIR)
 ```
 
-The app manifest declares `NativeActivity` and names the shared library without the `lib` prefix:
+The app manifest declares Core's generated `NativeActivity` subclass and names the shared library without the `lib` prefix:
 
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
@@ -168,10 +170,10 @@ The app manifest declares `NativeActivity` and names the shared library without 
 
     <application
         android:extractNativeLibs="true"
-        android:hasCode="false"
+        android:hasCode="true"
         android:label="My App">
         <activity
-            android:name="android.app.NativeActivity"
+            android:name="core.android.CoreNativeActivity"
             android:configChanges="colorMode|density|fontScale|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|touchscreen|uiMode"
             android:exported="true"
             android:label="My App">
@@ -190,6 +192,8 @@ The app manifest declares `NativeActivity` and names the shared library without 
 The `configChanges` list is part of the Core NativeActivity contract. Android should deliver those changes to the existing Activity while Core owns the app loop; if an app intentionally allows Activity recreation, it must wait until the old app thread exits and `platform_window_deinit` has released the Core Android context before initializing Core again.
 
 APK packaging belongs in the app repo. A CMake-only app can package with Android SDK tools (`aapt2`, `zipalign`, `apksigner`, `adb`), or the app can use Gradle. Either way, package `libmy_android_app.so` into `lib/<abi>/`, package Core resources into APK `assets/`, sign the APK, install it, then launch the manifest package.
+
+When packaging without Gradle, compile the generated Java source directory reported by `CORE_ANDROID_JAVA_SOURCE_DIR` into `classes.dex` and package it into the APK. When using Gradle, add that directory to the app's Java source set.
 
 ```cpp
 #include <core/platform/platform.h>
@@ -228,26 +232,39 @@ Returned handles are borrowed. On Android, Core keeps the returned `ANativeWindo
 `Platform_Window::paused` is driven by Android Activity pause/resume and remains false on desktop platforms.
 Android windows use the normal `platform_window_init` entry point. The app-side NativeActivity shim initializes Core before app code creates the window.
 
-Soft keyboard text input is not part of the initial Android backend. If needed, it should be added as a small Core-owned IME bridge instead of adopting GameActivity.
+Soft keyboard text input is not part of the initial Android backend. If needed, it should extend the same small Core-owned Java/JNI bridge instead of adopting GameActivity.
 
 ---
 
 ## Dialogs
 
 ```cpp
-char path[4096] = {};
-bool selected = platform_file_dialog_open(path, count_of(path), "Scene (*.scene)\0*.scene\0");
+String path = platform_file_dialog_open("Scene (*.scene)\0*.scene\0", memory::temp_allocator());
 
-if (selected)
-    load_scene(path);
+if (path.count > 0)
+    load_scene(path.data);
 ```
 
 ```cpp
-char path[4096] = {};
-bool selected = platform_file_dialog_save(path, count_of(path), "Scene (*.scene)\0*.scene\0");
+String path = platform_file_dialog_save("Scene (*.scene)\0*.scene\0", memory::temp_allocator());
 ```
 
-File dialogs are currently implemented on Windows and macOS. Linux and Android return `false` because Core does not depend on external dialog providers such as toolkit helpers, desktop portals, or Android activity intents.
+File dialogs are currently implemented on Windows, Linux, macOS, and Android. Linux uses `xdg-desktop-portal` through D-Bus because it is toolkit-neutral and works across modern X11, Wayland, and sandboxed desktops; helper executables such as `zenity` are intentionally avoided.
+
+Android dialogs use the system Storage Access Framework through Core's generated `CoreNativeActivity` bridge. The selected value is a `content://` URI, not a normal filesystem path. Pass that URI back into Core file APIs such as `platform_file_read`, `platform_file_write`, `platform_file_open`, and `platform_path_read_file`; do not pass it to non-Core POSIX APIs. Android extension filters are best effort because SAF filters by MIME type.
+
+---
+
+## Clipboard
+
+```cpp
+String text = platform_window_clipboard_read_text(window, memory::temp_allocator());
+platform_window_clipboard_write_text(window, "Copied from Core");
+```
+
+Text clipboard is implemented on Windows, Linux, macOS, and Android. Clipboard APIs take a `Platform_Window &` because Linux/X11 clipboard ownership is window-based: Core owns the `CLIPBOARD` selection through that window, keeps the copied text alive, answers `SelectionRequest` events from `platform_window_poll`, and clears ownership on `SelectionClear`. Wayland should be handled separately through its data-device protocol once Core has a Wayland backend.
+
+Image and binary clipboard data are intentionally not folded into the text API. They need a separate format-aware API because each platform exposes different MIME/type negotiation, ownership, and large-transfer rules.
 
 ---
 
