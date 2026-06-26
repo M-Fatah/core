@@ -53,11 +53,11 @@ _platform_linux_window_metrics(Display *display, U32 width, U32 height)
 {
 	F32 dpi_x = 96.0f;
 	F32 dpi_y = 96.0f;
-	I32 screen = ::DefaultScreen(display);
-	I32 screen_width = ::DisplayWidth(display, screen);
-	I32 screen_height = ::DisplayHeight(display, screen);
-	I32 screen_width_mm = ::DisplayWidthMM(display, screen);
-	I32 screen_height_mm = ::DisplayHeightMM(display, screen);
+	I32 screen = DefaultScreen(display);
+	I32 screen_width = DisplayWidth(display, screen);
+	I32 screen_height = DisplayHeight(display, screen);
+	I32 screen_width_mm = DisplayWidthMM(display, screen);
+	I32 screen_height_mm = DisplayHeightMM(display, screen);
 	if (screen_width_mm > 0)
 		dpi_x = (F32)screen_width * 25.4f / (F32)screen_width_mm;
 	if (screen_height_mm > 0)
