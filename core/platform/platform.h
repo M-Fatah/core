@@ -385,6 +385,42 @@ typedef struct Platform_Touch_State
 	bool down;
 } Platform_Touch_State;
 
+typedef enum Platform_Text_Input_Event_Type
+{
+	PLATFORM_TEXT_INPUT_EVENT_COMMIT,
+	PLATFORM_TEXT_INPUT_EVENT_COMPOSE,
+	PLATFORM_TEXT_INPUT_EVENT_COMPOSE_END,
+	PLATFORM_TEXT_INPUT_EVENT_DELETE_SURROUNDING,
+	PLATFORM_TEXT_INPUT_EVENT_ACTION
+} Platform_Text_Input_Event_Type;
+
+typedef enum Platform_Text_Input_Action
+{
+	PLATFORM_TEXT_INPUT_ACTION_NONE,
+	PLATFORM_TEXT_INPUT_ACTION_DONE,
+	PLATFORM_TEXT_INPUT_ACTION_GO,
+	PLATFORM_TEXT_INPUT_ACTION_SEARCH,
+	PLATFORM_TEXT_INPUT_ACTION_SEND,
+	PLATFORM_TEXT_INPUT_ACTION_NEXT,
+	PLATFORM_TEXT_INPUT_ACTION_PREVIOUS
+} Platform_Text_Input_Action;
+
+typedef struct Platform_Text_Input_Event
+{
+	Platform_Text_Input_Event_Type type;
+	Platform_Text_Input_Action action;
+	String text;
+	I32 delete_before;
+	I32 delete_after;
+} Platform_Text_Input_Event;
+
+typedef struct Platform_Text_Input_Desc
+{
+	I32 x, y;
+	U32 width, height;
+	bool enabled;
+} Platform_Text_Input_Desc;
+
 typedef struct Platform_Input
 {
 	I32 mouse_x, mouse_y;
@@ -392,6 +428,7 @@ typedef struct Platform_Input
 	F32 mouse_wheel;
 	Platform_Key_State keys[PLATFORM_KEY_COUNT];
 	Platform_Touch_State touches[PLATFORM_TOUCH_MAX_COUNT];
+	Array<Platform_Text_Input_Event> text_input_events;
 } Platform_Input;
 
 typedef struct Platform_Window
@@ -399,6 +436,8 @@ typedef struct Platform_Window
 	void *handle; // TODO: Rename to context.
 	U32 width, height;
 	Platform_Input input;
+	Platform_Text_Input_Desc text_input;
+	U16 text_input_pending_surrogate;
 	bool close_requested; // Window should stop running.
 	bool focused;         // Window is the active input target when the platform can report it.
 	bool paused;          // App/window is paused by the platform; false on desktop.
@@ -488,6 +527,9 @@ platform_window_set_title(Platform_Window *self, const char *title);
 
 CORE_API void
 platform_window_close(Platform_Window *self);
+
+CORE_API void
+platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc);
 
 /**
  * @brief Sets current working directory to process directory.

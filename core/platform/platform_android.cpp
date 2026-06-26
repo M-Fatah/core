@@ -67,14 +67,22 @@ struct Platform_Context
 	jmethodID clipboard_query_media_types_method;
 	jmethodID clipboard_read_item_method;
 	jmethodID clipboard_write_items_method;
+	jmethodID text_input_begin_method;
+	jmethodID text_input_end_method;
+	jmethodID text_input_set_rect_method;
 	AInputQueue *input_queue;
 	ANativeWindow *native_window;
 	ANativeWindow *native_window_lease;
 	ALooper *looper;
 	pthread_mutex_t mutex;
 	pthread_cond_t file_dialog_condition;
+	Array<Platform_Text_Input_Event> text_input_events;
 	U32 width;
 	U32 height;
+	I32 text_input_x;
+	I32 text_input_y;
+	U32 text_input_width;
+	U32 text_input_height;
 	U64 file_dialog_next_id;
 	U64 file_dialog_active_id;
 	String file_dialog_path;
@@ -88,6 +96,7 @@ struct Platform_Context
 	bool file_dialog_waiting;
 	bool file_dialog_completed;
 	bool file_dialog_accepted;
+	bool text_input_active;
 };
 
 static Platform_Context *_platform_android_context = nullptr;
@@ -304,6 +313,9 @@ _platform_android_jni_bridge_init(Platform_Context *context, ANativeActivity *ac
 	context->clipboard_query_media_types_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardQueryMediaTypes", "()Ljava/lang/String;");
 	context->clipboard_read_item_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardReadItem", "(Ljava/lang/String;)[B");
 	context->clipboard_write_items_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardWriteItems", "([Ljava/lang/String;[[B)Z");
+	context->text_input_begin_method = _platform_android_jni_get_method(env, context->activity_class, "coreTextInputBegin", "(IIII)V");
+	context->text_input_end_method = _platform_android_jni_get_method(env, context->activity_class, "coreTextInputEnd", "()V");
+	context->text_input_set_rect_method = _platform_android_jni_get_method(env, context->activity_class, "coreTextInputSetRect", "(IIII)V");
 }
 
 inline static void
@@ -333,6 +345,9 @@ _platform_android_jni_bridge_deinit(Platform_Context *context)
 	context->clipboard_query_media_types_method = nullptr;
 	context->clipboard_read_item_method = nullptr;
 	context->clipboard_write_items_method = nullptr;
+	context->text_input_begin_method = nullptr;
+	context->text_input_end_method = nullptr;
+	context->text_input_set_rect_method = nullptr;
 	_platform_android_jni_detach(context, needs_detach);
 }
 
@@ -403,6 +418,17 @@ _platform_android_file_dialog_cancel_locked(Platform_Context *context)
 	context->file_dialog_accepted = false;
 	context->file_dialog_completed = true;
 	validate(::pthread_cond_signal(&context->file_dialog_condition) == 0, "[PLATFORM][ANDROID]: Failed to signal file dialog condition.");
+}
+
+inline static void
+_platform_android_text_input_events_reset(Array<Platform_Text_Input_Event> &events)
+{
+	for (U64 i = 0; i < events.count; ++i)
+	{
+		string_deinit(events[i].text);
+		events[i] = {};
+	}
+	events.count = 0;
 }
 
 inline static void
@@ -878,6 +904,7 @@ _platform_input_reset_transitions(Platform_Input *input)
 	input->mouse_dx = 0;
 	input->mouse_dy = 0;
 	input->mouse_wheel = 0.0f;
+	_platform_android_text_input_events_reset(input->text_input_events);
 }
 
 inline static void
@@ -890,6 +917,7 @@ _platform_android_context_init(ANativeActivity *activity)
 	Platform_Context *context = memory::allocate_zeroed<Platform_Context>();
 	context->activity = activity;
 	context->asset_manager = activity->assetManager;
+	context->text_input_events = array_init<Platform_Text_Input_Event>();
 	validate(::pthread_mutex_init(&context->mutex, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize context mutex.");
 	validate(::pthread_cond_init(&context->file_dialog_condition, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize file dialog condition.");
 	_platform_android_jni_bridge_init(context, activity);
@@ -934,6 +962,8 @@ _platform_android_context_try_deinit(Platform_Context *context, bool window_dein
 	_platform_android_context_unlock(context);
 
 	_platform_android_jni_bridge_deinit(context);
+	_platform_android_text_input_events_reset(context->text_input_events);
+	array_deinit(context->text_input_events);
 	validate(::pthread_cond_destroy(&context->file_dialog_condition) == 0, "[PLATFORM][ANDROID]: Failed to destroy file dialog condition.");
 	validate(::pthread_mutex_destroy(&context->mutex) == 0, "[PLATFORM][ANDROID]: Failed to destroy context mutex.");
 	memory::deallocate(context);
@@ -972,6 +1002,126 @@ Java_core_android_CoreNativeActivity_nativeFileDialogResult(JNIEnv *env, jclass,
 
 	if (uri_chars)
 		env->ReleaseStringUTFChars(uri, uri_chars);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_core_android_CoreNativeActivity_nativeTextInputCommit(JNIEnv *env, jclass, jbyteArray text)
+{
+	if (text == nullptr)
+		return;
+
+	jsize text_size = env->GetArrayLength(text);
+	jbyte *text_bytes = env->GetByteArrayElements(text, nullptr);
+	if (text_bytes)
+	{
+		const char *text_begin = (const char *)text_bytes;
+		Platform_Text_Input_Event event {
+			.type = PLATFORM_TEXT_INPUT_EVENT_COMMIT,
+			.text = string_from(text_begin, text_begin + text_size)
+		};
+		Platform_Context *context = _platform_android_context;
+		if (context)
+		{
+			_platform_android_context_lock(context);
+			if (context->text_input_active)
+				array_push(context->text_input_events, event);
+			else
+				string_deinit(event.text);
+			_platform_android_context_unlock(context);
+		}
+		else
+		{
+			string_deinit(event.text);
+		}
+		env->ReleaseByteArrayElements(text, text_bytes, JNI_ABORT);
+	}
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_core_android_CoreNativeActivity_nativeTextInputCompose(JNIEnv *env, jclass, jbyteArray text)
+{
+	if (text == nullptr)
+		return;
+
+	jsize text_size = env->GetArrayLength(text);
+	jbyte *text_bytes = env->GetByteArrayElements(text, nullptr);
+	if (text_bytes)
+	{
+		const char *text_begin = (const char *)text_bytes;
+		Platform_Text_Input_Event event {
+			.type = PLATFORM_TEXT_INPUT_EVENT_COMPOSE,
+			.text = string_from(text_begin, text_begin + text_size)
+		};
+		Platform_Context *context = _platform_android_context;
+		if (context)
+		{
+			_platform_android_context_lock(context);
+			if (context->text_input_active)
+				array_push(context->text_input_events, event);
+			else
+				string_deinit(event.text);
+			_platform_android_context_unlock(context);
+		}
+		else
+		{
+			string_deinit(event.text);
+		}
+		env->ReleaseByteArrayElements(text, text_bytes, JNI_ABORT);
+	}
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_core_android_CoreNativeActivity_nativeTextInputComposeEnd(JNIEnv *, jclass)
+{
+	Platform_Text_Input_Event event {
+		.type = PLATFORM_TEXT_INPUT_EVENT_COMPOSE_END
+	};
+	Platform_Context *context = _platform_android_context;
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		if (context->text_input_active)
+			array_push(context->text_input_events, event);
+		_platform_android_context_unlock(context);
+	}
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_core_android_CoreNativeActivity_nativeTextInputDelete(JNIEnv *, jclass, jint before, jint after)
+{
+	Platform_Text_Input_Event event {
+		.type = PLATFORM_TEXT_INPUT_EVENT_DELETE_SURROUNDING,
+		.delete_before = before,
+		.delete_after = after
+	};
+	Platform_Context *context = _platform_android_context;
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		if (context->text_input_active)
+			array_push(context->text_input_events, event);
+		_platform_android_context_unlock(context);
+	}
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_core_android_CoreNativeActivity_nativeTextInputAction(JNIEnv *, jclass, jint action)
+{
+	Platform_Text_Input_Action platform_action = PLATFORM_TEXT_INPUT_ACTION_NONE;
+	if (action >= PLATFORM_TEXT_INPUT_ACTION_NONE && action <= PLATFORM_TEXT_INPUT_ACTION_PREVIOUS)
+		platform_action = (Platform_Text_Input_Action)action;
+	Platform_Text_Input_Event event {
+		.type = PLATFORM_TEXT_INPUT_EVENT_ACTION,
+		.action = platform_action
+	};
+	Platform_Context *context = _platform_android_context;
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		if (context->text_input_active)
+			array_push(context->text_input_events, event);
+		_platform_android_context_unlock(context);
+	}
 }
 
 inline static I32
@@ -1877,17 +2027,21 @@ platform_window_init(U32, U32, const char *)
 	context->width = width;
 	context->height = height;
 
-	return Platform_Window {
+	Platform_Window self {
 		.handle = context,
 		.width = width,
 		.height = height,
 		.input = {},
+		.text_input = {},
 		.close_requested = context->close_requested,
 		.focused = context->focused,
 		.paused = context->paused,
 		.surface_valid = context->native_window != nullptr,
 		.surface_changed = context->native_window != nullptr
 	};
+	self.text_input.enabled = context->text_input_active;
+	self.input.text_input_events = array_init<Platform_Text_Input_Event>(memory::heap_allocator());
+	return self;
 }
 
 void
@@ -1912,7 +2066,10 @@ platform_window_deinit(Platform_Window *self)
 	self->handle = nullptr;
 	self->width = 0;
 	self->height = 0;
+	_platform_android_text_input_events_reset(self->input.text_input_events);
+	array_deinit(self->input.text_input_events);
 	self->input = {};
+	self->text_input = {};
 	self->close_requested = true;
 	self->surface_valid = false;
 	self->surface_changed = true;
@@ -1978,6 +2135,19 @@ platform_window_poll(Platform_Window *self)
 	}
 	self->width = context->width;
 	self->height = context->height;
+	self->text_input = Platform_Text_Input_Desc {
+		.x = context->text_input_x,
+		.y = context->text_input_y,
+		.width = context->text_input_width,
+		.height = context->text_input_height,
+		.enabled = context->text_input_active
+	};
+	for (U64 i = 0; i < context->text_input_events.count; ++i)
+	{
+		array_push(self->input.text_input_events, context->text_input_events[i]);
+		context->text_input_events[i] = {};
+	}
+	context->text_input_events.count = 0;
 	close_requested = context->close_requested;
 	paused = context->paused;
 	focused = context->focused;
@@ -2044,6 +2214,96 @@ platform_window_close(Platform_Window *self)
 	self->surface_valid = false;
 	if (activity)
 		::ANativeActivity_finish(activity);
+}
+
+inline static void
+_platform_android_text_input_begin(Platform_Context *context, const Platform_Text_Input_Desc &desc)
+{
+	if (context == nullptr || context->activity_object == nullptr || context->text_input_begin_method == nullptr)
+		return;
+
+	bool needs_detach = false;
+	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+	if (env == nullptr)
+		return;
+
+	env->CallVoidMethod(context->activity_object, context->text_input_begin_method, (jint)desc.x, (jint)desc.y, (jint)desc.width, (jint)desc.height);
+	_platform_android_jni_clear_exception(env);
+	_platform_android_jni_detach(context, needs_detach);
+}
+
+inline static void
+_platform_android_text_input_end(Platform_Context *context)
+{
+	if (context == nullptr || context->activity_object == nullptr || context->text_input_end_method == nullptr)
+		return;
+
+	bool needs_detach = false;
+	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+	if (env == nullptr)
+		return;
+
+	env->CallVoidMethod(context->activity_object, context->text_input_end_method);
+	_platform_android_jni_clear_exception(env);
+	_platform_android_jni_detach(context, needs_detach);
+}
+
+inline static void
+_platform_android_text_input_set_rect(Platform_Context *context, const Platform_Text_Input_Desc &desc)
+{
+	if (context == nullptr || context->activity_object == nullptr || context->text_input_set_rect_method == nullptr)
+		return;
+
+	bool needs_detach = false;
+	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+	if (env == nullptr)
+		return;
+
+	env->CallVoidMethod(context->activity_object, context->text_input_set_rect_method, (jint)desc.x, (jint)desc.y, (jint)desc.width, (jint)desc.height);
+	_platform_android_jni_clear_exception(env);
+	_platform_android_jni_detach(context, needs_detach);
+}
+
+void
+platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc)
+{
+	Platform_Context *context = (Platform_Context *)window.handle;
+	if (context == nullptr)
+		return;
+
+	bool was_active = false;
+	window.text_input = desc;
+	if (desc.enabled)
+	{
+		_platform_android_context_lock(context);
+		was_active = context->text_input_active;
+		context->text_input_active = true;
+		context->text_input_x = desc.x;
+		context->text_input_y = desc.y;
+		context->text_input_width = desc.width;
+		context->text_input_height = desc.height;
+		_platform_android_context_unlock(context);
+
+		if (was_active)
+			_platform_android_text_input_set_rect(context, desc);
+		else
+			_platform_android_text_input_begin(context, desc);
+	}
+	else
+	{
+		_platform_android_context_lock(context);
+		was_active = context->text_input_active;
+		context->text_input_active = false;
+		context->text_input_x = 0;
+		context->text_input_y = 0;
+		context->text_input_width = 0;
+		context->text_input_height = 0;
+		_platform_android_text_input_events_reset(context->text_input_events);
+		_platform_android_context_unlock(context);
+
+		if (was_active)
+			_platform_android_text_input_end(context);
+	}
 }
 
 void

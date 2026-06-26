@@ -136,10 +136,20 @@ elseif(ANDROID)
         |import android.content.Context;
         |import android.content.Intent;
         |import android.database.Cursor;
+        |import android.graphics.Rect;
         |import android.net.Uri;
+        |import android.os.Bundle;
         |import android.os.ParcelFileDescriptor;
         |import android.provider.DocumentsContract;
         |import android.provider.OpenableColumns;
+        |import android.text.InputType;
+        |import android.view.KeyEvent;
+        |import android.view.View;
+        |import android.view.ViewGroup;
+        |import android.view.inputmethod.BaseInputConnection;
+        |import android.view.inputmethod.EditorInfo;
+        |import android.view.inputmethod.InputConnection;
+        |import android.view.inputmethod.InputMethodManager;
         |import android.webkit.MimeTypeMap;
         |
         |import java.io.ByteArrayOutputStream;
@@ -154,10 +164,23 @@ elseif(ANDROID)
         |    private static final int CORE_REQUEST_OPEN_DOCUMENT = 0x434f5245;
         |    private static final int CORE_REQUEST_CREATE_DOCUMENT = 0x434f5246;
         |    private static final int CORE_REQUEST_OPEN_TREE = 0x434f5247;
+        |    private static final int CORE_TEXT_INPUT_ACTION_NONE = 0;
+        |    private static final int CORE_TEXT_INPUT_ACTION_DONE = 1;
+        |    private static final int CORE_TEXT_INPUT_ACTION_GO = 2;
+        |    private static final int CORE_TEXT_INPUT_ACTION_SEARCH = 3;
+        |    private static final int CORE_TEXT_INPUT_ACTION_SEND = 4;
+        |    private static final int CORE_TEXT_INPUT_ACTION_NEXT = 5;
+        |    private static final int CORE_TEXT_INPUT_ACTION_PREVIOUS = 6;
         |
         |    private long coreFileDialogRequest;
+        |    private CoreTextInputView coreTextInputView;
         |
         |    private static native void nativeFileDialogResult(long requestId, boolean accepted, String uri);
+        |    private static native void nativeTextInputCommit(byte[] text);
+        |    private static native void nativeTextInputCompose(byte[] text);
+        |    private static native void nativeTextInputComposeEnd();
+        |    private static native void nativeTextInputDelete(int beforeLength, int afterLength);
+        |    private static native void nativeTextInputAction(int action);
         |
         |    private static String coreCleanExtension(String extension) {
         |        if (extension == null) {
@@ -257,6 +280,128 @@ elseif(ANDROID)
         |            result[i * 2 + 1] = hex[value & 15];
         |        }
         |        return new String(result);
+        |    }
+        |
+        |    private static int coreTextInputAction(int editorAction) {
+        |        switch (editorAction) {
+        |            case EditorInfo.IME_ACTION_DONE:
+        |                return CORE_TEXT_INPUT_ACTION_DONE;
+        |            case EditorInfo.IME_ACTION_GO:
+        |                return CORE_TEXT_INPUT_ACTION_GO;
+        |            case EditorInfo.IME_ACTION_SEARCH:
+        |                return CORE_TEXT_INPUT_ACTION_SEARCH;
+        |            case EditorInfo.IME_ACTION_SEND:
+        |                return CORE_TEXT_INPUT_ACTION_SEND;
+        |            case EditorInfo.IME_ACTION_NEXT:
+        |                return CORE_TEXT_INPUT_ACTION_NEXT;
+        |            case EditorInfo.IME_ACTION_PREVIOUS:
+        |                return CORE_TEXT_INPUT_ACTION_PREVIOUS;
+        |            default:
+        |                return CORE_TEXT_INPUT_ACTION_NONE;
+        |        }
+        |    }
+        |
+        |    private static byte[] coreUtf8(CharSequence text) {
+        |        return text != null ? text.toString().getBytes(StandardCharsets.UTF_8) : new byte[0];
+        |    }
+        |
+        |    private void coreTextInputEnsureView() {
+        |        if (coreTextInputView != null) {
+        |            return;
+        |        }
+        |
+        |        coreTextInputView = new CoreTextInputView(this);
+        |        addContentView(coreTextInputView, new ViewGroup.LayoutParams(1, 1));
+        |    }
+        |
+        |    private static final class CoreTextInputView extends View {
+        |        private final Rect coreTextRect = new Rect();
+        |
+        |        CoreTextInputView(Context context) {
+        |            super(context);
+        |            setFocusable(true);
+        |            setFocusableInTouchMode(true);
+        |        }
+        |
+        |        void coreSetTextRect(int x, int y, int width, int height) {
+        |            int viewHeight = getRootView() != null ? getRootView().getHeight() : getHeight();
+        |            int top = viewHeight > 0 ? viewHeight - y - height : y;
+        |            coreTextRect.set(x, top, x + width, top + height);
+        |            requestRectangleOnScreen(coreTextRect);
+        |        }
+        |
+        |        @Override
+        |        public boolean onCheckIsTextEditor() {
+        |            return true;
+        |        }
+        |
+        |        @Override
+        |        public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+        |            outAttrs.inputType = InputType.TYPE_CLASS_TEXT;
+        |            outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI | EditorInfo.IME_ACTION_DONE;
+        |
+        |            return new BaseInputConnection(this, false) {
+        |                @Override
+        |                public boolean commitText(CharSequence text, int newCursorPosition) {
+        |                    nativeTextInputCommit(coreUtf8(text));
+        |                    nativeTextInputComposeEnd();
+        |                    return true;
+        |                }
+        |
+        |                @Override
+        |                public boolean setComposingText(CharSequence text, int newCursorPosition) {
+        |                    nativeTextInputCompose(coreUtf8(text));
+        |                    return true;
+        |                }
+        |
+        |                @Override
+        |                public boolean finishComposingText() {
+        |                    nativeTextInputComposeEnd();
+        |                    return true;
+        |                }
+        |
+        |                @Override
+        |                public boolean deleteSurroundingText(int beforeLength, int afterLength) {
+        |                    nativeTextInputDelete(beforeLength, afterLength);
+        |                    return true;
+        |                }
+        |
+        |                @Override
+        |                public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
+        |                    nativeTextInputDelete(beforeLength, afterLength);
+        |                    return true;
+        |                }
+        |
+        |                @Override
+        |                public boolean sendKeyEvent(KeyEvent event) {
+        |                    if (event == null || event.getAction() != KeyEvent.ACTION_DOWN) {
+        |                        return true;
+        |                    }
+        |
+        |                    if (event.getKeyCode() == KeyEvent.KEYCODE_DEL) {
+        |                        nativeTextInputDelete(1, 0);
+        |                        return true;
+        |                    }
+        |
+        |                    if (event.getKeyCode() == KeyEvent.KEYCODE_ENTER) {
+        |                        nativeTextInputCommit(coreUtf8("\n"));
+        |                        return true;
+        |                    }
+        |
+        |                    int unicode = event.getUnicodeChar();
+        |                    if (unicode != 0) {
+        |                        nativeTextInputCommit(coreUtf8(new String(Character.toChars(unicode))));
+        |                    }
+        |                    return true;
+        |                }
+        |
+        |                @Override
+        |                public boolean performEditorAction(int editorAction) {
+        |                    nativeTextInputAction(coreTextInputAction(editorAction));
+        |                    return true;
+        |                }
+        |            };
+        |        }
         |    }
         |
         |    public void coreOpenFileDialog(final long requestId, final String extension) {
@@ -613,6 +758,57 @@ elseif(ANDROID)
         |        } catch (Exception ignored) {
         |            return false;
         |        }
+        |    }
+        |
+        |    @Override
+        |    protected void onCreate(Bundle savedInstanceState) {
+        |        super.onCreate(savedInstanceState);
+        |        coreTextInputEnsureView();
+        |    }
+        |
+        |    public void coreTextInputBegin(final int x, final int y, final int width, final int height) {
+        |        runOnUiThread(new Runnable() {
+        |            @Override
+        |            public void run() {
+        |                coreTextInputEnsureView();
+        |                coreTextInputView.coreSetTextRect(x, y, width, height);
+        |                coreTextInputView.requestFocus();
+        |
+        |                InputMethodManager manager = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
+        |                if (manager != null) {
+        |                    manager.restartInput(coreTextInputView);
+        |                    manager.showSoftInput(coreTextInputView, InputMethodManager.SHOW_IMPLICIT);
+        |                }
+        |            }
+        |        });
+        |    }
+        |
+        |    public void coreTextInputEnd() {
+        |        runOnUiThread(new Runnable() {
+        |            @Override
+        |            public void run() {
+        |                if (coreTextInputView == null) {
+        |                    return;
+        |                }
+        |
+        |                InputMethodManager manager = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
+        |                if (manager != null) {
+        |                    manager.hideSoftInputFromWindow(coreTextInputView.getWindowToken(), 0);
+        |                }
+        |                coreTextInputView.clearFocus();
+        |            }
+        |        });
+        |    }
+        |
+        |    public void coreTextInputSetRect(final int x, final int y, final int width, final int height) {
+        |        runOnUiThread(new Runnable() {
+        |            @Override
+        |            public void run() {
+        |                if (coreTextInputView != null) {
+        |                    coreTextInputView.coreSetTextRect(x, y, width, height);
+        |                }
+        |            }
+        |        });
         |    }
         |
         |    @Override

@@ -145,7 +145,7 @@ cmake -B build -G Ninja `
 cmake --build build --target core
 ```
 
-An Android app repo should link Core into its own NativeActivity shared library. Core also generates a tiny `core.android.CoreNativeActivity` Java bridge and `core.android.CoreClipboardProvider` for Android framework features such as file dialogs, `content://` file access, and clipboard bytes:
+An Android app repo should link Core into its own NativeActivity shared library. Core also generates a tiny `core.android.CoreNativeActivity` Java bridge and `core.android.CoreClipboardProvider` for Android framework features such as file dialogs, `content://` file access, clipboard bytes, and soft keyboard text input:
 
 ```cmake
 set(CORE_BUILD_STATIC ON CACHE BOOL "" FORCE)

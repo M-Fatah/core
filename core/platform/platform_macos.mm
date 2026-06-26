@@ -36,6 +36,8 @@ struct Platform_Window_Context
 	NSWindow *window;
 	Content_View *content_view;
 	Window_Delegate *window_delegate;
+	Platform_Input *input;
+	Platform_Text_Input_Desc text_input;
 	bool should_quit;
 };
 
@@ -173,23 +175,34 @@ _platform_key_from_key_code(I32 key_code)
 	return PLATFORM_KEY_COUNT;
 }
 
+inline static void
+_platform_macos_text_input_events_reset(Platform_Input &input)
+{
+	for (U64 i = 0; i < input.text_input_events.count; ++i)
+	{
+		string_deinit(input.text_input_events[i].text);
+		input.text_input_events[i] = {};
+	}
+	input.text_input_events.count = 0;
+}
+
 @interface Content_View : NSView<NSTextInputClient>
 {
-	NSWindow *window;
+	Platform_Window_Context *ctx;
 }
 
 - (instancetype)
-init:(NSWindow *)window;
+init:(Platform_Window_Context *)ctx;
 @end
 
 @implementation Content_View
 - (instancetype)
-init:(NSWindow *)iwindow
+init:(Platform_Window_Context *)ictx
 {
 	self = [super init];
 	if (self != nil)
 	{
-		window = iwindow;
+		ctx = ictx;
 	}
 	return self;
 }
@@ -221,19 +234,48 @@ acceptsFirstMouse:(NSEvent *)event
 - (void)
 insertText:(id)string replacementRange:(NSRange)replacementRange
 {
+	unused(replacementRange);
+	if (ctx->input == nullptr || !ctx->text_input.enabled)
+		return;
 
+	NSString *text = [string isKindOfClass:[NSAttributedString class]] ? [(NSAttributedString *)string string] : (NSString *)string;
+	const char *utf8 = [text UTF8String];
+	if (utf8)
+	{
+		array_push(ctx->input->text_input_events, Platform_Text_Input_Event {
+			.type = PLATFORM_TEXT_INPUT_EVENT_COMMIT,
+			.text = string_from(utf8, utf8 + ::strlen(utf8))
+		});
+	}
 }
 
 - (void)
 setMarkedText:(id)string selectedRange:(NSRange)selectedRange replacementRange:(NSRange)replacementRange
 {
+	unused(selectedRange, replacementRange);
+	if (ctx->input == nullptr || !ctx->text_input.enabled)
+		return;
 
+	NSString *text = [string isKindOfClass:[NSAttributedString class]] ? [(NSAttributedString *)string string] : (NSString *)string;
+	const char *utf8 = [text UTF8String];
+	if (utf8)
+	{
+		array_push(ctx->input->text_input_events, Platform_Text_Input_Event {
+			.type = PLATFORM_TEXT_INPUT_EVENT_COMPOSE,
+			.text = string_from(utf8, utf8 + ::strlen(utf8))
+		});
+	}
 }
 
 - (void)
 unmarkText
 {
-
+	if (ctx->input && ctx->text_input.enabled)
+	{
+		array_push(ctx->input->text_input_events, Platform_Text_Input_Event {
+			.type = PLATFORM_TEXT_INPUT_EVENT_COMPOSE_END
+		});
+	}
 }
 
 - (NSRange)
@@ -269,7 +311,14 @@ validAttributesForMarkedText
 - (NSRect)
 firstRectForCharacterRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange
 {
-	return NSMakeRect(0, 0, 0, 0);
+	unused(range);
+	if (actualRange)
+		*actualRange = NSMakeRange(0, 0);
+	if (!ctx->text_input.enabled)
+		return NSMakeRect(0, 0, 0, 0);
+
+	NSRect rect = NSMakeRect(ctx->text_input.x, ctx->text_input.y, ctx->text_input.width, ctx->text_input.height);
+	return [[self window] convertRectToScreen:[self convertRect:rect toView:nil]];
 }
 
 - (NSUInteger)
@@ -792,8 +841,9 @@ platform_window_init(U32 width, U32 height, const char *title)
 							defer:NO];
 		[window makeKeyAndOrderFront:window];
 		validate(window, "[PLATFORM][MACOS]: Failed to create window.");
+		ctx->window = window;
 
-		Content_View *content_view = [[Content_View alloc] init:window];
+		Content_View *content_view = [[Content_View alloc] init:ctx];
 		validate(content_view, "[PLATFORM][MACOS]: Failed to create content view.");
 		[content_view setWantsLayer:YES];
 
@@ -811,12 +861,11 @@ platform_window_init(U32 width, U32 height, const char *title)
 		[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 		[NSApp activateIgnoringOtherApps:YES];
 
-		ctx->window          = window;
 		ctx->content_view    = content_view;
 		ctx->window_delegate = window_delegate;
 	}
 
-	return Platform_Window {
+	Platform_Window self {
 		.handle = ctx,
 		.width  = width,
 		.height = height,
@@ -825,6 +874,8 @@ platform_window_init(U32 width, U32 height, const char *title)
 		.surface_valid = true,
 		.surface_changed = true
 	};
+	self.input.text_input_events = array_init<Platform_Text_Input_Event>(memory::heap_allocator());
+	return self;
 }
 
 void
@@ -846,6 +897,8 @@ platform_window_deinit(Platform_Window *self)
 	self->handle = nullptr;
 	self->close_requested = true;
 	self->surface_valid = false;
+	_platform_macos_text_input_events_reset(self->input);
+	array_deinit(self->input.text_input_events);
 }
 
 bool
@@ -863,9 +916,12 @@ platform_window_poll(Platform_Window *self)
 		self->input.keys[i].release_count = 0;
 	}
 	self->input.mouse_wheel = 0.0f;
+	_platform_macos_text_input_events_reset(self->input);
 
 	@autoreleasepool
 	{
+		ctx->input = &self->input;
+		DEFER(ctx->input = nullptr;);
 		while (NSEvent *event = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES])
 		{
 			switch (event.type)
@@ -986,6 +1042,16 @@ platform_window_close(Platform_Window *self)
 	self->close_requested = true;
 	self->surface_valid = false;
 	[ctx->window performClose:ctx->window];
+}
+
+void
+platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc)
+{
+	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	window.text_input = desc;
+	ctx->text_input = desc;
+	if (desc.enabled)
+		[ctx->window makeFirstResponder:ctx->content_view];
 }
 
 void

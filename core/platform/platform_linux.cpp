@@ -163,6 +163,17 @@ _platform_key_from_key_sym(KeySym key)
 	return PLATFORM_KEY_COUNT;
 }
 
+inline static void
+_platform_linux_text_input_events_reset(Platform_Input &input)
+{
+	for (U64 i = 0; i < input.text_input_events.count; ++i)
+	{
+		string_deinit(input.text_input_events[i].text);
+		input.text_input_events[i] = {};
+	}
+	input.text_input_events.count = 0;
+}
+
 struct Platform_Linux_Clipboard_Item
 {
 	Platform_Clipboard_Item item;
@@ -832,7 +843,7 @@ platform_window_init(U32 width, U32 height, const char *title)
 	ctx->utf8_string_atom      = _platform_linux_intern_atom(connection, "UTF8_STRING");
 	ctx->text_atom             = _platform_linux_intern_atom(connection, "TEXT");
 
-	return Platform_Window {
+	Platform_Window self {
 		.handle = ctx,
 		.width  = width,
 		.height = height,
@@ -841,6 +852,8 @@ platform_window_init(U32 width, U32 height, const char *title)
 		.surface_valid = true,
 		.surface_changed = true
 	};
+	self.input.text_input_events = array_init<Platform_Text_Input_Event>();
+	return self;
 }
 
 void
@@ -859,6 +872,8 @@ platform_window_deinit(Platform_Window *self)
 	self->handle = nullptr;
 	self->close_requested = true;
 	self->surface_valid = false;
+	_platform_linux_text_input_events_reset(self->input);
+	array_deinit(self->input.text_input_events);
 }
 
 bool
@@ -876,6 +891,7 @@ platform_window_poll(Platform_Window *self)
 		self->input.keys[i].release_count = 0;
 	}
 	self->input.mouse_wheel = 0.0f;
+	_platform_linux_text_input_events_reset(self->input);
 
 	while (xcb_generic_event_t *xcb_event = ::xcb_poll_for_event(ctx->connection))
 	{
@@ -941,7 +957,9 @@ platform_window_poll(Platform_Window *self)
 			case XCB_KEY_PRESS:
 			{
 				xcb_key_press_event_t *xcb_key_press_event = (xcb_key_press_event_t *)xcb_event;
+				I32 shift_level = (xcb_key_press_event->state & XCB_MOD_MASK_SHIFT) ? 1 : 0;
 				KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_press_event->detail, 0, 0);
+				KeySym text_key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_press_event->detail, 0, shift_level);
 
 				PLATFORM_KEY key = _platform_key_from_key_sym(key_sym);
 				if (key != PLATFORM_KEY_COUNT)
@@ -949,6 +967,14 @@ platform_window_poll(Platform_Window *self)
 					self->input.keys[key].pressed  = true;
 					self->input.keys[key].down     = true;
 					self->input.keys[key].press_count++;
+				}
+				if (self->text_input.enabled && text_key_sym >= XK_space && text_key_sym <= XK_asciitilde)
+				{
+					char text = (char)text_key_sym;
+					array_push(self->input.text_input_events, Platform_Text_Input_Event {
+						.type = PLATFORM_TEXT_INPUT_EVENT_COMMIT,
+						.text = string_from(&text, &text + 1)
+					});
 				}
 				break;
 			}
@@ -1050,6 +1076,12 @@ platform_window_close(Platform_Window *self)
 	event.xclient.data.l[0]    = ::XInternAtom(ctx->display, "WM_DELETE_WINDOW", false);
 	event.xclient.data.l[1]    = CurrentTime;
 	::XSendEvent(ctx->display, ctx->window, false, NoEventMask, &event);
+}
+
+void
+platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc)
+{
+	window.text_input = desc;
 }
 
 void

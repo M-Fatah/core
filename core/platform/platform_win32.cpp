@@ -40,6 +40,63 @@ _platform_key_from_msg(MSG msg)
 	return PLATFORM_KEY_COUNT;
 }
 
+inline static void
+_platform_win32_text_input_events_reset(Platform_Input &input)
+{
+	for (U64 i = 0; i < input.text_input_events.count; ++i)
+	{
+		string_deinit(input.text_input_events[i].text);
+		input.text_input_events[i] = {};
+	}
+	input.text_input_events.count = 0;
+}
+
+inline static void
+_platform_win32_text_input_push_utf16(Platform_Window &window, wchar_t character)
+{
+	if (!window.text_input.enabled)
+		return;
+
+	wchar_t text_wide[2] = {};
+	I32 text_wide_count = 1;
+	if (character == L'\r')
+	{
+		text_wide[0] = L'\n';
+		window.text_input_pending_surrogate = 0;
+	}
+	else if (character >= 0xd800 && character <= 0xdbff)
+	{
+		window.text_input_pending_surrogate = (U16)character;
+		return;
+	}
+	else if (character >= 0xdc00 && character <= 0xdfff)
+	{
+		if (window.text_input_pending_surrogate == 0)
+			return;
+
+		text_wide[0] = (wchar_t)window.text_input_pending_surrogate;
+		text_wide[1] = character;
+		text_wide_count = 2;
+		window.text_input_pending_surrogate = 0;
+	}
+	else
+	{
+		text_wide[0] = character;
+		window.text_input_pending_surrogate = 0;
+	}
+
+	I32 utf8_count = ::WideCharToMultiByte(CP_UTF8, 0, text_wide, text_wide_count, nullptr, 0, nullptr, nullptr);
+	if (utf8_count <= 0)
+		return;
+
+	char text[8] = {};
+	::WideCharToMultiByte(CP_UTF8, 0, text_wide, text_wide_count, text, utf8_count, nullptr, nullptr);
+	array_push(window.input.text_input_events, Platform_Text_Input_Event {
+		.type = PLATFORM_TEXT_INPUT_EVENT_COMMIT,
+		.text = string_from(text, text + utf8_count)
+	});
+}
+
 inline static PLATFORM_KEY
 _platform_key_from_wparam(WPARAM wparam)
 {
@@ -714,6 +771,7 @@ platform_window_init(U32 width, U32 height, const char *title)
 	self.focused = true;
 	self.surface_valid = true;
 	self.surface_changed = true;
+	self.input.text_input_events = array_init<Platform_Text_Input_Event>();
 
 	return self;
 }
@@ -727,6 +785,8 @@ platform_window_deinit(Platform_Window *self)
 	self->handle = nullptr;
 	self->close_requested = true;
 	self->surface_valid = false;
+	_platform_win32_text_input_events_reset(self->input);
+	array_deinit(self->input.text_input_events);
 }
 
 bool
@@ -743,6 +803,7 @@ platform_window_poll(Platform_Window *self)
 		self->input.keys[i].release_count = 0;
 	}
 	self->input.mouse_wheel = 0.0f;
+	_platform_win32_text_input_events_reset(self->input);
 
 	MSG msg = {};
 	while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
@@ -814,6 +875,12 @@ platform_window_poll(Platform_Window *self)
 				}
 				break;
 			}
+			case WM_CHAR:
+			{
+				if (msg.wParam >= 0x20 || msg.wParam == L'\r' || msg.wParam == L'\t')
+					_platform_win32_text_input_push_utf16(*self, (wchar_t)msg.wParam);
+				break;
+			}
 		}
 	}
 
@@ -873,6 +940,16 @@ platform_window_close(Platform_Window *self)
 	self->close_requested = true;
 	self->surface_valid = false;
 	PostMessageW((HWND)self->handle, WM_QUIT, 0, 0);
+}
+
+void
+platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc)
+{
+	window.text_input = desc;
+	if (desc.enabled)
+		::SetFocus((HWND)window.handle);
+	else
+		window.text_input_pending_surrogate = 0;
 }
 
 void

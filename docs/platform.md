@@ -239,7 +239,40 @@ Returned handles are borrowed. On Android, Core keeps the returned `ANativeWindo
 `Platform_Window::paused` is driven by Android Activity pause/resume and remains false on desktop platforms.
 Android windows use the normal `platform_window_init` entry point. The app-side NativeActivity shim initializes Core before app code creates the window.
 
-Soft keyboard text input is not part of the initial Android backend. If needed, it should extend the same small Core-owned Java/JNI bridge instead of adopting GameActivity.
+Android soft keyboard input uses Core's generated `CoreNativeActivity` bridge. The bridge creates the Android `InputConnection` endpoint internally; app code only enables a text-input session through Core and consumes text-input events from `platform_window_poll`.
+
+---
+
+## Text Input
+
+Text input is an OS input-method transport, not a Core text editor. The app owns its text buffer, cursor, selection, validation, undo, and submit behavior. Core only asks the OS to route text input to a window and reports the commands produced by the OS input method.
+
+```cpp
+Platform_Text_Input_Desc text_input {
+	.x = caret_x,
+	.y = caret_y,
+	.width = caret_width,
+	.height = caret_height,
+	.enabled = true
+};
+platform_window_text_input_set(window, text_input);
+
+while (platform_window_poll(&window))
+{
+	for (U64 i = 0; i < window.input.text_input_events.count; ++i)
+	{
+		const Platform_Text_Input_Event &event = window.input.text_input_events[i];
+		// Apply commit, compose, delete-surrounding, or action to the app-owned text buffer.
+	}
+}
+
+text_input.enabled = false;
+platform_window_text_input_set(window, text_input);
+```
+
+`Platform_Text_Input_Event::text` is UTF-8, platform-owned, and valid until the next `platform_window_poll` for that window; copy it if it must outlive the frame. `COMMIT` is finalized text, `COMPOSE` is transient preedit/composition text, `COMPOSE_END` clears composition, `DELETE_SURROUNDING` requests deletion around the app-owned cursor, and `ACTION` reports OS editor actions such as Done, Search, or Send. Coordinates in `Platform_Text_Input_Desc` use Core window coordinates.
+
+Android uses the generated Java `InputConnection` bridge, macOS uses `NSTextInputClient`, Windows uses `WM_CHAR`, and Linux/X11 currently reports basic key-symbol text; full Linux IME composition should be added through XIM/IBus/Fcitx integration when needed.
 
 ---
 
