@@ -6,10 +6,12 @@
 #include "core/memory/memory.h"
 
 #include <android/asset_manager.h>
+#include <android/configuration.h>
 #include <android/input.h>
 #include <android/keycodes.h>
 #include <android/looper.h>
 #include <android/native_activity.h>
+#include <android/rect.h>
 #include <android/native_window.h>
 #include <jni.h>
 #include <dlfcn.h>
@@ -58,18 +60,24 @@ struct Platform_Context
 	jmethodID file_dialog_open_method;
 	jmethodID file_dialog_save_method;
 	jmethodID directory_dialog_open_method;
+	jmethodID app_data_directory_method;
+	jmethodID cache_directory_method;
 	jmethodID content_open_fd_method;
 	jmethodID content_size_method;
 	jmethodID content_delete_method;
 	jmethodID content_is_directory_method;
 	jmethodID content_display_name_method;
 	jmethodID content_list_files_method;
+	jmethodID content_list_files_recursive_method;
+	jmethodID content_create_file_method;
+	jmethodID content_create_directory_method;
+	jmethodID content_rename_method;
+	jmethodID content_move_method;
 	jmethodID clipboard_query_media_types_method;
 	jmethodID clipboard_read_item_method;
 	jmethodID clipboard_write_items_method;
-	jmethodID text_input_begin_method;
-	jmethodID text_input_end_method;
-	jmethodID text_input_set_rect_method;
+	jmethodID window_presentation_set_method;
+	jmethodID text_input_set_method;
 	AInputQueue *input_queue;
 	ANativeWindow *native_window;
 	ANativeWindow *native_window_lease;
@@ -79,10 +87,22 @@ struct Platform_Context
 	Array<Platform_Text_Input_Event> text_input_events;
 	U32 width;
 	U32 height;
+	Platform_Window_Metrics metrics;
+	Platform_Window_Presentation_Desc presentation;
+	I32 content_rect_left;
+	I32 content_rect_top;
+	I32 content_rect_right;
+	I32 content_rect_bottom;
 	I32 text_input_x;
 	I32 text_input_y;
 	U32 text_input_width;
 	U32 text_input_height;
+	U32 text_input_flags;
+	Platform_Text_Input_Action text_input_action;
+	U32 text_input_selection_start;
+	U32 text_input_selection_end;
+	U32 text_input_composing_start;
+	U32 text_input_composing_end;
 	U64 file_dialog_next_id;
 	U64 file_dialog_active_id;
 	String file_dialog_path;
@@ -91,6 +111,7 @@ struct Platform_Context
 	bool paused;
 	bool focused;
 	bool surface_changed;
+	bool content_rect_valid;
 	bool window_deinitialized;
 	bool window_deinit_in_progress;
 	bool file_dialog_waiting;
@@ -304,18 +325,24 @@ _platform_android_jni_bridge_init(Platform_Context *context, ANativeActivity *ac
 	context->file_dialog_open_method = _platform_android_jni_get_method(env, context->activity_class, "coreOpenFileDialog", "(JLjava/lang/String;)V");
 	context->file_dialog_save_method = _platform_android_jni_get_method(env, context->activity_class, "coreSaveFileDialog", "(JLjava/lang/String;)V");
 	context->directory_dialog_open_method = _platform_android_jni_get_method(env, context->activity_class, "coreOpenDirectoryDialog", "(J)V");
+	context->app_data_directory_method = _platform_android_jni_get_method(env, context->activity_class, "coreAppDataDirectory", "()Ljava/lang/String;");
+	context->cache_directory_method = _platform_android_jni_get_method(env, context->activity_class, "coreCacheDirectory", "()Ljava/lang/String;");
 	context->content_open_fd_method = _platform_android_jni_get_method(env, context->activity_class, "coreOpenContentFd", "(Ljava/lang/String;Ljava/lang/String;)I");
 	context->content_size_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentSize", "(Ljava/lang/String;)J");
 	context->content_delete_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentDelete", "(Ljava/lang/String;)Z");
 	context->content_is_directory_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentIsDirectory", "(Ljava/lang/String;)Z");
 	context->content_display_name_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentDisplayName", "(Ljava/lang/String;)Ljava/lang/String;");
 	context->content_list_files_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentListFiles", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+	context->content_list_files_recursive_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentListFilesRecursive", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+	context->content_create_file_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentCreateFile", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+	context->content_create_directory_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentCreateDirectory", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+	context->content_rename_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentRename", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+	context->content_move_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentMove", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
 	context->clipboard_query_media_types_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardQueryMediaTypes", "()Ljava/lang/String;");
 	context->clipboard_read_item_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardReadItem", "(Ljava/lang/String;)[B");
 	context->clipboard_write_items_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardWriteItems", "([Ljava/lang/String;[[B)Z");
-	context->text_input_begin_method = _platform_android_jni_get_method(env, context->activity_class, "coreTextInputBegin", "(IIII)V");
-	context->text_input_end_method = _platform_android_jni_get_method(env, context->activity_class, "coreTextInputEnd", "()V");
-	context->text_input_set_rect_method = _platform_android_jni_get_method(env, context->activity_class, "coreTextInputSetRect", "(IIII)V");
+	context->window_presentation_set_method = _platform_android_jni_get_method(env, context->activity_class, "coreWindowPresentationSet", "(II)V");
+	context->text_input_set_method = _platform_android_jni_get_method(env, context->activity_class, "coreTextInputSet", "(ZIIIIII[BIIII)V");
 }
 
 inline static void
@@ -336,19 +363,105 @@ _platform_android_jni_bridge_deinit(Platform_Context *context)
 	context->file_dialog_open_method = nullptr;
 	context->file_dialog_save_method = nullptr;
 	context->directory_dialog_open_method = nullptr;
+	context->app_data_directory_method = nullptr;
+	context->cache_directory_method = nullptr;
 	context->content_open_fd_method = nullptr;
 	context->content_size_method = nullptr;
 	context->content_delete_method = nullptr;
 	context->content_is_directory_method = nullptr;
 	context->content_display_name_method = nullptr;
 	context->content_list_files_method = nullptr;
+	context->content_list_files_recursive_method = nullptr;
+	context->content_create_file_method = nullptr;
+	context->content_create_directory_method = nullptr;
+	context->content_rename_method = nullptr;
+	context->content_move_method = nullptr;
 	context->clipboard_query_media_types_method = nullptr;
 	context->clipboard_read_item_method = nullptr;
 	context->clipboard_write_items_method = nullptr;
-	context->text_input_begin_method = nullptr;
-	context->text_input_end_method = nullptr;
-	context->text_input_set_rect_method = nullptr;
+	context->window_presentation_set_method = nullptr;
+	context->text_input_set_method = nullptr;
 	_platform_android_jni_detach(context, needs_detach);
+}
+
+inline static Platform_Window_Orientation
+_platform_android_window_orientation(U32 width, U32 height)
+{
+	if (width == 0 || height == 0)
+		return PLATFORM_WINDOW_ORIENTATION_UNKNOWN;
+	return width >= height ? PLATFORM_WINDOW_ORIENTATION_LANDSCAPE : PLATFORM_WINDOW_ORIENTATION_PORTRAIT;
+}
+
+inline static I32
+_platform_android_i32_clamp(I32 value, I32 min_value, I32 max_value)
+{
+	if (value < min_value)
+		return min_value;
+	if (value > max_value)
+		return max_value;
+	return value;
+}
+
+inline static void
+_platform_android_metrics_update_locked(Platform_Context *context)
+{
+	I32 width = (I32)context->width;
+	I32 height = (I32)context->height;
+	I32 left = 0;
+	I32 top = 0;
+	I32 right = width;
+	I32 bottom = height;
+	if (context->content_rect_valid && width > 0 && height > 0)
+	{
+		left = _platform_android_i32_clamp(context->content_rect_left, 0, width);
+		top = _platform_android_i32_clamp(context->content_rect_top, 0, height);
+		right = _platform_android_i32_clamp(context->content_rect_right, left, width);
+		bottom = _platform_android_i32_clamp(context->content_rect_bottom, top, height);
+	}
+
+	I32 density = ACONFIGURATION_DENSITY_MEDIUM;
+	I32 orientation = ACONFIGURATION_ORIENTATION_ANY;
+	if (context->asset_manager)
+	{
+		AConfiguration *configuration = ::AConfiguration_new();
+		if (configuration)
+		{
+			::AConfiguration_fromAssetManager(configuration, context->asset_manager);
+			density = ::AConfiguration_getDensity(configuration);
+			orientation = ::AConfiguration_getOrientation(configuration);
+			::AConfiguration_delete(configuration);
+		}
+	}
+
+	if (density <= 0 || density == ACONFIGURATION_DENSITY_DEFAULT || density == ACONFIGURATION_DENSITY_ANY || density == ACONFIGURATION_DENSITY_NONE)
+		density = ACONFIGURATION_DENSITY_MEDIUM;
+
+	Platform_Window_Orientation window_orientation = PLATFORM_WINDOW_ORIENTATION_UNKNOWN;
+	if (orientation == ACONFIGURATION_ORIENTATION_PORT)
+		window_orientation = PLATFORM_WINDOW_ORIENTATION_PORTRAIT;
+	else if (orientation == ACONFIGURATION_ORIENTATION_LAND)
+		window_orientation = PLATFORM_WINDOW_ORIENTATION_LANDSCAPE;
+	else
+		window_orientation = _platform_android_window_orientation(context->width, context->height);
+
+	context->metrics = Platform_Window_Metrics {
+		.content_rect = Platform_Window_Rect {
+			.x = left,
+			.y = height - bottom,
+			.width = width > 0 ? (U32)(right - left) : 0,
+			.height = height > 0 ? (U32)(bottom - top) : 0
+		},
+		.safe_area = Platform_Window_Insets {
+			.left = width > 0 ? (U32)left : 0,
+			.top = height > 0 ? (U32)top : 0,
+			.right = width > 0 ? (U32)(width - right) : 0,
+			.bottom = height > 0 ? (U32)(height - bottom) : 0
+		},
+		.density_scale = (F32)density / 160.0f,
+		.dpi_x = (F32)density,
+		.dpi_y = (F32)density,
+		.orientation = window_orientation
+	};
 }
 
 inline static void
@@ -382,7 +495,9 @@ _platform_android_window_set_locked(Platform_Context *context, ANativeWindow *wi
 	{
 		context->width = 0;
 		context->height = 0;
+		context->content_rect_valid = false;
 	}
+	_platform_android_metrics_update_locked(context);
 }
 
 inline static void
@@ -496,6 +611,38 @@ _platform_android_on_native_window_created(ANativeActivity *activity, ANativeWin
 }
 
 inline static void
+_platform_android_on_native_window_resized(ANativeActivity *activity, ANativeWindow *window)
+{
+	Platform_Context *context = _platform_android_context_from_activity(activity);
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		DEFER(_platform_android_context_unlock(context););
+		if (context->native_window == window)
+		{
+			context->width = (U32)::ANativeWindow_getWidth(context->native_window);
+			context->height = (U32)::ANativeWindow_getHeight(context->native_window);
+			context->content_rect_valid = false;
+			context->surface_changed = true;
+			_platform_android_metrics_update_locked(context);
+		}
+	}
+}
+
+inline static void
+_platform_android_on_native_window_redraw_needed(ANativeActivity *activity, ANativeWindow *window)
+{
+	Platform_Context *context = _platform_android_context_from_activity(activity);
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		DEFER(_platform_android_context_unlock(context););
+		if (context->native_window == window)
+			context->surface_changed = true;
+	}
+}
+
+inline static void
 _platform_android_on_native_window_destroyed(ANativeActivity *activity, ANativeWindow *window)
 {
 	Platform_Context *context = _platform_android_context_from_activity(activity);
@@ -505,6 +652,31 @@ _platform_android_on_native_window_destroyed(ANativeActivity *activity, ANativeW
 		DEFER(_platform_android_context_unlock(context););
 		if (context->native_window == window)
 			_platform_android_window_set_locked(context, nullptr);
+	}
+}
+
+inline static void
+_platform_android_on_content_rect_changed(ANativeActivity *activity, const ARect *rect)
+{
+	Platform_Context *context = _platform_android_context_from_activity(activity);
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		DEFER(_platform_android_context_unlock(context););
+		if (rect)
+		{
+			context->content_rect_left = rect->left;
+			context->content_rect_top = rect->top;
+			context->content_rect_right = rect->right;
+			context->content_rect_bottom = rect->bottom;
+			context->content_rect_valid = true;
+		}
+		else
+		{
+			context->content_rect_valid = false;
+		}
+		context->surface_changed = true;
+		_platform_android_metrics_update_locked(context);
 	}
 }
 
@@ -524,9 +696,10 @@ _platform_android_on_configuration_changed(ANativeActivity *activity)
 			{
 				context->width = width;
 				context->height = height;
-				context->surface_changed = true;
 			}
 		}
+		context->surface_changed = true;
+		_platform_android_metrics_update_locked(context);
 	}
 }
 
@@ -928,7 +1101,10 @@ _platform_android_context_init(ANativeActivity *activity)
 	activity->callbacks->onDestroy = _platform_android_on_destroy;
 	activity->callbacks->onWindowFocusChanged = _platform_android_on_window_focus_changed;
 	activity->callbacks->onNativeWindowCreated = _platform_android_on_native_window_created;
+	activity->callbacks->onNativeWindowResized = _platform_android_on_native_window_resized;
+	activity->callbacks->onNativeWindowRedrawNeeded = _platform_android_on_native_window_redraw_needed;
 	activity->callbacks->onNativeWindowDestroyed = _platform_android_on_native_window_destroyed;
+	activity->callbacks->onContentRectChanged = _platform_android_on_content_rect_changed;
 	activity->callbacks->onInputQueueCreated = _platform_android_on_input_queue_created;
 	activity->callbacks->onInputQueueDestroyed = _platform_android_on_input_queue_destroyed;
 	activity->callbacks->onConfigurationChanged = _platform_android_on_configuration_changed;
@@ -1087,12 +1263,48 @@ Java_core_android_CoreNativeActivity_nativeTextInputComposeEnd(JNIEnv *, jclass)
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_core_android_CoreNativeActivity_nativeTextInputComposeRegion(JNIEnv *, jclass, jint start, jint end)
+{
+	Platform_Text_Input_Event event {
+		.type = PLATFORM_TEXT_INPUT_EVENT_COMPOSE_REGION,
+		.composing_start = (U32)start,
+		.composing_end = (U32)end
+	};
+	Platform_Context *context = _platform_android_context;
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		if (context->text_input_active)
+			array_push(context->text_input_events, event);
+		_platform_android_context_unlock(context);
+	}
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_core_android_CoreNativeActivity_nativeTextInputDelete(JNIEnv *, jclass, jint before, jint after)
 {
 	Platform_Text_Input_Event event {
 		.type = PLATFORM_TEXT_INPUT_EVENT_DELETE_SURROUNDING,
 		.delete_before = before,
 		.delete_after = after
+	};
+	Platform_Context *context = _platform_android_context;
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		if (context->text_input_active)
+			array_push(context->text_input_events, event);
+		_platform_android_context_unlock(context);
+	}
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_core_android_CoreNativeActivity_nativeTextInputSelection(JNIEnv *, jclass, jint start, jint end)
+{
+	Platform_Text_Input_Event event {
+		.type = PLATFORM_TEXT_INPUT_EVENT_SELECTION,
+		.selection_start = (U32)start,
+		.selection_end = (U32)end
 	};
 	Platform_Context *context = _platform_android_context;
 	if (context)
@@ -1122,6 +1334,37 @@ Java_core_android_CoreNativeActivity_nativeTextInputAction(JNIEnv *, jclass, jin
 			array_push(context->text_input_events, event);
 		_platform_android_context_unlock(context);
 	}
+}
+
+inline static String
+_platform_android_activity_string_method(jmethodID method, memory::Allocator *allocator)
+{
+	String result = string_init(allocator);
+	Platform_Context *context = _platform_android_context;
+	if (context && context->activity_object && method)
+	{
+		bool needs_detach = false;
+		JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+		if (env)
+		{
+			jstring value_string = (jstring)env->CallObjectMethod(context->activity_object, method);
+			bool call_failed = _platform_android_jni_clear_exception(env);
+			if (!call_failed && value_string)
+			{
+				const char *value_chars = env->GetStringUTFChars(value_string, nullptr);
+				if (value_chars)
+				{
+					string_deinit(result);
+					result = string_from(value_chars, allocator);
+					env->ReleaseStringUTFChars(value_string, value_chars);
+				}
+			}
+			if (value_string)
+				env->DeleteLocalRef(value_string);
+			_platform_android_jni_detach(context, needs_detach);
+		}
+	}
+	return result;
 }
 
 inline static I32
@@ -1290,11 +1533,11 @@ _platform_android_content_display_name(const char *uri, memory::Allocator *alloc
 }
 
 inline static Array<String>
-_platform_android_content_list_files(const char *uri, const String &extension_filter, memory::Allocator *allocator)
+_platform_android_content_list_files_with_method(const char *uri, const String &extension_filter, jmethodID method, memory::Allocator *allocator)
 {
 	Array<String> files = array_init<String>(allocator);
 	Platform_Context *context = _platform_android_context_get();
-	if (context->activity_object == nullptr || context->content_list_files_method == nullptr)
+	if (context->activity_object == nullptr || method == nullptr)
 		return files;
 
 	bool needs_detach = false;
@@ -1315,7 +1558,7 @@ _platform_android_content_list_files(const char *uri, const String &extension_fi
 		return files;
 	}
 
-	jstring files_string = (jstring)env->CallObjectMethod(context->activity_object, context->content_list_files_method, uri_string, extension_string);
+	jstring files_string = (jstring)env->CallObjectMethod(context->activity_object, method, uri_string, extension_string);
 	env->DeleteLocalRef(uri_string);
 	env->DeleteLocalRef(extension_string);
 	if (_platform_android_jni_clear_exception(env) || files_string == nullptr)
@@ -1344,6 +1587,67 @@ _platform_android_content_list_files(const char *uri, const String &extension_fi
 	env->DeleteLocalRef(files_string);
 	_platform_android_jni_detach(context, needs_detach);
 	return files;
+}
+
+inline static Array<String>
+_platform_android_content_list_files(const char *uri, const String &extension_filter, memory::Allocator *allocator)
+{
+	Platform_Context *context = _platform_android_context_get();
+	return _platform_android_content_list_files_with_method(uri, extension_filter, context->content_list_files_method, allocator);
+}
+
+inline static Array<String>
+_platform_android_content_list_files_recursive(const char *uri, const String &extension_filter, memory::Allocator *allocator)
+{
+	Platform_Context *context = _platform_android_context_get();
+	return _platform_android_content_list_files_with_method(uri, extension_filter, context->content_list_files_recursive_method, allocator);
+}
+
+inline static String
+_platform_android_content_call_uri_string_method(const char *uri, const String &value, jmethodID method, memory::Allocator *allocator)
+{
+	String result = string_init(allocator);
+	Platform_Context *context = _platform_android_context_get();
+	if (context->activity_object == nullptr || method == nullptr)
+		return result;
+
+	bool needs_detach = false;
+	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+	if (env == nullptr)
+		return result;
+
+	jstring uri_string = env->NewStringUTF(uri);
+	jstring value_string = env->NewStringUTF(value.data ? value.data : "");
+	if (uri_string == nullptr || value_string == nullptr)
+	{
+		_platform_android_jni_clear_exception(env);
+		if (uri_string)
+			env->DeleteLocalRef(uri_string);
+		if (value_string)
+			env->DeleteLocalRef(value_string);
+		_platform_android_jni_detach(context, needs_detach);
+		return result;
+	}
+
+	jstring result_string = (jstring)env->CallObjectMethod(context->activity_object, method, uri_string, value_string);
+	env->DeleteLocalRef(uri_string);
+	env->DeleteLocalRef(value_string);
+	if (_platform_android_jni_clear_exception(env) || result_string == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return result;
+	}
+
+	const char *result_chars = env->GetStringUTFChars(result_string, nullptr);
+	if (result_chars)
+	{
+		string_deinit(result);
+		result = string_from(result_chars, allocator);
+		env->ReleaseStringUTFChars(result_string, result_chars);
+	}
+	env->DeleteLocalRef(result_string);
+	_platform_android_jni_detach(context, needs_detach);
+	return result;
 }
 
 inline static void
@@ -1705,28 +2009,77 @@ platform_path_get_current_working_directory(memory::Allocator *allocator)
 String
 platform_path_get_temp_directory(memory::Allocator *allocator)
 {
+	String result = string_init(allocator);
 	Platform_Context *context = _platform_android_context;
-	if (context)
+	if (context && context->cache_directory_method)
 	{
-		String result = {};
-		_platform_android_context_lock(context);
-		if (context->activity && context->activity->internalDataPath)
-			result = string_from(context->activity->internalDataPath, allocator);
-		else if (context->activity && context->activity->externalDataPath)
-			result = string_from(context->activity->externalDataPath, allocator);
-		_platform_android_context_unlock(context);
+		string_deinit(result);
+		result = _platform_android_activity_string_method(context->cache_directory_method, allocator);
+	}
 
-		if (result.count > 0)
+	if (result.count == 0)
+	{
+		if (result.capacity > 0)
+			string_deinit(result);
+		result = platform_environment_variable_get("TMPDIR", allocator);
+		if (result.count == 0)
+			result = string_from("/data/local/tmp/", allocator);
+	}
+
+	if (result.count > 0 && result[result.count - 1] != '/')
+		string_append(result, '/');
+	return result;
+}
+
+String
+platform_path_get_app_data_directory(memory::Allocator *allocator)
+{
+	Platform_Context *context = _platform_android_context;
+	String result = context ? _platform_android_activity_string_method(context->app_data_directory_method, allocator) : string_init(allocator);
+	if (result.count == 0)
+	{
+		if (result.capacity > 0)
+			string_deinit(result);
+		result = {};
+		if (context)
 		{
-			if (result[result.count - 1] != '/')
-				string_append(result, '/');
-			return result;
+			_platform_android_context_lock(context);
+			if (context->activity && context->activity->internalDataPath)
+				result = string_from(context->activity->internalDataPath, allocator);
+			else if (context->activity && context->activity->externalDataPath)
+				result = string_from(context->activity->externalDataPath, allocator);
+			_platform_android_context_unlock(context);
 		}
 	}
 
-	String result = platform_environment_variable_get("TMPDIR", allocator);
 	if (result.count == 0)
-		result = string_from("/data/local/tmp/", allocator);
+		return platform_path_get_temp_directory(allocator);
+
+	if (result[result.count - 1] != '/')
+		string_append(result, '/');
+	return result;
+}
+
+String
+platform_path_get_cache_directory(memory::Allocator *allocator)
+{
+	String result = string_init(allocator);
+	Platform_Context *context = _platform_android_context;
+	if (context && context->cache_directory_method)
+	{
+		string_deinit(result);
+		result = _platform_android_activity_string_method(context->cache_directory_method, allocator);
+	}
+
+	if (result.count == 0)
+	{
+		if (result.capacity > 0)
+			string_deinit(result);
+		result = platform_environment_variable_get("TMPDIR", allocator);
+		if (result.count == 0)
+			result = string_from("/data/local/tmp/", allocator);
+	}
+
 	if (result.count > 0 && result[result.count - 1] != '/')
 		string_append(result, '/');
 	return result;
@@ -1804,6 +2157,37 @@ platform_path_write_file(const String &path, Memory_Block block)
 	return platform_file_write(path.data, block);
 }
 
+inline static String
+_platform_android_path_join(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	if (directory.count == 0 || name.count == 0)
+		return string_init(allocator);
+
+	String result = string_copy(directory, allocator);
+	string_replace(result, '\\', '/');
+	if (result[result.count - 1] != '/')
+		string_append(result, '/');
+	string_append(result, name);
+	string_replace(result, '\\', '/');
+	return result;
+}
+
+inline static String
+_platform_android_path_parent(const String &path, memory::Allocator *allocator)
+{
+	String result = string_copy(path, allocator);
+	string_replace(result, '\\', '/');
+	U64 slash = string_find_last_of(result, '/');
+	if (slash == U64(-1))
+	{
+		string_clear(result);
+		string_append(result, '.');
+		return result;
+	}
+	string_resize(result, slash);
+	return result;
+}
+
 Array<String>
 platform_path_list_files(const String &directory, const String &extension_filter, memory::Allocator *allocator)
 {
@@ -1837,6 +2221,140 @@ platform_path_list_files(const String &directory, const String &extension_filter
 	}
 
 	return files;
+}
+
+inline static void
+_platform_android_path_list_files_recursive(Array<String> &files, const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	DIR *dir = ::opendir(directory.data);
+	if (!dir)
+		return;
+	DEFER(validate(::closedir(dir) == 0, "[PLATFORM][ANDROID]: Failed to close recursive directory."););
+
+	struct dirent *entry = nullptr;
+	while ((entry = ::readdir(dir)) != nullptr)
+	{
+		String file_name = string_from(entry->d_name, memory::temp_allocator());
+		if (file_name == "." || file_name == "..")
+			continue;
+
+		String child_path = _platform_android_path_join(directory, file_name, memory::temp_allocator());
+		if (platform_path_is_directory(child_path))
+		{
+			_platform_android_path_list_files_recursive(files, child_path, extension_filter, allocator);
+			continue;
+		}
+
+		if (_platform_extension_matches(file_name, extension_filter))
+			array_push(files, string_copy(child_path, allocator));
+	}
+}
+
+Array<String>
+platform_path_list_files_recursive(const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	if (_platform_android_is_content_uri(directory.data))
+		return _platform_android_content_list_files_recursive(directory.data, extension_filter, allocator);
+
+	Array<String> files = array_init<String>(allocator);
+	String directory_temp = string_copy(directory, memory::temp_allocator());
+	string_replace(directory_temp, "\\", "/");
+	_platform_android_path_list_files_recursive(files, directory_temp, extension_filter, allocator);
+	return files;
+}
+
+String
+platform_path_create_file(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	if (_platform_android_is_content_uri(directory.data))
+	{
+		Platform_Context *context = _platform_android_context_get();
+		return _platform_android_content_call_uri_string_method(directory.data, name, context->content_create_file_method, allocator);
+	}
+
+	String result = _platform_android_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	I32 file_handle = ::open(result.data, O_WRONLY | O_CREAT | O_EXCL, S_IRWXU);
+	if (file_handle == -1)
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	validate(::close(file_handle) == 0, "[PLATFORM][ANDROID]: Failed to close created file.");
+	return result;
+}
+
+String
+platform_path_create_directory(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	if (_platform_android_is_content_uri(directory.data))
+	{
+		Platform_Context *context = _platform_android_context_get();
+		return _platform_android_content_call_uri_string_method(directory.data, name, context->content_create_directory_method, allocator);
+	}
+
+	String result = _platform_android_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (::mkdir(result.data, S_IRWXU) != 0)
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	return result;
+}
+
+String
+platform_path_rename(const String &path, const String &name, memory::Allocator *allocator)
+{
+	if (_platform_android_is_content_uri(path.data))
+	{
+		Platform_Context *context = _platform_android_context_get();
+		return _platform_android_content_call_uri_string_method(path.data, name, context->content_rename_method, allocator);
+	}
+
+	String directory = _platform_android_path_parent(path, memory::temp_allocator());
+	String result = _platform_android_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (::rename(path.data, result.data) != 0)
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	return result;
+}
+
+String
+platform_path_move(const String &path, const String &directory, memory::Allocator *allocator)
+{
+	bool path_is_content = _platform_android_is_content_uri(path.data);
+	bool directory_is_content = _platform_android_is_content_uri(directory.data);
+	if (path_is_content && directory_is_content)
+	{
+		Platform_Context *context = _platform_android_context_get();
+		return _platform_android_content_call_uri_string_method(path.data, directory, context->content_move_method, allocator);
+	}
+
+	String name = platform_path_get_file_name(path, memory::temp_allocator());
+	String result = directory_is_content ? platform_path_create_file(directory, name, allocator) : _platform_android_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (!path_is_content && !directory_is_content && ::rename(path.data, result.data) == 0)
+		return result;
+
+	if (platform_path_is_file(path) && platform_file_copy(path.data, result.data) && platform_file_delete(path.data))
+		return result;
+
+	if (platform_path_is_file(result))
+		platform_file_delete(result.data);
+	string_deinit(result);
+	return string_init(allocator);
 }
 
 Platform_Api
@@ -2026,11 +2544,14 @@ platform_window_init(U32, U32, const char *)
 	U32 height = context->native_window ? (U32)::ANativeWindow_getHeight(context->native_window) : context->height;
 	context->width = width;
 	context->height = height;
+	_platform_android_metrics_update_locked(context);
 
 	Platform_Window self {
 		.handle = context,
 		.width = width,
 		.height = height,
+		.metrics = context->metrics,
+		.presentation = context->presentation,
 		.input = {},
 		.text_input = {},
 		.close_requested = context->close_requested,
@@ -2066,6 +2587,8 @@ platform_window_deinit(Platform_Window *self)
 	self->handle = nullptr;
 	self->width = 0;
 	self->height = 0;
+	self->metrics = {};
+	self->presentation = {};
 	_platform_android_text_input_events_reset(self->input.text_input_events);
 	array_deinit(self->input.text_input_events);
 	self->input = {};
@@ -2131,15 +2654,24 @@ platform_window_poll(Platform_Window *self)
 			context->width = width;
 			context->height = height;
 			context->surface_changed = true;
+			_platform_android_metrics_update_locked(context);
 		}
 	}
 	self->width = context->width;
 	self->height = context->height;
+	self->metrics = context->metrics;
+	self->presentation = context->presentation;
 	self->text_input = Platform_Text_Input_Desc {
 		.x = context->text_input_x,
 		.y = context->text_input_y,
 		.width = context->text_input_width,
 		.height = context->text_input_height,
+		.flags = context->text_input_flags,
+		.action = context->text_input_action,
+		.selection_start = context->text_input_selection_start,
+		.selection_end = context->text_input_selection_end,
+		.composing_start = context->text_input_composing_start,
+		.composing_end = context->text_input_composing_end,
 		.enabled = context->text_input_active
 	};
 	for (U64 i = 0; i < context->text_input_events.count; ++i)
@@ -2217,9 +2749,9 @@ platform_window_close(Platform_Window *self)
 }
 
 inline static void
-_platform_android_text_input_begin(Platform_Context *context, const Platform_Text_Input_Desc &desc)
+_platform_android_window_presentation_set(Platform_Context *context, const Platform_Window_Presentation_Desc &desc)
 {
-	if (context == nullptr || context->activity_object == nullptr || context->text_input_begin_method == nullptr)
+	if (context == nullptr || context->activity_object == nullptr || context->window_presentation_set_method == nullptr)
 		return;
 
 	bool needs_detach = false;
@@ -2227,40 +2759,58 @@ _platform_android_text_input_begin(Platform_Context *context, const Platform_Tex
 	if (env == nullptr)
 		return;
 
-	env->CallVoidMethod(context->activity_object, context->text_input_begin_method, (jint)desc.x, (jint)desc.y, (jint)desc.width, (jint)desc.height);
+	env->CallVoidMethod(context->activity_object, context->window_presentation_set_method, (jint)desc.flags, (jint)desc.orientation_policy);
 	_platform_android_jni_clear_exception(env);
 	_platform_android_jni_detach(context, needs_detach);
 }
 
-inline static void
-_platform_android_text_input_end(Platform_Context *context)
+void
+platform_window_presentation_set(Platform_Window &window, const Platform_Window_Presentation_Desc &desc)
 {
-	if (context == nullptr || context->activity_object == nullptr || context->text_input_end_method == nullptr)
-		return;
-
-	bool needs_detach = false;
-	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
-	if (env == nullptr)
-		return;
-
-	env->CallVoidMethod(context->activity_object, context->text_input_end_method);
-	_platform_android_jni_clear_exception(env);
-	_platform_android_jni_detach(context, needs_detach);
+	Platform_Context *context = (Platform_Context *)window.handle;
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		context->presentation = desc;
+		_platform_android_context_unlock(context);
+		_platform_android_window_presentation_set(context, desc);
+	}
+	window.presentation = desc;
+	window.surface_changed = true;
 }
 
 inline static void
-_platform_android_text_input_set_rect(Platform_Context *context, const Platform_Text_Input_Desc &desc)
+_platform_android_text_input_set(Platform_Context *context, const Platform_Text_Input_Desc &desc)
 {
-	if (context == nullptr || context->activity_object == nullptr || context->text_input_set_rect_method == nullptr)
+	if (context == nullptr || context->activity_object == nullptr || context->text_input_set_method == nullptr)
 		return;
+	validate(desc.text.count <= (U64)INT_MAX, "[PLATFORM][ANDROID]: Text input state is too large for JNI.");
 
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return;
 
-	env->CallVoidMethod(context->activity_object, context->text_input_set_rect_method, (jint)desc.x, (jint)desc.y, (jint)desc.width, (jint)desc.height);
+	jbyteArray text_array = env->NewByteArray((jsize)desc.text.count);
+	if (text_array == nullptr)
+	{
+		_platform_android_jni_clear_exception(env);
+		_platform_android_jni_detach(context, needs_detach);
+		return;
+	}
+
+	if (desc.text.count > 0)
+		env->SetByteArrayRegion(text_array, 0, (jsize)desc.text.count, (const jbyte *)desc.text.data);
+	if (_platform_android_jni_clear_exception(env))
+	{
+		env->DeleteLocalRef(text_array);
+		_platform_android_jni_detach(context, needs_detach);
+		return;
+	}
+
+	env->CallVoidMethod(context->activity_object, context->text_input_set_method, (jboolean)desc.enabled, (jint)desc.x, (jint)desc.y, (jint)desc.width, (jint)desc.height, (jint)desc.flags, (jint)desc.action, text_array, (jint)desc.selection_start, (jint)desc.selection_end, (jint)desc.composing_start, (jint)desc.composing_end);
 	_platform_android_jni_clear_exception(env);
+	env->DeleteLocalRef(text_array);
 	_platform_android_jni_detach(context, needs_detach);
 }
 
@@ -2271,39 +2821,43 @@ platform_window_text_input_set(Platform_Window &window, const Platform_Text_Inpu
 	if (context == nullptr)
 		return;
 
-	bool was_active = false;
 	window.text_input = desc;
+	window.text_input.text = {};
 	if (desc.enabled)
 	{
 		_platform_android_context_lock(context);
-		was_active = context->text_input_active;
 		context->text_input_active = true;
 		context->text_input_x = desc.x;
 		context->text_input_y = desc.y;
 		context->text_input_width = desc.width;
 		context->text_input_height = desc.height;
+		context->text_input_flags = desc.flags;
+		context->text_input_action = desc.action;
+		context->text_input_selection_start = desc.selection_start;
+		context->text_input_selection_end = desc.selection_end;
+		context->text_input_composing_start = desc.composing_start;
+		context->text_input_composing_end = desc.composing_end;
 		_platform_android_context_unlock(context);
-
-		if (was_active)
-			_platform_android_text_input_set_rect(context, desc);
-		else
-			_platform_android_text_input_begin(context, desc);
 	}
 	else
 	{
 		_platform_android_context_lock(context);
-		was_active = context->text_input_active;
 		context->text_input_active = false;
 		context->text_input_x = 0;
 		context->text_input_y = 0;
 		context->text_input_width = 0;
 		context->text_input_height = 0;
+		context->text_input_flags = 0;
+		context->text_input_action = PLATFORM_TEXT_INPUT_ACTION_NONE;
+		context->text_input_selection_start = 0;
+		context->text_input_selection_end = 0;
+		context->text_input_composing_start = 0;
+		context->text_input_composing_end = 0;
 		_platform_android_text_input_events_reset(context->text_input_events);
 		_platform_android_context_unlock(context);
-
-		if (was_active)
-			_platform_android_text_input_end(context);
 	}
+
+	_platform_android_text_input_set(context, desc);
 }
 
 void

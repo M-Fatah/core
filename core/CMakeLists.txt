@@ -106,7 +106,7 @@ elseif(LINUX)
     )
 elseif(APPLE)
     add_library(core-platform-macos OBJECT platform/platform_macos.mm)
-    target_link_libraries(core-platform-macos PRIVATE ${LIBS} "-framework Cocoa" "-framework UniformTypeIdentifiers")
+    target_link_libraries(core-platform-macos PRIVATE ${LIBS} "-framework Cocoa" "-framework IOKit" "-framework UniformTypeIdentifiers")
 
     list(APPEND LIBS
         core-platform-macos
@@ -130,14 +130,17 @@ elseif(ANDROID)
         |package core.android;
         |
         |import android.app.NativeActivity;
+        |import android.content.pm.ActivityInfo;
         |import android.content.ClipData;
         |import android.content.ClipDescription;
         |import android.content.ClipboardManager;
         |import android.content.Context;
         |import android.content.Intent;
         |import android.database.Cursor;
+        |import android.graphics.Color;
         |import android.graphics.Rect;
         |import android.net.Uri;
+        |import android.os.Build;
         |import android.os.Bundle;
         |import android.os.ParcelFileDescriptor;
         |import android.provider.DocumentsContract;
@@ -146,8 +149,12 @@ elseif(ANDROID)
         |import android.view.KeyEvent;
         |import android.view.View;
         |import android.view.ViewGroup;
+        |import android.view.Window;
+        |import android.view.WindowManager;
         |import android.view.inputmethod.BaseInputConnection;
         |import android.view.inputmethod.EditorInfo;
+        |import android.view.inputmethod.ExtractedText;
+        |import android.view.inputmethod.ExtractedTextRequest;
         |import android.view.inputmethod.InputConnection;
         |import android.view.inputmethod.InputMethodManager;
         |import android.webkit.MimeTypeMap;
@@ -158,6 +165,7 @@ elseif(ANDROID)
         |import java.io.InputStream;
         |import java.nio.charset.StandardCharsets;
         |import java.security.SecureRandom;
+        |import java.util.List;
         |import java.util.Locale;
         |
         |public class CoreNativeActivity extends NativeActivity {
@@ -171,15 +179,43 @@ elseif(ANDROID)
         |    private static final int CORE_TEXT_INPUT_ACTION_SEND = 4;
         |    private static final int CORE_TEXT_INPUT_ACTION_NEXT = 5;
         |    private static final int CORE_TEXT_INPUT_ACTION_PREVIOUS = 6;
+        |    private static final int CORE_TEXT_INPUT_FLAG_MULTILINE = 1 << 0;
+        |    private static final int CORE_TEXT_INPUT_FLAG_PASSWORD = 1 << 1;
+        |    private static final int CORE_TEXT_INPUT_FLAG_NUMBER = 1 << 2;
+        |    private static final int CORE_TEXT_INPUT_FLAG_DECIMAL = 1 << 3;
+        |    private static final int CORE_TEXT_INPUT_FLAG_SIGNED = 1 << 4;
+        |    private static final int CORE_TEXT_INPUT_FLAG_EMAIL = 1 << 5;
+        |    private static final int CORE_TEXT_INPUT_FLAG_URI = 1 << 6;
+        |    private static final int CORE_TEXT_INPUT_FLAG_NO_SUGGESTIONS = 1 << 7;
+        |    private static final int CORE_WINDOW_PRESENTATION_FLAG_FULLSCREEN = 1 << 0;
+        |    private static final int CORE_WINDOW_PRESENTATION_FLAG_IMMERSIVE = 1 << 1;
+        |    private static final int CORE_WINDOW_PRESENTATION_FLAG_KEEP_SCREEN_ON = 1 << 2;
+        |    private static final int CORE_WINDOW_PRESENTATION_FLAG_EDGE_TO_EDGE = 1 << 3;
+        |    private static final int CORE_WINDOW_ORIENTATION_POLICY_SYSTEM = 0;
+        |    private static final int CORE_WINDOW_ORIENTATION_POLICY_PORTRAIT = 1;
+        |    private static final int CORE_WINDOW_ORIENTATION_POLICY_LANDSCAPE = 2;
+        |    private static final int CORE_WINDOW_ORIENTATION_POLICY_SENSOR = 3;
+        |    private static final int CORE_WINDOW_ORIENTATION_POLICY_SENSOR_PORTRAIT = 4;
+        |    private static final int CORE_WINDOW_ORIENTATION_POLICY_SENSOR_LANDSCAPE = 5;
         |
         |    private long coreFileDialogRequest;
         |    private CoreTextInputView coreTextInputView;
+        |    private boolean coreWindowPresentationCaptured;
+        |    private int coreWindowPresentationFlags;
+        |    private int coreWindowOrientationPolicy;
+        |    private int coreWindowSystemUiVisibility;
+        |    private int coreWindowRequestedOrientation;
+        |    private int coreWindowStatusBarColor;
+        |    private int coreWindowNavigationBarColor;
+        |    private int coreWindowCutoutMode;
         |
         |    private static native void nativeFileDialogResult(long requestId, boolean accepted, String uri);
         |    private static native void nativeTextInputCommit(byte[] text);
         |    private static native void nativeTextInputCompose(byte[] text);
         |    private static native void nativeTextInputComposeEnd();
+        |    private static native void nativeTextInputComposeRegion(int start, int end);
         |    private static native void nativeTextInputDelete(int beforeLength, int afterLength);
+        |    private static native void nativeTextInputSelection(int start, int end);
         |    private static native void nativeTextInputAction(int action);
         |
         |    private static String coreCleanExtension(String extension) {
@@ -221,6 +257,20 @@ elseif(ANDROID)
         |    private static String coreDefaultName(String extension) {
         |        String cleanExtension = coreCleanExtension(extension);
         |        return cleanExtension.length() > 0 ? "untitled." + cleanExtension : "untitled";
+        |    }
+        |
+        |    private static String coreMimeTypeFromName(String name) {
+        |        if (name == null) {
+        |            return "*/*";
+        |        }
+        |
+        |        int dot = name.lastIndexOf('.');
+        |        if (dot < 0 || dot + 1 >= name.length()) {
+        |            return "*/*";
+        }
+        |
+        |        String mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substring(dot + 1).toLowerCase(Locale.ROOT));
+        |        return mimeType != null ? mimeType : "*/*";
         |    }
         |
         |    private static boolean coreExtensionMatches(String name, String extension) {
@@ -305,6 +355,39 @@ elseif(ANDROID)
         |        return text != null ? text.toString().getBytes(StandardCharsets.UTF_8) : new byte[0];
         |    }
         |
+        |    private static int coreClamp(int value, int min, int max) {
+        |        return value < min ? min : (value > max ? max : value);
+        |    }
+        |
+        |    private static int coreUtf8Offset(String text, int utf16Index) {
+        |        if (text == null || text.length() == 0) {
+        |            return 0;
+        |        }
+        |
+        |        int index = coreClamp(utf16Index, 0, text.length());
+        |        return text.substring(0, index).getBytes(StandardCharsets.UTF_8).length;
+        |    }
+        |
+        |    private static int coreUtf16IndexFromUtf8Offset(String text, int utf8Offset) {
+        |        if (text == null || text.length() == 0 || utf8Offset <= 0) {
+        |            return 0;
+        }
+        |
+        |        int bytes = 0;
+        |        int index = 0;
+        |        while (index < text.length()) {
+        |            int codePoint = text.codePointAt(index);
+        |            int next = index + Character.charCount(codePoint);
+        |            int byteCount = text.substring(index, next).getBytes(StandardCharsets.UTF_8).length;
+        |            if (bytes + byteCount > utf8Offset) {
+        |                break;
+        |            }
+        |            bytes += byteCount;
+        |            index = next;
+        |        }
+        |        return index;
+        |    }
+        |
         |    private void coreTextInputEnsureView() {
         |        if (coreTextInputView != null) {
         |            return;
@@ -316,6 +399,13 @@ elseif(ANDROID)
         |
         |    private static final class CoreTextInputView extends View {
         |        private final Rect coreTextRect = new Rect();
+        |        private String coreText = "";
+        |        private int coreSelectionStart;
+        |        private int coreSelectionEnd;
+        |        private int coreComposingStart = -1;
+        |        private int coreComposingEnd = -1;
+        |        private int coreInputFlags;
+        |        private int coreInputAction;
         |
         |        CoreTextInputView(Context context) {
         |            super(context);
@@ -323,11 +413,156 @@ elseif(ANDROID)
         |            setFocusableInTouchMode(true);
         |        }
         |
-        |        void coreSetTextRect(int x, int y, int width, int height) {
+        |        private boolean coreHasFlag(int flag) {
+        |            return (coreInputFlags & flag) != 0;
+        |        }
+        |
+        |        private int coreInputType() {
+        |            int inputType;
+        |            if (coreHasFlag(CORE_TEXT_INPUT_FLAG_NUMBER)) {
+        |                inputType = InputType.TYPE_CLASS_NUMBER;
+        |                if (coreHasFlag(CORE_TEXT_INPUT_FLAG_DECIMAL)) {
+        |                    inputType |= InputType.TYPE_NUMBER_FLAG_DECIMAL;
+        |                }
+        |                if (coreHasFlag(CORE_TEXT_INPUT_FLAG_SIGNED)) {
+        |                    inputType |= InputType.TYPE_NUMBER_FLAG_SIGNED;
+        |                }
+        |                if (coreHasFlag(CORE_TEXT_INPUT_FLAG_PASSWORD)) {
+        |                    inputType |= InputType.TYPE_NUMBER_VARIATION_PASSWORD;
+        |                }
+        |                return inputType;
+        |            }
+        |
+        |            inputType = InputType.TYPE_CLASS_TEXT;
+        |            if (coreHasFlag(CORE_TEXT_INPUT_FLAG_EMAIL)) {
+        |                inputType |= InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS;
+        |            } else if (coreHasFlag(CORE_TEXT_INPUT_FLAG_URI)) {
+        |                inputType |= InputType.TYPE_TEXT_VARIATION_URI;
+        |            } else if (coreHasFlag(CORE_TEXT_INPUT_FLAG_PASSWORD)) {
+        |                inputType |= InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
+        |            }
+        |            if (coreHasFlag(CORE_TEXT_INPUT_FLAG_MULTILINE)) {
+        |                inputType |= InputType.TYPE_TEXT_FLAG_MULTI_LINE;
+        |            }
+        |            if (coreHasFlag(CORE_TEXT_INPUT_FLAG_NO_SUGGESTIONS)) {
+        |                inputType |= InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
+        |            }
+        |            return inputType;
+        |        }
+        |
+        |        private int coreImeOptions() {
+        |            int action = EditorInfo.IME_ACTION_NONE;
+        |            switch (coreInputAction) {
+        |                case CORE_TEXT_INPUT_ACTION_DONE:
+        |                    action = EditorInfo.IME_ACTION_DONE;
+        |                    break;
+        |                case CORE_TEXT_INPUT_ACTION_GO:
+        |                    action = EditorInfo.IME_ACTION_GO;
+        |                    break;
+        |                case CORE_TEXT_INPUT_ACTION_SEARCH:
+        |                    action = EditorInfo.IME_ACTION_SEARCH;
+        |                    break;
+        |                case CORE_TEXT_INPUT_ACTION_SEND:
+        |                    action = EditorInfo.IME_ACTION_SEND;
+        |                    break;
+        |                case CORE_TEXT_INPUT_ACTION_NEXT:
+        |                    action = EditorInfo.IME_ACTION_NEXT;
+        |                    break;
+        |                case CORE_TEXT_INPUT_ACTION_PREVIOUS:
+        |                    action = EditorInfo.IME_ACTION_PREVIOUS;
+        |                    break;
+        |            }
+        |            return EditorInfo.IME_FLAG_NO_EXTRACT_UI | action;
+        |        }
+        |
+        |        private void coreSetTextRect(int x, int y, int width, int height) {
         |            int viewHeight = getRootView() != null ? getRootView().getHeight() : getHeight();
         |            int top = viewHeight > 0 ? viewHeight - y - height : y;
         |            coreTextRect.set(x, top, x + width, top + height);
         |            requestRectangleOnScreen(coreTextRect);
+        |        }
+        |
+        |        void coreSetState(int x, int y, int width, int height, int flags, int action, byte[] text, int selectionStart, int selectionEnd, int composingStart, int composingEnd) {
+        |            coreInputFlags = flags;
+        |            coreInputAction = action;
+        |            coreText = text != null ? new String(text, StandardCharsets.UTF_8) : "";
+        |            coreSelectionStart = coreUtf16IndexFromUtf8Offset(coreText, selectionStart);
+        |            coreSelectionEnd = coreUtf16IndexFromUtf8Offset(coreText, selectionEnd);
+        |            if (composingStart != composingEnd) {
+        |                coreComposingStart = coreUtf16IndexFromUtf8Offset(coreText, composingStart);
+        |                coreComposingEnd = coreUtf16IndexFromUtf8Offset(coreText, composingEnd);
+        |            } else {
+        |                coreComposingStart = -1;
+        |                coreComposingEnd = -1;
+        |            }
+        |            coreSetTextRect(x, y, width, height);
+        |        }
+        |
+        |        private int coreSelectionMin() {
+        |            return Math.min(coreSelectionStart, coreSelectionEnd);
+        |        }
+        |
+        |        private int coreSelectionMax() {
+        |            return Math.max(coreSelectionStart, coreSelectionEnd);
+        |        }
+        |
+        |        private boolean coreHasComposingRegion() {
+        |            return coreComposingStart >= 0 && coreComposingEnd >= coreComposingStart;
+        |        }
+        |
+        |        private void coreSetSelection(int start, int end, boolean notifyNative) {
+        |            coreSelectionStart = coreClamp(start, 0, coreText.length());
+        |            coreSelectionEnd = coreClamp(end, 0, coreText.length());
+        |            if (notifyNative) {
+        |                nativeTextInputSelection(coreUtf8Offset(coreText, coreSelectionStart), coreUtf8Offset(coreText, coreSelectionEnd));
+        |            }
+        |        }
+        |
+        |        private void coreReplaceText(int start, int end, CharSequence text, boolean composing) {
+        |            String replacement = text != null ? text.toString() : "";
+        |            int replaceStart = coreClamp(Math.min(start, end), 0, coreText.length());
+        |            int replaceEnd = coreClamp(Math.max(start, end), 0, coreText.length());
+        |            coreText = coreText.substring(0, replaceStart) + replacement + coreText.substring(replaceEnd);
+        |            int cursor = replaceStart + replacement.length();
+        |            coreSetSelection(cursor, cursor, false);
+        |            if (composing) {
+        |                coreComposingStart = replaceStart;
+        |                coreComposingEnd = cursor;
+        |            } else {
+        |                coreComposingStart = -1;
+        |                coreComposingEnd = -1;
+        |            }
+        |        }
+        |
+        |        private int coreCodePointOffsetBefore(int from, int count) {
+        |            int result = coreClamp(from, 0, coreText.length());
+        |            for (int i = 0; i < count && result > 0; ++i) {
+        |                result = coreText.offsetByCodePoints(result, -1);
+        |            }
+        |            return result;
+        |        }
+        |
+        |        private int coreCodePointOffsetAfter(int from, int count) {
+        |            int result = coreClamp(from, 0, coreText.length());
+        |            for (int i = 0; i < count && result < coreText.length(); ++i) {
+        |                result = coreText.offsetByCodePoints(result, 1);
+        |            }
+        |            return result;
+        |        }
+        |
+        |        private boolean coreDeleteSurroundingText(int beforeStart, int afterEnd) {
+        |            int selectionStart = coreSelectionMin();
+        |            int selectionEnd = coreSelectionMax();
+        |            int deleteStart = coreClamp(beforeStart, 0, selectionStart);
+        |            int deleteEnd = coreClamp(afterEnd, selectionEnd, coreText.length());
+        |            int beforeBytes = coreText.substring(deleteStart, selectionStart).getBytes(StandardCharsets.UTF_8).length;
+        |            int afterBytes = coreText.substring(selectionEnd, deleteEnd).getBytes(StandardCharsets.UTF_8).length;
+        |            nativeTextInputDelete(beforeBytes, afterBytes);
+        |            coreText = coreText.substring(0, deleteStart) + coreText.substring(deleteEnd);
+        |            coreSetSelection(deleteStart, deleteStart, false);
+        |            coreComposingStart = -1;
+        |            coreComposingEnd = -1;
+        |            return true;
         |        }
         |
         |        @Override
@@ -337,13 +572,67 @@ elseif(ANDROID)
         |
         |        @Override
         |        public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
-        |            outAttrs.inputType = InputType.TYPE_CLASS_TEXT;
-        |            outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI | EditorInfo.IME_ACTION_DONE;
+        |            outAttrs.inputType = coreInputType();
+        |            outAttrs.imeOptions = coreImeOptions();
+        |            outAttrs.initialSelStart = coreSelectionStart;
+        |            outAttrs.initialSelEnd = coreSelectionEnd;
         |
         |            return new BaseInputConnection(this, false) {
         |                @Override
+        |                public CharSequence getTextBeforeCursor(int length, int flags) {
+        |                    int end = coreSelectionMin();
+        |                    int start = coreClamp(end - Math.max(length, 0), 0, end);
+        |                    return coreText.substring(start, end);
+        |                }
+        |
+        |                @Override
+        |                public CharSequence getTextAfterCursor(int length, int flags) {
+        |                    int start = coreSelectionMax();
+        |                    int end = coreClamp(start + Math.max(length, 0), start, coreText.length());
+        |                    return coreText.substring(start, end);
+        |                }
+        |
+        |                @Override
+        |                public CharSequence getSelectedText(int flags) {
+        |                    if (coreSelectionStart == coreSelectionEnd) {
+        |                        return "";
+        |                    }
+        |                    return coreText.substring(coreSelectionMin(), coreSelectionMax());
+        |                }
+        |
+        |                @Override
+        |                public ExtractedText getExtractedText(ExtractedTextRequest request, int flags) {
+        |                    ExtractedText result = new ExtractedText();
+        |                    result.text = coreText;
+        |                    result.startOffset = 0;
+        |                    result.partialStartOffset = -1;
+        |                    result.partialEndOffset = -1;
+        |                    result.selectionStart = coreSelectionStart;
+        |                    result.selectionEnd = coreSelectionEnd;
+        |                    result.flags = 0;
+        |                    return result;
+        |                }
+        |
+        |                @Override
+        |                public boolean setSelection(int start, int end) {
+        |                    coreSetSelection(start, end, true);
+        |                    return true;
+        |                }
+        |
+        |                @Override
+        |                public boolean setComposingRegion(int start, int end) {
+        |                    coreComposingStart = coreClamp(Math.min(start, end), 0, coreText.length());
+        |                    coreComposingEnd = coreClamp(Math.max(start, end), 0, coreText.length());
+        |                    nativeTextInputComposeRegion(coreUtf8Offset(coreText, coreComposingStart), coreUtf8Offset(coreText, coreComposingEnd));
+        |                    return true;
+        |                }
+        |
+        |                @Override
         |                public boolean commitText(CharSequence text, int newCursorPosition) {
         |                    nativeTextInputCommit(coreUtf8(text));
+        |                    int start = coreHasComposingRegion() ? coreComposingStart : coreSelectionMin();
+        |                    int end = coreHasComposingRegion() ? coreComposingEnd : coreSelectionMax();
+        |                    coreReplaceText(start, end, text, false);
         |                    nativeTextInputComposeEnd();
         |                    return true;
         |                }
@@ -351,25 +640,32 @@ elseif(ANDROID)
         |                @Override
         |                public boolean setComposingText(CharSequence text, int newCursorPosition) {
         |                    nativeTextInputCompose(coreUtf8(text));
+        |                    int start = coreHasComposingRegion() ? coreComposingStart : coreSelectionMin();
+        |                    int end = coreHasComposingRegion() ? coreComposingEnd : coreSelectionMax();
+        |                    coreReplaceText(start, end, text, true);
         |                    return true;
         |                }
         |
         |                @Override
         |                public boolean finishComposingText() {
+        |                    coreComposingStart = -1;
+        |                    coreComposingEnd = -1;
         |                    nativeTextInputComposeEnd();
         |                    return true;
         |                }
         |
         |                @Override
         |                public boolean deleteSurroundingText(int beforeLength, int afterLength) {
-        |                    nativeTextInputDelete(beforeLength, afterLength);
-        |                    return true;
+        |                    int start = coreClamp(coreSelectionMin() - Math.max(beforeLength, 0), 0, coreSelectionMin());
+        |                    int end = coreClamp(coreSelectionMax() + Math.max(afterLength, 0), coreSelectionMax(), coreText.length());
+        |                    return coreDeleteSurroundingText(start, end);
         |                }
         |
         |                @Override
         |                public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
-        |                    nativeTextInputDelete(beforeLength, afterLength);
-        |                    return true;
+        |                    int start = coreCodePointOffsetBefore(coreSelectionMin(), Math.max(beforeLength, 0));
+        |                    int end = coreCodePointOffsetAfter(coreSelectionMax(), Math.max(afterLength, 0));
+        |                    return coreDeleteSurroundingText(start, end);
         |                }
         |
         |                @Override
@@ -379,18 +675,20 @@ elseif(ANDROID)
         |                    }
         |
         |                    if (event.getKeyCode() == KeyEvent.KEYCODE_DEL) {
-        |                        nativeTextInputDelete(1, 0);
-        |                        return true;
+        |                        return deleteSurroundingTextInCodePoints(1, 0);
         |                    }
         |
         |                    if (event.getKeyCode() == KeyEvent.KEYCODE_ENTER) {
-        |                        nativeTextInputCommit(coreUtf8("\n"));
+        |                        if (coreHasFlag(CORE_TEXT_INPUT_FLAG_MULTILINE)) {
+        |                            return commitText("\n", 1);
+        |                        }
+        |                        nativeTextInputAction(coreInputAction != CORE_TEXT_INPUT_ACTION_NONE ? coreInputAction : CORE_TEXT_INPUT_ACTION_DONE);
         |                        return true;
         |                    }
         |
         |                    int unicode = event.getUnicodeChar();
         |                    if (unicode != 0) {
-        |                        nativeTextInputCommit(coreUtf8(new String(Character.toChars(unicode))));
+        |                        return commitText(new String(Character.toChars(unicode)), 1);
         |                    }
         |                    return true;
         |                }
@@ -402,6 +700,132 @@ elseif(ANDROID)
         |                }
         |            };
         |        }
+        |    }
+        |
+        |    private void coreWindowPresentationCapture() {
+        |        if (coreWindowPresentationCaptured) {
+        |            return;
+        |        }
+        |
+        |        Window window = getWindow();
+        |        View decor = window != null ? window.getDecorView() : null;
+        |        coreWindowSystemUiVisibility = decor != null ? decor.getSystemUiVisibility() : 0;
+        |        coreWindowRequestedOrientation = getRequestedOrientation();
+        |        if (window != null) {
+        |            coreWindowStatusBarColor = window.getStatusBarColor();
+        |            coreWindowNavigationBarColor = window.getNavigationBarColor();
+        |            if (Build.VERSION.SDK_INT >= 28) {
+        |                WindowManager.LayoutParams attributes = window.getAttributes();
+        |                coreWindowCutoutMode = attributes.layoutInDisplayCutoutMode;
+        |            }
+        |        }
+        |        coreWindowPresentationCaptured = true;
+        |    }
+        |
+        |    private static int coreRequestedOrientation(int orientationPolicy) {
+        |        switch (orientationPolicy) {
+        |            case CORE_WINDOW_ORIENTATION_POLICY_PORTRAIT:
+        |                return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+        |            case CORE_WINDOW_ORIENTATION_POLICY_LANDSCAPE:
+        |                return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+        |            case CORE_WINDOW_ORIENTATION_POLICY_SENSOR:
+        |                return ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR;
+        |            case CORE_WINDOW_ORIENTATION_POLICY_SENSOR_PORTRAIT:
+        |                return ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
+        |            case CORE_WINDOW_ORIENTATION_POLICY_SENSOR_LANDSCAPE:
+        |                return ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
+        |            case CORE_WINDOW_ORIENTATION_POLICY_SYSTEM:
+        |            default:
+        |                return ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        |        }
+        |    }
+        |
+        |    private void coreWindowPresentationApply() {
+        |        coreWindowPresentationCapture();
+        |
+        |        Window window = getWindow();
+        |        if (window == null) {
+        |            return;
+        |        }
+        |
+        |        boolean fullscreen = (coreWindowPresentationFlags & CORE_WINDOW_PRESENTATION_FLAG_FULLSCREEN) != 0;
+        |        boolean immersive = (coreWindowPresentationFlags & CORE_WINDOW_PRESENTATION_FLAG_IMMERSIVE) != 0;
+        |        boolean keepScreenOn = (coreWindowPresentationFlags & CORE_WINDOW_PRESENTATION_FLAG_KEEP_SCREEN_ON) != 0;
+        |        boolean edgeToEdge = (coreWindowPresentationFlags & CORE_WINDOW_PRESENTATION_FLAG_EDGE_TO_EDGE) != 0;
+        |
+        |        if (keepScreenOn) {
+        |            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        |        } else {
+        |            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        |        }
+        |
+        |        if (fullscreen || immersive) {
+        |            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        |        } else {
+        |            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        |        }
+        |
+        |        View decor = window.getDecorView();
+        |        if (decor != null) {
+        |            int managedFlags = View.SYSTEM_UI_FLAG_FULLSCREEN |
+        |                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+        |                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
+        |                View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+        |                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+        |                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+        |            int visibility = coreWindowSystemUiVisibility & ~managedFlags;
+        |            if (fullscreen || immersive || edgeToEdge) {
+        |                visibility |= View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN;
+        |            }
+        |            if (immersive || edgeToEdge) {
+        |                visibility |= View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+        |            }
+        |            if (fullscreen || immersive) {
+        |                visibility |= View.SYSTEM_UI_FLAG_FULLSCREEN;
+        |            }
+        |            if (immersive) {
+        |                visibility |= View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+        |            }
+        |            decor.setSystemUiVisibility(visibility);
+        |        }
+        |
+        |        if (edgeToEdge) {
+        |            window.setStatusBarColor(Color.TRANSPARENT);
+        |            window.setNavigationBarColor(Color.TRANSPARENT);
+        |        } else {
+        |            window.setStatusBarColor(coreWindowStatusBarColor);
+        |            window.setNavigationBarColor(coreWindowNavigationBarColor);
+        |        }
+        |
+        |        if (Build.VERSION.SDK_INT >= 28) {
+        |            WindowManager.LayoutParams attributes = window.getAttributes();
+        |            attributes.layoutInDisplayCutoutMode = (fullscreen || immersive || edgeToEdge) ? WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES : coreWindowCutoutMode;
+        |            window.setAttributes(attributes);
+        |        }
+        |
+        |        int requestedOrientation = coreRequestedOrientation(coreWindowOrientationPolicy);
+        |        setRequestedOrientation(requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED ? coreWindowRequestedOrientation : requestedOrientation);
+        |    }
+        |
+        |    public void coreWindowPresentationSet(final int flags, final int orientationPolicy) {
+        |        runOnUiThread(new Runnable() {
+        |            @Override
+        |            public void run() {
+        |                coreWindowPresentationFlags = flags;
+        |                coreWindowOrientationPolicy = orientationPolicy;
+        |                coreWindowPresentationApply();
+        |            }
+        |        });
+        |    }
+        |
+        |    public String coreAppDataDirectory() {
+        |        File directory = getFilesDir();
+        |        return directory != null ? directory.getAbsolutePath() : "";
+        |    }
+        |
+        |    public String coreCacheDirectory() {
+        |        File directory = getCacheDir();
+        |        return directory != null ? directory.getAbsolutePath() : "";
         |    }
         |
         |    public void coreOpenFileDialog(final long requestId, final String extension) {
@@ -551,61 +975,138 @@ elseif(ANDROID)
         |        return segment != null ? segment : "";
         |    }
         |
-        |    public String coreContentListFiles(String uriString, String extension) {
-        |        Uri treeUri = Uri.parse(uriString);
-        |        Uri childrenUri;
+        |    private static Uri coreDocumentUri(Uri uri) {
         |        try {
-        |            String documentId;
-        |            try {
-        |                documentId = DocumentsContract.getDocumentId(treeUri);
-        |            } catch (Exception ignored) {
-        |                documentId = DocumentsContract.getTreeDocumentId(treeUri);
-        |            }
-        |            childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId);
+        |            return DocumentsContract.buildDocumentUriUsingTree(uri, DocumentsContract.getDocumentId(uri));
         |        } catch (Exception ignored) {
-        |            return "";
+        |            return DocumentsContract.buildDocumentUriUsingTree(uri, DocumentsContract.getTreeDocumentId(uri));
         |        }
+        |    }
         |
+        |    private static Uri coreChildrenUri(Uri uri) {
+        |        String documentId;
+        |        try {
+        |            documentId = DocumentsContract.getDocumentId(uri);
+        |        } catch (Exception ignored) {
+        |            documentId = DocumentsContract.getTreeDocumentId(uri);
+        |        }
+        |        return DocumentsContract.buildChildDocumentsUriUsingTree(uri, documentId);
+        |    }
+        |
+        |    private Uri coreParentDocumentUri(Uri uri) {
+        |        try {
+        |            DocumentsContract.Path path = DocumentsContract.findDocumentPath(getContentResolver(), uri);
+        |            List<String> ids = path != null ? path.getPath() : null;
+        |            if (ids == null || ids.size() < 2) {
+        |                return null;
+        |            }
+        |            return DocumentsContract.buildDocumentUriUsingTree(uri, ids.get(ids.size() - 2));
+        |        } catch (Exception ignored) {
+        |            return null;
+        |        }
+        |    }
+        |
+        |    private void coreContentListFilesAppend(StringBuilder result, Uri directoryUri, String extension, boolean recursive) {
         |        Cursor cursor = null;
         |        try {
-        |            cursor = getContentResolver().query(childrenUri, new String[] {
+        |            cursor = getContentResolver().query(coreChildrenUri(directoryUri), new String[] {
         |                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
         |                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
         |                DocumentsContract.Document.COLUMN_MIME_TYPE
         |            }, null, null, null);
         |            if (cursor == null) {
-        |                return "";
+        |                return;
         |            }
         |
-        |            StringBuilder result = new StringBuilder();
         |            while (cursor.moveToNext()) {
         |                if (cursor.isNull(0) || cursor.isNull(1)) {
         |                    continue;
         |                }
         |
+        |                String displayName = cursor.getString(1);
         |                String mimeType = cursor.isNull(2) ? "" : cursor.getString(2);
+        |                Uri childUri = DocumentsContract.buildDocumentUriUsingTree(directoryUri, cursor.getString(0));
         |                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mimeType)) {
+        |                    if (recursive) {
+        |                        coreContentListFilesAppend(result, childUri, extension, true);
+        |                    }
         |                    continue;
         |                }
         |
-        |                String displayName = cursor.getString(1);
         |                if (!coreExtensionMatches(displayName, extension)) {
         |                    continue;
         |                }
         |
-        |                Uri childUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, cursor.getString(0));
         |                if (result.length() > 0) {
         |                    result.append('\n');
         |                }
         |                result.append(childUri.toString());
         |            }
-        |            return result.toString();
         |        } catch (Exception ignored) {
-        |            return "";
         |        } finally {
         |            if (cursor != null) {
         |                cursor.close();
         |            }
+        |        }
+        |    }
+        |
+        |    private String coreContentListFilesImpl(String uriString, String extension, boolean recursive) {
+        |        try {
+        |            StringBuilder result = new StringBuilder();
+        |            coreContentListFilesAppend(result, Uri.parse(uriString), extension, recursive);
+        |            return result.toString();
+        |        } catch (Exception ignored) {
+        |            return "";
+        |        }
+        |    }
+        |
+        |    public String coreContentListFiles(String uriString, String extension) {
+        |        return coreContentListFilesImpl(uriString, extension, false);
+        |    }
+        |
+        |    public String coreContentListFilesRecursive(String uriString, String extension) {
+        |        return coreContentListFilesImpl(uriString, extension, true);
+        |    }
+        |
+        |    public String coreContentCreateFile(String directoryUriString, String name) {
+        |        try {
+        |            Uri uri = DocumentsContract.createDocument(getContentResolver(), coreDocumentUri(Uri.parse(directoryUriString)), coreMimeTypeFromName(name), name);
+        |            return uri != null ? uri.toString() : "";
+        |        } catch (Exception ignored) {
+        |            return "";
+        |        }
+        |    }
+        |
+        |    public String coreContentCreateDirectory(String directoryUriString, String name) {
+        |        try {
+        |            Uri uri = DocumentsContract.createDocument(getContentResolver(), coreDocumentUri(Uri.parse(directoryUriString)), DocumentsContract.Document.MIME_TYPE_DIR, name);
+        |            return uri != null ? uri.toString() : "";
+        |        } catch (Exception ignored) {
+        |            return "";
+        |        }
+        |    }
+        |
+        |    public String coreContentRename(String uriString, String name) {
+        |        try {
+        |            Uri uri = DocumentsContract.renameDocument(getContentResolver(), Uri.parse(uriString), name);
+        |            return uri != null ? uri.toString() : "";
+        |        } catch (Exception ignored) {
+        |            return "";
+        |        }
+        |    }
+        |
+        |    public String coreContentMove(String uriString, String directoryUriString) {
+        |        try {
+        |            Uri uri = Uri.parse(uriString);
+        |            Uri parentUri = coreParentDocumentUri(uri);
+        |            if (parentUri == null) {
+        |                return "";
+        |            }
+        |
+        |            Uri result = DocumentsContract.moveDocument(getContentResolver(), uri, parentUri, coreDocumentUri(Uri.parse(directoryUriString)));
+        |            return result != null ? result.toString() : "";
+        |        } catch (Exception ignored) {
+        |            return "";
         |        }
         |    }
         |
@@ -764,48 +1265,48 @@ elseif(ANDROID)
         |    protected void onCreate(Bundle savedInstanceState) {
         |        super.onCreate(savedInstanceState);
         |        coreTextInputEnsureView();
+        |        coreWindowPresentationCapture();
+        |        coreWindowPresentationApply();
         |    }
         |
-        |    public void coreTextInputBegin(final int x, final int y, final int width, final int height) {
+        |    @Override
+        |    protected void onResume() {
+        |        super.onResume();
+        |        coreWindowPresentationApply();
+        |    }
+        |
+        |    @Override
+        |    public void onWindowFocusChanged(boolean hasFocus) {
+        |        super.onWindowFocusChanged(hasFocus);
+        |        if (hasFocus) {
+        |            coreWindowPresentationApply();
+        |        }
+        |    }
+        |
+        |    public void coreTextInputSet(final boolean enabled, final int x, final int y, final int width, final int height, final int flags, final int action, final byte[] text, final int selectionStart, final int selectionEnd, final int composingStart, final int composingEnd) {
         |        runOnUiThread(new Runnable() {
         |            @Override
         |            public void run() {
-        |                coreTextInputEnsureView();
-        |                coreTextInputView.coreSetTextRect(x, y, width, height);
-        |                coreTextInputView.requestFocus();
+        |                if (!enabled) {
+        |                    if (coreTextInputView == null) {
+        |                        return;
+        |                    }
         |
+        |                    InputMethodManager manager = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
+        |                    if (manager != null) {
+        |                        manager.hideSoftInputFromWindow(coreTextInputView.getWindowToken(), 0);
+        |                    }
+        |                    coreTextInputView.clearFocus();
+        |                    return;
+        |                }
+        |
+        |                coreTextInputEnsureView();
+        |                coreTextInputView.coreSetState(x, y, width, height, flags, action, text, selectionStart, selectionEnd, composingStart, composingEnd);
+        |                coreTextInputView.requestFocus();
         |                InputMethodManager manager = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
         |                if (manager != null) {
         |                    manager.restartInput(coreTextInputView);
         |                    manager.showSoftInput(coreTextInputView, InputMethodManager.SHOW_IMPLICIT);
-        |                }
-        |            }
-        |        });
-        |    }
-        |
-        |    public void coreTextInputEnd() {
-        |        runOnUiThread(new Runnable() {
-        |            @Override
-        |            public void run() {
-        |                if (coreTextInputView == null) {
-        |                    return;
-        |                }
-        |
-        |                InputMethodManager manager = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
-        |                if (manager != null) {
-        |                    manager.hideSoftInputFromWindow(coreTextInputView.getWindowToken(), 0);
-        |                }
-        |                coreTextInputView.clearFocus();
-        |            }
-        |        });
-        |    }
-        |
-        |    public void coreTextInputSetRect(final int x, final int y, final int width, final int height) {
-        |        runOnUiThread(new Runnable() {
-        |            @Override
-        |            public void run() {
-        |                if (coreTextInputView != null) {
-        |                    coreTextInputView.coreSetTextRect(x, y, width, height);
         |                }
         |            }
         |        });

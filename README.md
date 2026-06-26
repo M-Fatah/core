@@ -72,7 +72,7 @@ log_info("loaded {} vertices, view matrix:\n{}", vertices.count, view);
 | macOS | Cocoa |
 | Android | NDK NativeActivity |
 
-Android support is NDK-only: no GameActivity, AndroidX, Jetpack, Gradle dependency, or `android_native_app_glue`. Core generates tiny Java `NativeActivity` and clipboard provider classes for Android framework features such as file dialogs, document URIs, and clipboard.
+Android support is NDK-only: no GameActivity, AndroidX, Jetpack, Gradle dependency, or `android_native_app_glue`. Core generates tiny Java `NativeActivity` and clipboard provider classes for Android framework features such as app/cache directories, window presentation, file dialogs, document URIs, clipboard, and soft keyboard input.
 
 ## Prerequisites
 
@@ -145,7 +145,7 @@ cmake -B build -G Ninja `
 cmake --build build --target core
 ```
 
-An Android app repo should link Core into its own NativeActivity shared library. Core also generates a tiny `core.android.CoreNativeActivity` Java bridge and `core.android.CoreClipboardProvider` for Android framework features such as file dialogs, `content://` file access, clipboard bytes, and soft keyboard text input:
+An Android app repo should link Core into its own NativeActivity shared library. Core also generates a tiny `core.android.CoreNativeActivity` Java bridge and `core.android.CoreClipboardProvider` for Android framework features such as app/cache directories, window presentation, file dialogs, `content://` file access, clipboard bytes, and soft keyboard text input:
 
 ```cmake
 set(CORE_BUILD_STATIC ON CACHE BOOL "" FORCE)

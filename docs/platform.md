@@ -71,9 +71,27 @@ bool is_dir  = platform_path_is_directory("assets/");
 String executable = platform_path_get_executable_path();
 String module = platform_path_get_current_module_path();
 String cwd = platform_path_get_current_working_directory();
+String temp = platform_path_get_temp_directory();
+String app_data = platform_path_get_app_data_directory();
+String cache = platform_path_get_cache_directory();
 ```
 
 All functions accept both `String` and `const char *`.
+
+`platform_path_get_app_data_directory` returns the platform's persistent app-data base directory with a trailing slash. `platform_path_get_cache_directory` returns the platform's cache-data base directory with a trailing slash. On desktop platforms these are user-level base directories, so apps should create their own product subdirectory inside them. On Android they are the package-private files and cache directories.
+
+Path mutation APIs return the resulting path. On Android, that result can be a new `content://` URI because Storage Access Framework providers are allowed to return a different document URI after create, rename, or move.
+
+```cpp
+String file = platform_path_create_file(directory, "scene.scene", memory::temp_allocator());
+String folder = platform_path_create_directory(directory, "Textures", memory::temp_allocator());
+String renamed = platform_path_rename(file, "level.scene", memory::temp_allocator());
+String moved = platform_path_move(renamed, folder, memory::temp_allocator());
+
+Array<String> pngs = platform_path_list_files_recursive(folder, "png", memory::temp_allocator());
+```
+
+`platform_path_create_file` and `platform_path_create_directory` create a child inside the supplied directory. `platform_path_rename` keeps the item in its current directory and changes only its name. `platform_path_move` moves the item into the supplied destination directory and keeps the current name.
 
 ---
 
@@ -235,7 +253,23 @@ android_app_loop()
 
 `platform_window_get_native_handles` returns `ANativeWindow *` as `window` and `ANativeActivity *` as `context` on Android.
 Returned handles are borrowed. On Android, Core keeps the returned `ANativeWindow *` valid until the next `platform_window_poll` or `platform_window_deinit`; do not cache it across frames.
-`Platform_Window::surface_valid` reports whether a native render surface currently exists. `surface_changed` is true on the first poll after window creation and when the native surface or size changes, then is refreshed by the next poll.
+`Platform_Window::surface_valid` reports whether a native render surface currently exists. `surface_changed` is true on the first poll after window creation and when the native surface, size, content rect, or display metrics change, then is refreshed by the next poll.
+`Platform_Window::metrics` reports the current content rect, safe-area insets, density scale, DPI, and portrait/landscape orientation. Rects and insets are in Core window coordinates: origin at the bottom-left, with the same units as `Platform_Window::width` and `Platform_Window::height`. On Android, safe area and content rect come from NativeActivity's content-rect callback; on desktop backends the content rect is the window client/content area unless the OS reports safe insets.
+`platform_window_presentation_set` requests fullscreen, immersive, keep-screen-on, edge-to-edge, and orientation policy through a generic Core API:
+
+```cpp
+Platform_Window_Presentation_Desc presentation {
+	.flags = PLATFORM_WINDOW_PRESENTATION_FLAG_FULLSCREEN |
+	         PLATFORM_WINDOW_PRESENTATION_FLAG_IMMERSIVE |
+	         PLATFORM_WINDOW_PRESENTATION_FLAG_KEEP_SCREEN_ON |
+	         PLATFORM_WINDOW_PRESENTATION_FLAG_EDGE_TO_EDGE,
+	.orientation_policy = PLATFORM_WINDOW_ORIENTATION_POLICY_SENSOR_LANDSCAPE
+};
+
+platform_window_presentation_set(window, presentation);
+```
+
+`Platform_Window::presentation` stores the requested state. `Platform_Window::metrics.safe_area` stores the observed area that should stay unobstructed by system UI. On Android, fullscreen, immersive, keep-screen-on, edge-to-edge/cutout behavior, and orientation policy are applied through Core's generated `CoreNativeActivity` bridge. On desktop, fullscreen maps to the native fullscreen path, keep-screen-on maps to the platform display-inhibit API, and orientation policy is stored but has no OS window meaning.
 `Platform_Window::paused` is driven by Android Activity pause/resume and remains false on desktop platforms.
 Android windows use the normal `platform_window_init` entry point. The app-side NativeActivity shim initializes Core before app code creates the window.
 
@@ -253,6 +287,11 @@ Platform_Text_Input_Desc text_input {
 	.y = caret_y,
 	.width = caret_width,
 	.height = caret_height,
+	.flags = PLATFORM_TEXT_INPUT_FLAG_MULTILINE,
+	.action = PLATFORM_TEXT_INPUT_ACTION_DONE,
+	.text = editor_text,
+	.selection_start = cursor_byte_offset,
+	.selection_end = cursor_byte_offset,
 	.enabled = true
 };
 platform_window_text_input_set(window, text_input);
@@ -262,17 +301,24 @@ while (platform_window_poll(&window))
 	for (U64 i = 0; i < window.input.text_input_events.count; ++i)
 	{
 		const Platform_Text_Input_Event &event = window.input.text_input_events[i];
-		// Apply commit, compose, delete-surrounding, or action to the app-owned text buffer.
+		// Apply commit, compose, selection, delete-surrounding, or action to the app-owned text buffer.
 	}
+
+	text_input.text = editor_text;
+	text_input.selection_start = cursor_byte_offset;
+	text_input.selection_end = cursor_byte_offset;
+	platform_window_text_input_set(window, text_input);
 }
 
 text_input.enabled = false;
 platform_window_text_input_set(window, text_input);
 ```
 
-`Platform_Text_Input_Event::text` is UTF-8, platform-owned, and valid until the next `platform_window_poll` for that window; copy it if it must outlive the frame. `COMMIT` is finalized text, `COMPOSE` is transient preedit/composition text, `COMPOSE_END` clears composition, `DELETE_SURROUNDING` requests deletion around the app-owned cursor, and `ACTION` reports OS editor actions such as Done, Search, or Send. Coordinates in `Platform_Text_Input_Desc` use Core window coordinates.
+`Platform_Text_Input_Desc::text` is an app-owned UTF-8 snapshot. Core consumes it during `platform_window_text_input_set`; callers do not transfer ownership. Selection and composition ranges are UTF-8 byte offsets into that snapshot. Keep the snapshot current when the app text buffer or cursor changes so IMEs can query surrounding text correctly.
 
-Android uses the generated Java `InputConnection` bridge, macOS uses `NSTextInputClient`, Windows uses `WM_CHAR`, and Linux/X11 currently reports basic key-symbol text; full Linux IME composition should be added through XIM/IBus/Fcitx integration when needed.
+`Platform_Text_Input_Event::text` is UTF-8, platform-owned, and valid until the next `platform_window_poll` for that window; copy it if it must outlive the frame. `COMMIT` is finalized text, `COMPOSE` is transient preedit/composition text, `COMPOSE_END` clears composition, `COMPOSE_REGION` marks an existing byte range as composing text, `SELECTION` moves the app-owned selection, `DELETE_SURROUNDING` requests byte deletion around the app-owned selection, and `ACTION` reports OS editor actions such as Done, Search, or Send. Coordinates in `Platform_Text_Input_Desc` use Core window coordinates.
+
+Text input flags describe the requested OS input mode: multiline, password, number, decimal, signed, email, URI, and no-suggestions. Android maps them to `InputType`, macOS uses the text snapshot through `NSTextInputClient`, Windows uses `WM_CHAR`, and Linux/X11 currently reports basic key-symbol text; full Linux IME composition should be added through XIM/IBus/Fcitx integration when Core grows a Linux IME backend.
 
 ---
 
@@ -298,7 +344,7 @@ String directory = platform_directory_dialog_open(memory::temp_allocator());
 Array<String> files = platform_path_list_files(directory, "png", memory::temp_allocator());
 ```
 
-On Android, `platform_directory_dialog_open` returns a tree `content://` URI with persistable read/write prefix permission when the selected provider grants it. `platform_path_list_files` returns child document URIs for tree content URIs; pass those child URIs back into Core file APIs. `platform_file_delete` uses Android document deletion for content URIs. Document rename is not exposed yet because Android returns a new URI from rename and Core does not currently have a rename API that can return it.
+On Android, `platform_directory_dialog_open` returns a tree `content://` URI with persistable read/write prefix permission when the selected provider grants it. `platform_path_list_files` and `platform_path_list_files_recursive` return child document URIs for tree content URIs; pass those child URIs back into Core file APIs. `platform_path_create_file`, `platform_path_create_directory`, `platform_path_rename`, and `platform_path_move` use Android document APIs and return the resulting URI. `platform_file_delete` uses Android document deletion for content URIs.
 
 ---
 

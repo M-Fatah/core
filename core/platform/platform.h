@@ -116,6 +116,12 @@ CORE_API String
 platform_path_get_temp_directory(memory::Allocator *allocator = memory::heap_allocator());
 
 CORE_API String
+platform_path_get_app_data_directory(memory::Allocator *allocator = memory::heap_allocator());
+
+CORE_API String
+platform_path_get_cache_directory(memory::Allocator *allocator = memory::heap_allocator());
+
+CORE_API String
 platform_environment_variable_get(const String &name, memory::Allocator *allocator = memory::heap_allocator());
 
 inline static String
@@ -203,6 +209,111 @@ inline static Array<String>
 platform_path_list_files(const char *directory, const char *extension_filter, memory::Allocator *allocator = memory::heap_allocator())
 {
 	return platform_path_list_files(string_literal(directory), string_literal(extension_filter), allocator);
+}
+
+CORE_API Array<String>
+platform_path_list_files_recursive(const String &directory, const String &extension_filter, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static Array<String>
+platform_path_list_files_recursive(const String &directory, const char *extension_filter, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_list_files_recursive(directory, string_literal(extension_filter), allocator);
+}
+
+inline static Array<String>
+platform_path_list_files_recursive(const char *directory, const String &extension_filter, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_list_files_recursive(string_literal(directory), extension_filter, allocator);
+}
+
+inline static Array<String>
+platform_path_list_files_recursive(const char *directory, const char *extension_filter, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_list_files_recursive(string_literal(directory), string_literal(extension_filter), allocator);
+}
+
+CORE_API String
+platform_path_create_file(const String &directory, const String &name, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_path_create_file(const String &directory, const char *name, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_create_file(directory, string_literal(name), allocator);
+}
+
+inline static String
+platform_path_create_file(const char *directory, const String &name, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_create_file(string_literal(directory), name, allocator);
+}
+
+inline static String
+platform_path_create_file(const char *directory, const char *name, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_create_file(string_literal(directory), string_literal(name), allocator);
+}
+
+CORE_API String
+platform_path_create_directory(const String &directory, const String &name, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_path_create_directory(const String &directory, const char *name, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_create_directory(directory, string_literal(name), allocator);
+}
+
+inline static String
+platform_path_create_directory(const char *directory, const String &name, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_create_directory(string_literal(directory), name, allocator);
+}
+
+inline static String
+platform_path_create_directory(const char *directory, const char *name, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_create_directory(string_literal(directory), string_literal(name), allocator);
+}
+
+CORE_API String
+platform_path_rename(const String &path, const String &name, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_path_rename(const String &path, const char *name, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_rename(path, string_literal(name), allocator);
+}
+
+inline static String
+platform_path_rename(const char *path, const String &name, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_rename(string_literal(path), name, allocator);
+}
+
+inline static String
+platform_path_rename(const char *path, const char *name, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_rename(string_literal(path), string_literal(name), allocator);
+}
+
+CORE_API String
+platform_path_move(const String &path, const String &directory, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_path_move(const String &path, const char *directory, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_move(path, string_literal(directory), allocator);
+}
+
+inline static String
+platform_path_move(const char *path, const String &directory, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_move(string_literal(path), directory, allocator);
+}
+
+inline static String
+platform_path_move(const char *path, const char *directory, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_move(string_literal(path), string_literal(directory), allocator);
 }
 
 CORE_API String
@@ -390,7 +501,9 @@ typedef enum Platform_Text_Input_Event_Type
 	PLATFORM_TEXT_INPUT_EVENT_COMMIT,
 	PLATFORM_TEXT_INPUT_EVENT_COMPOSE,
 	PLATFORM_TEXT_INPUT_EVENT_COMPOSE_END,
+	PLATFORM_TEXT_INPUT_EVENT_COMPOSE_REGION,
 	PLATFORM_TEXT_INPUT_EVENT_DELETE_SURROUNDING,
+	PLATFORM_TEXT_INPUT_EVENT_SELECTION,
 	PLATFORM_TEXT_INPUT_EVENT_ACTION
 } Platform_Text_Input_Event_Type;
 
@@ -405,6 +518,18 @@ typedef enum Platform_Text_Input_Action
 	PLATFORM_TEXT_INPUT_ACTION_PREVIOUS
 } Platform_Text_Input_Action;
 
+typedef enum Platform_Text_Input_Flag
+{
+	PLATFORM_TEXT_INPUT_FLAG_MULTILINE      = 1 << 0,
+	PLATFORM_TEXT_INPUT_FLAG_PASSWORD       = 1 << 1,
+	PLATFORM_TEXT_INPUT_FLAG_NUMBER         = 1 << 2,
+	PLATFORM_TEXT_INPUT_FLAG_DECIMAL        = 1 << 3,
+	PLATFORM_TEXT_INPUT_FLAG_SIGNED         = 1 << 4,
+	PLATFORM_TEXT_INPUT_FLAG_EMAIL          = 1 << 5,
+	PLATFORM_TEXT_INPUT_FLAG_URI            = 1 << 6,
+	PLATFORM_TEXT_INPUT_FLAG_NO_SUGGESTIONS = 1 << 7
+} Platform_Text_Input_Flag;
+
 typedef struct Platform_Text_Input_Event
 {
 	Platform_Text_Input_Event_Type type;
@@ -412,12 +537,23 @@ typedef struct Platform_Text_Input_Event
 	String text;
 	I32 delete_before;
 	I32 delete_after;
+	U32 selection_start;
+	U32 selection_end;
+	U32 composing_start;
+	U32 composing_end;
 } Platform_Text_Input_Event;
 
 typedef struct Platform_Text_Input_Desc
 {
 	I32 x, y;
 	U32 width, height;
+	U32 flags;
+	Platform_Text_Input_Action action;
+	String text;
+	U32 selection_start;
+	U32 selection_end;
+	U32 composing_start;
+	U32 composing_end;
 	bool enabled;
 } Platform_Text_Input_Desc;
 
@@ -431,10 +567,63 @@ typedef struct Platform_Input
 	Array<Platform_Text_Input_Event> text_input_events;
 } Platform_Input;
 
+typedef enum Platform_Window_Orientation
+{
+	PLATFORM_WINDOW_ORIENTATION_UNKNOWN,
+	PLATFORM_WINDOW_ORIENTATION_PORTRAIT,
+	PLATFORM_WINDOW_ORIENTATION_LANDSCAPE
+} Platform_Window_Orientation;
+
+typedef struct Platform_Window_Rect
+{
+	I32 x, y;
+	U32 width, height;
+} Platform_Window_Rect;
+
+typedef struct Platform_Window_Insets
+{
+	U32 left, top, right, bottom;
+} Platform_Window_Insets;
+
+typedef struct Platform_Window_Metrics
+{
+	Platform_Window_Rect content_rect;
+	Platform_Window_Insets safe_area;
+	F32 density_scale;
+	F32 dpi_x, dpi_y;
+	Platform_Window_Orientation orientation;
+} Platform_Window_Metrics;
+
+typedef enum Platform_Window_Presentation_Flag
+{
+	PLATFORM_WINDOW_PRESENTATION_FLAG_FULLSCREEN     = 1 << 0,
+	PLATFORM_WINDOW_PRESENTATION_FLAG_IMMERSIVE      = 1 << 1,
+	PLATFORM_WINDOW_PRESENTATION_FLAG_KEEP_SCREEN_ON = 1 << 2,
+	PLATFORM_WINDOW_PRESENTATION_FLAG_EDGE_TO_EDGE   = 1 << 3
+} Platform_Window_Presentation_Flag;
+
+typedef enum Platform_Window_Orientation_Policy
+{
+	PLATFORM_WINDOW_ORIENTATION_POLICY_SYSTEM,
+	PLATFORM_WINDOW_ORIENTATION_POLICY_PORTRAIT,
+	PLATFORM_WINDOW_ORIENTATION_POLICY_LANDSCAPE,
+	PLATFORM_WINDOW_ORIENTATION_POLICY_SENSOR,
+	PLATFORM_WINDOW_ORIENTATION_POLICY_SENSOR_PORTRAIT,
+	PLATFORM_WINDOW_ORIENTATION_POLICY_SENSOR_LANDSCAPE
+} Platform_Window_Orientation_Policy;
+
+typedef struct Platform_Window_Presentation_Desc
+{
+	U32 flags;
+	Platform_Window_Orientation_Policy orientation_policy;
+} Platform_Window_Presentation_Desc;
+
 typedef struct Platform_Window
 {
 	void *handle; // TODO: Rename to context.
 	U32 width, height;
+	Platform_Window_Metrics metrics;
+	Platform_Window_Presentation_Desc presentation;
 	Platform_Input input;
 	Platform_Text_Input_Desc text_input;
 	U16 text_input_pending_surrogate;
@@ -527,6 +716,9 @@ platform_window_set_title(Platform_Window *self, const char *title);
 
 CORE_API void
 platform_window_close(Platform_Window *self);
+
+CORE_API void
+platform_window_presentation_set(Platform_Window &window, const Platform_Window_Presentation_Desc &desc);
 
 CORE_API void
 platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc);

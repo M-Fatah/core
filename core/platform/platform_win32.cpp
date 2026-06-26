@@ -24,6 +24,37 @@ _string_concat(const char *a, const char *b, char *result)
 		*result++ = *b++;
 }
 
+inline static Platform_Window_Orientation
+_platform_win32_window_orientation(U32 width, U32 height)
+{
+	if (width == 0 || height == 0)
+		return PLATFORM_WINDOW_ORIENTATION_UNKNOWN;
+	return width >= height ? PLATFORM_WINDOW_ORIENTATION_LANDSCAPE : PLATFORM_WINDOW_ORIENTATION_PORTRAIT;
+}
+
+inline static Platform_Window_Metrics
+_platform_win32_window_metrics(HWND window, U32 width, U32 height)
+{
+	F32 dpi_x = 96.0f;
+	F32 dpi_y = 96.0f;
+	HDC dc = ::GetDC(window);
+	if (dc)
+	{
+		dpi_x = (F32)::GetDeviceCaps(dc, LOGPIXELSX);
+		dpi_y = (F32)::GetDeviceCaps(dc, LOGPIXELSY);
+		::ReleaseDC(window, dc);
+	}
+
+	return Platform_Window_Metrics {
+		.content_rect = Platform_Window_Rect { .x = 0, .y = 0, .width = width, .height = height },
+		.safe_area = {},
+		.density_scale = dpi_x / 96.0f,
+		.dpi_x = dpi_x,
+		.dpi_y = dpi_y,
+		.orientation = _platform_win32_window_orientation(width, height)
+	};
+}
+
 inline static PLATFORM_KEY
 _platform_key_from_msg(MSG msg)
 {
@@ -299,6 +330,40 @@ platform_path_get_temp_directory(memory::Allocator *allocator)
 }
 
 String
+platform_path_get_app_data_directory(memory::Allocator *allocator)
+{
+	char path[MAX_PATH] = {};
+	HRESULT result = ::SHGetFolderPathA(nullptr, CSIDL_APPDATA | CSIDL_FLAG_CREATE, nullptr, SHGFP_TYPE_CURRENT, path);
+	if (SUCCEEDED(result))
+	{
+		String app_data = string_from(path, allocator);
+		string_replace(app_data, '\\', '/');
+		if (app_data.count > 0 && app_data[app_data.count - 1] != '/')
+			string_append(app_data, '/');
+		return app_data;
+	}
+
+	return platform_path_get_temp_directory(allocator);
+}
+
+String
+platform_path_get_cache_directory(memory::Allocator *allocator)
+{
+	char path[MAX_PATH] = {};
+	HRESULT result = ::SHGetFolderPathA(nullptr, CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE, nullptr, SHGFP_TYPE_CURRENT, path);
+	if (SUCCEEDED(result))
+	{
+		String cache = string_from(path, allocator);
+		string_replace(cache, '\\', '/');
+		if (cache.count > 0 && cache[cache.count - 1] != '/')
+			string_append(cache, '/');
+		return cache;
+	}
+
+	return platform_path_get_temp_directory(allocator);
+}
+
+String
 platform_environment_variable_get(const String &name, memory::Allocator *allocator)
 {
 	DWORD required_length = ::GetEnvironmentVariableA(name.data, nullptr, 0);
@@ -481,6 +546,60 @@ platform_file_size(Platform_File_Handle handle)
 	return (U64)size.QuadPart;
 }
 
+inline static bool
+_platform_win32_extension_matches(const String &file_name, const String &extension_filter)
+{
+	if (extension_filter.count == 0)
+		return true;
+
+	U64 extension_position = string_find_last_of(file_name, '.');
+	if (extension_position == U64(-1))
+		return false;
+
+	U64 extension_count = file_name.count - extension_position - 1;
+	if (extension_count != extension_filter.count)
+		return false;
+
+	for (U64 i = 0; i < extension_count; ++i)
+	{
+		if (file_name.data[extension_position + 1 + i] != extension_filter.data[i])
+			return false;
+	}
+
+	return true;
+}
+
+inline static String
+_platform_win32_path_join(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	if (directory.count == 0 || name.count == 0)
+		return string_init(allocator);
+
+	String result = string_copy(directory, allocator);
+	string_replace(result, '\\', '/');
+	if (result[result.count - 1] != '/')
+		string_append(result, '/');
+	string_append(result, name);
+	string_replace(result, '\\', '/');
+	return result;
+}
+
+inline static String
+_platform_win32_path_parent(const String &path, memory::Allocator *allocator)
+{
+	String result = string_copy(path, allocator);
+	string_replace(result, '\\', '/');
+	U64 slash = string_find_last_of(result, '/');
+	if (slash == U64(-1))
+	{
+		string_clear(result);
+		string_append(result, '.');
+		return result;
+	}
+	string_resize(result, slash);
+	return result;
+}
+
 Array<String>
 platform_path_list_files(const String &directory, const String &extension_filter, memory::Allocator *allocator)
 {
@@ -503,24 +622,117 @@ platform_path_list_files(const String &directory, const String &extension_filter
 			continue;
 
 		String file_name = string_from(find_data.cFileName, memory::temp_allocator());
-		if (extension_filter.count > 0)
-		{
-			U64 extension_position = string_find_last_of(file_name, '.');
-			if (extension_position == U64(-1))
-				continue;
+		if (!_platform_win32_extension_matches(file_name, extension_filter))
+			continue;
 
-			String file_extension = string_with_capacity(file_name.count - extension_position - 1, memory::temp_allocator());
-			for (U64 i = extension_position + 1; i < file_name.count; ++i)
-				string_append(file_extension, file_name.data[i]);
-
-			if (file_extension != extension_filter)
-				continue;
-		}
-
-		array_push(files, file_name);
+		array_push(files, string_copy(file_name, allocator));
 	} while (::FindNextFile(find_handle, &find_data));
 
 	return files;
+}
+
+inline static void
+_platform_win32_path_list_files_recursive(Array<String> &files, const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	String search_path = string_copy(directory, memory::temp_allocator());
+	if (search_path.count > 0 && search_path.data[search_path.count - 1] != '/')
+		array_push(search_path, '/');
+	string_append(search_path, "*.*");
+
+	WIN32_FIND_DATA find_data = {};
+	HANDLE find_handle = ::FindFirstFile(search_path.data, &find_data);
+	if (find_handle == INVALID_HANDLE_VALUE)
+		return;
+	DEFER(validate(::FindClose(find_handle), "[PLATFORM][WIN32]: Failed to close recursive find handle."););
+
+	do
+	{
+		String file_name = string_from(find_data.cFileName, memory::temp_allocator());
+		if (file_name == "." || file_name == "..")
+			continue;
+
+		String child_path = _platform_win32_path_join(directory, file_name, memory::temp_allocator());
+		if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		{
+			_platform_win32_path_list_files_recursive(files, child_path, extension_filter, allocator);
+			continue;
+		}
+
+		if (_platform_win32_extension_matches(file_name, extension_filter))
+			array_push(files, string_copy(child_path, allocator));
+	} while (::FindNextFile(find_handle, &find_data));
+}
+
+Array<String>
+platform_path_list_files_recursive(const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	Array<String> files = array_init<String>(allocator);
+	_platform_win32_path_list_files_recursive(files, directory, extension_filter, allocator);
+	return files;
+}
+
+String
+platform_path_create_file(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	String result = _platform_win32_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	HANDLE handle = ::CreateFileA(result.data, GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (handle == INVALID_HANDLE_VALUE)
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	validate(::CloseHandle(handle), "[PLATFORM][WIN32]: Failed to close created file.");
+	return result;
+}
+
+String
+platform_path_create_directory(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	String result = _platform_win32_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (!::CreateDirectoryA(result.data, nullptr))
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	return result;
+}
+
+String
+platform_path_rename(const String &path, const String &name, memory::Allocator *allocator)
+{
+	String directory = _platform_win32_path_parent(path, memory::temp_allocator());
+	String result = _platform_win32_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (!::MoveFileExA(path.data, result.data, MOVEFILE_COPY_ALLOWED))
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	return result;
+}
+
+String
+platform_path_move(const String &path, const String &directory, memory::Allocator *allocator)
+{
+	String name = platform_path_get_file_name(path, memory::temp_allocator());
+	String result = _platform_win32_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (!::MoveFileExA(path.data, result.data, MOVEFILE_COPY_ALLOWED))
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	return result;
 }
 
 String
@@ -695,6 +907,16 @@ struct Platform_Thread
 	Platform_Task task;
 };
 
+struct Platform_Window_Context
+{
+	HWND window;
+	WINDOWPLACEMENT windowed_placement;
+	DWORD windowed_style;
+	DWORD windowed_ex_style;
+	bool fullscreen;
+	bool keep_screen_on;
+};
+
 static DWORD
 _platform_thread_main_routine(void *user_data)
 {
@@ -737,12 +959,69 @@ platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_
 	self->task = task;
 }
 
+inline static void
+_platform_win32_window_keep_screen_on_set(Platform_Window_Context *ctx, bool enabled)
+{
+	if (ctx->keep_screen_on == enabled)
+		return;
+
+	if (enabled)
+		::SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED);
+	else
+		::SetThreadExecutionState(ES_CONTINUOUS);
+	ctx->keep_screen_on = enabled;
+}
+
+inline static void
+_platform_win32_window_fullscreen_set(Platform_Window_Context *ctx, bool enabled)
+{
+	if (ctx->fullscreen == enabled)
+		return;
+
+	HWND window = ctx->window;
+	if (enabled)
+	{
+		ctx->windowed_style = (DWORD)::GetWindowLongPtr(window, GWL_STYLE);
+		ctx->windowed_ex_style = (DWORD)::GetWindowLongPtr(window, GWL_EXSTYLE);
+		ctx->windowed_placement = {};
+		ctx->windowed_placement.length = sizeof(ctx->windowed_placement);
+		validate(::GetWindowPlacement(window, &ctx->windowed_placement), "[PLATFORM][WINDOWS]: Failed to get window placement.");
+
+		HMONITOR monitor = ::MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+		MONITORINFO monitor_info = {};
+		monitor_info.cbSize = sizeof(monitor_info);
+		validate(::GetMonitorInfoA(monitor, &monitor_info), "[PLATFORM][WINDOWS]: Failed to get monitor info.");
+
+		::SetWindowLongPtr(window, GWL_STYLE, ctx->windowed_style & ~WS_OVERLAPPEDWINDOW);
+		::SetWindowLongPtr(window, GWL_EXSTYLE, ctx->windowed_ex_style & ~(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE));
+		::SetWindowPos(
+			window,
+			HWND_TOP,
+			monitor_info.rcMonitor.left,
+			monitor_info.rcMonitor.top,
+			monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
+			monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top,
+			SWP_NOOWNERZORDER | SWP_FRAMECHANGED
+		);
+	}
+	else
+	{
+		::SetWindowLongPtr(window, GWL_STYLE, ctx->windowed_style);
+		::SetWindowLongPtr(window, GWL_EXSTYLE, ctx->windowed_ex_style);
+		validate(::SetWindowPlacement(window, &ctx->windowed_placement), "[PLATFORM][WINDOWS]: Failed to restore window placement.");
+		::SetWindowPos(window, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+	}
+
+	ctx->fullscreen = enabled;
+}
+
 Platform_Window
 platform_window_init(U32 width, U32 height, const char *title)
 {
 	validate(width > 0 && height > 0, "[PLATFORM]: Windows cannot have zero width or height.");
 
 	Platform_Window self = {};
+	Platform_Window_Context *ctx = memory::allocate_zeroed<Platform_Window_Context>();
 
 	WNDCLASSEXA wc = {};
 	wc.cbSize		 = sizeof(wc);
@@ -754,7 +1033,7 @@ platform_window_init(U32 width, U32 height, const char *title)
 	[[maybe_unused]] ATOM class_atom = RegisterClassExA(&wc);
 	validate(class_atom != 0, "[PLATFORM]: Failed to register window class.");
 
-	self.handle = CreateWindowExA(
+	ctx->window = CreateWindowExA(
 		0,
 		wc.lpszClassName,
 		title,
@@ -764,10 +1043,12 @@ platform_window_init(U32 width, U32 height, const char *title)
 		nullptr,
 		nullptr,
 		nullptr);
-	validate(self.handle, "[PLATFORM]: Failed to create window.");
+	validate(ctx->window, "[PLATFORM]: Failed to create window.");
 
+	self.handle = ctx;
 	self.width  = width;
 	self.height = height;
+	self.metrics = _platform_win32_window_metrics(ctx->window, width, height);
 	self.focused = true;
 	self.surface_valid = true;
 	self.surface_changed = true;
@@ -779,10 +1060,17 @@ platform_window_init(U32 width, U32 height, const char *title)
 void
 platform_window_deinit(Platform_Window *self)
 {
+	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	_platform_win32_window_keep_screen_on_set(ctx, false);
+	_platform_win32_window_fullscreen_set(ctx, false);
+
 	bool res = false;
-	res = DestroyWindow((HWND)self->handle);
+	res = DestroyWindow(ctx->window);
 	validate(res, "[PLATFORM]: Failed to destroy window.");
+	memory::deallocate(ctx);
 	self->handle = nullptr;
+	self->metrics = {};
+	self->presentation = {};
 	self->close_requested = true;
 	self->surface_valid = false;
 	_platform_win32_text_input_events_reset(self->input);
@@ -792,6 +1080,7 @@ platform_window_deinit(Platform_Window *self)
 bool
 platform_window_poll(Platform_Window *self)
 {
+	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 	bool surface_changed = self->surface_changed;
 	self->surface_changed = false;
 
@@ -823,7 +1112,7 @@ platform_window_poll(Platform_Window *self)
 			case WM_RBUTTONDOWN:
 			case WM_MOUSEWHEEL:
 			{
-				SetCapture((HWND)self->handle);
+				SetCapture(ctx->window);
 
 				PLATFORM_KEY key = _platform_key_from_msg(msg);
 				if (key != PLATFORM_KEY_COUNT)
@@ -887,7 +1176,7 @@ platform_window_poll(Platform_Window *self)
 	{
 		// NOTE: Resizing.
 		RECT rect;
-		GetClientRect((HWND)self->handle, &rect);
+		GetClientRect(ctx->window, &rect);
 		U32 width = rect.right - rect.left;
 		U32 height = rect.bottom - rect.top;
 		if (self->width != width || self->height != height)
@@ -896,13 +1185,14 @@ platform_window_poll(Platform_Window *self)
 			self->height = height;
 			surface_changed = true;
 		}
+		self->metrics = _platform_win32_window_metrics(ctx->window, self->width, self->height);
 	}
 
 	{
 		// NOTE: Mouse movement.
 		POINT mouse_point;
 		GetCursorPos(&mouse_point);
-		ScreenToClient((HWND)self->handle, &mouse_point);
+		ScreenToClient(ctx->window, &mouse_point);
 
 		// NOTE: We want mouse coords to start bottom-left.
 		U32 mouse_point_y_inverted = (self->height - 1) - mouse_point.y;
@@ -912,7 +1202,7 @@ platform_window_poll(Platform_Window *self)
 		self->input.mouse_y  = mouse_point_y_inverted;
 	}
 
-	self->focused = GetForegroundWindow() == (HWND)self->handle;
+	self->focused = GetForegroundWindow() == ctx->window;
 	self->paused = false;
 	self->surface_valid = !self->close_requested && self->width > 0 && self->height > 0;
 	self->surface_changed = surface_changed;
@@ -922,8 +1212,9 @@ platform_window_poll(Platform_Window *self)
 Platform_Window_Native_Handles
 platform_window_get_native_handles(Platform_Window *self)
 {
+	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 	return Platform_Window_Native_Handles {
-		.window = self->handle,
+		.window = ctx->window,
 		.context = nullptr
 	};
 }
@@ -931,23 +1222,38 @@ platform_window_get_native_handles(Platform_Window *self)
 void
 platform_window_set_title(Platform_Window *self, const char *title)
 {
-	SetWindowText((HWND)self->handle, title);
+	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	SetWindowText(ctx->window, title);
 }
 
 void
 platform_window_close(Platform_Window *self)
 {
+	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 	self->close_requested = true;
 	self->surface_valid = false;
-	PostMessageW((HWND)self->handle, WM_QUIT, 0, 0);
+	PostMessageW(ctx->window, WM_QUIT, 0, 0);
+}
+
+void
+platform_window_presentation_set(Platform_Window &window, const Platform_Window_Presentation_Desc &desc)
+{
+	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	bool fullscreen = (desc.flags & (PLATFORM_WINDOW_PRESENTATION_FLAG_FULLSCREEN | PLATFORM_WINDOW_PRESENTATION_FLAG_IMMERSIVE)) != 0;
+	_platform_win32_window_fullscreen_set(ctx, fullscreen);
+	_platform_win32_window_keep_screen_on_set(ctx, (desc.flags & PLATFORM_WINDOW_PRESENTATION_FLAG_KEEP_SCREEN_ON) != 0);
+	window.presentation = desc;
+	window.surface_changed = true;
 }
 
 void
 platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc)
 {
+	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
 	window.text_input = desc;
+	window.text_input.text = {};
 	if (desc.enabled)
-		::SetFocus((HWND)window.handle);
+		::SetFocus(ctx->window);
 	else
 		window.text_input_pending_surrogate = 0;
 }

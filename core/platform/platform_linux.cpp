@@ -40,6 +40,39 @@ _string_concat(const char *a, const char *b, char *result)
 		*result++ = *b++;
 }
 
+inline static Platform_Window_Orientation
+_platform_linux_window_orientation(U32 width, U32 height)
+{
+	if (width == 0 || height == 0)
+		return PLATFORM_WINDOW_ORIENTATION_UNKNOWN;
+	return width >= height ? PLATFORM_WINDOW_ORIENTATION_LANDSCAPE : PLATFORM_WINDOW_ORIENTATION_PORTRAIT;
+}
+
+inline static Platform_Window_Metrics
+_platform_linux_window_metrics(Display *display, U32 width, U32 height)
+{
+	F32 dpi_x = 96.0f;
+	F32 dpi_y = 96.0f;
+	I32 screen = ::DefaultScreen(display);
+	I32 screen_width = ::DisplayWidth(display, screen);
+	I32 screen_height = ::DisplayHeight(display, screen);
+	I32 screen_width_mm = ::DisplayWidthMM(display, screen);
+	I32 screen_height_mm = ::DisplayHeightMM(display, screen);
+	if (screen_width_mm > 0)
+		dpi_x = (F32)screen_width * 25.4f / (F32)screen_width_mm;
+	if (screen_height_mm > 0)
+		dpi_y = (F32)screen_height * 25.4f / (F32)screen_height_mm;
+
+	return Platform_Window_Metrics {
+		.content_rect = Platform_Window_Rect { .x = 0, .y = 0, .width = width, .height = height },
+		.safe_area = {},
+		.density_scale = dpi_x / 96.0f,
+		.dpi_x = dpi_x,
+		.dpi_y = dpi_y,
+		.orientation = _platform_linux_window_orientation(width, height)
+	};
+}
+
 inline static PLATFORM_KEY
 _platform_key_from_xcb_button(xcb_button_t button)
 {
@@ -268,6 +301,54 @@ platform_path_get_temp_directory(memory::Allocator *allocator)
 }
 
 String
+platform_path_get_app_data_directory(memory::Allocator *allocator)
+{
+	String result = platform_environment_variable_get("XDG_DATA_HOME", allocator);
+	if (result.count == 0)
+	{
+		result = platform_environment_variable_get("HOME", allocator);
+		if (result.count > 0)
+		{
+			if (result[result.count - 1] != '/')
+				string_append(result, '/');
+			string_append(result, ".local/share/");
+		}
+		else
+		{
+			result = platform_path_get_temp_directory(allocator);
+		}
+	}
+
+	if (result.count > 0 && result[result.count - 1] != '/')
+		string_append(result, '/');
+	return result;
+}
+
+String
+platform_path_get_cache_directory(memory::Allocator *allocator)
+{
+	String result = platform_environment_variable_get("XDG_CACHE_HOME", allocator);
+	if (result.count == 0)
+	{
+		result = platform_environment_variable_get("HOME", allocator);
+		if (result.count > 0)
+		{
+			if (result[result.count - 1] != '/')
+				string_append(result, '/');
+			string_append(result, ".cache/");
+		}
+		else
+		{
+			result = platform_path_get_temp_directory(allocator);
+		}
+	}
+
+	if (result.count > 0 && result[result.count - 1] != '/')
+		string_append(result, '/');
+	return result;
+}
+
+String
 platform_environment_variable_get(const String &name, memory::Allocator *allocator)
 {
 	const char *value = ::getenv(name.data);
@@ -363,6 +444,60 @@ platform_path_write_file(const String &path, Memory_Block block)
 	return bytes_written;
 }
 
+inline static bool
+_platform_linux_extension_matches(const String &file_name, const String &extension_filter)
+{
+	if (extension_filter.count == 0)
+		return true;
+
+	U64 extension_position = string_find_last_of(file_name, '.');
+	if (extension_position == U64(-1))
+		return false;
+
+	U64 extension_count = file_name.count - extension_position - 1;
+	if (extension_count != extension_filter.count)
+		return false;
+
+	for (U64 i = 0; i < extension_count; ++i)
+	{
+		if (file_name.data[extension_position + 1 + i] != extension_filter.data[i])
+			return false;
+	}
+
+	return true;
+}
+
+inline static String
+_platform_linux_path_join(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	if (directory.count == 0 || name.count == 0)
+		return string_init(allocator);
+
+	String result = string_copy(directory, allocator);
+	string_replace(result, '\\', '/');
+	if (result[result.count - 1] != '/')
+		string_append(result, '/');
+	string_append(result, name);
+	string_replace(result, '\\', '/');
+	return result;
+}
+
+inline static String
+_platform_linux_path_parent(const String &path, memory::Allocator *allocator)
+{
+	String result = string_copy(path, allocator);
+	string_replace(result, '\\', '/');
+	U64 slash = string_find_last_of(result, '/');
+	if (slash == U64(-1))
+	{
+		string_clear(result);
+		string_append(result, '.');
+		return result;
+	}
+	string_resize(result, slash);
+	return result;
+}
+
 Array<String>
 platform_path_list_files(const String &directory, const String &extension_filter, memory::Allocator *allocator)
 {
@@ -386,24 +521,116 @@ platform_path_list_files(const String &directory, const String &extension_filter
 			continue;
 
 		String file_name = string_from(entry->d_name, memory::temp_allocator());
-		if (extension_filter.count > 0)
-		{
-			U64 extension_position = string_find_last_of(file_name, '.');
-			if (extension_position == U64(-1))
-				continue;
-
-			String file_extension = string_with_capacity(file_name.count - extension_position - 1, memory::temp_allocator());
-			for (U64 i = extension_position + 1; i < file_name.count; ++i)
-				string_append(file_extension, file_name.data[i]);
-
-			if (file_extension != extension_filter)
-				continue;
-		}
+		if (!_platform_linux_extension_matches(file_name, extension_filter))
+			continue;
 
 		array_push(files, string_copy(file_name, allocator));
 	}
 
 	return files;
+}
+
+inline static void
+_platform_linux_path_list_files_recursive(Array<String> &files, const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	DIR *dir = ::opendir(directory.data);
+	if (!dir)
+		return;
+	DEFER(validate(::closedir(dir) == 0, "[PLATFORM][LINUX]: Failed to close recursive directory."););
+
+	struct dirent *entry = nullptr;
+	while ((entry = ::readdir(dir)) != nullptr)
+	{
+		String file_name = string_from(entry->d_name, memory::temp_allocator());
+		if (file_name == "." || file_name == "..")
+			continue;
+
+		String child_path = _platform_linux_path_join(directory, file_name, memory::temp_allocator());
+		if (platform_path_is_directory(child_path))
+		{
+			_platform_linux_path_list_files_recursive(files, child_path, extension_filter, allocator);
+			continue;
+		}
+
+		if (_platform_linux_extension_matches(file_name, extension_filter))
+			array_push(files, string_copy(child_path, allocator));
+	}
+}
+
+Array<String>
+platform_path_list_files_recursive(const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	Array<String> files = array_init<String>(allocator);
+	_platform_linux_path_list_files_recursive(files, directory, extension_filter, allocator);
+	return files;
+}
+
+String
+platform_path_create_file(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	String result = _platform_linux_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	I32 file_handle = ::open(result.data, O_WRONLY | O_CREAT | O_EXCL, S_IRWXU);
+	if (file_handle == -1)
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	validate(::close(file_handle) == 0, "[PLATFORM][LINUX]: Failed to close created file.");
+	return result;
+}
+
+String
+platform_path_create_directory(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	String result = _platform_linux_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (::mkdir(result.data, S_IRWXU) != 0)
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	return result;
+}
+
+String
+platform_path_rename(const String &path, const String &name, memory::Allocator *allocator)
+{
+	String directory = _platform_linux_path_parent(path, memory::temp_allocator());
+	String result = _platform_linux_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (::rename(path.data, result.data) != 0)
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	return result;
+}
+
+String
+platform_path_move(const String &path, const String &directory, memory::Allocator *allocator)
+{
+	String name = platform_path_get_file_name(path, memory::temp_allocator());
+	String result = _platform_linux_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (::rename(path.data, result.data) == 0)
+		return result;
+
+	if (errno == EXDEV && platform_path_is_file(path) && platform_file_copy(path.data, result.data) && platform_file_delete(path.data))
+		return result;
+
+	if (platform_path_is_file(result))
+		platform_file_delete(result.data);
+	string_deinit(result);
+	return string_init(allocator);
 }
 
 String
@@ -633,14 +860,21 @@ struct Platform_Window_Context
 {
 	Display *display;
 	xcb_connection_t *connection;
+	xcb_window_t root;
 	xcb_window_t window;
 	xcb_atom_t wm_delete_window_atom;
 	xcb_atom_t wm_protocols_atom;
+	xcb_atom_t net_wm_state_atom;
+	xcb_atom_t net_wm_state_fullscreen_atom;
 	xcb_atom_t clipboard_atom;
 	xcb_atom_t targets_atom;
 	xcb_atom_t utf8_string_atom;
 	xcb_atom_t text_atom;
+	DBusConnection *screensaver_connection;
+	dbus_uint32_t screensaver_cookie;
 	Array<Platform_Linux_Clipboard_Item> clipboard_items;
+	bool fullscreen;
+	bool screensaver_inhibited;
 	bool clipboard_owned;
 };
 
@@ -657,6 +891,105 @@ _platform_linux_clipboard_items_deinit(Array<Platform_Linux_Clipboard_Item> &ite
 	for (U64 i = 0; i < items.count; ++i)
 		_platform_linux_clipboard_item_deinit(items[i]);
 	array_deinit(items);
+}
+
+inline static void
+_platform_linux_window_fullscreen_set(Platform_Window_Context *ctx, bool enabled)
+{
+	if (ctx->fullscreen == enabled)
+		return;
+
+	xcb_client_message_event_t event = {};
+	event.response_type = XCB_CLIENT_MESSAGE;
+	event.format = 32;
+	event.window = ctx->window;
+	event.type = ctx->net_wm_state_atom;
+	event.data.data32[0] = enabled ? 1 : 0;
+	event.data.data32[1] = ctx->net_wm_state_fullscreen_atom;
+	event.data.data32[2] = 0;
+	event.data.data32[3] = 1;
+
+	::xcb_send_event(ctx->connection, false, ctx->root, XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY, (const char *)&event);
+	::xcb_flush(ctx->connection);
+	ctx->fullscreen = enabled;
+}
+
+inline static void
+_platform_linux_window_keep_screen_on_set(Platform_Window_Context *ctx, bool enabled)
+{
+	if (ctx->screensaver_inhibited == enabled)
+		return;
+
+	if (enabled)
+	{
+		DBusError error = {};
+		dbus_error_init(&error);
+		DBusConnection *connection = dbus_bus_get_private(DBUS_BUS_SESSION, &error);
+		if (dbus_error_is_set(&error) || connection == nullptr)
+		{
+			dbus_error_free(&error);
+			return;
+		}
+		dbus_connection_set_exit_on_disconnect(connection, false);
+
+		DBusMessage *message = dbus_message_new_method_call("org.freedesktop.ScreenSaver", "/org/freedesktop/ScreenSaver", "org.freedesktop.ScreenSaver", "Inhibit");
+		if (message == nullptr)
+		{
+			dbus_connection_close(connection);
+			dbus_connection_unref(connection);
+			return;
+		}
+		DEFER(dbus_message_unref(message););
+
+		const char *application = "Core";
+		const char *reason = "Core window requested keep screen on";
+		dbus_message_append_args(message, DBUS_TYPE_STRING, &application, DBUS_TYPE_STRING, &reason, DBUS_TYPE_INVALID);
+
+		DBusMessage *reply = dbus_connection_send_with_reply_and_block(connection, message, -1, &error);
+		if (dbus_error_is_set(&error) || reply == nullptr)
+		{
+			dbus_error_free(&error);
+			dbus_connection_close(connection);
+			dbus_connection_unref(connection);
+			return;
+		}
+		DEFER(dbus_message_unref(reply););
+
+		dbus_uint32_t cookie = 0;
+		if (!dbus_message_get_args(reply, &error, DBUS_TYPE_UINT32, &cookie, DBUS_TYPE_INVALID))
+		{
+			dbus_error_free(&error);
+			dbus_connection_close(connection);
+			dbus_connection_unref(connection);
+			return;
+		}
+
+		ctx->screensaver_connection = connection;
+		ctx->screensaver_cookie = cookie;
+		ctx->screensaver_inhibited = true;
+	}
+	else
+	{
+		DBusMessage *message = dbus_message_new_method_call("org.freedesktop.ScreenSaver", "/org/freedesktop/ScreenSaver", "org.freedesktop.ScreenSaver", "UnInhibit");
+		if (message)
+		{
+			DBusError error = {};
+			dbus_error_init(&error);
+			dbus_message_append_args(message, DBUS_TYPE_UINT32, &ctx->screensaver_cookie, DBUS_TYPE_INVALID);
+			DBusMessage *reply = dbus_connection_send_with_reply_and_block(ctx->screensaver_connection, message, -1, &error);
+			if (dbus_error_is_set(&error))
+				dbus_error_free(&error);
+			if (reply)
+				dbus_message_unref(reply);
+			dbus_message_unref(message);
+		}
+
+		dbus_connection_close(ctx->screensaver_connection);
+		dbus_connection_unref(ctx->screensaver_connection);
+		ctx->screensaver_connection = nullptr;
+		ctx->screensaver_cookie = 0;
+		ctx->screensaver_inhibited = false;
+	}
 }
 
 inline static bool
@@ -835,9 +1168,12 @@ platform_window_init(U32 width, U32 height, const char *title)
 	Platform_Window_Context *ctx = memory::allocate_zeroed<Platform_Window_Context>();
 	ctx->display               = display;
 	ctx->connection            = connection;
+	ctx->root                  = screen->root;
 	ctx->window                = window;
 	ctx->wm_delete_window_atom = wm_delete_reply->atom;
 	ctx->wm_protocols_atom     = wm_protocols_reply->atom;
+	ctx->net_wm_state_atom     = _platform_linux_intern_atom(connection, "_NET_WM_STATE");
+	ctx->net_wm_state_fullscreen_atom = _platform_linux_intern_atom(connection, "_NET_WM_STATE_FULLSCREEN");
 	ctx->clipboard_atom        = _platform_linux_intern_atom(connection, "CLIPBOARD");
 	ctx->targets_atom          = _platform_linux_intern_atom(connection, "TARGETS");
 	ctx->utf8_string_atom      = _platform_linux_intern_atom(connection, "UTF8_STRING");
@@ -847,6 +1183,7 @@ platform_window_init(U32 width, U32 height, const char *title)
 		.handle = ctx,
 		.width  = width,
 		.height = height,
+		.metrics = _platform_linux_window_metrics(display, width, height),
 		.input  = {},
 		.focused = true,
 		.surface_valid = true,
@@ -863,6 +1200,7 @@ platform_window_deinit(Platform_Window *self)
 
 	// Set auto repeat keys back to on.
 	::XAutoRepeatOn(ctx->display);
+	_platform_linux_window_keep_screen_on_set(ctx, false);
 	if (ctx->clipboard_owned)
 		::xcb_set_selection_owner(ctx->connection, XCB_NONE, ctx->clipboard_atom, XCB_CURRENT_TIME);
 	_platform_linux_clipboard_items_deinit(ctx->clipboard_items);
@@ -870,6 +1208,7 @@ platform_window_deinit(Platform_Window *self)
 
 	memory::deallocate(ctx);
 	self->handle = nullptr;
+	self->metrics = {};
 	self->close_requested = true;
 	self->surface_valid = false;
 	_platform_linux_text_input_events_reset(self->input);
@@ -999,6 +1338,7 @@ platform_window_poll(Platform_Window *self)
 				{
 					self->width  = xcb_configure_notify_event->width;
 					self->height = xcb_configure_notify_event->height;
+					self->metrics = _platform_linux_window_metrics(ctx->display, self->width, self->height);
 					surface_changed = true;
 				}
 				break;
@@ -1079,9 +1419,21 @@ platform_window_close(Platform_Window *self)
 }
 
 void
+platform_window_presentation_set(Platform_Window &window, const Platform_Window_Presentation_Desc &desc)
+{
+	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	bool fullscreen = (desc.flags & (PLATFORM_WINDOW_PRESENTATION_FLAG_FULLSCREEN | PLATFORM_WINDOW_PRESENTATION_FLAG_IMMERSIVE)) != 0;
+	_platform_linux_window_fullscreen_set(ctx, fullscreen);
+	_platform_linux_window_keep_screen_on_set(ctx, (desc.flags & PLATFORM_WINDOW_PRESENTATION_FLAG_KEEP_SCREEN_ON) != 0);
+	window.presentation = desc;
+	window.surface_changed = true;
+}
+
+void
 platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc)
 {
 	window.text_input = desc;
+	window.text_input.text = {};
 }
 
 void
