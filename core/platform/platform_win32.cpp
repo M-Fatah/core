@@ -9,6 +9,7 @@
 #define NOMINMAX
 #include <Windows.h>
 #include <DbgHelp.h>
+#include <ShlObj.h>
 #include <math.h>
 #include <atomic>
 
@@ -1019,6 +1020,31 @@ platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
 
 	// TODO: Ensure that we write extension, if the user forgets to do so.
 	if (GetSaveFileName(&ofn) == TRUE)
+		return string_from(path, allocator);
+
+	return string_init(allocator);
+}
+
+String
+platform_directory_dialog_open(memory::Allocator *allocator)
+{
+	char path[4096] = {};
+	HRESULT com_result = ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+	bool com_initialized = SUCCEEDED(com_result);
+	DEFER({
+		if (com_initialized)
+			::CoUninitialize();
+	});
+
+	BROWSEINFOA browse_info = {};
+	browse_info.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+
+	LPITEMIDLIST item_list = SHBrowseForFolderA(&browse_info);
+	if (item_list == nullptr)
+		return string_init(allocator);
+	DEFER(::CoTaskMemFree(item_list););
+
+	if (::SHGetPathFromIDListA(item_list, path))
 		return string_from(path, allocator);
 
 	return string_init(allocator);

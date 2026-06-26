@@ -174,6 +174,11 @@ The app manifest declares Core's generated `NativeActivity` subclass and names t
         android:extractNativeLibs="true"
         android:hasCode="true"
         android:label="My App">
+        <provider
+            android:name="core.android.CoreClipboardProvider"
+            android:authorities="com.example.myapp.core.clipboard"
+            android:exported="true"
+            android:grantUriPermissions="true" />
         <activity
             android:name="core.android.CoreNativeActivity"
             android:configChanges="colorMode|density|fontScale|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|touchscreen|uiMode"
@@ -195,7 +200,7 @@ The `configChanges` list is part of the Core NativeActivity contract. Android sh
 
 APK packaging belongs in the app repo. A CMake-only app can package with Android SDK tools (`aapt2`, `zipalign`, `apksigner`, `adb`), or the app can use Gradle. Either way, package `libmy_android_app.so` into `lib/<abi>/`, package Core resources into APK `assets/`, sign the APK, install it, then launch the manifest package.
 
-When packaging without Gradle, compile the generated Java source directory reported by `CORE_ANDROID_JAVA_SOURCE_DIR` into `classes.dex` and package it into the APK. When using Gradle, add that directory to the app's Java source set.
+When packaging without Gradle, compile the generated Java source directory reported by `CORE_ANDROID_JAVA_SOURCE_DIR` into `classes.dex` and package it into the APK. When using Gradle, add that directory to the app's Java source set. The clipboard provider authority must be `<runtime package name>.core.clipboard`; with Gradle, `android:authorities="${applicationId}.core.clipboard"` is usually the right manifest form.
 
 ```cpp
 #include <core/platform/platform.h>
@@ -255,6 +260,13 @@ File dialogs are currently implemented on Windows, Linux, macOS, and Android. Li
 
 Android dialogs use the system Storage Access Framework through Core's generated `CoreNativeActivity` bridge. The selected value is a `content://` URI, not a normal filesystem path. Pass that URI back into Core file APIs such as `platform_file_read`, `platform_file_write`, `platform_file_open`, and `platform_path_read_file`; do not pass it to non-Core POSIX APIs. Android extension filters are best effort because SAF filters by MIME type.
 
+```cpp
+String directory = platform_directory_dialog_open(memory::temp_allocator());
+Array<String> files = platform_path_list_files(directory, "png", memory::temp_allocator());
+```
+
+On Android, `platform_directory_dialog_open` returns a tree `content://` URI with persistable read/write prefix permission when the selected provider grants it. `platform_path_list_files` returns child document URIs for tree content URIs; pass those child URIs back into Core file APIs. `platform_file_delete` uses Android document deletion for content URIs. Document rename is not exposed yet because Android returns a new URI from rename and Core does not currently have a rename API that can return it.
+
 ---
 
 ## Clipboard
@@ -281,7 +293,7 @@ platform_window_clipboard_item_write(window, &item, 1);
 
 Clipboard APIs take a `Platform_Window &` because Linux/X11 clipboard ownership is window-based: Core owns the `CLIPBOARD` selection through that window, keeps copied items alive, answers `SelectionRequest` events from `platform_window_poll`, and clears ownership on `SelectionClear`. Wayland should be handled separately through its data-device protocol once Core has a Wayland backend.
 
-Clipboard items use standard media type strings such as `text/plain;charset=utf-8`, `image/png`, and `application/octet-stream`. Core transports bytes and reports the media type; the caller owns interpretation, encoding, decoding, and validation. Windows, Linux/X11, and macOS support exact media-type byte items. Android supports text item read/write and URI-backed binary item reads from other apps; binary item writes on Android require a generated `ContentProvider` and are intentionally not faked.
+Clipboard items use standard media type strings such as `text/plain;charset=utf-8`, `image/png`, and `application/octet-stream`. Core transports bytes and reports the media type; the caller owns interpretation, encoding, decoding, and validation. Windows, Linux/X11, macOS, and Android support exact media-type byte items. On Android, non-text clipboard writes are backed by Core's generated `CoreClipboardProvider`, so the app manifest must include the provider entry shown above.
 
 ---
 

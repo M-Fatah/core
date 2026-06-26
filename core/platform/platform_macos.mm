@@ -1178,6 +1178,30 @@ platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
 	return string_init(allocator);
 }
 
+String
+platform_directory_dialog_open(memory::Allocator *allocator)
+{
+	@autoreleasepool
+	{
+		NSApplication *application = [NSApplication sharedApplication];
+		[application setActivationPolicy:NSApplicationActivationPolicyAccessory];
+
+		NSOpenPanel *open_panel = [NSOpenPanel openPanel];
+		open_panel.allowsMultipleSelection = false;
+		open_panel.canChooseDirectories    = true;
+		open_panel.canChooseFiles          = false;
+		open_panel.canCreateDirectories    = true;
+
+		if ([open_panel runModal] == NSModalResponseOK)
+		{
+			NSURL *url = [[open_panel URLs] objectAtIndex:0];
+			return string_from([url.path UTF8String], allocator);
+		}
+	}
+
+	return string_init(allocator);
+}
+
 inline static NSString *
 _platform_macos_clipboard_type_from_media_type(const String &media_type)
 {

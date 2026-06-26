@@ -1377,11 +1377,27 @@ _platform_linux_portal_append_filters(DBusMessageIter *options_array, const char
 }
 
 inline static void
-_platform_linux_portal_append_options(DBusMessageIter *args, const char *filters)
+_platform_linux_portal_append_options(DBusMessageIter *args, const char *filters, bool directory)
 {
 	DBusMessageIter options_array = {};
 	dbus_message_iter_open_container(args, DBUS_TYPE_ARRAY, "{sv}", &options_array);
-	_platform_linux_portal_append_filters(&options_array, filters);
+	if (directory)
+	{
+		DBusMessageIter dict_entry = {};
+		DBusMessageIter variant = {};
+		const char *directory_key = "directory";
+		dbus_bool_t directory_value = true;
+		dbus_message_iter_open_container(&options_array, DBUS_TYPE_DICT_ENTRY, nullptr, &dict_entry);
+		dbus_message_iter_append_basic(&dict_entry, DBUS_TYPE_STRING, &directory_key);
+		dbus_message_iter_open_container(&dict_entry, DBUS_TYPE_VARIANT, "b", &variant);
+		dbus_message_iter_append_basic(&variant, DBUS_TYPE_BOOLEAN, &directory_value);
+		dbus_message_iter_close_container(&dict_entry, &variant);
+		dbus_message_iter_close_container(&options_array, &dict_entry);
+	}
+	else
+	{
+		_platform_linux_portal_append_filters(&options_array, filters);
+	}
 	dbus_message_iter_close_container(args, &options_array);
 }
 
@@ -1432,7 +1448,7 @@ _platform_linux_portal_response_path(DBusMessage *message, memory::Allocator *al
 }
 
 inline static String
-_platform_linux_portal_file_dialog_run(const char *method, const char *title, const char *filters, memory::Allocator *allocator)
+_platform_linux_portal_file_dialog_run(const char *method, const char *title, const char *filters, bool directory, memory::Allocator *allocator)
 {
 	DBusError error = {};
 	dbus_error_init(&error);
@@ -1454,7 +1470,7 @@ _platform_linux_portal_file_dialog_run(const char *method, const char *title, co
 	dbus_message_iter_init_append(message, &args);
 	dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &parent_window);
 	dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &title);
-	_platform_linux_portal_append_options(&args, filters);
+	_platform_linux_portal_append_options(&args, filters, directory);
 
 	DBusMessage *reply = dbus_connection_send_with_reply_and_block(connection, message, 30000, &error);
 	if (dbus_error_is_set(&error) || reply == nullptr)
@@ -1502,13 +1518,19 @@ _platform_linux_portal_file_dialog_run(const char *method, const char *title, co
 String
 platform_file_dialog_open(const char *filters, memory::Allocator *allocator)
 {
-	return _platform_linux_portal_file_dialog_run("OpenFile", "Open File", filters, allocator);
+	return _platform_linux_portal_file_dialog_run("OpenFile", "Open File", filters, false, allocator);
 }
 
 String
 platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
 {
-	return _platform_linux_portal_file_dialog_run("SaveFile", "Save File", filters, allocator);
+	return _platform_linux_portal_file_dialog_run("SaveFile", "Save File", filters, false, allocator);
+}
+
+String
+platform_directory_dialog_open(memory::Allocator *allocator)
+{
+	return _platform_linux_portal_file_dialog_run("OpenFile", "Open Directory", nullptr, true, allocator);
 }
 
 struct Platform_Linux_Clipboard_Data

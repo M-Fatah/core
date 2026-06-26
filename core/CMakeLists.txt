@@ -85,6 +85,8 @@ if(WIN32)
     list(APPEND LIBS
         user32.lib
         winmm.lib
+        shell32.lib
+        ole32.lib
         dbghelp
     )
 elseif(LINUX)
@@ -121,6 +123,7 @@ elseif(ANDROID)
     set(CORE_ANDROID_JAVA_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/android/java")
     set(CORE_ANDROID_JAVA_PACKAGE_DIR "${CORE_ANDROID_JAVA_SOURCE_DIR}/core/android")
     set(CORE_ANDROID_JAVA_SOURCE "${CORE_ANDROID_JAVA_PACKAGE_DIR}/CoreNativeActivity.java")
+    set(CORE_ANDROID_CLIPBOARD_PROVIDER_JAVA_SOURCE "${CORE_ANDROID_JAVA_PACKAGE_DIR}/CoreClipboardProvider.java")
 
     file(MAKE_DIRECTORY "${CORE_ANDROID_JAVA_PACKAGE_DIR}")
     set(CORE_ANDROID_JAVA_SOURCE_CONTENT [=[
@@ -135,17 +138,22 @@ elseif(ANDROID)
         |import android.database.Cursor;
         |import android.net.Uri;
         |import android.os.ParcelFileDescriptor;
+        |import android.provider.DocumentsContract;
         |import android.provider.OpenableColumns;
         |import android.webkit.MimeTypeMap;
         |
         |import java.io.ByteArrayOutputStream;
+        |import java.io.File;
+        |import java.io.FileOutputStream;
         |import java.io.InputStream;
         |import java.nio.charset.StandardCharsets;
+        |import java.security.SecureRandom;
         |import java.util.Locale;
         |
         |public class CoreNativeActivity extends NativeActivity {
         |    private static final int CORE_REQUEST_OPEN_DOCUMENT = 0x434f5245;
         |    private static final int CORE_REQUEST_CREATE_DOCUMENT = 0x434f5246;
+        |    private static final int CORE_REQUEST_OPEN_TREE = 0x434f5247;
         |
         |    private long coreFileDialogRequest;
         |
@@ -192,6 +200,65 @@ elseif(ANDROID)
         |        return cleanExtension.length() > 0 ? "untitled." + cleanExtension : "untitled";
         |    }
         |
+        |    private static boolean coreExtensionMatches(String name, String extension) {
+        |        String cleanExtension = coreCleanExtension(extension);
+        |        if (cleanExtension.length() == 0) {
+        |            return true;
+        |        }
+        |
+        |        return name != null && name.toLowerCase(Locale.ROOT).endsWith("." + cleanExtension.toLowerCase(Locale.ROOT));
+        |    }
+        |
+        |    private static void coreDeleteRecursive(File file) {
+        |        if (file == null || !file.exists()) {
+        |            return;
+        |        }
+        |
+        |        if (file.isDirectory()) {
+        |            File[] children = file.listFiles();
+        |            if (children != null) {
+        |                for (int i = 0; i < children.length; ++i) {
+        |                    coreDeleteRecursive(children[i]);
+        |                }
+        |            }
+        |        }
+        |
+        |        file.delete();
+        |    }
+        |
+        |    private static boolean coreWriteFile(File file, byte[] data) {
+        |        FileOutputStream stream = null;
+        |        try {
+        |            stream = new FileOutputStream(file);
+        |            if (data != null && data.length > 0) {
+        |                stream.write(data);
+        |            }
+        |            return true;
+        |        } catch (Exception ignored) {
+        |            return false;
+        |        } finally {
+        |            if (stream != null) {
+        |                try {
+        |                    stream.close();
+        |                } catch (Exception ignored) {
+        |                }
+        |            }
+        |        }
+        |    }
+        |
+        |    private static String coreClipboardToken() {
+        |        byte[] bytes = new byte[16];
+        |        new SecureRandom().nextBytes(bytes);
+        |        char[] result = new char[32];
+        |        final char[] hex = "0123456789abcdef".toCharArray();
+        |        for (int i = 0; i < bytes.length; ++i) {
+        |            int value = bytes[i] & 0xff;
+        |            result[i * 2] = hex[value >> 4];
+        |            result[i * 2 + 1] = hex[value & 15];
+        |        }
+        |        return new String(result);
+        |    }
+        |
         |    public void coreOpenFileDialog(final long requestId, final String extension) {
         |        runOnUiThread(new Runnable() {
         |            @Override
@@ -225,6 +292,24 @@ elseif(ANDROID)
         |                coreFileDialogRequest = requestId;
         |                try {
         |                    startActivityForResult(intent, CORE_REQUEST_CREATE_DOCUMENT);
+        |                } catch (Exception ignored) {
+        |                    coreFileDialogRequest = 0;
+        |                    nativeFileDialogResult(requestId, false, null);
+        |                }
+        |            }
+        |        });
+        |    }
+        |
+        |    public void coreOpenDirectoryDialog(final long requestId) {
+        |        runOnUiThread(new Runnable() {
+        |            @Override
+        |            public void run() {
+        |                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        |                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+        |
+        |                coreFileDialogRequest = requestId;
+        |                try {
+        |                    startActivityForResult(intent, CORE_REQUEST_OPEN_TREE);
         |                } catch (Exception ignored) {
         |                    coreFileDialogRequest = 0;
         |                    nativeFileDialogResult(requestId, false, null);
@@ -278,6 +363,103 @@ elseif(ANDROID)
         |                    descriptor.close();
         |                } catch (Exception ignored) {
         |                }
+        |            }
+        |        }
+        |    }
+        |
+        |    public boolean coreContentDelete(String uriString) {
+        |        try {
+        |            return DocumentsContract.deleteDocument(getContentResolver(), Uri.parse(uriString));
+        |        } catch (Exception ignored) {
+        |            return false;
+        |        }
+        |    }
+        |
+        |    public boolean coreContentIsDirectory(String uriString) {
+        |        try {
+        |            String type = getContentResolver().getType(Uri.parse(uriString));
+        |            return DocumentsContract.Document.MIME_TYPE_DIR.equals(type);
+        |        } catch (Exception ignored) {
+        |            return false;
+        |        }
+        |    }
+        |
+        |    public String coreContentDisplayName(String uriString) {
+        |        Uri uri = Uri.parse(uriString);
+        |        Cursor cursor = null;
+        |        try {
+        |            cursor = getContentResolver().query(uri, new String[] { OpenableColumns.DISPLAY_NAME }, null, null, null);
+        |            if (cursor != null && cursor.moveToFirst() && !cursor.isNull(0)) {
+        |                String name = cursor.getString(0);
+        |                if (name != null) {
+        |                    return name;
+        |                }
+        |            }
+        |        } catch (Exception ignored) {
+        |        } finally {
+        |            if (cursor != null) {
+        |                cursor.close();
+        |            }
+        |        }
+        |
+        |        String segment = uri.getLastPathSegment();
+        |        return segment != null ? segment : "";
+        |    }
+        |
+        |    public String coreContentListFiles(String uriString, String extension) {
+        |        Uri treeUri = Uri.parse(uriString);
+        |        Uri childrenUri;
+        |        try {
+        |            String documentId;
+        |            try {
+        |                documentId = DocumentsContract.getDocumentId(treeUri);
+        |            } catch (Exception ignored) {
+        |                documentId = DocumentsContract.getTreeDocumentId(treeUri);
+        |            }
+        |            childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId);
+        |        } catch (Exception ignored) {
+        |            return "";
+        |        }
+        |
+        |        Cursor cursor = null;
+        |        try {
+        |            cursor = getContentResolver().query(childrenUri, new String[] {
+        |                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+        |                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+        |                DocumentsContract.Document.COLUMN_MIME_TYPE
+        |            }, null, null, null);
+        |            if (cursor == null) {
+        |                return "";
+        |            }
+        |
+        |            StringBuilder result = new StringBuilder();
+        |            while (cursor.moveToNext()) {
+        |                if (cursor.isNull(0) || cursor.isNull(1)) {
+        |                    continue;
+        |                }
+        |
+        |                String mimeType = cursor.isNull(2) ? "" : cursor.getString(2);
+        |                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mimeType)) {
+        |                    continue;
+        |                }
+        |
+        |                String displayName = cursor.getString(1);
+        |                if (!coreExtensionMatches(displayName, extension)) {
+        |                    continue;
+        |                }
+        |
+        |                Uri childUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, cursor.getString(0));
+        |                if (result.length() > 0) {
+        |                    result.append('\n');
+        |                }
+        |                result.append(childUri.toString());
+        |            }
+        |            return result.toString();
+        |        } catch (Exception ignored) {
+        |            return "";
+        |        } finally {
+        |            if (cursor != null) {
+        |                cursor.close();
         |            }
         |        }
         |    }
@@ -377,9 +559,9 @@ elseif(ANDROID)
         |        return null;
         |    }
         |
-        |    public boolean coreClipboardWriteItem(String mediaType, byte[] data) {
+        |    public boolean coreClipboardWriteItems(String[] mediaTypes, byte[][] dataItems) {
         |        try {
-        |            if (mediaType == null || (!mediaType.equals("text/plain;charset=utf-8") && !mediaType.equals(ClipDescription.MIMETYPE_TEXT_PLAIN))) {
+        |            if (mediaTypes == null || dataItems == null || mediaTypes.length == 0 || mediaTypes.length != dataItems.length) {
         |                return false;
         |            }
         |
@@ -388,8 +570,45 @@ elseif(ANDROID)
         |                return false;
         |            }
         |
-        |            String text = data != null ? new String(data, StandardCharsets.UTF_8) : "";
-        |            clipboard.setPrimaryClip(ClipData.newPlainText("Core", text != null ? text : ""));
+        |            if (mediaTypes.length == 1 && (mediaTypes[0].equals("text/plain;charset=utf-8") || mediaTypes[0].equals(ClipDescription.MIMETYPE_TEXT_PLAIN))) {
+        |                String text = dataItems[0] != null ? new String(dataItems[0], StandardCharsets.UTF_8) : "";
+        |                clipboard.setPrimaryClip(ClipData.newPlainText("Core", text != null ? text : ""));
+        |                return true;
+        |            }
+        |
+        |            File root = new File(getCacheDir(), "core_clipboard");
+        |            coreDeleteRecursive(root);
+        |            if (!root.mkdirs() && !root.isDirectory()) {
+        |                return false;
+        |            }
+        |
+        |            String token = coreClipboardToken();
+        |            File tokenDirectory = new File(root, token);
+        |            if (!tokenDirectory.mkdirs() && !tokenDirectory.isDirectory()) {
+        |                return false;
+        |            }
+        |
+        |            String[] descriptionTypes = new String[mediaTypes.length];
+        |            for (int i = 0; i < mediaTypes.length; ++i) {
+        |                if (mediaTypes[i] == null || mediaTypes[i].length() == 0) {
+        |                    return false;
+        |                }
+        |
+        |                descriptionTypes[i] = mediaTypes[i].equals("text/plain;charset=utf-8") ? ClipDescription.MIMETYPE_TEXT_PLAIN : mediaTypes[i];
+        |                if (!coreWriteFile(new File(tokenDirectory, i + ".type"), mediaTypes[i].getBytes(StandardCharsets.UTF_8))) {
+        |                    return false;
+        |                }
+        |                if (!coreWriteFile(new File(tokenDirectory, i + ".bin"), dataItems[i])) {
+        |                    return false;
+        |                }
+        |            }
+        |
+        |            ClipDescription description = new ClipDescription("Core", descriptionTypes);
+        |            ClipData clip = new ClipData(description, new ClipData.Item(CoreClipboardProvider.uriFor(getPackageName(), token, 0)));
+        |            for (int i = 1; i < mediaTypes.length; ++i) {
+        |                clip.addItem(new ClipData.Item(CoreClipboardProvider.uriFor(getPackageName(), token, i)));
+        |            }
+        |            clipboard.setPrimaryClip(clip);
         |            return true;
         |        } catch (Exception ignored) {
         |            return false;
@@ -398,14 +617,14 @@ elseif(ANDROID)
         |
         |    @Override
         |    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        |        if (requestCode == CORE_REQUEST_OPEN_DOCUMENT || requestCode == CORE_REQUEST_CREATE_DOCUMENT) {
+        |        if (requestCode == CORE_REQUEST_OPEN_DOCUMENT || requestCode == CORE_REQUEST_CREATE_DOCUMENT || requestCode == CORE_REQUEST_OPEN_TREE) {
         |            long requestId = coreFileDialogRequest;
         |            coreFileDialogRequest = 0;
         |
         |            String uriString = null;
         |            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
         |                Uri uri = data.getData();
-        |                int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        |                int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
         |                if (flags != 0) {
         |                    try {
         |                        getContentResolver().takePersistableUriPermission(uri, flags);
@@ -427,8 +646,130 @@ elseif(ANDROID)
     string(REGEX REPLACE "(^|\n)        \\|" "\\1" CORE_ANDROID_JAVA_SOURCE_CONTENT "${CORE_ANDROID_JAVA_SOURCE_CONTENT}")
     file(WRITE "${CORE_ANDROID_JAVA_SOURCE}" "${CORE_ANDROID_JAVA_SOURCE_CONTENT}")
 
+    set(CORE_ANDROID_CLIPBOARD_PROVIDER_JAVA_SOURCE_CONTENT [=[
+        |package core.android;
+        |
+        |import android.content.ContentProvider;
+        |import android.content.ContentValues;
+        |import android.database.Cursor;
+        |import android.database.MatrixCursor;
+        |import android.net.Uri;
+        |import android.os.ParcelFileDescriptor;
+        |import android.provider.OpenableColumns;
+        |
+        |import java.io.File;
+        |import java.io.FileInputStream;
+        |import java.io.FileNotFoundException;
+        |import java.nio.charset.StandardCharsets;
+        |
+        |public class CoreClipboardProvider extends ContentProvider {
+        |    private static final String ROOT = "core_clipboard";
+        |
+        |    public static Uri uriFor(String packageName, String token, int index) {
+        |        return Uri.parse("content://" + packageName + ".core.clipboard/clipboard/" + token + "/" + index);
+        |    }
+        |
+        |    @Override
+        |    public boolean onCreate() {
+        |        return true;
+        |    }
+        |
+        |    private File coreFile(Uri uri, String extension) {
+        |        if (getContext() == null || uri == null || uri.getPathSegments().size() != 3) {
+        |            return null;
+        }
+        |
+        |        String root = uri.getPathSegments().get(0);
+        |        String token = uri.getPathSegments().get(1);
+        |        String index = uri.getPathSegments().get(2);
+        |        if (!root.equals("clipboard") || !token.matches("[0-9a-f]{32}") || !index.matches("[0-9]+")) {
+        |            return null;
+        }
+        |
+        |        return new File(new File(new File(getContext().getCacheDir(), ROOT), token), index + extension);
+        |    }
+        |
+        |    @Override
+        |    public String getType(Uri uri) {
+        |        File typeFile = coreFile(uri, ".type");
+        |        if (typeFile == null || !typeFile.isFile()) {
+        |            return null;
+        }
+        |
+        |        FileInputStream stream = null;
+        |        try {
+        |            stream = new FileInputStream(typeFile);
+        |            byte[] data = new byte[(int)typeFile.length()];
+        |            int offset = 0;
+        |            while (offset < data.length) {
+        |                int count = stream.read(data, offset, data.length - offset);
+        |                if (count < 0) {
+        |                    break;
+        |                }
+        |                offset += count;
+        |            }
+        |            return new String(data, 0, offset, StandardCharsets.UTF_8);
+        |        } catch (Exception ignored) {
+        |            return null;
+        |        } finally {
+        |            if (stream != null) {
+        |                try {
+        |                    stream.close();
+        |                } catch (Exception ignored) {
+        |                }
+        |            }
+        |        }
+        |    }
+        |
+        |    @Override
+        |    public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
+        |        if (mode != null && mode.indexOf('w') >= 0) {
+        |            throw new FileNotFoundException();
+        |        }
+        |
+        |        File dataFile = coreFile(uri, ".bin");
+        |        if (dataFile == null || !dataFile.isFile()) {
+        |            throw new FileNotFoundException();
+        }
+        |
+        |        return ParcelFileDescriptor.open(dataFile, ParcelFileDescriptor.MODE_READ_ONLY);
+        |    }
+        |
+        |    @Override
+        |    public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
+        |        File dataFile = coreFile(uri, ".bin");
+        |        if (dataFile == null || !dataFile.isFile()) {
+        |            return null;
+        }
+        |
+        |        MatrixCursor cursor = new MatrixCursor(new String[] { OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE });
+        |        cursor.addRow(new Object[] { dataFile.getName(), dataFile.length() });
+        |        return cursor;
+        |    }
+        |
+        |    @Override
+        |    public Uri insert(Uri uri, ContentValues values) {
+        |        return null;
+        |    }
+        |
+        |    @Override
+        |    public int delete(Uri uri, String selection, String[] selectionArgs) {
+        |        return 0;
+        |    }
+        |
+        |    @Override
+        |    public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+        |        return 0;
+        |    }
+        |}
+        |
+    ]=])
+    string(REGEX REPLACE "(^|\n)        \\|" "\\1" CORE_ANDROID_CLIPBOARD_PROVIDER_JAVA_SOURCE_CONTENT "${CORE_ANDROID_CLIPBOARD_PROVIDER_JAVA_SOURCE_CONTENT}")
+    file(WRITE "${CORE_ANDROID_CLIPBOARD_PROVIDER_JAVA_SOURCE}" "${CORE_ANDROID_CLIPBOARD_PROVIDER_JAVA_SOURCE_CONTENT}")
+
     list(APPEND TARGET_PROPERTIES
         CORE_ANDROID_JAVA_SOURCE "${CORE_ANDROID_JAVA_SOURCE}"
+        CORE_ANDROID_CLIPBOARD_PROVIDER_JAVA_SOURCE "${CORE_ANDROID_CLIPBOARD_PROVIDER_JAVA_SOURCE}"
         CORE_ANDROID_JAVA_SOURCE_DIR "${CORE_ANDROID_JAVA_SOURCE_DIR}"
     )
 endif()

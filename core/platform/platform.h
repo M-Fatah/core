@@ -531,6 +531,14 @@ platform_file_dialog_open(const char *filters, memory::Allocator *allocator = me
 CORE_API String
 platform_file_dialog_save(const char *filters, memory::Allocator *allocator = memory::heap_allocator());
 
+/**
+ * @brief Opens a directory dialog.
+ * @return the selected directory path, or empty string on cancel, failure, or unsupported platforms.
+ * On Android, this may be a tree content URI usable with Core file APIs.
+ */
+CORE_API String
+platform_directory_dialog_open(memory::Allocator *allocator = memory::heap_allocator());
+
 CORE_API Array<String>
 platform_window_clipboard_query_media_types(Platform_Window &window, memory::Allocator *allocator = memory::heap_allocator());
 
