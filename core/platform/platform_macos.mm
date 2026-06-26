@@ -1178,33 +1178,120 @@ platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
 	return string_init(allocator);
 }
 
-String
-platform_window_clipboard_read_text(Platform_Window &, memory::Allocator *allocator)
+inline static NSString *
+_platform_macos_clipboard_type_from_media_type(const String &media_type)
 {
+	if (media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 || media_type == "text/plain")
+		return NSPasteboardTypeString;
+	if (media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_IMAGE_PNG)
+		return @"public.png";
+	return [NSString stringWithUTF8String:(media_type.data ? media_type.data : "")];
+}
+
+inline static String
+_platform_macos_clipboard_media_type_from_type(NSString *type, memory::Allocator *allocator)
+{
+	if ([type isEqualToString:NSPasteboardTypeString])
+		return string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator);
+	if ([type isEqualToString:@"public.png"])
+		return string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_IMAGE_PNG, allocator);
+	if ([type isEqualToString:@"public.tiff"])
+		return string_from("image/tiff", allocator);
+	return string_from([type UTF8String], allocator);
+}
+
+Array<String>
+platform_window_clipboard_query_media_types(Platform_Window &, memory::Allocator *allocator)
+{
+	Array<String> media_types = array_init<String>(allocator);
 	@autoreleasepool
 	{
 		NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
-		NSString *text = [pasteboard stringForType:NSPasteboardTypeString];
-		if (text == nil)
-			return string_init(allocator);
-
-		return string_from([text UTF8String], allocator);
+		for (NSString *type in [pasteboard types])
+			array_push(media_types, _platform_macos_clipboard_media_type_from_type(type, allocator));
 	}
+	return media_types;
+}
+
+Platform_Clipboard_Item
+platform_window_clipboard_item_read(Platform_Window &, const String &media_type, memory::Allocator *allocator)
+{
+	Platform_Clipboard_Item result {
+		.media_type = string_init(allocator),
+		.data = array_init<U8>(allocator)
+	};
+
+	@autoreleasepool
+	{
+		NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+		NSString *type = _platform_macos_clipboard_type_from_media_type(media_type);
+		if (type == nil)
+			return result;
+
+		if (media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 || media_type == "text/plain")
+		{
+			NSString *text = [pasteboard stringForType:type];
+			if (text == nil)
+				return result;
+
+			const char *text_data = [text UTF8String];
+			string_deinit(result.media_type);
+			result.media_type = string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator);
+			array_resize(result.data, ::strlen(text_data));
+			::memcpy(result.data.data, text_data, result.data.count);
+			return result;
+		}
+
+		NSData *data = [pasteboard dataForType:type];
+		if (data == nil)
+			return result;
+
+		string_deinit(result.media_type);
+		result.media_type = string_copy(media_type, allocator);
+		array_resize(result.data, [data length]);
+		::memcpy(result.data.data, [data bytes], result.data.count);
+	}
+
+	return result;
 }
 
 bool
-platform_window_clipboard_write_text(Platform_Window &, const String &text)
+platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard_Item *items, U32 item_count)
 {
+	if (items == nullptr || item_count == 0)
+		return false;
+
 	@autoreleasepool
 	{
-		NSString *text_ns = [NSString stringWithUTF8String:(text.data ? text.data : "")];
-		if (text_ns == nil)
-			return false;
-
 		NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
 		[pasteboard clearContents];
-		return [pasteboard setString:text_ns forType:NSPasteboardTypeString];
+
+		for (U32 i = 0; i < item_count; ++i)
+		{
+			NSString *type = _platform_macos_clipboard_type_from_media_type(items[i].media_type);
+			if (type == nil)
+				return false;
+
+			if (items[i].media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 || items[i].media_type == "text/plain")
+			{
+				NSString *text = [[NSString alloc] initWithBytes:items[i].data.data length:items[i].data.count encoding:NSUTF8StringEncoding];
+				if (text == nil)
+					return false;
+				DEFER([text release];);
+
+				if (![pasteboard setString:text forType:NSPasteboardTypeString])
+					return false;
+			}
+			else
+			{
+				NSData *data = [NSData dataWithBytes:items[i].data.data length:items[i].data.count];
+				if (![pasteboard setData:data forType:type])
+					return false;
+			}
+		}
 	}
+
+	return true;
 }
 
 U64

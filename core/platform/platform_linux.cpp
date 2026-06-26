@@ -163,6 +163,27 @@ _platform_key_from_key_sym(KeySym key)
 	return PLATFORM_KEY_COUNT;
 }
 
+struct Platform_Linux_Clipboard_Item
+{
+	Platform_Clipboard_Item item;
+	xcb_atom_t atom;
+};
+
+inline static bool
+_platform_clipboard_media_type_is_text(const String &media_type)
+{
+	return media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 || media_type == "text/plain";
+}
+
+inline static bool
+_platform_clipboard_media_type_exists(const Array<String> &media_types, const String &media_type)
+{
+	for (U64 i = 0; i < media_types.count; ++i)
+		if (media_types[i] == media_type)
+			return true;
+	return false;
+}
+
 // API.
 // C++.
 bool
@@ -608,9 +629,58 @@ struct Platform_Window_Context
 	xcb_atom_t targets_atom;
 	xcb_atom_t utf8_string_atom;
 	xcb_atom_t text_atom;
-	String clipboard_text;
+	Array<Platform_Linux_Clipboard_Item> clipboard_items;
 	bool clipboard_owned;
 };
+
+inline static void
+_platform_linux_clipboard_item_deinit(Platform_Linux_Clipboard_Item &item)
+{
+	platform_clipboard_item_deinit(item.item);
+	item.atom = XCB_ATOM_NONE;
+}
+
+inline static void
+_platform_linux_clipboard_items_deinit(Array<Platform_Linux_Clipboard_Item> &items)
+{
+	for (U64 i = 0; i < items.count; ++i)
+		_platform_linux_clipboard_item_deinit(items[i]);
+	array_deinit(items);
+}
+
+inline static bool
+_platform_linux_clipboard_atom_exists(const Array<xcb_atom_t> &atoms, xcb_atom_t atom)
+{
+	for (U64 i = 0; i < atoms.count; ++i)
+		if (atoms[i] == atom)
+			return true;
+	return false;
+}
+
+inline static void
+_platform_linux_clipboard_push_atom(Array<xcb_atom_t> &atoms, xcb_atom_t atom)
+{
+	if (atom != XCB_ATOM_NONE && !_platform_linux_clipboard_atom_exists(atoms, atom))
+		array_push(atoms, atom);
+}
+
+inline static Platform_Linux_Clipboard_Item *
+_platform_linux_clipboard_find_item(Platform_Window_Context *ctx, xcb_atom_t atom)
+{
+	for (U64 i = 0; i < ctx->clipboard_items.count; ++i)
+		if (ctx->clipboard_items[i].atom == atom)
+			return ctx->clipboard_items.data + i;
+	return nullptr;
+}
+
+inline static Platform_Linux_Clipboard_Item *
+_platform_linux_clipboard_find_text_item(Platform_Window_Context *ctx)
+{
+	for (U64 i = 0; i < ctx->clipboard_items.count; ++i)
+		if (_platform_clipboard_media_type_is_text(ctx->clipboard_items[i].item.media_type))
+			return ctx->clipboard_items.data + i;
+	return nullptr;
+}
 
 inline static void
 _platform_linux_clipboard_handle_selection_request(Platform_Window_Context *ctx, xcb_selection_request_event_t *request)
@@ -628,22 +698,42 @@ _platform_linux_clipboard_handle_selection_request(Platform_Window_Context *ctx,
 		xcb_atom_t property = request->property == XCB_ATOM_NONE ? request->target : request->property;
 		if (request->target == ctx->targets_atom)
 		{
-			xcb_atom_t targets[] = {
-				ctx->targets_atom,
-				ctx->utf8_string_atom,
-				ctx->text_atom,
-				XCB_ATOM_STRING
-			};
-			::xcb_change_property(ctx->connection, XCB_PROP_MODE_REPLACE, request->requestor, property, XCB_ATOM_ATOM, 32, COUNT_OF(targets), targets);
+			Array<xcb_atom_t> targets = array_init<xcb_atom_t>(memory::temp_allocator());
+			DEFER(array_deinit(targets));
+			_platform_linux_clipboard_push_atom(targets, ctx->targets_atom);
+			for (U64 i = 0; i < ctx->clipboard_items.count; ++i)
+			{
+				_platform_linux_clipboard_push_atom(targets, ctx->clipboard_items[i].atom);
+				if (_platform_clipboard_media_type_is_text(ctx->clipboard_items[i].item.media_type))
+				{
+					_platform_linux_clipboard_push_atom(targets, ctx->utf8_string_atom);
+					_platform_linux_clipboard_push_atom(targets, ctx->text_atom);
+					_platform_linux_clipboard_push_atom(targets, XCB_ATOM_STRING);
+				}
+			}
+			::xcb_change_property(ctx->connection, XCB_PROP_MODE_REPLACE, request->requestor, property, XCB_ATOM_ATOM, 32, (U32)targets.count, targets.data);
 			response.property = property;
 		}
 		else if (request->target == ctx->utf8_string_atom || request->target == ctx->text_atom || request->target == XCB_ATOM_STRING)
 		{
+			Platform_Linux_Clipboard_Item *item = _platform_linux_clipboard_find_text_item(ctx);
 			xcb_atom_t type = ctx->utf8_string_atom;
 			if (request->target == XCB_ATOM_STRING)
 				type = XCB_ATOM_STRING;
-			::xcb_change_property(ctx->connection, XCB_PROP_MODE_REPLACE, request->requestor, property, type, 8, (U32)ctx->clipboard_text.count, ctx->clipboard_text.data);
-			response.property = property;
+			if (item)
+			{
+				::xcb_change_property(ctx->connection, XCB_PROP_MODE_REPLACE, request->requestor, property, type, 8, (U32)item->item.data.count, item->item.data.data);
+				response.property = property;
+			}
+		}
+		else
+		{
+			Platform_Linux_Clipboard_Item *item = _platform_linux_clipboard_find_item(ctx, request->target);
+			if (item)
+			{
+				::xcb_change_property(ctx->connection, XCB_PROP_MODE_REPLACE, request->requestor, property, item->atom, 8, (U32)item->item.data.count, item->item.data.data);
+				response.property = property;
+			}
 		}
 	}
 
@@ -762,8 +852,7 @@ platform_window_deinit(Platform_Window *self)
 	::XAutoRepeatOn(ctx->display);
 	if (ctx->clipboard_owned)
 		::xcb_set_selection_owner(ctx->connection, XCB_NONE, ctx->clipboard_atom, XCB_CURRENT_TIME);
-	if (ctx->clipboard_text.capacity > 0)
-		string_deinit(ctx->clipboard_text);
+	_platform_linux_clipboard_items_deinit(ctx->clipboard_items);
 	::xcb_destroy_window(ctx->connection, ctx->window);
 
 	memory::deallocate(ctx);
@@ -813,9 +902,7 @@ platform_window_poll(Platform_Window *self)
 				if (selection_clear->selection == ctx->clipboard_atom)
 				{
 					ctx->clipboard_owned = false;
-					if (ctx->clipboard_text.capacity > 0)
-						string_deinit(ctx->clipboard_text);
-					ctx->clipboard_text = {};
+					_platform_linux_clipboard_items_deinit(ctx->clipboard_items);
 				}
 				break;
 			}
@@ -1424,16 +1511,29 @@ platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
 	return _platform_linux_portal_file_dialog_run("SaveFile", "Save File", filters, allocator);
 }
 
-inline static String
+struct Platform_Linux_Clipboard_Data
+{
+	xcb_atom_t type;
+	I32 format;
+	Array<U8> data;
+};
+
+inline static Platform_Linux_Clipboard_Data
 _platform_linux_clipboard_read_target(xcb_connection_t *connection, xcb_window_t window, xcb_atom_t clipboard, xcb_atom_t target, xcb_atom_t property, memory::Allocator *allocator)
 {
+	Platform_Linux_Clipboard_Data result {
+		.type = XCB_ATOM_NONE,
+		.format = 0,
+		.data = array_init<U8>(allocator)
+	};
+
 	::xcb_delete_property(connection, window, property);
 	::xcb_convert_selection(connection, window, clipboard, target, property, XCB_CURRENT_TIME);
 	::xcb_flush(connection);
 
 	I32 fd = ::xcb_get_file_descriptor(connection);
 	if (fd < 0)
-		return string_init(allocator);
+		return result;
 
 	while (true)
 	{
@@ -1448,21 +1548,20 @@ _platform_linux_clipboard_read_target(xcb_connection_t *connection, xcb_window_t
 				continue;
 
 			if (notify->property == XCB_ATOM_NONE)
-				return string_init(allocator);
+				return result;
 
 			xcb_get_property_cookie_t cookie = ::xcb_get_property(connection, false, window, property, XCB_GET_PROPERTY_TYPE_ANY, 0, U32_MAX / 4);
 			xcb_get_property_reply_t *reply = ::xcb_get_property_reply(connection, cookie, nullptr);
 			if (reply == nullptr)
-				return string_init(allocator);
+				return result;
 			DEFER(::free(reply););
 
 			I32 value_length = ::xcb_get_property_value_length(reply);
-			if (reply->format != 8 || value_length <= 0)
-				return string_init(allocator);
-
-			String result = string_init(allocator);
-			string_resize(result, (U64)value_length);
-			::memcpy(result.data, ::xcb_get_property_value(reply), (U64)value_length);
+			result.type = reply->type;
+			result.format = reply->format;
+			array_resize(result.data, (U64)value_length);
+			if (value_length > 0)
+				::memcpy(result.data.data, ::xcb_get_property_value(reply), (U64)value_length);
 			return result;
 		}
 
@@ -1473,63 +1572,217 @@ _platform_linux_clipboard_read_target(xcb_connection_t *connection, xcb_window_t
 		timeout.tv_sec = 5;
 		I32 select_result = ::select(fd + 1, &read_fds, nullptr, nullptr, &timeout);
 		if (select_result == 0)
-			return string_init(allocator);
+			return result;
 		if (select_result < 0 && errno != EINTR)
-			return string_init(allocator);
+			return result;
 	}
 }
 
-String
-platform_window_clipboard_read_text(Platform_Window &window, memory::Allocator *allocator)
+inline static bool
+_platform_linux_clipboard_create_read_window(xcb_connection_t **connection, xcb_window_t *window)
 {
-	validate(window.handle != nullptr, "[PLATFORM][LINUX]: Clipboard read requires an initialized platform window.");
-
-	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
-	if (ctx->clipboard_owned)
-		return string_copy(ctx->clipboard_text, allocator);
-
 	I32 screen_index = 0;
-	xcb_connection_t *connection = ::xcb_connect(nullptr, &screen_index);
-	if (connection == nullptr || ::xcb_connection_has_error(connection))
+	*connection = ::xcb_connect(nullptr, &screen_index);
+	if (*connection == nullptr || ::xcb_connection_has_error(*connection))
 	{
-		if (connection)
-			::xcb_disconnect(connection);
-		return string_init(allocator);
+		if (*connection)
+			::xcb_disconnect(*connection);
+		*connection = nullptr;
+		return false;
 	}
-	DEFER(::xcb_disconnect(connection););
 
-	const xcb_setup_t *setup = ::xcb_get_setup(connection);
+	const xcb_setup_t *setup = ::xcb_get_setup(*connection);
 	xcb_screen_iterator_t iterator = ::xcb_setup_roots_iterator(setup);
 	for (I32 i = 0; i < screen_index; ++i)
 		::xcb_screen_next(&iterator);
 	xcb_screen_t *screen = iterator.data;
 
-	xcb_window_t read_window = ::xcb_generate_id(connection);
+	*window = ::xcb_generate_id(*connection);
 	U32 event_mask = XCB_EVENT_MASK_PROPERTY_CHANGE;
-	::xcb_create_window(connection, XCB_COPY_FROM_PARENT, read_window, screen->root, 0, 0, 1, 1, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, XCB_CW_EVENT_MASK, &event_mask);
+	::xcb_create_window(*connection, XCB_COPY_FROM_PARENT, *window, screen->root, 0, 0, 1, 1, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, XCB_CW_EVENT_MASK, &event_mask);
+	return true;
+}
+
+inline static String
+_platform_linux_clipboard_media_type_from_atom(xcb_connection_t *connection, xcb_atom_t atom, xcb_atom_t targets_atom, xcb_atom_t utf8_string_atom, xcb_atom_t text_atom, memory::Allocator *allocator)
+{
+	if (atom == XCB_ATOM_NONE || atom == targets_atom)
+		return string_init(allocator);
+
+	if (atom == utf8_string_atom || atom == text_atom || atom == XCB_ATOM_STRING)
+		return string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator);
+
+	xcb_get_atom_name_cookie_t cookie = ::xcb_get_atom_name(connection, atom);
+	xcb_get_atom_name_reply_t *reply = ::xcb_get_atom_name_reply(connection, cookie, nullptr);
+	if (reply == nullptr)
+		return string_init(allocator);
+	DEFER(::free(reply););
+
+	const char *name = ::xcb_get_atom_name_name(reply);
+	I32 name_length = ::xcb_get_atom_name_name_length(reply);
+	for (I32 i = 0; i < name_length; ++i)
+		if (name[i] == '/')
+			return string_from(name, name + name_length, allocator);
+
+	return string_init(allocator);
+}
+
+inline static Platform_Clipboard_Item
+_platform_linux_clipboard_item_copy(const Platform_Clipboard_Item &item, memory::Allocator *allocator)
+{
+	return Platform_Clipboard_Item {
+		.media_type = string_copy(item.media_type, allocator),
+		.data = array_copy(item.data, allocator)
+	};
+}
+
+inline static Platform_Linux_Clipboard_Item *
+_platform_linux_clipboard_find_item_by_media_type(Platform_Window_Context *ctx, const String &media_type)
+{
+	if (_platform_clipboard_media_type_is_text(media_type))
+		return _platform_linux_clipboard_find_text_item(ctx);
+
+	for (U64 i = 0; i < ctx->clipboard_items.count; ++i)
+		if (ctx->clipboard_items[i].item.media_type == media_type)
+			return ctx->clipboard_items.data + i;
+	return nullptr;
+}
+
+Array<String>
+platform_window_clipboard_query_media_types(Platform_Window &window, memory::Allocator *allocator)
+{
+	validate(window.handle != nullptr, "[PLATFORM][LINUX]: Clipboard read requires an initialized platform window.");
+
+	Array<String> media_types = array_init<String>(allocator);
+	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	if (ctx->clipboard_owned)
+	{
+		for (U64 i = 0; i < ctx->clipboard_items.count; ++i)
+			if (!_platform_clipboard_media_type_exists(media_types, ctx->clipboard_items[i].item.media_type))
+				array_push(media_types, string_copy(ctx->clipboard_items[i].item.media_type, allocator));
+		return media_types;
+	}
+
+	xcb_connection_t *connection = nullptr;
+	xcb_window_t read_window = XCB_NONE;
+	if (!_platform_linux_clipboard_create_read_window(&connection, &read_window))
+		return media_types;
+	DEFER(::xcb_disconnect(connection););
+	DEFER(::xcb_destroy_window(connection, read_window););
+
+	xcb_atom_t clipboard = _platform_linux_intern_atom(connection, "CLIPBOARD");
+	xcb_atom_t targets = _platform_linux_intern_atom(connection, "TARGETS");
+	xcb_atom_t utf8_string = _platform_linux_intern_atom(connection, "UTF8_STRING");
+	xcb_atom_t text = _platform_linux_intern_atom(connection, "TEXT");
+	xcb_atom_t property = _platform_linux_intern_atom(connection, "CORE_CLIPBOARD_READ");
+	if (clipboard == XCB_ATOM_NONE || targets == XCB_ATOM_NONE || utf8_string == XCB_ATOM_NONE || property == XCB_ATOM_NONE)
+		return media_types;
+
+	Platform_Linux_Clipboard_Data data = _platform_linux_clipboard_read_target(connection, read_window, clipboard, targets, property, memory::temp_allocator());
+	if (data.format != 32 || data.data.count == 0)
+		return media_types;
+
+	U64 atom_count = data.data.count / sizeof(xcb_atom_t);
+	xcb_atom_t *atoms = (xcb_atom_t *)data.data.data;
+	for (U64 i = 0; i < atom_count; ++i)
+	{
+		String media_type = _platform_linux_clipboard_media_type_from_atom(connection, atoms[i], targets, utf8_string, text, memory::temp_allocator());
+		if (media_type.count > 0 && !_platform_clipboard_media_type_exists(media_types, media_type))
+			array_push(media_types, string_copy(media_type, allocator));
+	}
+
+	return media_types;
+}
+
+Platform_Clipboard_Item
+platform_window_clipboard_item_read(Platform_Window &window, const String &media_type, memory::Allocator *allocator)
+{
+	validate(window.handle != nullptr, "[PLATFORM][LINUX]: Clipboard read requires an initialized platform window.");
+
+	Platform_Clipboard_Item result {
+		.media_type = string_init(allocator),
+		.data = array_init<U8>(allocator)
+	};
+	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	if (ctx->clipboard_owned)
+	{
+		Platform_Linux_Clipboard_Item *item = _platform_linux_clipboard_find_item_by_media_type(ctx, media_type);
+		return item ? _platform_linux_clipboard_item_copy(item->item, allocator) : result;
+	}
+
+	xcb_connection_t *connection = nullptr;
+	xcb_window_t read_window = XCB_NONE;
+	if (!_platform_linux_clipboard_create_read_window(&connection, &read_window))
+		return result;
+	DEFER(::xcb_disconnect(connection););
 	DEFER(::xcb_destroy_window(connection, read_window););
 
 	xcb_atom_t clipboard = _platform_linux_intern_atom(connection, "CLIPBOARD");
 	xcb_atom_t utf8_string = _platform_linux_intern_atom(connection, "UTF8_STRING");
+	xcb_atom_t text = _platform_linux_intern_atom(connection, "TEXT");
 	xcb_atom_t property = _platform_linux_intern_atom(connection, "CORE_CLIPBOARD_READ");
 	if (clipboard == XCB_ATOM_NONE || utf8_string == XCB_ATOM_NONE || property == XCB_ATOM_NONE)
-		return string_init(allocator);
+		return result;
 
-	String result = _platform_linux_clipboard_read_target(connection, read_window, clipboard, utf8_string, property, allocator);
-	if (result.count == 0)
-		result = _platform_linux_clipboard_read_target(connection, read_window, clipboard, XCB_ATOM_STRING, property, allocator);
+	xcb_atom_t target = _platform_linux_intern_atom(connection, media_type.data);
+	Platform_Linux_Clipboard_Data data = {};
+	if (target != XCB_ATOM_NONE)
+		data = _platform_linux_clipboard_read_target(connection, read_window, clipboard, target, property, allocator);
+	if (data.type == XCB_ATOM_NONE && _platform_clipboard_media_type_is_text(media_type))
+		data = _platform_linux_clipboard_read_target(connection, read_window, clipboard, utf8_string, property, allocator);
+	if (data.type == XCB_ATOM_NONE && _platform_clipboard_media_type_is_text(media_type) && text != XCB_ATOM_NONE)
+		data = _platform_linux_clipboard_read_target(connection, read_window, clipboard, text, property, allocator);
+	if (data.type == XCB_ATOM_NONE && _platform_clipboard_media_type_is_text(media_type))
+		data = _platform_linux_clipboard_read_target(connection, read_window, clipboard, XCB_ATOM_STRING, property, allocator);
+
+	if (data.type == XCB_ATOM_NONE || data.format != 8)
+	{
+		array_deinit(data.data);
+		return result;
+	}
+
+	string_deinit(result.media_type);
+	result.media_type = _platform_clipboard_media_type_is_text(media_type) ? string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator) : string_copy(media_type, allocator);
+	array_deinit(result.data);
+	result.data = data.data;
 	return result;
 }
 
 bool
-platform_window_clipboard_write_text(Platform_Window &window, const String &text)
+platform_window_clipboard_item_write(Platform_Window &window, const Platform_Clipboard_Item *items, U32 item_count)
 {
 	validate(window.handle != nullptr, "[PLATFORM][LINUX]: Clipboard write requires an initialized platform window.");
+	if (items == nullptr || item_count == 0)
+		return false;
 
 	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
-	if (ctx->clipboard_text.capacity > 0)
-		string_deinit(ctx->clipboard_text);
-	ctx->clipboard_text = text.data ? string_copy(text, memory::heap_allocator()) : string_init(memory::heap_allocator());
+	_platform_linux_clipboard_items_deinit(ctx->clipboard_items);
+	ctx->clipboard_items = array_init_with_capacity<Platform_Linux_Clipboard_Item>(item_count, memory::heap_allocator());
+
+	for (U32 i = 0; i < item_count; ++i)
+	{
+		if (items[i].media_type.count == 0)
+		{
+			_platform_linux_clipboard_items_deinit(ctx->clipboard_items);
+			return false;
+		}
+
+		xcb_atom_t atom = _platform_linux_intern_atom(ctx->connection, items[i].media_type.data);
+		if (atom == XCB_ATOM_NONE)
+		{
+			_platform_linux_clipboard_items_deinit(ctx->clipboard_items);
+			return false;
+		}
+
+		Platform_Linux_Clipboard_Item item {
+			.item = {
+				.media_type = string_copy(items[i].media_type, memory::heap_allocator()),
+				.data = array_copy(items[i].data, memory::heap_allocator())
+			},
+			.atom = atom
+		};
+		array_push(ctx->clipboard_items, item);
+	}
 
 	::xcb_set_selection_owner(ctx->connection, ctx->window, ctx->clipboard_atom, XCB_CURRENT_TIME);
 	xcb_get_selection_owner_cookie_t cookie = ::xcb_get_selection_owner(ctx->connection, ctx->clipboard_atom);
@@ -1539,8 +1792,7 @@ platform_window_clipboard_write_text(Platform_Window &window, const String &text
 	ctx->clipboard_owned = reply && reply->owner == ctx->window;
 	if (!ctx->clipboard_owned)
 	{
-		string_deinit(ctx->clipboard_text);
-		ctx->clipboard_text = {};
+		_platform_linux_clipboard_items_deinit(ctx->clipboard_items);
 		return false;
 	}
 

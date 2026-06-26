@@ -1025,72 +1025,212 @@ platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
 }
 
 String
-platform_window_clipboard_read_text(Platform_Window &, memory::Allocator *allocator)
+_platform_win32_clipboard_media_type_from_format(UINT format, memory::Allocator *allocator)
 {
-	String result = string_init(allocator);
+	if (format == CF_UNICODETEXT)
+		return string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator);
+
+	UINT png_format = ::RegisterClipboardFormatA("PNG");
+	if (format == png_format)
+		return string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_IMAGE_PNG, allocator);
+
+	char format_name[256] = {};
+	if (::GetClipboardFormatNameA(format, format_name, sizeof(format_name)) <= 0)
+		return string_init(allocator);
+
+	for (const char *at = format_name; *at != '\0'; ++at)
+		if (*at == '/')
+			return string_from(format_name, allocator);
+
+	return string_init(allocator);
+}
+
+inline static UINT
+_platform_win32_clipboard_format_from_media_type(const String &media_type)
+{
+	if (media_type.count == 0)
+		return 0;
+
+	if (media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 || media_type == "text/plain")
+		return CF_UNICODETEXT;
+
+	if (media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_IMAGE_PNG)
+		return ::RegisterClipboardFormatA("PNG");
+
+	return ::RegisterClipboardFormatA(media_type.data);
+}
+
+inline static bool
+_platform_clipboard_media_type_exists(const Array<String> &media_types, const String &media_type)
+{
+	for (U64 i = 0; i < media_types.count; ++i)
+		if (media_types[i] == media_type)
+			return true;
+	return false;
+}
+
+Array<String>
+platform_window_clipboard_query_media_types(Platform_Window &, memory::Allocator *allocator)
+{
+	Array<String> media_types = array_init<String>(allocator);
+	if (!::OpenClipboard(nullptr))
+		return media_types;
+	DEFER(::CloseClipboard(););
+
+	UINT format = 0;
+	while ((format = ::EnumClipboardFormats(format)) != 0)
+	{
+		String media_type = _platform_win32_clipboard_media_type_from_format(format, memory::temp_allocator());
+		if (media_type.count > 0 && !_platform_clipboard_media_type_exists(media_types, media_type))
+			array_push(media_types, string_copy(media_type, allocator));
+	}
+
+	return media_types;
+}
+
+Platform_Clipboard_Item
+platform_window_clipboard_item_read(Platform_Window &, const String &media_type, memory::Allocator *allocator)
+{
+	Platform_Clipboard_Item result {
+		.media_type = string_init(allocator),
+		.data = array_init<U8>(allocator)
+	};
+
 	if (!::OpenClipboard(nullptr))
 		return result;
 	DEFER(::CloseClipboard(););
 
-	HANDLE clipboard_data = ::GetClipboardData(CF_UNICODETEXT);
+	UINT format = _platform_win32_clipboard_format_from_media_type(media_type);
+	if (format == 0 || !::IsClipboardFormatAvailable(format))
+		return result;
+
+	HANDLE clipboard_data = ::GetClipboardData(format);
 	if (clipboard_data == nullptr)
 		return result;
 
-	wchar_t *text_wide = (wchar_t *)::GlobalLock(clipboard_data);
-	if (text_wide == nullptr)
+	if (format == CF_UNICODETEXT)
+	{
+		wchar_t *text_wide = (wchar_t *)::GlobalLock(clipboard_data);
+		if (text_wide == nullptr)
+			return result;
+		DEFER(::GlobalUnlock(clipboard_data););
+
+		I32 utf8_count_with_null = ::WideCharToMultiByte(CP_UTF8, 0, text_wide, -1, nullptr, 0, nullptr, nullptr);
+		if (utf8_count_with_null <= 0)
+			return result;
+
+		string_deinit(result.media_type);
+		result.media_type = string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator);
+		array_resize(result.data, (U64)utf8_count_with_null - 1);
+		::WideCharToMultiByte(CP_UTF8, 0, text_wide, -1, (char *)result.data.data, utf8_count_with_null, nullptr, nullptr);
+		return result;
+	}
+
+	void *data = ::GlobalLock(clipboard_data);
+	if (data == nullptr)
 		return result;
 	DEFER(::GlobalUnlock(clipboard_data););
 
-	I32 utf8_count_with_null = ::WideCharToMultiByte(CP_UTF8, 0, text_wide, -1, nullptr, 0, nullptr, nullptr);
-	if (utf8_count_with_null <= 1)
-		return result;
-
-	string_resize(result, (U64)utf8_count_with_null - 1);
-	::WideCharToMultiByte(CP_UTF8, 0, text_wide, -1, result.data, utf8_count_with_null, nullptr, nullptr);
+	U64 data_size = (U64)::GlobalSize(clipboard_data);
+	string_deinit(result.media_type);
+	result.media_type = _platform_win32_clipboard_media_type_from_format(format, allocator);
+	if (result.media_type.count == 0)
+		result.media_type = string_copy(media_type, allocator);
+	array_resize(result.data, data_size);
+	::memcpy(result.data.data, data, data_size);
 	return result;
 }
 
-bool
-platform_window_clipboard_write_text(Platform_Window &, const String &text)
+struct Platform_Win32_Clipboard_Data
 {
-	const char *text_data = text.data ? text.data : "";
+	UINT format;
+	HGLOBAL data;
+};
+
+inline static HGLOBAL
+_platform_win32_clipboard_data_from_text(const Array<U8> &text)
+{
+	const char *text_data = text.data ? (const char *)text.data : "";
 	I32 text_count = text.data ? (I32)text.count : 0;
 	I32 wide_count = ::MultiByteToWideChar(CP_UTF8, 0, text_data, text_count, nullptr, 0);
 	if (wide_count < 0)
-		return false;
-
+		return nullptr;
 	HGLOBAL clipboard_data = ::GlobalAlloc(GMEM_MOVEABLE, ((U64)wide_count + 1) * sizeof(wchar_t));
 	if (clipboard_data == nullptr)
-		return false;
+		return nullptr;
 
 	wchar_t *text_wide = (wchar_t *)::GlobalLock(clipboard_data);
 	if (text_wide == nullptr)
 	{
 		::GlobalFree(clipboard_data);
-		return false;
+		return nullptr;
 	}
 
 	::MultiByteToWideChar(CP_UTF8, 0, text_data, text_count, text_wide, wide_count);
 	text_wide[wide_count] = L'\0';
 	::GlobalUnlock(clipboard_data);
+	return clipboard_data;
+}
 
-	if (!::OpenClipboard(nullptr))
+inline static HGLOBAL
+_platform_win32_clipboard_data_from_bytes(const Array<U8> &data)
+{
+	HGLOBAL clipboard_data = ::GlobalAlloc(GMEM_MOVEABLE, data.count);
+	if (clipboard_data == nullptr)
+		return nullptr;
+
+	void *clipboard_bytes = ::GlobalLock(clipboard_data);
+	if (clipboard_bytes == nullptr)
 	{
 		::GlobalFree(clipboard_data);
-		return false;
+		return nullptr;
 	}
+
+	if (data.count > 0)
+		::memcpy(clipboard_bytes, data.data, data.count);
+	::GlobalUnlock(clipboard_data);
+	return clipboard_data;
+}
+
+bool
+platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard_Item *items, U32 item_count)
+{
+	if (items == nullptr || item_count == 0)
+		return false;
+
+	Array<Platform_Win32_Clipboard_Data> prepared = array_init_with_capacity<Platform_Win32_Clipboard_Data>(item_count, memory::temp_allocator());
+	DEFER({
+		for (U64 i = 0; i < prepared.count; ++i)
+			if (prepared[i].data)
+				::GlobalFree(prepared[i].data);
+		array_deinit(prepared);
+	});
+
+	for (U32 i = 0; i < item_count; ++i)
+	{
+		UINT format = _platform_win32_clipboard_format_from_media_type(items[i].media_type);
+		if (format == 0)
+			return false;
+
+		HGLOBAL data = format == CF_UNICODETEXT ? _platform_win32_clipboard_data_from_text(items[i].data) : _platform_win32_clipboard_data_from_bytes(items[i].data);
+		if (data == nullptr)
+			return false;
+
+		array_push(prepared, Platform_Win32_Clipboard_Data{format, data});
+	}
+
+	if (!::OpenClipboard(nullptr))
+		return false;
 	DEFER(::CloseClipboard(););
 
 	if (!::EmptyClipboard())
-	{
-		::GlobalFree(clipboard_data);
 		return false;
-	}
 
-	if (::SetClipboardData(CF_UNICODETEXT, clipboard_data) == nullptr)
+	for (U64 i = 0; i < prepared.count; ++i)
 	{
-		::GlobalFree(clipboard_data);
-		return false;
+		if (::SetClipboardData(prepared[i].format, prepared[i].data) == nullptr)
+			return false;
+		prepared[i].data = nullptr;
 	}
 
 	return true;

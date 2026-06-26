@@ -141,6 +141,8 @@ ANativeActivity_onCreate(ANativeActivity *activity, void *saved_state, size_t sa
 
 The Android app thread must leave its loop when `platform_window_poll` returns false and must call `platform_window_deinit` before the process starts another Core Android window. Core requests that shutdown from Activity destroy and Back/close events.
 
+`saved_state` is accepted by `platform_android_native_activity_on_create` because Android passes it to `ANativeActivity_onCreate`, but Core does not interpret or restore those bytes. The app owns durable state restoration through its own save files, project files, or app-specific serialization. Core recreates platform objects such as the Activity context, native window, input queue, asset manager, and Java bridge; app/game/editor state must be rebuilt by the client.
+
 The app shared library links Core:
 
 ```cmake
@@ -258,13 +260,28 @@ Android dialogs use the system Storage Access Framework through Core's generated
 ## Clipboard
 
 ```cpp
-String text = platform_window_clipboard_read_text(window, memory::temp_allocator());
-platform_window_clipboard_write_text(window, "Copied from Core");
+Array<String> media_types = platform_window_clipboard_query_media_types(window, memory::temp_allocator());
+
+Platform_Clipboard_Item item = platform_window_clipboard_item_read(window, string_literal(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8), memory::temp_allocator());
+if (item.data.count > 0)
+{
+	// item.data contains UTF-8 bytes.
+}
 ```
 
-Text clipboard is implemented on Windows, Linux, macOS, and Android. Clipboard APIs take a `Platform_Window &` because Linux/X11 clipboard ownership is window-based: Core owns the `CLIPBOARD` selection through that window, keeps the copied text alive, answers `SelectionRequest` events from `platform_window_poll`, and clears ownership on `SelectionClear`. Wayland should be handled separately through its data-device protocol once Core has a Wayland backend.
+```cpp
+String text = string_literal("Copied from Core");
+Platform_Clipboard_Item item {
+	.media_type = string_literal(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8),
+	.data = array_init_from((const U8 *)text.data, (const U8 *)text.data + text.count, memory::temp_allocator())
+};
 
-Image and binary clipboard data are intentionally not folded into the text API. They need a separate format-aware API because each platform exposes different MIME/type negotiation, ownership, and large-transfer rules.
+platform_window_clipboard_item_write(window, &item, 1);
+```
+
+Clipboard APIs take a `Platform_Window &` because Linux/X11 clipboard ownership is window-based: Core owns the `CLIPBOARD` selection through that window, keeps copied items alive, answers `SelectionRequest` events from `platform_window_poll`, and clears ownership on `SelectionClear`. Wayland should be handled separately through its data-device protocol once Core has a Wayland backend.
+
+Clipboard items use standard media type strings such as `text/plain;charset=utf-8`, `image/png`, and `application/octet-stream`. Core transports bytes and reports the media type; the caller owns interpretation, encoding, decoding, and validation. Windows, Linux/X11, and macOS support exact media-type byte items. Android supports text item read/write and URI-backed binary item reads from other apps; binary item writes on Android require a generated `ContentProvider` and are intentionally not faked.
 
 ---
 

@@ -59,8 +59,9 @@ struct Platform_Context
 	jmethodID file_dialog_save_method;
 	jmethodID content_open_fd_method;
 	jmethodID content_size_method;
-	jmethodID clipboard_read_text_method;
-	jmethodID clipboard_write_text_method;
+	jmethodID clipboard_query_media_types_method;
+	jmethodID clipboard_read_item_method;
+	jmethodID clipboard_write_item_method;
 	AInputQueue *input_queue;
 	ANativeWindow *native_window;
 	ANativeWindow *native_window_lease;
@@ -290,8 +291,9 @@ _platform_android_jni_bridge_init(Platform_Context *context, ANativeActivity *ac
 	context->file_dialog_save_method = _platform_android_jni_get_method(env, context->activity_class, "coreSaveFileDialog", "(JLjava/lang/String;)V");
 	context->content_open_fd_method = _platform_android_jni_get_method(env, context->activity_class, "coreOpenContentFd", "(Ljava/lang/String;Ljava/lang/String;)I");
 	context->content_size_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentSize", "(Ljava/lang/String;)J");
-	context->clipboard_read_text_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardReadText", "()Ljava/lang/String;");
-	context->clipboard_write_text_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardWriteText", "(Ljava/lang/String;)Z");
+	context->clipboard_query_media_types_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardQueryMediaTypes", "()Ljava/lang/String;");
+	context->clipboard_read_item_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardReadItem", "(Ljava/lang/String;)[B");
+	context->clipboard_write_item_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardWriteItem", "(Ljava/lang/String;[B)Z");
 }
 
 inline static void
@@ -313,8 +315,9 @@ _platform_android_jni_bridge_deinit(Platform_Context *context)
 	context->file_dialog_save_method = nullptr;
 	context->content_open_fd_method = nullptr;
 	context->content_size_method = nullptr;
-	context->clipboard_read_text_method = nullptr;
-	context->clipboard_write_text_method = nullptr;
+	context->clipboard_query_media_types_method = nullptr;
+	context->clipboard_read_item_method = nullptr;
+	context->clipboard_write_item_method = nullptr;
 	_platform_android_jni_detach(context, needs_detach);
 }
 
@@ -1982,12 +1985,64 @@ platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
 	return _platform_android_file_dialog_run(filters, true, allocator);
 }
 
-String
-platform_window_clipboard_read_text(Platform_Window &, memory::Allocator *allocator)
+inline static bool
+_platform_android_clipboard_media_type_is_text(const String &media_type)
 {
-	String result = string_init(allocator);
+	return media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 || media_type == "text/plain";
+}
+
+Array<String>
+platform_window_clipboard_query_media_types(Platform_Window &, memory::Allocator *allocator)
+{
+	Array<String> media_types = array_init<String>(allocator);
 	Platform_Context *context = _platform_android_context_get();
-	if (context->activity_object == nullptr || context->clipboard_read_text_method == nullptr)
+	if (context->activity_object == nullptr || context->clipboard_query_media_types_method == nullptr)
+		return media_types;
+
+	bool needs_detach = false;
+	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+	if (env == nullptr)
+		return media_types;
+
+	jstring media_types_string = (jstring)env->CallObjectMethod(context->activity_object, context->clipboard_query_media_types_method);
+	if (_platform_android_jni_clear_exception(env) || media_types_string == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return media_types;
+	}
+
+	const char *media_types_chars = env->GetStringUTFChars(media_types_string, nullptr);
+	if (media_types_chars)
+	{
+		const char *begin = media_types_chars;
+		for (const char *at = media_types_chars; ; ++at)
+		{
+			if (*at == '\n' || *at == '\0')
+			{
+				if (at != begin)
+					array_push(media_types, string_from(begin, at, allocator));
+				if (*at == '\0')
+					break;
+				begin = at + 1;
+			}
+		}
+		env->ReleaseStringUTFChars(media_types_string, media_types_chars);
+	}
+	env->DeleteLocalRef(media_types_string);
+	_platform_android_jni_detach(context, needs_detach);
+	return media_types;
+}
+
+Platform_Clipboard_Item
+platform_window_clipboard_item_read(Platform_Window &, const String &media_type, memory::Allocator *allocator)
+{
+	Platform_Clipboard_Item result {
+		.media_type = string_init(allocator),
+		.data = array_init<U8>(allocator)
+	};
+
+	Platform_Context *context = _platform_android_context_get();
+	if (context->activity_object == nullptr || context->clipboard_read_item_method == nullptr)
 		return result;
 
 	bool needs_detach = false;
@@ -1995,30 +2050,40 @@ platform_window_clipboard_read_text(Platform_Window &, memory::Allocator *alloca
 	if (env == nullptr)
 		return result;
 
-	jstring text_string = (jstring)env->CallObjectMethod(context->activity_object, context->clipboard_read_text_method);
-	if (_platform_android_jni_clear_exception(env) || text_string == nullptr)
+	jstring media_type_string = env->NewStringUTF(media_type.data ? media_type.data : "");
+	if (media_type_string == nullptr)
+	{
+		_platform_android_jni_clear_exception(env);
+		_platform_android_jni_detach(context, needs_detach);
+		return result;
+	}
+
+	jbyteArray data_array = (jbyteArray)env->CallObjectMethod(context->activity_object, context->clipboard_read_item_method, media_type_string);
+	env->DeleteLocalRef(media_type_string);
+	if (_platform_android_jni_clear_exception(env) || data_array == nullptr)
 	{
 		_platform_android_jni_detach(context, needs_detach);
 		return result;
 	}
 
-	const char *text_chars = env->GetStringUTFChars(text_string, nullptr);
-	if (text_chars)
-	{
-		string_deinit(result);
-		result = string_from(text_chars, allocator);
-		env->ReleaseStringUTFChars(text_string, text_chars);
-	}
-	env->DeleteLocalRef(text_string);
+	jsize data_count = env->GetArrayLength(data_array);
+	string_deinit(result.media_type);
+	result.media_type = _platform_android_clipboard_media_type_is_text(media_type) ? string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator) : string_copy(media_type, allocator);
+	array_resize(result.data, (U64)data_count);
+	if (data_count > 0)
+		env->GetByteArrayRegion(data_array, 0, data_count, (jbyte *)result.data.data);
+	env->DeleteLocalRef(data_array);
 	_platform_android_jni_detach(context, needs_detach);
 	return result;
 }
 
 bool
-platform_window_clipboard_write_text(Platform_Window &, const String &text)
+platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard_Item *items, U32 item_count)
 {
 	Platform_Context *context = _platform_android_context_get();
-	if (context->activity_object == nullptr || context->clipboard_write_text_method == nullptr)
+	if (items == nullptr || item_count != 1 || !_platform_android_clipboard_media_type_is_text(items[0].media_type))
+		return false;
+	if (context->activity_object == nullptr || context->clipboard_write_item_method == nullptr)
 		return false;
 
 	bool needs_detach = false;
@@ -2026,19 +2091,35 @@ platform_window_clipboard_write_text(Platform_Window &, const String &text)
 	if (env == nullptr)
 		return false;
 
-	jstring text_string = env->NewStringUTF(text.data ? text.data : "");
-	if (text_string == nullptr)
+	jstring media_type_string = env->NewStringUTF(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8);
+	jbyteArray data_array = env->NewByteArray((jsize)items[0].data.count);
+	if (media_type_string == nullptr || data_array == nullptr)
 	{
 		_platform_android_jni_clear_exception(env);
+		if (media_type_string)
+			env->DeleteLocalRef(media_type_string);
+		if (data_array)
+			env->DeleteLocalRef(data_array);
 		_platform_android_jni_detach(context, needs_detach);
 		return false;
 	}
 
-	bool result = env->CallBooleanMethod(context->activity_object, context->clipboard_write_text_method, text_string);
+	if (items[0].data.count > 0)
+		env->SetByteArrayRegion(data_array, 0, (jsize)items[0].data.count, (const jbyte *)items[0].data.data);
+	if (_platform_android_jni_clear_exception(env))
+	{
+		env->DeleteLocalRef(media_type_string);
+		env->DeleteLocalRef(data_array);
+		_platform_android_jni_detach(context, needs_detach);
+		return false;
+	}
+
+	bool result = env->CallBooleanMethod(context->activity_object, context->clipboard_write_item_method, media_type_string, data_array);
 	if (_platform_android_jni_clear_exception(env))
 		result = false;
 
-	env->DeleteLocalRef(text_string);
+	env->DeleteLocalRef(media_type_string);
+	env->DeleteLocalRef(data_array);
 	_platform_android_jni_detach(context, needs_detach);
 	return result;
 }

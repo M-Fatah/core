@@ -412,6 +412,16 @@ typedef struct Platform_Window_Native_Handles
 	void *context;
 } Platform_Window_Native_Handles;
 
+#define PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 "text/plain;charset=utf-8"
+#define PLATFORM_CLIPBOARD_MEDIA_TYPE_IMAGE_PNG "image/png"
+#define PLATFORM_CLIPBOARD_MEDIA_TYPE_BINARY "application/octet-stream"
+
+typedef struct Platform_Clipboard_Item
+{
+	String media_type;
+	Array<U8> data;
+} Platform_Clipboard_Item;
+
 CORE_API Platform_Api
 platform_api_init(const char *filepath);
 
@@ -521,11 +531,14 @@ platform_file_dialog_open(const char *filters, memory::Allocator *allocator = me
 CORE_API String
 platform_file_dialog_save(const char *filters, memory::Allocator *allocator = memory::heap_allocator());
 
-CORE_API String
-platform_window_clipboard_read_text(Platform_Window &window, memory::Allocator *allocator = memory::heap_allocator());
+CORE_API Array<String>
+platform_window_clipboard_query_media_types(Platform_Window &window, memory::Allocator *allocator = memory::heap_allocator());
+
+CORE_API Platform_Clipboard_Item
+platform_window_clipboard_item_read(Platform_Window &window, const String &media_type, memory::Allocator *allocator = memory::heap_allocator());
 
 CORE_API bool
-platform_window_clipboard_write_text(Platform_Window &window, const String &text);
+platform_window_clipboard_item_write(Platform_Window &window, const Platform_Clipboard_Item *items, U32 item_count);
 
 CORE_API U64
 platform_query_microseconds(void);
@@ -558,9 +571,10 @@ platform_callstack_resolve(void **callstack, Platform_Callstack_Frame *frames, U
 #ifdef __cplusplus
 }
 
-inline static bool
-platform_window_clipboard_write_text(Platform_Window &window, const char *text)
+inline static void
+platform_clipboard_item_deinit(Platform_Clipboard_Item &item)
 {
-	return platform_window_clipboard_write_text(window, string_literal(text));
+	string_deinit(item.media_type);
+	array_deinit(item.data);
 }
 #endif

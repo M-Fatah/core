@@ -128,6 +128,7 @@ elseif(ANDROID)
         |
         |import android.app.NativeActivity;
         |import android.content.ClipData;
+        |import android.content.ClipDescription;
         |import android.content.ClipboardManager;
         |import android.content.Context;
         |import android.content.Intent;
@@ -137,6 +138,9 @@ elseif(ANDROID)
         |import android.provider.OpenableColumns;
         |import android.webkit.MimeTypeMap;
         |
+        |import java.io.ByteArrayOutputStream;
+        |import java.io.InputStream;
+        |import java.nio.charset.StandardCharsets;
         |import java.util.Locale;
         |
         |public class CoreNativeActivity extends NativeActivity {
@@ -278,7 +282,7 @@ elseif(ANDROID)
         |        }
         |    }
         |
-        |    public String coreClipboardReadText() {
+        |    public String coreClipboardQueryMediaTypes() {
         |        try {
         |            ClipboardManager clipboard = (ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
         |            if (clipboard == null || !clipboard.hasPrimaryClip()) {
@@ -286,24 +290,105 @@ elseif(ANDROID)
         |            }
         |
         |            ClipData clip = clipboard.getPrimaryClip();
-        |            if (clip == null || clip.getItemCount() == 0) {
+        |            if (clip == null) {
         |                return "";
         |            }
         |
-        |            CharSequence text = clip.getItemAt(0).coerceToText(this);
-        |            return text != null ? text.toString() : "";
+        |            StringBuilder result = new StringBuilder();
+        |            ClipDescription description = clip.getDescription();
+        |            if (description != null) {
+        |                for (int i = 0; i < description.getMimeTypeCount(); ++i) {
+        |                    String mediaType = description.getMimeType(i);
+        |                    if (mediaType == null) {
+        |                        continue;
+        |                    }
+        |
+        |                    if (mediaType.equals(ClipDescription.MIMETYPE_TEXT_PLAIN) || mediaType.startsWith("text/")) {
+        |                        mediaType = "text/plain;charset=utf-8";
+        |                    }
+        |
+        |                    if (result.length() > 0) {
+        |                        result.append('\n');
+        |                    }
+        |                    result.append(mediaType);
+        |                }
+        |            }
+        |            return result.toString();
         |        } catch (Exception ignored) {
         |            return "";
         |        }
         |    }
         |
-        |    public boolean coreClipboardWriteText(String text) {
+        |    public byte[] coreClipboardReadItem(String mediaType) {
         |        try {
+        |            ClipboardManager clipboard = (ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
+        |            if (clipboard == null || !clipboard.hasPrimaryClip()) {
+        |                return null;
+        |            }
+        |
+        |            ClipData clip = clipboard.getPrimaryClip();
+        |            if (clip == null || clip.getItemCount() == 0) {
+        |                return null;
+        |            }
+        |
+        |            boolean wantsText = mediaType != null && (mediaType.equals("text/plain;charset=utf-8") || mediaType.equals(ClipDescription.MIMETYPE_TEXT_PLAIN));
+        |            if (wantsText) {
+        |                CharSequence text = clip.getItemAt(0).coerceToText(this);
+        |                return text != null ? text.toString().getBytes(StandardCharsets.UTF_8) : new byte[0];
+        |            }
+        |
+        |            for (int i = 0; i < clip.getItemCount(); ++i) {
+        |                Uri uri = clip.getItemAt(i).getUri();
+        |                if (uri == null) {
+        |                    continue;
+        |                }
+        |
+        |                String uriType = getContentResolver().getType(uri);
+        |                if (mediaType != null && uriType != null && !mediaType.equals(uriType)) {
+        |                    continue;
+        |                }
+        |
+        |                InputStream stream = null;
+        |                try {
+        |                    stream = getContentResolver().openInputStream(uri);
+        |                    if (stream == null) {
+        |                        continue;
+        |                    }
+        |
+        |                    ByteArrayOutputStream output = new ByteArrayOutputStream();
+        |                    byte[] buffer = new byte[8192];
+        |                    while (true) {
+        |                        int count = stream.read(buffer);
+        |                        if (count < 0) {
+        |                            break;
+        |                        }
+        |                        output.write(buffer, 0, count);
+        |                    }
+        |                    return output.toByteArray();
+        |                } finally {
+        |                    if (stream != null) {
+        |                        stream.close();
+        |                    }
+        |                }
+        |            }
+        |        } catch (Exception ignored) {
+        |        }
+        |
+        |        return null;
+        |    }
+        |
+        |    public boolean coreClipboardWriteItem(String mediaType, byte[] data) {
+        |        try {
+        |            if (mediaType == null || (!mediaType.equals("text/plain;charset=utf-8") && !mediaType.equals(ClipDescription.MIMETYPE_TEXT_PLAIN))) {
+        |                return false;
+        |            }
+        |
         |            ClipboardManager clipboard = (ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
         |            if (clipboard == null) {
         |                return false;
         |            }
         |
+        |            String text = data != null ? new String(data, StandardCharsets.UTF_8) : "";
         |            clipboard.setPrimaryClip(ClipData.newPlainText("Core", text != null ? text : ""));
         |            return true;
         |        } catch (Exception ignored) {
