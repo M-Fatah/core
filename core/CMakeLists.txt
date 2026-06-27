@@ -209,6 +209,7 @@ elseif(ANDROID)
         |    private int coreWindowNavigationBarColor;
         |    private int coreWindowCutoutMode;
         |
+        |    private static native void nativeActivityDestroying(boolean changingConfigurations, boolean finishing);
         |    private static native void nativeFileDialogResult(long requestId, boolean accepted, String uri);
         |    private static native void nativeTextInputCommit(byte[] text);
         |    private static native void nativeTextInputCompose(byte[] text);
@@ -1259,6 +1260,12 @@ elseif(ANDROID)
         |        } catch (Exception ignored) {
         |            return false;
         |        }
+        |    }
+        |
+        |    @Override
+        |    protected void onDestroy() {
+        |        nativeActivityDestroying(isChangingConfigurations(), isFinishing());
+        |        super.onDestroy();
         |    }
         |
         |    @Override

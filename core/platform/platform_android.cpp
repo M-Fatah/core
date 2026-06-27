@@ -103,15 +103,20 @@ struct Platform_Context
 	U32 text_input_selection_end;
 	U32 text_input_composing_start;
 	U32 text_input_composing_end;
+	String text_input_text;
 	U64 file_dialog_next_id;
 	U64 file_dialog_active_id;
 	String file_dialog_path;
 	bool input_queue_attached;
 	bool close_requested;
+	bool started;
 	bool paused;
 	bool focused;
+	bool low_memory;
+	bool save_state_requested;
 	bool surface_changed;
 	bool content_rect_valid;
+	bool activity_recreation_pending;
 	bool window_deinitialized;
 	bool window_deinit_in_progress;
 	bool file_dialog_waiting;
@@ -124,6 +129,12 @@ static Platform_Context *_platform_android_context = nullptr;
 
 inline static void
 _platform_android_context_try_deinit(Platform_Context *context, bool window_deinit_finished = false);
+
+inline static void
+_platform_android_window_presentation_set(Platform_Context *context, const Platform_Window_Presentation_Desc &desc);
+
+inline static void
+_platform_android_text_input_set(Platform_Context *context, const Platform_Text_Input_Desc &desc);
 
 inline static Platform_Context *
 _platform_android_context_get()
@@ -559,6 +570,59 @@ _platform_android_on_resume(ANativeActivity *activity)
 }
 
 inline static void
+_platform_android_on_start(ANativeActivity *activity)
+{
+	Platform_Context *context = _platform_android_context_from_activity(activity);
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		DEFER(_platform_android_context_unlock(context););
+		context->started = true;
+	}
+}
+
+inline static void
+_platform_android_on_stop(ANativeActivity *activity)
+{
+	Platform_Context *context = _platform_android_context_from_activity(activity);
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		DEFER(_platform_android_context_unlock(context););
+		context->started = false;
+		context->focused = false;
+	}
+}
+
+inline static void
+_platform_android_on_low_memory(ANativeActivity *activity)
+{
+	Platform_Context *context = _platform_android_context_from_activity(activity);
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		DEFER(_platform_android_context_unlock(context););
+		context->low_memory = true;
+	}
+}
+
+inline static void *
+_platform_android_on_save_instance_state(ANativeActivity *activity, size_t *out_size)
+{
+	if (out_size)
+		*out_size = 0;
+
+	Platform_Context *context = _platform_android_context_from_activity(activity);
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		DEFER(_platform_android_context_unlock(context););
+		context->save_state_requested = true;
+	}
+	return nullptr;
+}
+
+inline static void
 _platform_android_on_pause(ANativeActivity *activity)
 {
 	Platform_Context *context = _platform_android_context_from_activity(activity);
@@ -578,9 +642,18 @@ _platform_android_on_destroy(ANativeActivity *activity)
 	{
 		_platform_android_context_lock(context);
 		DEFER(_platform_android_context_unlock(context););
-		context->close_requested = true;
+		bool recreating = context->activity_recreation_pending && !context->window_deinitialized && !context->window_deinit_in_progress;
+		if (!recreating)
+			context->close_requested = true;
+		context->started = false;
+		context->paused = true;
+		context->focused = false;
 		context->activity = nullptr;
 		activity->instance = nullptr;
+		_platform_android_input_queue_detach_locked(context);
+		context->input_queue = nullptr;
+		_platform_android_window_lease_release_locked(context);
+		_platform_android_window_set_locked(context, nullptr);
 		_platform_android_file_dialog_cancel_locked(context);
 	}
 	_platform_android_context_try_deinit(context);
@@ -1081,23 +1154,13 @@ _platform_input_reset_transitions(Platform_Input *input)
 }
 
 inline static void
-_platform_android_context_init(ANativeActivity *activity)
+_platform_android_activity_callbacks_set(ANativeActivity *activity)
 {
-	validate(_platform_android_context == nullptr, "[PLATFORM][ANDROID]: Android context is already initialized.");
-	validate(activity != nullptr, "[PLATFORM][ANDROID]: NativeActivity is required.");
-	validate(activity->callbacks != nullptr, "[PLATFORM][ANDROID]: NativeActivity callbacks are required.");
-
-	Platform_Context *context = memory::allocate_zeroed<Platform_Context>();
-	context->activity = activity;
-	context->asset_manager = activity->assetManager;
-	context->text_input_events = array_init<Platform_Text_Input_Event>();
-	validate(::pthread_mutex_init(&context->mutex, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize context mutex.");
-	validate(::pthread_cond_init(&context->file_dialog_condition, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize file dialog condition.");
-	_platform_android_jni_bridge_init(context, activity);
-
-	activity->instance = context;
+	activity->callbacks->onStart = _platform_android_on_start;
 	activity->callbacks->onResume = _platform_android_on_resume;
+	activity->callbacks->onSaveInstanceState = _platform_android_on_save_instance_state;
 	activity->callbacks->onPause = _platform_android_on_pause;
+	activity->callbacks->onStop = _platform_android_on_stop;
 	activity->callbacks->onDestroy = _platform_android_on_destroy;
 	activity->callbacks->onWindowFocusChanged = _platform_android_on_window_focus_changed;
 	activity->callbacks->onNativeWindowCreated = _platform_android_on_native_window_created;
@@ -1108,8 +1171,74 @@ _platform_android_context_init(ANativeActivity *activity)
 	activity->callbacks->onInputQueueCreated = _platform_android_on_input_queue_created;
 	activity->callbacks->onInputQueueDestroyed = _platform_android_on_input_queue_destroyed;
 	activity->callbacks->onConfigurationChanged = _platform_android_on_configuration_changed;
+	activity->callbacks->onLowMemory = _platform_android_on_low_memory;
+}
+
+inline static bool
+_platform_android_context_init(ANativeActivity *activity)
+{
+	validate(activity != nullptr, "[PLATFORM][ANDROID]: NativeActivity is required.");
+	validate(activity->callbacks != nullptr, "[PLATFORM][ANDROID]: NativeActivity callbacks are required.");
+
+	if (_platform_android_context)
+	{
+		Platform_Context *context = _platform_android_context;
+		_platform_android_context_lock(context);
+		bool can_rebind = context->activity == nullptr && context->activity_recreation_pending && !context->window_deinitialized && !context->window_deinit_in_progress;
+		_platform_android_context_unlock(context);
+		validate(can_rebind, "[PLATFORM][ANDROID]: Android context is already initialized.");
+
+		_platform_android_jni_bridge_deinit(context);
+		_platform_android_jni_bridge_init(context, activity);
+
+		_platform_android_context_lock(context);
+		context->activity = activity;
+		context->asset_manager = activity->assetManager;
+		context->close_requested = false;
+		context->started = true;
+		context->paused = false;
+		context->focused = false;
+		context->surface_changed = true;
+		context->activity_recreation_pending = false;
+		activity->instance = context;
+		_platform_android_activity_callbacks_set(activity);
+		_platform_android_metrics_update_locked(context);
+		Platform_Window_Presentation_Desc presentation_desc = context->presentation;
+		Platform_Text_Input_Desc text_input_desc {
+			.x = context->text_input_x,
+			.y = context->text_input_y,
+			.width = context->text_input_width,
+			.height = context->text_input_height,
+			.flags = context->text_input_flags,
+			.action = context->text_input_action,
+			.text = string_copy(context->text_input_text, memory::temp_allocator()),
+			.selection_start = context->text_input_selection_start,
+			.selection_end = context->text_input_selection_end,
+			.composing_start = context->text_input_composing_start,
+			.composing_end = context->text_input_composing_end,
+			.enabled = context->text_input_active
+		};
+		_platform_android_context_unlock(context);
+		_platform_android_window_presentation_set(context, presentation_desc);
+		if (text_input_desc.enabled)
+			_platform_android_text_input_set(context, text_input_desc);
+		return false;
+	}
+
+	Platform_Context *context = memory::allocate_zeroed<Platform_Context>();
+	context->activity = activity;
+	context->asset_manager = activity->assetManager;
+	context->started = true;
+	context->text_input_events = array_init<Platform_Text_Input_Event>();
+	validate(::pthread_mutex_init(&context->mutex, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize context mutex.");
+	validate(::pthread_cond_init(&context->file_dialog_condition, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize file dialog condition.");
+	_platform_android_jni_bridge_init(context, activity);
+
+	activity->instance = context;
+	_platform_android_activity_callbacks_set(activity);
 
 	_platform_android_context = context;
+	return true;
 }
 
 inline static void
@@ -1140,16 +1269,30 @@ _platform_android_context_try_deinit(Platform_Context *context, bool window_dein
 	_platform_android_jni_bridge_deinit(context);
 	_platform_android_text_input_events_reset(context->text_input_events);
 	array_deinit(context->text_input_events);
+	if (context->text_input_text.capacity > 0)
+		string_deinit(context->text_input_text);
 	validate(::pthread_cond_destroy(&context->file_dialog_condition) == 0, "[PLATFORM][ANDROID]: Failed to destroy file dialog condition.");
 	validate(::pthread_mutex_destroy(&context->mutex) == 0, "[PLATFORM][ANDROID]: Failed to destroy context mutex.");
 	memory::deallocate(context);
 }
 
-extern "C" CORE_API void
+extern "C" CORE_API bool
 platform_android_native_activity_on_create(void *native_activity, void *saved_state, U64 saved_state_size)
 {
 	unused(saved_state, saved_state_size);
-	_platform_android_context_init((ANativeActivity *)native_activity);
+	return _platform_android_context_init((ANativeActivity *)native_activity);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_core_android_CoreNativeActivity_nativeActivityDestroying(JNIEnv *, jclass, jboolean changing_configurations, jboolean finishing)
+{
+	Platform_Context *context = _platform_android_context;
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		context->activity_recreation_pending = changing_configurations && !finishing;
+		_platform_android_context_unlock(context);
+	}
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -2556,7 +2699,10 @@ platform_window_init(U32, U32, const char *)
 		.text_input = {},
 		.close_requested = context->close_requested,
 		.focused = context->focused,
+		.started = context->started,
 		.paused = context->paused,
+		.low_memory = false,
+		.save_state_requested = false,
 		.surface_valid = context->native_window != nullptr,
 		.surface_changed = context->native_window != nullptr
 	};
@@ -2576,6 +2722,10 @@ platform_window_deinit(Platform_Window *self)
 		context->window_deinit_in_progress = true;
 		context->window_deinitialized = true;
 		context->close_requested = true;
+		context->text_input_active = false;
+		if (context->text_input_text.capacity > 0)
+			string_deinit(context->text_input_text);
+		context->text_input_text = {};
 		_platform_android_input_queue_detach_locked(context);
 		_platform_android_window_lease_release_locked(context);
 		_platform_android_window_set_locked(context, nullptr);
@@ -2594,6 +2744,9 @@ platform_window_deinit(Platform_Window *self)
 	self->input = {};
 	self->text_input = {};
 	self->close_requested = true;
+	self->started = false;
+	self->low_memory = false;
+	self->save_state_requested = false;
 	self->surface_valid = false;
 	self->surface_changed = true;
 
@@ -2640,8 +2793,11 @@ platform_window_poll(Platform_Window *self)
 	}
 
 	bool close_requested = false;
+	bool started = false;
 	bool paused = false;
 	bool focused = false;
+	bool low_memory = false;
+	bool save_state_requested = false;
 	bool surface_valid = false;
 	ANativeActivity *activity = nullptr;
 	_platform_android_context_lock(context);
@@ -2681,8 +2837,13 @@ platform_window_poll(Platform_Window *self)
 	}
 	context->text_input_events.count = 0;
 	close_requested = context->close_requested;
+	started = context->started;
 	paused = context->paused;
 	focused = context->focused;
+	low_memory = context->low_memory;
+	save_state_requested = context->save_state_requested;
+	context->low_memory = false;
+	context->save_state_requested = false;
 	surface_valid = context->native_window != nullptr;
 	surface_changed = surface_changed || context->surface_changed;
 	context->surface_changed = false;
@@ -2695,7 +2856,10 @@ platform_window_poll(Platform_Window *self)
 
 	self->close_requested = close_requested;
 	self->focused = focused;
+	self->started = started;
 	self->paused = paused;
+	self->low_memory = low_memory;
+	self->save_state_requested = save_state_requested;
 	self->surface_valid = surface_valid;
 	self->surface_changed = surface_changed;
 	return !close_requested;
@@ -2743,6 +2907,7 @@ platform_window_close(Platform_Window *self)
 	_platform_android_context_unlock(context);
 
 	self->close_requested = true;
+	self->started = false;
 	self->surface_valid = false;
 	if (activity)
 		::ANativeActivity_finish(activity);
@@ -2821,22 +2986,26 @@ platform_window_text_input_set(Platform_Window &window, const Platform_Text_Inpu
 	if (context == nullptr)
 		return;
 
-	window.text_input = desc;
+	Platform_Text_Input_Desc text_input_desc = desc;
+	window.text_input = text_input_desc;
 	window.text_input.text = {};
-	if (desc.enabled)
+	if (text_input_desc.enabled)
 	{
 		_platform_android_context_lock(context);
 		context->text_input_active = true;
-		context->text_input_x = desc.x;
-		context->text_input_y = desc.y;
-		context->text_input_width = desc.width;
-		context->text_input_height = desc.height;
-		context->text_input_flags = desc.flags;
-		context->text_input_action = desc.action;
-		context->text_input_selection_start = desc.selection_start;
-		context->text_input_selection_end = desc.selection_end;
-		context->text_input_composing_start = desc.composing_start;
-		context->text_input_composing_end = desc.composing_end;
+		context->text_input_x = text_input_desc.x;
+		context->text_input_y = text_input_desc.y;
+		context->text_input_width = text_input_desc.width;
+		context->text_input_height = text_input_desc.height;
+		context->text_input_flags = text_input_desc.flags;
+		context->text_input_action = text_input_desc.action;
+		context->text_input_selection_start = text_input_desc.selection_start;
+		context->text_input_selection_end = text_input_desc.selection_end;
+		context->text_input_composing_start = text_input_desc.composing_start;
+		context->text_input_composing_end = text_input_desc.composing_end;
+		if (context->text_input_text.capacity > 0)
+			string_deinit(context->text_input_text);
+		context->text_input_text = string_copy(text_input_desc.text);
 		_platform_android_context_unlock(context);
 	}
 	else
@@ -2853,11 +3022,14 @@ platform_window_text_input_set(Platform_Window &window, const Platform_Text_Inpu
 		context->text_input_selection_end = 0;
 		context->text_input_composing_start = 0;
 		context->text_input_composing_end = 0;
+		if (context->text_input_text.capacity > 0)
+			string_deinit(context->text_input_text);
+		context->text_input_text = {};
 		_platform_android_text_input_events_reset(context->text_input_events);
 		_platform_android_context_unlock(context);
 	}
 
-	_platform_android_text_input_set(context, desc);
+	_platform_android_text_input_set(context, text_input_desc);
 }
 
 void
@@ -3000,7 +3172,8 @@ platform_file_seek(Platform_File_Handle handle, I64 offset, Platform_File_Seek_O
 U64
 platform_file_tell(Platform_File_Handle handle)
 {
-	return (U64)::lseek(_platform_file_handle_to_fd(handle), 0, SEEK_CUR);
+	off_t offset = ::lseek(_platform_file_handle_to_fd(handle), 0, SEEK_CUR);
+	return offset == (off_t)-1 ? 0 : (U64)offset;
 }
 
 U64

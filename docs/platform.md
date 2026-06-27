@@ -133,7 +133,7 @@ The app entrypoint hands `ANativeActivity` to Core before app code creates a pla
 #include <android/native_activity.h>
 #include <pthread.h>
 
-extern "C" void
+extern "C" bool
 platform_android_native_activity_on_create(void *native_activity, void *saved_state, U64 saved_state_size);
 
 extern "C" void
@@ -149,7 +149,9 @@ _android_app_thread_main(void *)
 extern "C" __attribute__((visibility("default"))) void
 ANativeActivity_onCreate(ANativeActivity *activity, void *saved_state, size_t saved_state_size)
 {
-	platform_android_native_activity_on_create(activity, saved_state, (U64)saved_state_size);
+	bool start_app_thread = platform_android_native_activity_on_create(activity, saved_state, (U64)saved_state_size);
+	if (!start_app_thread)
+		return;
 
 	pthread_t thread = {};
 	validate(::pthread_create(&thread, nullptr, _android_app_thread_main, nullptr) == 0, "[ANDROID]: Failed to create app thread.");
@@ -157,9 +159,9 @@ ANativeActivity_onCreate(ANativeActivity *activity, void *saved_state, size_t sa
 }
 ```
 
-The Android app thread must leave its loop when `platform_window_poll` returns false and must call `platform_window_deinit` before the process starts another Core Android window. Core requests that shutdown from Activity destroy and Back/close events.
+The Android app thread must leave its loop when `platform_window_poll` returns false and must call `platform_window_deinit` before the process starts another Core Android window. Core requests that shutdown from Activity finish, Back, and close events. `platform_android_native_activity_on_create` returns false when Android recreated the Activity for a configuration change and Core rebound the new Activity to the existing app thread; in that case the entrypoint must not start a second app thread.
 
-`saved_state` is accepted by `platform_android_native_activity_on_create` because Android passes it to `ANativeActivity_onCreate`, but Core does not interpret or restore those bytes. The app owns durable state restoration through its own save files, project files, or app-specific serialization. Core recreates platform objects such as the Activity context, native window, input queue, asset manager, and Java bridge; app/game/editor state must be rebuilt by the client.
+`saved_state` is accepted by `platform_android_native_activity_on_create` because Android passes it to `ANativeActivity_onCreate`, but Core does not interpret or restore those bytes. The app owns durable state restoration through its own save files, project files, or app-specific serialization. `Platform_Window::save_state_requested` is a one-poll signal that Android requested state persistence; use it to flush app-owned state. Core recreates platform objects such as the Activity context, native window, input queue, asset manager, and Java bridge; app/game/editor state must be rebuilt by the client.
 
 The app shared library links Core:
 
@@ -214,7 +216,7 @@ The app manifest declares Core's generated `NativeActivity` subclass and names t
 </manifest>
 ```
 
-The `configChanges` list is part of the Core NativeActivity contract. Android should deliver those changes to the existing Activity while Core owns the app loop; if an app intentionally allows Activity recreation, it must wait until the old app thread exits and `platform_window_deinit` has released the Core Android context before initializing Core again.
+The `configChanges` list is still recommended because it avoids avoidable Activity churn while Core owns the app loop. If Android recreates `core.android.CoreNativeActivity` for a configuration change, Core preserves the existing Android context, rebinds the new Activity, reapplies window presentation policy, and `platform_android_native_activity_on_create` returns false so the app does not create a second thread. If the Activity is finishing, the existing app thread must exit through `platform_window_poll` and call `platform_window_deinit` before a new Core Android window is started.
 
 APK packaging belongs in the app repo. A CMake-only app can package with Android SDK tools (`aapt2`, `zipalign`, `apksigner`, `adb`), or the app can use Gradle. Either way, package `libmy_android_app.so` into `lib/<abi>/`, package Core resources into APK `assets/`, sign the APK, install it, then launch the manifest package.
 
@@ -270,7 +272,10 @@ platform_window_presentation_set(window, presentation);
 ```
 
 `Platform_Window::presentation` stores the requested state. `Platform_Window::metrics.safe_area` stores the observed area that should stay unobstructed by system UI. On Android, fullscreen, immersive, keep-screen-on, edge-to-edge/cutout behavior, and orientation policy are applied through Core's generated `CoreNativeActivity` bridge. On desktop, fullscreen maps to the native fullscreen path, keep-screen-on maps to the platform display-inhibit API, and orientation policy is stored but has no OS window meaning.
+`Platform_Window::started` tracks Android Activity start/stop visibility and remains true on desktop platforms.
 `Platform_Window::paused` is driven by Android Activity pause/resume and remains false on desktop platforms.
+`Platform_Window::low_memory` is a one-poll platform memory-pressure signal. On Android it is driven by `onLowMemory`; on desktop it remains false.
+`Platform_Window::save_state_requested` is a one-poll platform request to persist app-owned state. On Android it is driven by `onSaveInstanceState`; Core returns no Android saved-state blob.
 Android windows use the normal `platform_window_init` entry point. The app-side NativeActivity shim initializes Core before app code creates the window.
 
 Android soft keyboard input uses Core's generated `CoreNativeActivity` bridge. The bridge creates the Android `InputConnection` endpoint internally; app code only enables a text-input session through Core and consumes text-input events from `platform_window_poll`.
@@ -337,7 +342,7 @@ String path = platform_file_dialog_save("Scene (*.scene)\0*.scene\0", memory::te
 
 File dialogs are currently implemented on Windows, Linux, macOS, and Android. Linux uses `xdg-desktop-portal` through D-Bus because it is toolkit-neutral and works across modern X11, Wayland, and sandboxed desktops; helper executables such as `zenity` are intentionally avoided.
 
-Android dialogs use the system Storage Access Framework through Core's generated `CoreNativeActivity` bridge. The selected value is a `content://` URI, not a normal filesystem path. Pass that URI back into Core file APIs such as `platform_file_read`, `platform_file_write`, `platform_file_open`, and `platform_path_read_file`; do not pass it to non-Core POSIX APIs. Android extension filters are best effort because SAF filters by MIME type.
+Android dialogs use the system Storage Access Framework through Core's generated `CoreNativeActivity` bridge. The selected value is a `content://` URI, not a normal filesystem path. Pass that URI back into Core file APIs such as `platform_file_read`, `platform_file_write`, `platform_file_open`, and `platform_path_read_file`; do not pass it to non-Core POSIX APIs. Android extension filters are best effort because SAF filters by MIME type. Some `content://` providers expose stream-like file descriptors that cannot seek; `platform_file_seek` returns false for those handles, and `platform_file_tell` returns 0 when the provider rejects tell/seek.
 
 ```cpp
 String directory = platform_directory_dialog_open(memory::temp_allocator());

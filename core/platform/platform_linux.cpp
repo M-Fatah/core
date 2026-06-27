@@ -1186,6 +1186,7 @@ platform_window_init(U32 width, U32 height, const char *title)
 		.metrics = _platform_linux_window_metrics(display, width, height),
 		.input  = {},
 		.focused = true,
+		.started = true,
 		.surface_valid = true,
 		.surface_changed = true
 	};
@@ -1210,6 +1211,7 @@ platform_window_deinit(Platform_Window *self)
 	self->handle = nullptr;
 	self->metrics = {};
 	self->close_requested = true;
+	self->started = false;
 	self->surface_valid = false;
 	_platform_linux_text_input_events_reset(self->input);
 	array_deinit(self->input.text_input_events);
@@ -1221,6 +1223,8 @@ platform_window_poll(Platform_Window *self)
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 	bool surface_changed = self->surface_changed;
 	self->surface_changed = false;
+	self->low_memory = false;
+	self->save_state_requested = false;
 
 	for (I32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{

@@ -164,7 +164,7 @@ target_link_libraries(my_android_app PRIVATE core)
 get_target_property(CORE_ANDROID_JAVA_SOURCE_DIR core CORE_ANDROID_JAVA_SOURCE_DIR)
 ```
 
-The app owns `ANativeActivity_onCreate`, the manifest, APK packaging, Java compilation, signing, install, and launch steps. See [`docs/platform.md`](docs/platform.md) for the minimal entrypoint and packaging recipe.
+The app owns `ANativeActivity_onCreate`, the manifest, APK packaging, Java compilation, signing, install, and launch steps. The Core NativeActivity handoff returns whether the app should start a new app thread, which prevents duplicate threads when Android recreates an Activity for configuration changes. See [`docs/platform.md`](docs/platform.md) for the minimal entrypoint and packaging recipe.
 
 ## CMake Options
 

@@ -629,7 +629,10 @@ typedef struct Platform_Window
 	U16 text_input_pending_surrogate;
 	bool close_requested; // Window should stop running.
 	bool focused;         // Window is the active input target when the platform can report it.
+	bool started;         // Window/app is in the started/visible lifecycle; true on desktop.
 	bool paused;          // App/window is paused by the platform; false on desktop.
+	bool low_memory;      // Transient platform memory pressure signal for this poll.
+	bool save_state_requested; // Transient platform request to persist app state for this poll.
 	bool surface_valid;   // Native render surface exists.
 	bool surface_changed; // Native render surface or size changed since the previous poll.
 } Platform_Window;
@@ -698,7 +701,7 @@ platform_window_deinit(Platform_Window *self);
 /**
  * @brief Poll events from the supplied platform window.
  * @param self a pointer to the platform window to poll.
- * Updates Platform_Window input, size, close, focus, pause, and surface fields.
+ * Updates Platform_Window input, size, close, focus, lifecycle, memory pressure, state-save, and surface fields.
  * @return 'false' when window is closed.
  */
 CORE_API bool

@@ -1229,6 +1229,7 @@ platform_window_init(U32 width, U32 height, const char *title)
 		.metrics = _platform_macos_window_metrics(ctx, width, height),
 		.input  = {},
 		.focused = true,
+		.started = true,
 		.surface_valid = true,
 		.surface_changed = true
 	};
@@ -1259,6 +1260,7 @@ platform_window_deinit(Platform_Window *self)
 	self->metrics = {};
 	self->presentation = {};
 	self->close_requested = true;
+	self->started = false;
 	self->surface_valid = false;
 	_platform_macos_text_input_events_reset(self->input);
 	array_deinit(self->input.text_input_events);
@@ -1270,6 +1272,8 @@ platform_window_poll(Platform_Window *self)
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 	bool surface_changed = self->surface_changed;
 	self->surface_changed = false;
+	self->low_memory = false;
+	self->save_state_requested = false;
 
 	for (I32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{
@@ -1424,14 +1428,15 @@ void
 platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
-	window.text_input = desc;
+	Platform_Text_Input_Desc text_input_desc = desc;
+	window.text_input = text_input_desc;
 	window.text_input.text = {};
 	if (ctx->text_input_text.capacity > 0)
 		string_deinit(ctx->text_input_text);
-	ctx->text_input = desc;
+	ctx->text_input = text_input_desc;
 	ctx->text_input.text = {};
-	ctx->text_input_text = desc.enabled && desc.text.count > 0 ? string_copy(desc.text) : String {};
-	if (desc.enabled)
+	ctx->text_input_text = text_input_desc.enabled && text_input_desc.text.count > 0 ? string_copy(text_input_desc.text) : String {};
+	if (text_input_desc.enabled)
 		[ctx->window makeFirstResponder:ctx->content_view];
 }
 

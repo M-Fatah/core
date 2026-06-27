@@ -102,7 +102,7 @@ jobs:
             #include <android/native_activity.h>
             #include <stddef.h>
 
-            extern "C" void
+            extern "C" bool
             platform_android_native_activity_on_create(void *native_activity, void *saved_state, U64 saved_state_size);
 
             extern "C" __attribute__((visibility("default"))) void
