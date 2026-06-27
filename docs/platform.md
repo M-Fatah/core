@@ -274,7 +274,7 @@ platform_window_presentation_set(window, presentation);
 `Platform_Window::presentation` stores the requested state. `Platform_Window::metrics.safe_area` stores the observed area that should stay unobstructed by system UI. On Android, fullscreen, immersive, keep-screen-on, edge-to-edge/cutout behavior, and orientation policy are applied through Core's generated `CoreNativeActivity` bridge. On desktop, fullscreen maps to the native fullscreen path, keep-screen-on maps to the platform display-inhibit API, and orientation policy is stored but has no OS window meaning.
 `Platform_Window::started` tracks Android Activity start/stop visibility and remains true on desktop platforms.
 `Platform_Window::paused` is driven by Android Activity pause/resume and remains false on desktop platforms.
-`Platform_Window::low_memory` is a one-poll platform memory-pressure signal. On Android it is driven by `onLowMemory`; on desktop it remains false.
+`Platform_Window::low_memory` is a one-poll platform memory-pressure signal. On Android it is driven by `onLowMemory` and memory-pressure `onTrimMemory` levels; on desktop it remains false.
 `Platform_Window::save_state_requested` is a one-poll platform request to persist app-owned state. On Android it is driven by `onSaveInstanceState`; Core returns no Android saved-state blob.
 Android windows use the normal `platform_window_init` entry point. The app-side NativeActivity shim initializes Core before app code creates the window.
 

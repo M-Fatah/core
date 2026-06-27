@@ -134,6 +134,7 @@ elseif(ANDROID)
         |import android.content.ClipData;
         |import android.content.ClipDescription;
         |import android.content.ClipboardManager;
+        |import android.content.ComponentCallbacks2;
         |import android.content.Context;
         |import android.content.Intent;
         |import android.database.Cursor;
@@ -210,6 +211,7 @@ elseif(ANDROID)
         |    private int coreWindowCutoutMode;
         |
         |    private static native void nativeActivityDestroying(boolean changingConfigurations, boolean finishing);
+        |    private static native void nativeMemoryPressure();
         |    private static native void nativeFileDialogResult(long requestId, boolean accepted, String uri);
         |    private static native void nativeTextInputCommit(byte[] text);
         |    private static native void nativeTextInputCompose(byte[] text);
@@ -1266,6 +1268,14 @@ elseif(ANDROID)
         |    protected void onDestroy() {
         |        nativeActivityDestroying(isChangingConfigurations(), isFinishing());
         |        super.onDestroy();
+        |    }
+        |
+        |    @Override
+        |    public void onTrimMemory(int level) {
+        |        super.onTrimMemory(level);
+        |        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW && level != ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
+        |            nativeMemoryPressure();
+        |        }
         |    }
         |
         |    @Override

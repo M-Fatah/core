@@ -312,63 +312,126 @@ _platform_android_jni_get_method(JNIEnv *env, jclass klass, const char *name, co
 	return method;
 }
 
-inline static void
+inline static bool
 _platform_android_jni_bridge_init(Platform_Context *context, ANativeActivity *activity)
 {
-	context->vm = activity->vm;
+	JavaVM *vm = activity->vm;
 	JNIEnv *env = activity->env;
 	if (env == nullptr || activity->clazz == nullptr)
-		return;
+		return false;
 
-	context->activity_object = env->NewGlobalRef(activity->clazz);
-	if (_platform_android_jni_clear_exception(env) || context->activity_object == nullptr)
-		return;
+	jobject activity_object = env->NewGlobalRef(activity->clazz);
+	if (_platform_android_jni_clear_exception(env) || activity_object == nullptr)
+		return false;
+	DEFER(if (activity_object) env->DeleteGlobalRef(activity_object););
 
 	jclass activity_class = env->GetObjectClass(activity->clazz);
 	if (_platform_android_jni_clear_exception(env) || activity_class == nullptr)
-		return;
+		return false;
+	DEFER(env->DeleteLocalRef(activity_class););
 
-	context->activity_class = (jclass)env->NewGlobalRef(activity_class);
-	env->DeleteLocalRef(activity_class);
-	if (_platform_android_jni_clear_exception(env) || context->activity_class == nullptr)
-		return;
+	jclass activity_class_global = (jclass)env->NewGlobalRef(activity_class);
+	if (_platform_android_jni_clear_exception(env) || activity_class_global == nullptr)
+		return false;
+	DEFER(if (activity_class_global) env->DeleteGlobalRef(activity_class_global););
 
-	context->file_dialog_open_method = _platform_android_jni_get_method(env, context->activity_class, "coreOpenFileDialog", "(JLjava/lang/String;)V");
-	context->file_dialog_save_method = _platform_android_jni_get_method(env, context->activity_class, "coreSaveFileDialog", "(JLjava/lang/String;)V");
-	context->directory_dialog_open_method = _platform_android_jni_get_method(env, context->activity_class, "coreOpenDirectoryDialog", "(J)V");
-	context->app_data_directory_method = _platform_android_jni_get_method(env, context->activity_class, "coreAppDataDirectory", "()Ljava/lang/String;");
-	context->cache_directory_method = _platform_android_jni_get_method(env, context->activity_class, "coreCacheDirectory", "()Ljava/lang/String;");
-	context->content_open_fd_method = _platform_android_jni_get_method(env, context->activity_class, "coreOpenContentFd", "(Ljava/lang/String;Ljava/lang/String;)I");
-	context->content_size_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentSize", "(Ljava/lang/String;)J");
-	context->content_delete_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentDelete", "(Ljava/lang/String;)Z");
-	context->content_is_directory_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentIsDirectory", "(Ljava/lang/String;)Z");
-	context->content_display_name_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentDisplayName", "(Ljava/lang/String;)Ljava/lang/String;");
-	context->content_list_files_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentListFiles", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
-	context->content_list_files_recursive_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentListFilesRecursive", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
-	context->content_create_file_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentCreateFile", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
-	context->content_create_directory_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentCreateDirectory", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
-	context->content_rename_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentRename", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
-	context->content_move_method = _platform_android_jni_get_method(env, context->activity_class, "coreContentMove", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
-	context->clipboard_query_media_types_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardQueryMediaTypes", "()Ljava/lang/String;");
-	context->clipboard_read_item_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardReadItem", "(Ljava/lang/String;)[B");
-	context->clipboard_write_items_method = _platform_android_jni_get_method(env, context->activity_class, "coreClipboardWriteItems", "([Ljava/lang/String;[[B)Z");
-	context->window_presentation_set_method = _platform_android_jni_get_method(env, context->activity_class, "coreWindowPresentationSet", "(II)V");
-	context->text_input_set_method = _platform_android_jni_get_method(env, context->activity_class, "coreTextInputSet", "(ZIIIIII[BIIII)V");
+	jmethodID file_dialog_open_method = _platform_android_jni_get_method(env, activity_class_global, "coreOpenFileDialog", "(JLjava/lang/String;)V");
+	jmethodID file_dialog_save_method = _platform_android_jni_get_method(env, activity_class_global, "coreSaveFileDialog", "(JLjava/lang/String;)V");
+	jmethodID directory_dialog_open_method = _platform_android_jni_get_method(env, activity_class_global, "coreOpenDirectoryDialog", "(J)V");
+	jmethodID app_data_directory_method = _platform_android_jni_get_method(env, activity_class_global, "coreAppDataDirectory", "()Ljava/lang/String;");
+	jmethodID cache_directory_method = _platform_android_jni_get_method(env, activity_class_global, "coreCacheDirectory", "()Ljava/lang/String;");
+	jmethodID content_open_fd_method = _platform_android_jni_get_method(env, activity_class_global, "coreOpenContentFd", "(Ljava/lang/String;Ljava/lang/String;)I");
+	jmethodID content_size_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentSize", "(Ljava/lang/String;)J");
+	jmethodID content_delete_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentDelete", "(Ljava/lang/String;)Z");
+	jmethodID content_is_directory_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentIsDirectory", "(Ljava/lang/String;)Z");
+	jmethodID content_display_name_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentDisplayName", "(Ljava/lang/String;)Ljava/lang/String;");
+	jmethodID content_list_files_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentListFiles", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+	jmethodID content_list_files_recursive_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentListFilesRecursive", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+	jmethodID content_create_file_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentCreateFile", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+	jmethodID content_create_directory_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentCreateDirectory", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+	jmethodID content_rename_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentRename", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+	jmethodID content_move_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentMove", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+	jmethodID clipboard_query_media_types_method = _platform_android_jni_get_method(env, activity_class_global, "coreClipboardQueryMediaTypes", "()Ljava/lang/String;");
+	jmethodID clipboard_read_item_method = _platform_android_jni_get_method(env, activity_class_global, "coreClipboardReadItem", "(Ljava/lang/String;)[B");
+	jmethodID clipboard_write_items_method = _platform_android_jni_get_method(env, activity_class_global, "coreClipboardWriteItems", "([Ljava/lang/String;[[B)Z");
+	jmethodID window_presentation_set_method = _platform_android_jni_get_method(env, activity_class_global, "coreWindowPresentationSet", "(II)V");
+	jmethodID text_input_set_method = _platform_android_jni_get_method(env, activity_class_global, "coreTextInputSet", "(ZIIIIII[BIIII)V");
+
+	bool methods_valid =
+		file_dialog_open_method &&
+		file_dialog_save_method &&
+		directory_dialog_open_method &&
+		app_data_directory_method &&
+		cache_directory_method &&
+		content_open_fd_method &&
+		content_size_method &&
+		content_delete_method &&
+		content_is_directory_method &&
+		content_display_name_method &&
+		content_list_files_method &&
+		content_list_files_recursive_method &&
+		content_create_file_method &&
+		content_create_directory_method &&
+		content_rename_method &&
+		content_move_method &&
+		clipboard_query_media_types_method &&
+		clipboard_read_item_method &&
+		clipboard_write_items_method &&
+		window_presentation_set_method &&
+		text_input_set_method;
+	if (!methods_valid)
+		return false;
+
+	jobject old_activity_object = nullptr;
+	jclass old_activity_class = nullptr;
+
+	_platform_android_context_lock(context);
+	old_activity_object = context->activity_object;
+	old_activity_class = context->activity_class;
+	context->vm = vm;
+	context->activity_object = activity_object;
+	context->activity_class = activity_class_global;
+	context->file_dialog_open_method = file_dialog_open_method;
+	context->file_dialog_save_method = file_dialog_save_method;
+	context->directory_dialog_open_method = directory_dialog_open_method;
+	context->app_data_directory_method = app_data_directory_method;
+	context->cache_directory_method = cache_directory_method;
+	context->content_open_fd_method = content_open_fd_method;
+	context->content_size_method = content_size_method;
+	context->content_delete_method = content_delete_method;
+	context->content_is_directory_method = content_is_directory_method;
+	context->content_display_name_method = content_display_name_method;
+	context->content_list_files_method = content_list_files_method;
+	context->content_list_files_recursive_method = content_list_files_recursive_method;
+	context->content_create_file_method = content_create_file_method;
+	context->content_create_directory_method = content_create_directory_method;
+	context->content_rename_method = content_rename_method;
+	context->content_move_method = content_move_method;
+	context->clipboard_query_media_types_method = clipboard_query_media_types_method;
+	context->clipboard_read_item_method = clipboard_read_item_method;
+	context->clipboard_write_items_method = clipboard_write_items_method;
+	context->window_presentation_set_method = window_presentation_set_method;
+	context->text_input_set_method = text_input_set_method;
+	_platform_android_context_unlock(context);
+
+	activity_object = nullptr;
+	activity_class_global = nullptr;
+	if (old_activity_object)
+		env->DeleteGlobalRef(old_activity_object);
+	if (old_activity_class)
+		env->DeleteGlobalRef(old_activity_class);
+	return true;
 }
 
 inline static void
 _platform_android_jni_bridge_deinit(Platform_Context *context)
 {
-	bool needs_detach = false;
-	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
-	if (env)
-	{
-		if (context->activity_object)
-			env->DeleteGlobalRef(context->activity_object);
-		if (context->activity_class)
-			env->DeleteGlobalRef(context->activity_class);
-	}
+	jobject activity_object = nullptr;
+	jclass activity_class = nullptr;
 
+	_platform_android_context_lock(context);
+	activity_object = context->activity_object;
+	activity_class = context->activity_class;
 	context->activity_object = nullptr;
 	context->activity_class = nullptr;
 	context->file_dialog_open_method = nullptr;
@@ -392,7 +455,41 @@ _platform_android_jni_bridge_deinit(Platform_Context *context)
 	context->clipboard_write_items_method = nullptr;
 	context->window_presentation_set_method = nullptr;
 	context->text_input_set_method = nullptr;
+	_platform_android_context_unlock(context);
+
+	bool needs_detach = false;
+	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+	if (env)
+	{
+		if (activity_object)
+			env->DeleteGlobalRef(activity_object);
+		if (activity_class)
+			env->DeleteGlobalRef(activity_class);
+	}
+
 	_platform_android_jni_detach(context, needs_detach);
+}
+
+inline static jobject
+_platform_android_activity_ref_get(Platform_Context *context, JNIEnv *env, jmethodID *method, jmethodID *method_out)
+{
+	*method_out = nullptr;
+	jobject activity_object = nullptr;
+
+	_platform_android_context_lock(context);
+	if (context->activity && context->activity_object && method && *method)
+	{
+		activity_object = env->NewLocalRef(context->activity_object);
+		*method_out = *method;
+	}
+	_platform_android_context_unlock(context);
+
+	if (_platform_android_jni_clear_exception(env) || activity_object == nullptr)
+	{
+		*method_out = nullptr;
+		return nullptr;
+	}
+	return activity_object;
 }
 
 inline static Platform_Window_Orientation
@@ -1179,6 +1276,8 @@ _platform_android_context_init(ANativeActivity *activity)
 {
 	validate(activity != nullptr, "[PLATFORM][ANDROID]: NativeActivity is required.");
 	validate(activity->callbacks != nullptr, "[PLATFORM][ANDROID]: NativeActivity callbacks are required.");
+	if (activity == nullptr || activity->callbacks == nullptr)
+		return false;
 
 	if (_platform_android_context)
 	{
@@ -1187,9 +1286,20 @@ _platform_android_context_init(ANativeActivity *activity)
 		bool can_rebind = context->activity == nullptr && context->activity_recreation_pending && !context->window_deinitialized && !context->window_deinit_in_progress;
 		_platform_android_context_unlock(context);
 		validate(can_rebind, "[PLATFORM][ANDROID]: Android context is already initialized.");
+		if (!can_rebind)
+			return false;
 
-		_platform_android_jni_bridge_deinit(context);
-		_platform_android_jni_bridge_init(context, activity);
+		bool bridge_initialized = _platform_android_jni_bridge_init(context, activity);
+		validate(bridge_initialized, "[PLATFORM][ANDROID]: Core generated Java bridge is required. Use core.android.CoreNativeActivity in the Android manifest.");
+		if (!bridge_initialized)
+		{
+			_platform_android_jni_bridge_deinit(context);
+			_platform_android_context_lock(context);
+			context->activity_recreation_pending = false;
+			context->close_requested = true;
+			_platform_android_context_unlock(context);
+			return false;
+		}
 
 		_platform_android_context_lock(context);
 		context->activity = activity;
@@ -1232,7 +1342,16 @@ _platform_android_context_init(ANativeActivity *activity)
 	context->text_input_events = array_init<Platform_Text_Input_Event>();
 	validate(::pthread_mutex_init(&context->mutex, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize context mutex.");
 	validate(::pthread_cond_init(&context->file_dialog_condition, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize file dialog condition.");
-	_platform_android_jni_bridge_init(context, activity);
+	bool bridge_initialized = _platform_android_jni_bridge_init(context, activity);
+	validate(bridge_initialized, "[PLATFORM][ANDROID]: Core generated Java bridge is required. Use core.android.CoreNativeActivity in the Android manifest.");
+	if (!bridge_initialized)
+	{
+		array_deinit(context->text_input_events);
+		validate(::pthread_cond_destroy(&context->file_dialog_condition) == 0, "[PLATFORM][ANDROID]: Failed to destroy file dialog condition.");
+		validate(::pthread_mutex_destroy(&context->mutex) == 0, "[PLATFORM][ANDROID]: Failed to destroy context mutex.");
+		memory::deallocate(context);
+		return false;
+	}
 
 	activity->instance = context;
 	_platform_android_activity_callbacks_set(activity);
@@ -1291,6 +1410,18 @@ Java_core_android_CoreNativeActivity_nativeActivityDestroying(JNIEnv *, jclass, 
 	{
 		_platform_android_context_lock(context);
 		context->activity_recreation_pending = changing_configurations && !finishing;
+		_platform_android_context_unlock(context);
+	}
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_core_android_CoreNativeActivity_nativeMemoryPressure(JNIEnv *, jclass)
+{
+	Platform_Context *context = _platform_android_context;
+	if (context)
+	{
+		_platform_android_context_lock(context);
+		context->low_memory = true;
 		_platform_android_context_unlock(context);
 	}
 }
@@ -1480,17 +1611,24 @@ Java_core_android_CoreNativeActivity_nativeTextInputAction(JNIEnv *, jclass, jin
 }
 
 inline static String
-_platform_android_activity_string_method(jmethodID method, memory::Allocator *allocator)
+_platform_android_activity_string_method(Platform_Context *context, jmethodID *method, memory::Allocator *allocator)
 {
 	String result = string_init(allocator);
-	Platform_Context *context = _platform_android_context;
-	if (context && context->activity_object && method)
+	if (context)
 	{
 		bool needs_detach = false;
 		JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 		if (env)
 		{
-			jstring value_string = (jstring)env->CallObjectMethod(context->activity_object, method);
+			jmethodID method_ref = nullptr;
+			jobject activity_object = _platform_android_activity_ref_get(context, env, method, &method_ref);
+			if (activity_object == nullptr)
+			{
+				_platform_android_jni_detach(context, needs_detach);
+				return result;
+			}
+
+			jstring value_string = (jstring)env->CallObjectMethod(activity_object, method_ref);
 			bool call_failed = _platform_android_jni_clear_exception(env);
 			if (!call_failed && value_string)
 			{
@@ -1504,6 +1642,7 @@ _platform_android_activity_string_method(jmethodID method, memory::Allocator *al
 			}
 			if (value_string)
 				env->DeleteLocalRef(value_string);
+			env->DeleteLocalRef(activity_object);
 			_platform_android_jni_detach(context, needs_detach);
 		}
 	}
@@ -1514,20 +1653,25 @@ inline static I32
 _platform_android_content_open_fd(const char *uri, const char *mode)
 {
 	Platform_Context *context = _platform_android_context_get();
-	if (context->activity_object == nullptr || context->content_open_fd_method == nullptr)
-		return -1;
-
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return -1;
+
+	jmethodID method = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, &context->content_open_fd_method, &method);
+	if (activity_object == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return -1;
+	}
 
 	jstring uri_string = env->NewStringUTF(uri);
 	jstring mode_string = env->NewStringUTF(mode);
 	I32 fd = -1;
 	if (uri_string && mode_string)
 	{
-		fd = env->CallIntMethod(context->activity_object, context->content_open_fd_method, uri_string, mode_string);
+		fd = env->CallIntMethod(activity_object, method, uri_string, mode_string);
 		if (_platform_android_jni_clear_exception(env))
 			fd = -1;
 	}
@@ -1540,6 +1684,7 @@ _platform_android_content_open_fd(const char *uri, const char *mode)
 		env->DeleteLocalRef(uri_string);
 	if (mode_string)
 		env->DeleteLocalRef(mode_string);
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 	return fd;
 }
@@ -1548,19 +1693,24 @@ inline static I64
 _platform_android_content_size(const char *uri)
 {
 	Platform_Context *context = _platform_android_context_get();
-	if (context->activity_object == nullptr || context->content_size_method == nullptr)
-		return -1;
-
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return -1;
 
+	jmethodID method = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, &context->content_size_method, &method);
+	if (activity_object == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return -1;
+	}
+
 	jstring uri_string = env->NewStringUTF(uri);
 	I64 size = -1;
 	if (uri_string)
 	{
-		size = (I64)env->CallLongMethod(context->activity_object, context->content_size_method, uri_string);
+		size = (I64)env->CallLongMethod(activity_object, method, uri_string);
 		if (_platform_android_jni_clear_exception(env))
 			size = -1;
 		env->DeleteLocalRef(uri_string);
@@ -1570,6 +1720,7 @@ _platform_android_content_size(const char *uri)
 		_platform_android_jni_clear_exception(env);
 	}
 
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 	return size;
 }
@@ -1578,19 +1729,24 @@ inline static bool
 _platform_android_content_delete(const char *uri)
 {
 	Platform_Context *context = _platform_android_context_get();
-	if (context->activity_object == nullptr || context->content_delete_method == nullptr)
-		return false;
-
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return false;
 
+	jmethodID method = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, &context->content_delete_method, &method);
+	if (activity_object == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return false;
+	}
+
 	jstring uri_string = env->NewStringUTF(uri);
 	bool result = false;
 	if (uri_string)
 	{
-		result = env->CallBooleanMethod(context->activity_object, context->content_delete_method, uri_string);
+		result = env->CallBooleanMethod(activity_object, method, uri_string);
 		if (_platform_android_jni_clear_exception(env))
 			result = false;
 		env->DeleteLocalRef(uri_string);
@@ -1600,6 +1756,7 @@ _platform_android_content_delete(const char *uri)
 		_platform_android_jni_clear_exception(env);
 	}
 
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 	return result;
 }
@@ -1608,19 +1765,24 @@ inline static bool
 _platform_android_content_is_directory(const char *uri)
 {
 	Platform_Context *context = _platform_android_context_get();
-	if (context->activity_object == nullptr || context->content_is_directory_method == nullptr)
-		return false;
-
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return false;
 
+	jmethodID method = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, &context->content_is_directory_method, &method);
+	if (activity_object == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return false;
+	}
+
 	jstring uri_string = env->NewStringUTF(uri);
 	bool result = false;
 	if (uri_string)
 	{
-		result = env->CallBooleanMethod(context->activity_object, context->content_is_directory_method, uri_string);
+		result = env->CallBooleanMethod(activity_object, method, uri_string);
 		if (_platform_android_jni_clear_exception(env))
 			result = false;
 		env->DeleteLocalRef(uri_string);
@@ -1630,6 +1792,7 @@ _platform_android_content_is_directory(const char *uri)
 		_platform_android_jni_clear_exception(env);
 	}
 
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 	return result;
 }
@@ -1639,26 +1802,33 @@ _platform_android_content_display_name(const char *uri, memory::Allocator *alloc
 {
 	String result = string_init(allocator);
 	Platform_Context *context = _platform_android_context_get();
-	if (context->activity_object == nullptr || context->content_display_name_method == nullptr)
-		return result;
-
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return result;
 
-	jstring uri_string = env->NewStringUTF(uri);
-	if (uri_string == nullptr)
+	jmethodID method = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, &context->content_display_name_method, &method);
+	if (activity_object == nullptr)
 	{
-		_platform_android_jni_clear_exception(env);
 		_platform_android_jni_detach(context, needs_detach);
 		return result;
 	}
 
-	jstring name_string = (jstring)env->CallObjectMethod(context->activity_object, context->content_display_name_method, uri_string);
+	jstring uri_string = env->NewStringUTF(uri);
+	if (uri_string == nullptr)
+	{
+		_platform_android_jni_clear_exception(env);
+		env->DeleteLocalRef(activity_object);
+		_platform_android_jni_detach(context, needs_detach);
+		return result;
+	}
+
+	jstring name_string = (jstring)env->CallObjectMethod(activity_object, method, uri_string);
 	env->DeleteLocalRef(uri_string);
 	if (_platform_android_jni_clear_exception(env) || name_string == nullptr)
 	{
+		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
 		return result;
 	}
@@ -1671,22 +1841,28 @@ _platform_android_content_display_name(const char *uri, memory::Allocator *alloc
 		env->ReleaseStringUTFChars(name_string, name_chars);
 	}
 	env->DeleteLocalRef(name_string);
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 	return result;
 }
 
 inline static Array<String>
-_platform_android_content_list_files_with_method(const char *uri, const String &extension_filter, jmethodID method, memory::Allocator *allocator)
+_platform_android_content_list_files_with_method(const char *uri, const String &extension_filter, jmethodID *method, memory::Allocator *allocator)
 {
 	Array<String> files = array_init<String>(allocator);
 	Platform_Context *context = _platform_android_context_get();
-	if (context->activity_object == nullptr || method == nullptr)
-		return files;
-
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return files;
+
+	jmethodID method_ref = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, method, &method_ref);
+	if (activity_object == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return files;
+	}
 
 	jstring uri_string = env->NewStringUTF(uri);
 	jstring extension_string = env->NewStringUTF(extension_filter.data ? extension_filter.data : "");
@@ -1697,15 +1873,17 @@ _platform_android_content_list_files_with_method(const char *uri, const String &
 			env->DeleteLocalRef(uri_string);
 		if (extension_string)
 			env->DeleteLocalRef(extension_string);
+		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
 		return files;
 	}
 
-	jstring files_string = (jstring)env->CallObjectMethod(context->activity_object, method, uri_string, extension_string);
+	jstring files_string = (jstring)env->CallObjectMethod(activity_object, method_ref, uri_string, extension_string);
 	env->DeleteLocalRef(uri_string);
 	env->DeleteLocalRef(extension_string);
 	if (_platform_android_jni_clear_exception(env) || files_string == nullptr)
 	{
+		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
 		return files;
 	}
@@ -1728,6 +1906,7 @@ _platform_android_content_list_files_with_method(const char *uri, const String &
 		env->ReleaseStringUTFChars(files_string, files_chars);
 	}
 	env->DeleteLocalRef(files_string);
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 	return files;
 }
@@ -1736,28 +1915,33 @@ inline static Array<String>
 _platform_android_content_list_files(const char *uri, const String &extension_filter, memory::Allocator *allocator)
 {
 	Platform_Context *context = _platform_android_context_get();
-	return _platform_android_content_list_files_with_method(uri, extension_filter, context->content_list_files_method, allocator);
+	return _platform_android_content_list_files_with_method(uri, extension_filter, &context->content_list_files_method, allocator);
 }
 
 inline static Array<String>
 _platform_android_content_list_files_recursive(const char *uri, const String &extension_filter, memory::Allocator *allocator)
 {
 	Platform_Context *context = _platform_android_context_get();
-	return _platform_android_content_list_files_with_method(uri, extension_filter, context->content_list_files_recursive_method, allocator);
+	return _platform_android_content_list_files_with_method(uri, extension_filter, &context->content_list_files_recursive_method, allocator);
 }
 
 inline static String
-_platform_android_content_call_uri_string_method(const char *uri, const String &value, jmethodID method, memory::Allocator *allocator)
+_platform_android_content_call_uri_string_method(const char *uri, const String &value, jmethodID *method, memory::Allocator *allocator)
 {
 	String result = string_init(allocator);
 	Platform_Context *context = _platform_android_context_get();
-	if (context->activity_object == nullptr || method == nullptr)
-		return result;
-
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return result;
+
+	jmethodID method_ref = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, method, &method_ref);
+	if (activity_object == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return result;
+	}
 
 	jstring uri_string = env->NewStringUTF(uri);
 	jstring value_string = env->NewStringUTF(value.data ? value.data : "");
@@ -1768,15 +1952,17 @@ _platform_android_content_call_uri_string_method(const char *uri, const String &
 			env->DeleteLocalRef(uri_string);
 		if (value_string)
 			env->DeleteLocalRef(value_string);
+		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
 		return result;
 	}
 
-	jstring result_string = (jstring)env->CallObjectMethod(context->activity_object, method, uri_string, value_string);
+	jstring result_string = (jstring)env->CallObjectMethod(activity_object, method_ref, uri_string, value_string);
 	env->DeleteLocalRef(uri_string);
 	env->DeleteLocalRef(value_string);
 	if (_platform_android_jni_clear_exception(env) || result_string == nullptr)
 	{
+		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
 		return result;
 	}
@@ -1789,6 +1975,7 @@ _platform_android_content_call_uri_string_method(const char *uri, const String &
 		env->ReleaseStringUTFChars(result_string, result_chars);
 	}
 	env->DeleteLocalRef(result_string);
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 	return result;
 }
@@ -1826,14 +2013,19 @@ _platform_android_file_dialog_run(const char *filters, bool save, memory::Alloca
 	String result = string_init(allocator);
 
 	Platform_Context *context = _platform_android_context_get();
-	jmethodID method = save ? context->file_dialog_save_method : context->file_dialog_open_method;
-	if (context->activity_object == nullptr || method == nullptr)
-		return result;
-
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return result;
+
+	jmethodID *method = save ? &context->file_dialog_save_method : &context->file_dialog_open_method;
+	jmethodID method_ref = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, method, &method_ref);
+	if (activity_object == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return result;
+	}
 
 	char extension[64] = {};
 	_platform_android_file_dialog_extension(extension, sizeof(extension), filters);
@@ -1841,6 +2033,7 @@ _platform_android_file_dialog_run(const char *filters, bool save, memory::Alloca
 	if (extension_string == nullptr)
 	{
 		_platform_android_jni_clear_exception(env);
+		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
 		return result;
 	}
@@ -1851,6 +2044,7 @@ _platform_android_file_dialog_run(const char *filters, bool save, memory::Alloca
 	{
 		_platform_android_context_unlock(context);
 		env->DeleteLocalRef(extension_string);
+		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
 		return result;
 	}
@@ -1867,9 +2061,10 @@ _platform_android_file_dialog_run(const char *filters, bool save, memory::Alloca
 	context->file_dialog_accepted = false;
 	_platform_android_context_unlock(context);
 
-	env->CallVoidMethod(context->activity_object, method, (jlong)request_id, extension_string);
+	env->CallVoidMethod(activity_object, method_ref, (jlong)request_id, extension_string);
 	bool call_failed = _platform_android_jni_clear_exception(env);
 	env->DeleteLocalRef(extension_string);
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 
 	if (call_failed)
@@ -1916,19 +2111,25 @@ _platform_android_directory_dialog_run(memory::Allocator *allocator)
 	String result = string_init(allocator);
 
 	Platform_Context *context = _platform_android_context_get();
-	if (context->activity_object == nullptr || context->directory_dialog_open_method == nullptr)
-		return result;
-
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return result;
+
+	jmethodID method = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, &context->directory_dialog_open_method, &method);
+	if (activity_object == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return result;
+	}
 
 	U64 request_id = 0;
 	_platform_android_context_lock(context);
 	if (context->activity == nullptr || context->file_dialog_waiting)
 	{
 		_platform_android_context_unlock(context);
+		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
 		return result;
 	}
@@ -1945,8 +2146,9 @@ _platform_android_directory_dialog_run(memory::Allocator *allocator)
 	context->file_dialog_accepted = false;
 	_platform_android_context_unlock(context);
 
-	env->CallVoidMethod(context->activity_object, context->directory_dialog_open_method, (jlong)request_id);
+	env->CallVoidMethod(activity_object, method, (jlong)request_id);
 	bool call_failed = _platform_android_jni_clear_exception(env);
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 
 	if (call_failed)
@@ -2154,10 +2356,10 @@ platform_path_get_temp_directory(memory::Allocator *allocator)
 {
 	String result = string_init(allocator);
 	Platform_Context *context = _platform_android_context;
-	if (context && context->cache_directory_method)
+	if (context)
 	{
 		string_deinit(result);
-		result = _platform_android_activity_string_method(context->cache_directory_method, allocator);
+		result = _platform_android_activity_string_method(context, &context->cache_directory_method, allocator);
 	}
 
 	if (result.count == 0)
@@ -2178,7 +2380,7 @@ String
 platform_path_get_app_data_directory(memory::Allocator *allocator)
 {
 	Platform_Context *context = _platform_android_context;
-	String result = context ? _platform_android_activity_string_method(context->app_data_directory_method, allocator) : string_init(allocator);
+	String result = context ? _platform_android_activity_string_method(context, &context->app_data_directory_method, allocator) : string_init(allocator);
 	if (result.count == 0)
 	{
 		if (result.capacity > 0)
@@ -2208,10 +2410,10 @@ platform_path_get_cache_directory(memory::Allocator *allocator)
 {
 	String result = string_init(allocator);
 	Platform_Context *context = _platform_android_context;
-	if (context && context->cache_directory_method)
+	if (context)
 	{
 		string_deinit(result);
-		result = _platform_android_activity_string_method(context->cache_directory_method, allocator);
+		result = _platform_android_activity_string_method(context, &context->cache_directory_method, allocator);
 	}
 
 	if (result.count == 0)
@@ -2412,7 +2614,7 @@ platform_path_create_file(const String &directory, const String &name, memory::A
 	if (_platform_android_is_content_uri(directory.data))
 	{
 		Platform_Context *context = _platform_android_context_get();
-		return _platform_android_content_call_uri_string_method(directory.data, name, context->content_create_file_method, allocator);
+		return _platform_android_content_call_uri_string_method(directory.data, name, &context->content_create_file_method, allocator);
 	}
 
 	String result = _platform_android_path_join(directory, name, allocator);
@@ -2435,7 +2637,7 @@ platform_path_create_directory(const String &directory, const String &name, memo
 	if (_platform_android_is_content_uri(directory.data))
 	{
 		Platform_Context *context = _platform_android_context_get();
-		return _platform_android_content_call_uri_string_method(directory.data, name, context->content_create_directory_method, allocator);
+		return _platform_android_content_call_uri_string_method(directory.data, name, &context->content_create_directory_method, allocator);
 	}
 
 	String result = _platform_android_path_join(directory, name, allocator);
@@ -2456,7 +2658,7 @@ platform_path_rename(const String &path, const String &name, memory::Allocator *
 	if (_platform_android_is_content_uri(path.data))
 	{
 		Platform_Context *context = _platform_android_context_get();
-		return _platform_android_content_call_uri_string_method(path.data, name, context->content_rename_method, allocator);
+		return _platform_android_content_call_uri_string_method(path.data, name, &context->content_rename_method, allocator);
 	}
 
 	String directory = _platform_android_path_parent(path, memory::temp_allocator());
@@ -2480,7 +2682,7 @@ platform_path_move(const String &path, const String &directory, memory::Allocato
 	if (path_is_content && directory_is_content)
 	{
 		Platform_Context *context = _platform_android_context_get();
-		return _platform_android_content_call_uri_string_method(path.data, directory, context->content_move_method, allocator);
+		return _platform_android_content_call_uri_string_method(path.data, directory, &context->content_move_method, allocator);
 	}
 
 	String name = platform_path_get_file_name(path, memory::temp_allocator());
@@ -2916,7 +3118,7 @@ platform_window_close(Platform_Window *self)
 inline static void
 _platform_android_window_presentation_set(Platform_Context *context, const Platform_Window_Presentation_Desc &desc)
 {
-	if (context == nullptr || context->activity_object == nullptr || context->window_presentation_set_method == nullptr)
+	if (context == nullptr)
 		return;
 
 	bool needs_detach = false;
@@ -2924,8 +3126,17 @@ _platform_android_window_presentation_set(Platform_Context *context, const Platf
 	if (env == nullptr)
 		return;
 
-	env->CallVoidMethod(context->activity_object, context->window_presentation_set_method, (jint)desc.flags, (jint)desc.orientation_policy);
+	jmethodID method = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, &context->window_presentation_set_method, &method);
+	if (activity_object == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return;
+	}
+
+	env->CallVoidMethod(activity_object, method, (jint)desc.flags, (jint)desc.orientation_policy);
 	_platform_android_jni_clear_exception(env);
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 }
 
@@ -2947,7 +3158,7 @@ platform_window_presentation_set(Platform_Window &window, const Platform_Window_
 inline static void
 _platform_android_text_input_set(Platform_Context *context, const Platform_Text_Input_Desc &desc)
 {
-	if (context == nullptr || context->activity_object == nullptr || context->text_input_set_method == nullptr)
+	if (context == nullptr)
 		return;
 	validate(desc.text.count <= (U64)INT_MAX, "[PLATFORM][ANDROID]: Text input state is too large for JNI.");
 
@@ -2956,10 +3167,19 @@ _platform_android_text_input_set(Platform_Context *context, const Platform_Text_
 	if (env == nullptr)
 		return;
 
+	jmethodID method = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, &context->text_input_set_method, &method);
+	if (activity_object == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return;
+	}
+
 	jbyteArray text_array = env->NewByteArray((jsize)desc.text.count);
 	if (text_array == nullptr)
 	{
 		_platform_android_jni_clear_exception(env);
+		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
 		return;
 	}
@@ -2969,13 +3189,15 @@ _platform_android_text_input_set(Platform_Context *context, const Platform_Text_
 	if (_platform_android_jni_clear_exception(env))
 	{
 		env->DeleteLocalRef(text_array);
+		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
 		return;
 	}
 
-	env->CallVoidMethod(context->activity_object, context->text_input_set_method, (jboolean)desc.enabled, (jint)desc.x, (jint)desc.y, (jint)desc.width, (jint)desc.height, (jint)desc.flags, (jint)desc.action, text_array, (jint)desc.selection_start, (jint)desc.selection_end, (jint)desc.composing_start, (jint)desc.composing_end);
+	env->CallVoidMethod(activity_object, method, (jboolean)desc.enabled, (jint)desc.x, (jint)desc.y, (jint)desc.width, (jint)desc.height, (jint)desc.flags, (jint)desc.action, text_array, (jint)desc.selection_start, (jint)desc.selection_end, (jint)desc.composing_start, (jint)desc.composing_end);
 	_platform_android_jni_clear_exception(env);
 	env->DeleteLocalRef(text_array);
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 }
 
@@ -3251,17 +3473,23 @@ platform_window_clipboard_query_media_types(Platform_Window &, memory::Allocator
 {
 	Array<String> media_types = array_init<String>(allocator);
 	Platform_Context *context = _platform_android_context_get();
-	if (context->activity_object == nullptr || context->clipboard_query_media_types_method == nullptr)
-		return media_types;
-
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return media_types;
 
-	jstring media_types_string = (jstring)env->CallObjectMethod(context->activity_object, context->clipboard_query_media_types_method);
+	jmethodID method = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, &context->clipboard_query_media_types_method, &method);
+	if (activity_object == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return media_types;
+	}
+
+	jstring media_types_string = (jstring)env->CallObjectMethod(activity_object, method);
 	if (_platform_android_jni_clear_exception(env) || media_types_string == nullptr)
 	{
+		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
 		return media_types;
 	}
@@ -3284,6 +3512,7 @@ platform_window_clipboard_query_media_types(Platform_Window &, memory::Allocator
 		env->ReleaseStringUTFChars(media_types_string, media_types_chars);
 	}
 	env->DeleteLocalRef(media_types_string);
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 	return media_types;
 }
@@ -3297,26 +3526,33 @@ platform_window_clipboard_item_read(Platform_Window &, const String &media_type,
 	};
 
 	Platform_Context *context = _platform_android_context_get();
-	if (context->activity_object == nullptr || context->clipboard_read_item_method == nullptr)
-		return result;
-
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return result;
 
-	jstring media_type_string = env->NewStringUTF(media_type.data ? media_type.data : "");
-	if (media_type_string == nullptr)
+	jmethodID method = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, &context->clipboard_read_item_method, &method);
+	if (activity_object == nullptr)
 	{
-		_platform_android_jni_clear_exception(env);
 		_platform_android_jni_detach(context, needs_detach);
 		return result;
 	}
 
-	jbyteArray data_array = (jbyteArray)env->CallObjectMethod(context->activity_object, context->clipboard_read_item_method, media_type_string);
+	jstring media_type_string = env->NewStringUTF(media_type.data ? media_type.data : "");
+	if (media_type_string == nullptr)
+	{
+		_platform_android_jni_clear_exception(env);
+		env->DeleteLocalRef(activity_object);
+		_platform_android_jni_detach(context, needs_detach);
+		return result;
+	}
+
+	jbyteArray data_array = (jbyteArray)env->CallObjectMethod(activity_object, method, media_type_string);
 	env->DeleteLocalRef(media_type_string);
 	if (_platform_android_jni_clear_exception(env) || data_array == nullptr)
 	{
+		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
 		return result;
 	}
@@ -3328,6 +3564,7 @@ platform_window_clipboard_item_read(Platform_Window &, const String &media_type,
 	if (data_count > 0)
 		env->GetByteArrayRegion(data_array, 0, data_count, (jbyte *)result.data.data);
 	env->DeleteLocalRef(data_array);
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 	return result;
 }
@@ -3338,13 +3575,19 @@ platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard
 	Platform_Context *context = _platform_android_context_get();
 	if (items == nullptr || item_count == 0 || item_count > (U32)INT_MAX)
 		return false;
-	if (context->activity_object == nullptr || context->clipboard_write_items_method == nullptr)
-		return false;
 
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return false;
+
+	jmethodID method = nullptr;
+	jobject activity_object = _platform_android_activity_ref_get(context, env, &context->clipboard_write_items_method, &method);
+	if (activity_object == nullptr)
+	{
+		_platform_android_jni_detach(context, needs_detach);
+		return false;
+	}
 
 	jclass string_class = env->FindClass("java/lang/String");
 	jclass byte_array_class = env->FindClass("[B");
@@ -3365,6 +3608,7 @@ platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard
 			env->DeleteLocalRef(media_type_array);
 		if (data_item_array)
 			env->DeleteLocalRef(data_item_array);
+		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
 		return false;
 	}
@@ -3414,7 +3658,7 @@ platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard
 
 	bool result = false;
 	if (arrays_valid)
-		result = env->CallBooleanMethod(context->activity_object, context->clipboard_write_items_method, media_type_array, data_item_array);
+		result = env->CallBooleanMethod(activity_object, method, media_type_array, data_item_array);
 	if (_platform_android_jni_clear_exception(env))
 		result = false;
 
@@ -3422,6 +3666,7 @@ platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard
 	env->DeleteLocalRef(byte_array_class);
 	env->DeleteLocalRef(media_type_array);
 	env->DeleteLocalRef(data_item_array);
+	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
 	return result;
 }
