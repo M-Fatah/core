@@ -1,55 +1,44 @@
-# **Core**
-<!-- badges: start -->
+# Core
+
 [![Build status](https://github.com/M-Fatah/core/workflows/CI/badge.svg)](https://github.com/M-Fatah/core/actions?workflow=CI)
-![Lines of code](https://img.shields.io/tokei/lines/github/M-Fatah/core)
-<!-- badges: end -->
 
----
+Core is a C-like C++20 foundation library for data-oriented applications. It provides the pieces an app, tool, game engine, compiler, or renderer usually wants close at hand: memory, containers, math, formatting, logging, validation, serialization, ECS, and platform services.
 
-## **Introduction**
+The library favors explicit ownership, visible allocations, plain structs, free functions, and `_init` / `_deinit` lifetimes over hidden runtime behavior.
 
-**Core** is a C-like C++20 library providing foundational utilities for data-oriented programming. It is designed as a replacement for the STL with a simpler, more explicit design:
+> Core is still a WIP. Breaking changes are expected.
 
-- **Explicit allocations** — every container accepts an `Allocator *`, making every allocation visible and swappable (heap, arena, pool, temp).
-- **No exceptions** — errors are returned as `Error` values.
-- **Explicit lifetimes** — `_init` / `_deinit` pairs make every allocation and ownership transfer visible at the call site.
-- **C-like style** — free functions over methods, plain structs over class hierarchies.
+## Design
 
-> This library is still a WIP — breaking changes are expected.
+- Explicit allocations: containers accept a `memory::Allocator *`.
+- Explicit lifetimes: owned resources use visible init/deinit pairs.
+- No exceptions: failures are returned or validated at the boundary where they matter.
+- C-like C++: plain data, free functions, and simple translation units.
+- Platform-first: Windows, Linux, macOS, and Android backends live inside Core without third-party runtime dependencies.
 
----
-
-## **Modules**
+## Modules
 
 | Module | Description |
 |---|---|
-| `core/defines.h` | Primitive aliases (`I8`..`I64`, `U8`..`U64`, `F32`, `F64`) and macro utilities |
-| `core/memory/` | Allocator interface, heap, arena, pool, and temp allocators (with alignment) |
-| `core/containers/array.h` | Dynamic array (`Array<T>`) |
-| `core/containers/stack_array.h` | Fixed-capacity stack array (`Stack_Array<T, N>`) |
-| `core/containers/span.h` | Non-owning view (`Span<T>`) |
-| `core/containers/string.h` | Heap-allocated string (`String`) |
-| `core/containers/hash_table.h` | Open-addressing hash table (`Hash_Table<K, V>`) |
-| `core/containers/hash_set.h` | Hash set (`Hash_Set<K>`) |
-| `core/containers/string_interner.h` | String deduplication (`String_Interner`) |
-| `core/math/` | Vectors, matrices, quaternion, scalar helpers, random — NEON / AVX / scalar |
-| `core/formatter.h` | Type-safe string formatting (`format()`) — math types format natively |
-| `core/print.h` / `core/log.h` | Colored output and log levels |
-| `core/defer.h` | Scope-exit macro (`DEFER`) |
-| `core/tester.h` | Minimal unit-test framework (`TESTER_TEST`, `TESTER_CHECK`) |
-| `core/validate.h` | Runtime assertions with source location |
-| `core/result.h` | Error-returning pattern (`Error`, `Result<T>`) |
-| `core/hash.h` | FNV-32 and type-generic `hash()` |
-| `core/reflect.h` | Compile-time type reflection |
+| `core/defines.h` | Primitive aliases, utility macros, platform/compiler defines |
+| `core/memory/` | Heap, arena, pool, temp allocator, virtual-memory-backed allocation |
+| `core/containers/` | Array, string, span, ring buffer, hash table, hash set, stack array |
+| `core/math/` | Scalar helpers, vectors, matrices, quaternion, random, NEON / AVX / scalar paths |
+| `core/formatter.h` | Type-safe formatting with Core strings and math types |
+| `core/print.h`, `core/log.h` | Colored printing and log helpers |
+| `core/defer.h` | Scope-exit cleanup macro |
+| `core/validate.h` | Debug runtime validation with source locations |
+| `core/tester.h` | Small unit-test framework |
+| `core/result.h` | Result/error-returning pattern |
+| `core/hash.h` | FNV-32 and type-generic hashing |
+| `core/reflect.h` | Compile-time type reflection helpers |
 | `core/serialization/` | Binary and JSON serializers |
-| `core/ecs.h` | Minimal entity-component system |
-| `core/platform/platform.h` | File I/O, path utilities, native dialogs |
+| `core/ecs.h` | Minimal ECS |
+| `core/platform/platform.h` | Files, paths, resources, windows, input, timing, threads, callstacks |
 
-📖 **Full documentation is in the [`docs/`](docs/home.md) folder.**
+Full documentation lives in [`docs/`](docs/home.md).
 
----
-
-## **Quick Example**
+## Quick Example
 
 ```cpp
 #include <core/containers/array.h>
@@ -74,57 +63,115 @@ F32x4x4 view = f32x4x4_look_at(F32x3{0, 0, 5}, F32X3_ZERO, F32X3_UP);
 log_info("loaded {} vertices, view matrix:\n{}", vertices.count, view);
 ```
 
----
+## Platforms
 
-## **Platforms**
-
-| Platform | Status |
+| Platform | Backend |
 |---|---|
-| Windows | ✅ |
-| Linux | ✅ |
-| macOS | ✅ |
+| Windows | Win32 |
+| Linux | X11/XCB, xdg-desktop-portal dialogs |
+| macOS | Cocoa |
+| Android | NDK NativeActivity |
 
----
+Android support is NDK-only: no GameActivity, AndroidX, Jetpack, Gradle dependency, or `android_native_app_glue`. Core generates tiny Java `NativeActivity` and clipboard provider classes for Android framework features such as app/cache directories, window presentation, file dialogs, document URIs, clipboard, and soft keyboard input.
 
-## **Prerequisites**
+## Prerequisites
 
-#### **Windows**
-- [CMake](https://cmake.org/download/) 3.20+
+| Platform | Requirements |
+|---|---|
+| Windows | CMake 3.25+ |
+| Linux | CMake 3.25+, pkg-config, X11/XCB and D-Bus development packages |
+| macOS | CMake 3.25+, Xcode Command Line Tools |
+| Android | Android SDK, Android NDK, SDK Build Tools, Platform Tools, Ninja |
 
-#### **Linux**
+Linux packages:
+
 ```bash
 sudo apt update
-sudo apt-get install -y cmake libx11-dev libxkbcommon-x11-dev libx11-xcb-dev zenity
+sudo apt-get install -y cmake pkg-config libdbus-1-dev libx11-dev libxkbcommon-x11-dev libx11-xcb-dev
 ```
 
-#### **macOS**
-- Xcode Command Line Tools: `xcode-select --install`
-- [CMake](https://cmake.org/download/) 3.20+
+Android expects these environment variables when building from the command line:
 
----
-
-## **Building**
-
-```bash
-cmake -B build
-cmake --build build --config Debug -j
+```powershell
+ANDROID_HOME=C:\Users\<you>\AppData\Local\Android\Sdk
+ANDROID_NDK_HOME=%ANDROID_HOME%\ndk\<version>
+JAVA_HOME=<jdk-path>
 ```
 
-Output is placed in `build/bin/Debug/`.
+## Building
 
-### Options
+### Desktop
 
-| CMake Option | Default | Description |
-|---|---|---|
-| `CORE_BUILD_UNITTEST` | ON (main project) | Build unit tests |
-| `CORE_INSTALL` | ON (main project) | Enable install target |
-| `CORE_BUILD_UNITY` | OFF | Enable unity (single-TU) build |
-| `CORE_BUILD_STATIC` | OFF | Build as a static library |
+Configure and build from the repository root:
 
-### Running Tests
-
-```bash
+```powershell
 cmake -B build
 cmake --build build --config Debug
-./build/bin/Debug/unittest
 ```
+
+Outputs are placed in:
+
+```text
+build/bin/Debug/
+```
+
+Run unit tests:
+
+```powershell
+build\bin\Debug\unittest.exe
+```
+
+### Android
+
+Android uses the NDK toolchain and writes final artifacts to the same output folder shape as desktop:
+
+```text
+build/bin/Debug/
+```
+
+Build Core as an Android static library:
+
+```powershell
+cmake -B build -G Ninja `
+  -DCMAKE_TOOLCHAIN_FILE="$env:ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" `
+  -DANDROID_ABI=arm64-v8a `
+  -DANDROID_PLATFORM=android-26 `
+  -DCORE_BUILD_STATIC=ON `
+  -DCORE_BUILD_TEST=OFF `
+  -DCORE_BUILD_UNITTEST=OFF `
+  -DCORE_INSTALL=OFF `
+  -DCMAKE_BUILD_TYPE=Debug
+
+cmake --build build --target core
+```
+
+An Android app repo should link Core into its own NativeActivity shared library. Core also generates a tiny `core.android.CoreNativeActivity` Java bridge and `core.android.CoreClipboardProvider` for Android framework features such as app/cache directories, window presentation, file dialogs, `content://` file access, clipboard bytes, and soft keyboard text input:
+
+```cmake
+set(CORE_BUILD_STATIC ON CACHE BOOL "" FORCE)
+set(CORE_BUILD_TEST OFF CACHE BOOL "" FORCE)
+set(CORE_BUILD_UNITTEST OFF CACHE BOOL "" FORCE)
+set(CORE_INSTALL OFF CACHE BOOL "" FORCE)
+
+add_subdirectory(path/to/core core)
+
+add_library(my_android_app SHARED
+    src/android_native_activity_entry.cpp
+    src/app.cpp
+)
+target_link_libraries(my_android_app PRIVATE core)
+
+get_target_property(CORE_ANDROID_JAVA_SOURCE_DIR core CORE_ANDROID_JAVA_SOURCE_DIR)
+```
+
+The app owns `ANativeActivity_onCreate`, the manifest, APK packaging, Java compilation, signing, install, and launch steps. The Core NativeActivity handoff returns whether the app should start a new app thread, which prevents duplicate threads when Android recreates an Activity for configuration changes. See [`docs/platform.md`](docs/platform.md) for the minimal entrypoint and packaging recipe.
+
+## CMake Options
+
+| Option | Default | Description |
+|---|---|---|
+| `CORE_BUILD_UNITTEST` | ON for root desktop builds, OFF on Android | Build unit tests |
+| `CORE_BUILD_TEST` | ON for root desktop builds, OFF on Android | Build sample test executable |
+| `CORE_INSTALL` | ON for root builds | Enable install target |
+| `CORE_BUILD_UNITY` | OFF | Enable unity build |
+| `CORE_BUILD_STATIC` | OFF | Build Core as a static library |

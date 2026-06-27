@@ -7,6 +7,7 @@
 #include "core/memory/memory.h"
 
 #include <stdio.h>
+#include <errno.h>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -17,12 +18,14 @@
 #include <execinfo.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/select.h>
 #include <X11/Xlib-xcb.h>
 #include <X11/keysym.h>
 #include <X11/XKBlib.h>
 #include <pthread.h>
 #include <atomic>
 #include <dirent.h>
+#include <dbus/dbus.h>
 
 static char current_executable_directory[PATH_MAX] = {};
 
@@ -37,6 +40,39 @@ _string_concat(const char *a, const char *b, char *result)
 		*result++ = *b++;
 }
 
+inline static Platform_Window_Orientation
+_platform_linux_window_orientation(U32 width, U32 height)
+{
+	if (width == 0 || height == 0)
+		return PLATFORM_WINDOW_ORIENTATION_UNKNOWN;
+	return width >= height ? PLATFORM_WINDOW_ORIENTATION_LANDSCAPE : PLATFORM_WINDOW_ORIENTATION_PORTRAIT;
+}
+
+inline static Platform_Window_Metrics
+_platform_linux_window_metrics(Display *display, U32 width, U32 height)
+{
+	F32 dpi_x = 96.0f;
+	F32 dpi_y = 96.0f;
+	I32 screen = DefaultScreen(display);
+	I32 screen_width = DisplayWidth(display, screen);
+	I32 screen_height = DisplayHeight(display, screen);
+	I32 screen_width_mm = DisplayWidthMM(display, screen);
+	I32 screen_height_mm = DisplayHeightMM(display, screen);
+	if (screen_width_mm > 0)
+		dpi_x = (F32)screen_width * 25.4f / (F32)screen_width_mm;
+	if (screen_height_mm > 0)
+		dpi_y = (F32)screen_height * 25.4f / (F32)screen_height_mm;
+
+	return Platform_Window_Metrics {
+		.content_rect = Platform_Window_Rect { .x = 0, .y = 0, .width = width, .height = height },
+		.safe_area = {},
+		.density_scale = dpi_x / 96.0f,
+		.dpi_x = dpi_x,
+		.dpi_y = dpi_y,
+		.orientation = _platform_linux_window_orientation(width, height)
+	};
+}
+
 inline static PLATFORM_KEY
 _platform_key_from_xcb_button(xcb_button_t button)
 {
@@ -49,6 +85,17 @@ _platform_key_from_xcb_button(xcb_button_t button)
 		case XCB_BUTTON_INDEX_5: return PLATFORM_KEY_MOUSE_WHEEL_DOWN;
 	}
 	return PLATFORM_KEY_COUNT;
+}
+
+inline static xcb_atom_t
+_platform_linux_intern_atom(xcb_connection_t *connection, const char *name)
+{
+	xcb_intern_atom_cookie_t cookie = ::xcb_intern_atom(connection, 0, ::strlen(name), name);
+	xcb_intern_atom_reply_t *reply = ::xcb_intern_atom_reply(connection, cookie, nullptr);
+	if (reply == nullptr)
+		return XCB_ATOM_NONE;
+	DEFER(::free(reply););
+	return reply->atom;
 }
 
 inline static PLATFORM_KEY
@@ -149,6 +196,38 @@ _platform_key_from_key_sym(KeySym key)
 	return PLATFORM_KEY_COUNT;
 }
 
+inline static void
+_platform_linux_text_input_events_reset(Platform_Input &input)
+{
+	for (U64 i = 0; i < input.text_input_events.count; ++i)
+	{
+		string_deinit(input.text_input_events[i].text);
+		input.text_input_events[i] = {};
+	}
+	input.text_input_events.count = 0;
+}
+
+struct Platform_Linux_Clipboard_Item
+{
+	Platform_Clipboard_Item item;
+	xcb_atom_t atom;
+};
+
+inline static bool
+_platform_clipboard_media_type_is_text(const String &media_type)
+{
+	return media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 || media_type == "text/plain";
+}
+
+inline static bool
+_platform_clipboard_media_type_exists(const Array<String> &media_types, const String &media_type)
+{
+	for (U64 i = 0; i < media_types.count; ++i)
+		if (media_types[i] == media_type)
+			return true;
+	return false;
+}
+
 // API.
 // C++.
 bool
@@ -216,6 +295,54 @@ platform_path_get_temp_directory(memory::Allocator *allocator)
 	String result = platform_environment_variable_get("TMPDIR", allocator);
 	if (result.count == 0)
 		result = string_from("/tmp/", allocator);
+	if (result.count > 0 && result[result.count - 1] != '/')
+		string_append(result, '/');
+	return result;
+}
+
+String
+platform_path_get_app_data_directory(memory::Allocator *allocator)
+{
+	String result = platform_environment_variable_get("XDG_DATA_HOME", allocator);
+	if (result.count == 0)
+	{
+		result = platform_environment_variable_get("HOME", allocator);
+		if (result.count > 0)
+		{
+			if (result[result.count - 1] != '/')
+				string_append(result, '/');
+			string_append(result, ".local/share/");
+		}
+		else
+		{
+			result = platform_path_get_temp_directory(allocator);
+		}
+	}
+
+	if (result.count > 0 && result[result.count - 1] != '/')
+		string_append(result, '/');
+	return result;
+}
+
+String
+platform_path_get_cache_directory(memory::Allocator *allocator)
+{
+	String result = platform_environment_variable_get("XDG_CACHE_HOME", allocator);
+	if (result.count == 0)
+	{
+		result = platform_environment_variable_get("HOME", allocator);
+		if (result.count > 0)
+		{
+			if (result[result.count - 1] != '/')
+				string_append(result, '/');
+			string_append(result, ".cache/");
+		}
+		else
+		{
+			result = platform_path_get_temp_directory(allocator);
+		}
+	}
+
 	if (result.count > 0 && result[result.count - 1] != '/')
 		string_append(result, '/');
 	return result;
@@ -317,6 +444,60 @@ platform_path_write_file(const String &path, Memory_Block block)
 	return bytes_written;
 }
 
+inline static bool
+_platform_linux_extension_matches(const String &file_name, const String &extension_filter)
+{
+	if (extension_filter.count == 0)
+		return true;
+
+	U64 extension_position = string_find_last_of(file_name, '.');
+	if (extension_position == U64(-1))
+		return false;
+
+	U64 extension_count = file_name.count - extension_position - 1;
+	if (extension_count != extension_filter.count)
+		return false;
+
+	for (U64 i = 0; i < extension_count; ++i)
+	{
+		if (file_name.data[extension_position + 1 + i] != extension_filter.data[i])
+			return false;
+	}
+
+	return true;
+}
+
+inline static String
+_platform_linux_path_join(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	if (directory.count == 0 || name.count == 0)
+		return string_init(allocator);
+
+	String result = string_copy(directory, allocator);
+	string_replace(result, '\\', '/');
+	if (result[result.count - 1] != '/')
+		string_append(result, '/');
+	string_append(result, name);
+	string_replace(result, '\\', '/');
+	return result;
+}
+
+inline static String
+_platform_linux_path_parent(const String &path, memory::Allocator *allocator)
+{
+	String result = string_copy(path, allocator);
+	string_replace(result, '\\', '/');
+	U64 slash = string_find_last_of(result, '/');
+	if (slash == U64(-1))
+	{
+		string_clear(result);
+		string_append(result, '.');
+		return result;
+	}
+	string_resize(result, slash);
+	return result;
+}
+
 Array<String>
 platform_path_list_files(const String &directory, const String &extension_filter, memory::Allocator *allocator)
 {
@@ -340,24 +521,128 @@ platform_path_list_files(const String &directory, const String &extension_filter
 			continue;
 
 		String file_name = string_from(entry->d_name, memory::temp_allocator());
-		if (extension_filter.count > 0)
-		{
-			U64 extension_position = string_find_last_of(file_name, '.');
-			if (extension_position == U64(-1))
-				continue;
-
-			String file_extension = string_with_capacity(file_name.count - extension_position - 1, memory::temp_allocator());
-			for (U64 i = extension_position + 1; i < file_name.count; ++i)
-				string_append(file_extension, file_name.data[i]);
-
-			if (file_extension != extension_filter)
-				continue;
-		}
+		if (!_platform_linux_extension_matches(file_name, extension_filter))
+			continue;
 
 		array_push(files, string_copy(file_name, allocator));
 	}
 
 	return files;
+}
+
+inline static void
+_platform_linux_path_list_files_recursive(Array<String> &files, const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	DIR *dir = ::opendir(directory.data);
+	if (!dir)
+		return;
+	DEFER(validate(::closedir(dir) == 0, "[PLATFORM][LINUX]: Failed to close recursive directory."););
+
+	struct dirent *entry = nullptr;
+	while ((entry = ::readdir(dir)) != nullptr)
+	{
+		String file_name = string_from(entry->d_name, memory::temp_allocator());
+		if (file_name == "." || file_name == "..")
+			continue;
+
+		String child_path = _platform_linux_path_join(directory, file_name, memory::temp_allocator());
+		if (platform_path_is_directory(child_path))
+		{
+			_platform_linux_path_list_files_recursive(files, child_path, extension_filter, allocator);
+			continue;
+		}
+
+		if (_platform_linux_extension_matches(file_name, extension_filter))
+			array_push(files, string_copy(child_path, allocator));
+	}
+}
+
+Array<String>
+platform_path_list_files_recursive(const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	Array<String> files = array_init<String>(allocator);
+	_platform_linux_path_list_files_recursive(files, directory, extension_filter, allocator);
+	return files;
+}
+
+String
+platform_path_create_file(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	String result = _platform_linux_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	I32 file_handle = ::open(result.data, O_WRONLY | O_CREAT | O_EXCL, S_IRWXU);
+	if (file_handle == -1)
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	validate(::close(file_handle) == 0, "[PLATFORM][LINUX]: Failed to close created file.");
+	return result;
+}
+
+String
+platform_path_create_directory(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	String result = _platform_linux_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (::mkdir(result.data, S_IRWXU) != 0)
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	return result;
+}
+
+String
+platform_path_rename(const String &path, const String &name, memory::Allocator *allocator)
+{
+	String directory = _platform_linux_path_parent(path, memory::temp_allocator());
+	String result = _platform_linux_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (::rename(path.data, result.data) != 0)
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	return result;
+}
+
+String
+platform_path_move(const String &path, const String &directory, memory::Allocator *allocator)
+{
+	String name = platform_path_get_file_name(path, memory::temp_allocator());
+	String result = _platform_linux_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (::rename(path.data, result.data) == 0)
+		return result;
+
+	if (errno == EXDEV && platform_path_is_file(path) && platform_file_copy(path.data, result.data) && platform_file_delete(path.data))
+		return result;
+
+	if (platform_path_is_file(result))
+		platform_file_delete(result.data);
+	string_deinit(result);
+	return string_init(allocator);
+}
+
+String
+platform_resource_read(const String &path, memory::Allocator *allocator)
+{
+	return platform_path_read_file(path, allocator);
+}
+
+Array<String>
+platform_resource_list_files(const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	return platform_path_list_files(directory, extension_filter, allocator);
 }
 
 // C.
@@ -575,10 +860,230 @@ struct Platform_Window_Context
 {
 	Display *display;
 	xcb_connection_t *connection;
+	xcb_window_t root;
 	xcb_window_t window;
 	xcb_atom_t wm_delete_window_atom;
 	xcb_atom_t wm_protocols_atom;
+	xcb_atom_t net_wm_state_atom;
+	xcb_atom_t net_wm_state_fullscreen_atom;
+	xcb_atom_t clipboard_atom;
+	xcb_atom_t targets_atom;
+	xcb_atom_t utf8_string_atom;
+	xcb_atom_t text_atom;
+	DBusConnection *screensaver_connection;
+	dbus_uint32_t screensaver_cookie;
+	Array<Platform_Linux_Clipboard_Item> clipboard_items;
+	bool fullscreen;
+	bool screensaver_inhibited;
+	bool clipboard_owned;
 };
+
+inline static void
+_platform_linux_clipboard_item_deinit(Platform_Linux_Clipboard_Item &item)
+{
+	platform_clipboard_item_deinit(item.item);
+	item.atom = XCB_ATOM_NONE;
+}
+
+inline static void
+_platform_linux_clipboard_items_deinit(Array<Platform_Linux_Clipboard_Item> &items)
+{
+	for (U64 i = 0; i < items.count; ++i)
+		_platform_linux_clipboard_item_deinit(items[i]);
+	array_deinit(items);
+}
+
+inline static void
+_platform_linux_window_fullscreen_set(Platform_Window_Context *ctx, bool enabled)
+{
+	if (ctx->fullscreen == enabled)
+		return;
+
+	xcb_client_message_event_t event = {};
+	event.response_type = XCB_CLIENT_MESSAGE;
+	event.format = 32;
+	event.window = ctx->window;
+	event.type = ctx->net_wm_state_atom;
+	event.data.data32[0] = enabled ? 1 : 0;
+	event.data.data32[1] = ctx->net_wm_state_fullscreen_atom;
+	event.data.data32[2] = 0;
+	event.data.data32[3] = 1;
+
+	::xcb_send_event(ctx->connection, false, ctx->root, XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY, (const char *)&event);
+	::xcb_flush(ctx->connection);
+	ctx->fullscreen = enabled;
+}
+
+inline static void
+_platform_linux_window_keep_screen_on_set(Platform_Window_Context *ctx, bool enabled)
+{
+	if (ctx->screensaver_inhibited == enabled)
+		return;
+
+	if (enabled)
+	{
+		DBusError error = {};
+		dbus_error_init(&error);
+		DBusConnection *connection = dbus_bus_get_private(DBUS_BUS_SESSION, &error);
+		if (dbus_error_is_set(&error) || connection == nullptr)
+		{
+			dbus_error_free(&error);
+			return;
+		}
+		dbus_connection_set_exit_on_disconnect(connection, false);
+
+		DBusMessage *message = dbus_message_new_method_call("org.freedesktop.ScreenSaver", "/org/freedesktop/ScreenSaver", "org.freedesktop.ScreenSaver", "Inhibit");
+		if (message == nullptr)
+		{
+			dbus_connection_close(connection);
+			dbus_connection_unref(connection);
+			return;
+		}
+		DEFER(dbus_message_unref(message););
+
+		const char *application = "Core";
+		const char *reason = "Core window requested keep screen on";
+		dbus_message_append_args(message, DBUS_TYPE_STRING, &application, DBUS_TYPE_STRING, &reason, DBUS_TYPE_INVALID);
+
+		DBusMessage *reply = dbus_connection_send_with_reply_and_block(connection, message, -1, &error);
+		if (dbus_error_is_set(&error) || reply == nullptr)
+		{
+			dbus_error_free(&error);
+			dbus_connection_close(connection);
+			dbus_connection_unref(connection);
+			return;
+		}
+		DEFER(dbus_message_unref(reply););
+
+		dbus_uint32_t cookie = 0;
+		if (!dbus_message_get_args(reply, &error, DBUS_TYPE_UINT32, &cookie, DBUS_TYPE_INVALID))
+		{
+			dbus_error_free(&error);
+			dbus_connection_close(connection);
+			dbus_connection_unref(connection);
+			return;
+		}
+
+		ctx->screensaver_connection = connection;
+		ctx->screensaver_cookie = cookie;
+		ctx->screensaver_inhibited = true;
+	}
+	else
+	{
+		DBusMessage *message = dbus_message_new_method_call("org.freedesktop.ScreenSaver", "/org/freedesktop/ScreenSaver", "org.freedesktop.ScreenSaver", "UnInhibit");
+		if (message)
+		{
+			DBusError error = {};
+			dbus_error_init(&error);
+			dbus_message_append_args(message, DBUS_TYPE_UINT32, &ctx->screensaver_cookie, DBUS_TYPE_INVALID);
+			DBusMessage *reply = dbus_connection_send_with_reply_and_block(ctx->screensaver_connection, message, -1, &error);
+			if (dbus_error_is_set(&error))
+				dbus_error_free(&error);
+			if (reply)
+				dbus_message_unref(reply);
+			dbus_message_unref(message);
+		}
+
+		dbus_connection_close(ctx->screensaver_connection);
+		dbus_connection_unref(ctx->screensaver_connection);
+		ctx->screensaver_connection = nullptr;
+		ctx->screensaver_cookie = 0;
+		ctx->screensaver_inhibited = false;
+	}
+}
+
+inline static bool
+_platform_linux_clipboard_atom_exists(const Array<xcb_atom_t> &atoms, xcb_atom_t atom)
+{
+	for (U64 i = 0; i < atoms.count; ++i)
+		if (atoms[i] == atom)
+			return true;
+	return false;
+}
+
+inline static void
+_platform_linux_clipboard_push_atom(Array<xcb_atom_t> &atoms, xcb_atom_t atom)
+{
+	if (atom != XCB_ATOM_NONE && !_platform_linux_clipboard_atom_exists(atoms, atom))
+		array_push(atoms, atom);
+}
+
+inline static Platform_Linux_Clipboard_Item *
+_platform_linux_clipboard_find_item(Platform_Window_Context *ctx, xcb_atom_t atom)
+{
+	for (U64 i = 0; i < ctx->clipboard_items.count; ++i)
+		if (ctx->clipboard_items[i].atom == atom)
+			return ctx->clipboard_items.data + i;
+	return nullptr;
+}
+
+inline static Platform_Linux_Clipboard_Item *
+_platform_linux_clipboard_find_text_item(Platform_Window_Context *ctx)
+{
+	for (U64 i = 0; i < ctx->clipboard_items.count; ++i)
+		if (_platform_clipboard_media_type_is_text(ctx->clipboard_items[i].item.media_type))
+			return ctx->clipboard_items.data + i;
+	return nullptr;
+}
+
+inline static void
+_platform_linux_clipboard_handle_selection_request(Platform_Window_Context *ctx, xcb_selection_request_event_t *request)
+{
+	xcb_selection_notify_event_t response = {};
+	response.response_type = XCB_SELECTION_NOTIFY;
+	response.time         = request->time;
+	response.requestor    = request->requestor;
+	response.selection    = request->selection;
+	response.target       = request->target;
+	response.property     = XCB_ATOM_NONE;
+
+	if (ctx->clipboard_owned && request->selection == ctx->clipboard_atom)
+	{
+		xcb_atom_t property = request->property == XCB_ATOM_NONE ? request->target : request->property;
+		if (request->target == ctx->targets_atom)
+		{
+			Array<xcb_atom_t> targets = array_init<xcb_atom_t>(memory::temp_allocator());
+			DEFER(array_deinit(targets));
+			_platform_linux_clipboard_push_atom(targets, ctx->targets_atom);
+			for (U64 i = 0; i < ctx->clipboard_items.count; ++i)
+			{
+				_platform_linux_clipboard_push_atom(targets, ctx->clipboard_items[i].atom);
+				if (_platform_clipboard_media_type_is_text(ctx->clipboard_items[i].item.media_type))
+				{
+					_platform_linux_clipboard_push_atom(targets, ctx->utf8_string_atom);
+					_platform_linux_clipboard_push_atom(targets, ctx->text_atom);
+					_platform_linux_clipboard_push_atom(targets, XCB_ATOM_STRING);
+				}
+			}
+			::xcb_change_property(ctx->connection, XCB_PROP_MODE_REPLACE, request->requestor, property, XCB_ATOM_ATOM, 32, (U32)targets.count, targets.data);
+			response.property = property;
+		}
+		else if (request->target == ctx->utf8_string_atom || request->target == ctx->text_atom || request->target == XCB_ATOM_STRING)
+		{
+			Platform_Linux_Clipboard_Item *item = _platform_linux_clipboard_find_text_item(ctx);
+			xcb_atom_t type = ctx->utf8_string_atom;
+			if (request->target == XCB_ATOM_STRING)
+				type = XCB_ATOM_STRING;
+			if (item)
+			{
+				::xcb_change_property(ctx->connection, XCB_PROP_MODE_REPLACE, request->requestor, property, type, 8, (U32)item->item.data.count, item->item.data.data);
+				response.property = property;
+			}
+		}
+		else
+		{
+			Platform_Linux_Clipboard_Item *item = _platform_linux_clipboard_find_item(ctx, request->target);
+			if (item)
+			{
+				::xcb_change_property(ctx->connection, XCB_PROP_MODE_REPLACE, request->requestor, property, item->atom, 8, (U32)item->item.data.count, item->item.data.data);
+				response.property = property;
+			}
+		}
+	}
+
+	::xcb_send_event(ctx->connection, false, request->requestor, 0, (const char *)&response);
+	::xcb_flush(ctx->connection);
+}
 
 Platform_Window
 platform_window_init(U32 width, U32 height, const char *title)
@@ -604,6 +1109,7 @@ platform_window_init(U32 width, U32 height, const char *title)
 					   XCB_EVENT_MASK_KEY_RELEASE    |
 					   XCB_EVENT_MASK_EXPOSURE       |
 					   XCB_EVENT_MASK_POINTER_MOTION |
+					   XCB_EVENT_MASK_FOCUS_CHANGE   |
 					   XCB_EVENT_MASK_STRUCTURE_NOTIFY;
 
 	U32 value_list[] = {screen->black_pixel, event_values};
@@ -662,16 +1168,30 @@ platform_window_init(U32 width, U32 height, const char *title)
 	Platform_Window_Context *ctx = memory::allocate_zeroed<Platform_Window_Context>();
 	ctx->display               = display;
 	ctx->connection            = connection;
+	ctx->root                  = screen->root;
 	ctx->window                = window;
 	ctx->wm_delete_window_atom = wm_delete_reply->atom;
 	ctx->wm_protocols_atom     = wm_protocols_reply->atom;
+	ctx->net_wm_state_atom     = _platform_linux_intern_atom(connection, "_NET_WM_STATE");
+	ctx->net_wm_state_fullscreen_atom = _platform_linux_intern_atom(connection, "_NET_WM_STATE_FULLSCREEN");
+	ctx->clipboard_atom        = _platform_linux_intern_atom(connection, "CLIPBOARD");
+	ctx->targets_atom          = _platform_linux_intern_atom(connection, "TARGETS");
+	ctx->utf8_string_atom      = _platform_linux_intern_atom(connection, "UTF8_STRING");
+	ctx->text_atom             = _platform_linux_intern_atom(connection, "TEXT");
 
-	return Platform_Window {
+	Platform_Window self {
 		.handle = ctx,
 		.width  = width,
 		.height = height,
-		.input  = {}
+		.metrics = _platform_linux_window_metrics(display, width, height),
+		.input  = {},
+		.focused = true,
+		.started = true,
+		.surface_valid = true,
+		.surface_changed = true
 	};
+	self.input.text_input_events = array_init<Platform_Text_Input_Event>();
+	return self;
 }
 
 void
@@ -681,15 +1201,30 @@ platform_window_deinit(Platform_Window *self)
 
 	// Set auto repeat keys back to on.
 	::XAutoRepeatOn(ctx->display);
+	_platform_linux_window_keep_screen_on_set(ctx, false);
+	if (ctx->clipboard_owned)
+		::xcb_set_selection_owner(ctx->connection, XCB_NONE, ctx->clipboard_atom, XCB_CURRENT_TIME);
+	_platform_linux_clipboard_items_deinit(ctx->clipboard_items);
 	::xcb_destroy_window(ctx->connection, ctx->window);
 
 	memory::deallocate(ctx);
+	self->handle = nullptr;
+	self->metrics = {};
+	self->close_requested = true;
+	self->started = false;
+	self->surface_valid = false;
+	_platform_linux_text_input_events_reset(self->input);
+	array_deinit(self->input.text_input_events);
 }
 
 bool
 platform_window_poll(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	bool surface_changed = self->surface_changed;
+	self->surface_changed = false;
+	self->low_memory = false;
+	self->save_state_requested = false;
 
 	for (I32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{
@@ -699,6 +1234,7 @@ platform_window_poll(Platform_Window *self)
 		self->input.keys[i].release_count = 0;
 	}
 	self->input.mouse_wheel = 0.0f;
+	_platform_linux_text_input_events_reset(self->input);
 
 	while (xcb_generic_event_t *xcb_event = ::xcb_poll_for_event(ctx->connection))
 	{
@@ -708,9 +1244,29 @@ platform_window_poll(Platform_Window *self)
 			{
 				xcb_client_message_event_t *xcb_client_message = (xcb_client_message_event_t *)xcb_event;
 				if (xcb_client_message->data.data32[0] == ctx->wm_delete_window_atom)
-					return false;
+				{
+					self->close_requested = true;
+					self->surface_valid = false;
+				}
 				break;
 			}
+			case XCB_SELECTION_REQUEST:
+			{
+				_platform_linux_clipboard_handle_selection_request(ctx, (xcb_selection_request_event_t *)xcb_event);
+				break;
+			}
+			case XCB_SELECTION_CLEAR:
+			{
+				xcb_selection_clear_event_t *selection_clear = (xcb_selection_clear_event_t *)xcb_event;
+				if (selection_clear->selection == ctx->clipboard_atom)
+				{
+					ctx->clipboard_owned = false;
+					_platform_linux_clipboard_items_deinit(ctx->clipboard_items);
+				}
+				break;
+			}
+			case XCB_FOCUS_IN:  self->focused = true;  break;
+			case XCB_FOCUS_OUT: self->focused = false; break;
 			case XCB_BUTTON_PRESS:
 			{
 				xcb_button_press_event_t *xcb_mouse_press_event = (xcb_button_press_event_t *)xcb_event;
@@ -744,7 +1300,9 @@ platform_window_poll(Platform_Window *self)
 			case XCB_KEY_PRESS:
 			{
 				xcb_key_press_event_t *xcb_key_press_event = (xcb_key_press_event_t *)xcb_event;
+				I32 shift_level = (xcb_key_press_event->state & XCB_MOD_MASK_SHIFT) ? 1 : 0;
 				KeySym key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_press_event->detail, 0, 0);
+				KeySym text_key_sym = ::XkbKeycodeToKeysym(ctx->display, (KeyCode)xcb_key_press_event->detail, 0, shift_level);
 
 				PLATFORM_KEY key = _platform_key_from_key_sym(key_sym);
 				if (key != PLATFORM_KEY_COUNT)
@@ -752,6 +1310,14 @@ platform_window_poll(Platform_Window *self)
 					self->input.keys[key].pressed  = true;
 					self->input.keys[key].down     = true;
 					self->input.keys[key].press_count++;
+				}
+				if (self->text_input.enabled && text_key_sym >= XK_space && text_key_sym <= XK_asciitilde)
+				{
+					char text = (char)text_key_sym;
+					array_push(self->input.text_input_events, Platform_Text_Input_Event {
+						.type = PLATFORM_TEXT_INPUT_EVENT_COMMIT,
+						.text = string_from(&text, &text + 1)
+					});
 				}
 				break;
 			}
@@ -776,6 +1342,8 @@ platform_window_poll(Platform_Window *self)
 				{
 					self->width  = xcb_configure_notify_event->width;
 					self->height = xcb_configure_notify_event->height;
+					self->metrics = _platform_linux_window_metrics(ctx->display, self->width, self->height);
+					surface_changed = true;
 				}
 				break;
 			}
@@ -785,6 +1353,9 @@ platform_window_poll(Platform_Window *self)
 
 		::free(xcb_event);
 	}
+
+	if (self->close_requested)
+		return false;
 
 	{
 		// NOTE: Mouse movement.
@@ -809,17 +1380,20 @@ platform_window_poll(Platform_Window *self)
 		::free(xcb_query_pointer_reply);
 	}
 
-	return true;
+	self->paused = false;
+	self->surface_valid = self->width > 0 && self->height > 0;
+	self->surface_changed = surface_changed;
+	return !self->close_requested;
 }
 
-void
-platform_window_get_native_handles(Platform_Window *self, void **native_handle, void **native_connection)
+Platform_Window_Native_Handles
+platform_window_get_native_handles(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
-	if (native_handle)
-		*native_handle = &ctx->window;
-	if (native_connection)
-		*native_connection = ctx->connection;
+	return Platform_Window_Native_Handles {
+		.window = &ctx->window,
+		.context = ctx->connection
+	};
 }
 
 void
@@ -834,6 +1408,8 @@ void
 platform_window_close(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	self->close_requested = true;
+	self->surface_valid = false;
 
 	XEvent event;
 	::memset(&event, 0, sizeof(event));
@@ -844,6 +1420,24 @@ platform_window_close(Platform_Window *self)
 	event.xclient.data.l[0]    = ::XInternAtom(ctx->display, "WM_DELETE_WINDOW", false);
 	event.xclient.data.l[1]    = CurrentTime;
 	::XSendEvent(ctx->display, ctx->window, false, NoEventMask, &event);
+}
+
+void
+platform_window_presentation_set(Platform_Window &window, const Platform_Window_Presentation_Desc &desc)
+{
+	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	bool fullscreen = (desc.flags & (PLATFORM_WINDOW_PRESENTATION_FLAG_FULLSCREEN | PLATFORM_WINDOW_PRESENTATION_FLAG_IMMERSIVE)) != 0;
+	_platform_linux_window_fullscreen_set(ctx, fullscreen);
+	_platform_linux_window_keep_screen_on_set(ctx, (desc.flags & PLATFORM_WINDOW_PRESENTATION_FLAG_KEEP_SCREEN_ON) != 0);
+	window.presentation = desc;
+	window.surface_changed = true;
+}
+
+void
+platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc)
+{
+	window.text_input = desc;
+	window.text_input.text = {};
 }
 
 void
@@ -1052,38 +1646,568 @@ platform_file_delete(const char *filepath)
 	return ::unlink(filepath) == 0;
 }
 
-/*
-	TODO:
-	[ ] Make sure zenity is installed on the user's system.
-	[ ] Filters on Linux does not match how its used on Windows atm.
-	[ ] Also file filter works only for a single filter for now.
-*/
-bool
-platform_file_dialog_open(char *path, U32 path_length, const char *filters)
+inline static I32
+_platform_linux_hex_value(char c)
 {
-	::memset(path, 0, path_length);
+	if (c >= '0' && c <= '9')
+		return c - '0';
+	if (c >= 'a' && c <= 'f')
+		return c - 'a' + 10;
+	if (c >= 'A' && c <= 'F')
+		return c - 'A' + 10;
+	return -1;
+}
 
-	char command[2048];
-	::sprintf(command, "/usr/bin/zenity --file-selection --modal --file-filter=%s --title=\"Select a file.\"", filters);
-	FILE *file_handle = ::popen(command, "r");
-	char *result= ::fgets(path, path_length, file_handle);
-	if (result == nullptr)
+inline static String
+_platform_linux_file_uri_to_path(const char *uri, memory::Allocator *allocator)
+{
+	if (uri == nullptr)
+		return string_init(allocator);
+
+	const char *prefix = "file://";
+	U64 prefix_count = ::strlen(prefix);
+	if (::strncmp(uri, prefix, prefix_count) != 0)
+		return string_from(uri, allocator);
+
+	const char *path = uri + prefix_count;
+	if (::strncmp(path, "localhost/", 10) == 0)
+		path += 9;
+
+	String result = string_init(allocator);
+	for (const char *at = path; *at != '\0'; ++at)
+	{
+		if (at[0] == '%' && at[1] != '\0' && at[2] != '\0')
+		{
+			I32 high = _platform_linux_hex_value(at[1]);
+			I32 low = _platform_linux_hex_value(at[2]);
+			if (high >= 0 && low >= 0)
+			{
+				string_append(result, (char)((high << 4) | low));
+				at += 2;
+				continue;
+			}
+		}
+
+		string_append(result, *at);
+	}
+	return result;
+}
+
+inline static void
+_platform_linux_portal_append_filter_patterns(DBusMessageIter *patterns_array, const char *patterns)
+{
+	const char *pattern = patterns;
+	while (pattern && *pattern != '\0')
+	{
+		while (*pattern == ' ')
+			++pattern;
+
+		const char *pattern_end = pattern;
+		while (*pattern_end != '\0' && *pattern_end != ';' && *pattern_end != ',')
+			++pattern_end;
+
+		if (pattern_end != pattern)
+		{
+			char pattern_buffer[256] = {};
+			U64 pattern_count = u64_min((U64)(pattern_end - pattern), sizeof(pattern_buffer) - 1);
+			::memcpy(pattern_buffer, pattern, pattern_count);
+
+			DBusMessageIter pattern_struct = {};
+			dbus_uint32_t pattern_type = 0;
+			const char *pattern_string = pattern_buffer;
+			dbus_message_iter_open_container(patterns_array, DBUS_TYPE_STRUCT, nullptr, &pattern_struct);
+			dbus_message_iter_append_basic(&pattern_struct, DBUS_TYPE_UINT32, &pattern_type);
+			dbus_message_iter_append_basic(&pattern_struct, DBUS_TYPE_STRING, &pattern_string);
+			dbus_message_iter_close_container(patterns_array, &pattern_struct);
+		}
+
+		pattern = *pattern_end == '\0' ? pattern_end : pattern_end + 1;
+	}
+}
+
+inline static void
+_platform_linux_portal_append_filters(DBusMessageIter *options_array, const char *filters)
+{
+	if (filters == nullptr || filters[0] == '\0')
+		return;
+
+	DBusMessageIter dict_entry = {};
+	DBusMessageIter variant = {};
+	DBusMessageIter filters_array = {};
+	const char *filters_key = "filters";
+	dbus_message_iter_open_container(options_array, DBUS_TYPE_DICT_ENTRY, nullptr, &dict_entry);
+	dbus_message_iter_append_basic(&dict_entry, DBUS_TYPE_STRING, &filters_key);
+	dbus_message_iter_open_container(&dict_entry, DBUS_TYPE_VARIANT, "a(sa(us))", &variant);
+	dbus_message_iter_open_container(&variant, DBUS_TYPE_ARRAY, "(sa(us))", &filters_array);
+
+	const char *label = filters;
+	while (label[0] != '\0')
+	{
+		const char *patterns = label + ::strlen(label) + 1;
+		if (patterns[0] == '\0')
+			break;
+
+		DBusMessageIter filter_struct = {};
+		DBusMessageIter patterns_array = {};
+		dbus_message_iter_open_container(&filters_array, DBUS_TYPE_STRUCT, nullptr, &filter_struct);
+		dbus_message_iter_append_basic(&filter_struct, DBUS_TYPE_STRING, &label);
+		dbus_message_iter_open_container(&filter_struct, DBUS_TYPE_ARRAY, "(us)", &patterns_array);
+		_platform_linux_portal_append_filter_patterns(&patterns_array, patterns);
+		dbus_message_iter_close_container(&filter_struct, &patterns_array);
+		dbus_message_iter_close_container(&filters_array, &filter_struct);
+
+		label = patterns + ::strlen(patterns) + 1;
+	}
+
+	dbus_message_iter_close_container(&variant, &filters_array);
+	dbus_message_iter_close_container(&dict_entry, &variant);
+	dbus_message_iter_close_container(options_array, &dict_entry);
+}
+
+inline static void
+_platform_linux_portal_append_options(DBusMessageIter *args, const char *filters, bool directory)
+{
+	DBusMessageIter options_array = {};
+	dbus_message_iter_open_container(args, DBUS_TYPE_ARRAY, "{sv}", &options_array);
+	if (directory)
+	{
+		DBusMessageIter dict_entry = {};
+		DBusMessageIter variant = {};
+		const char *directory_key = "directory";
+		dbus_bool_t directory_value = true;
+		dbus_message_iter_open_container(&options_array, DBUS_TYPE_DICT_ENTRY, nullptr, &dict_entry);
+		dbus_message_iter_append_basic(&dict_entry, DBUS_TYPE_STRING, &directory_key);
+		dbus_message_iter_open_container(&dict_entry, DBUS_TYPE_VARIANT, "b", &variant);
+		dbus_message_iter_append_basic(&variant, DBUS_TYPE_BOOLEAN, &directory_value);
+		dbus_message_iter_close_container(&dict_entry, &variant);
+		dbus_message_iter_close_container(&options_array, &dict_entry);
+	}
+	else
+	{
+		_platform_linux_portal_append_filters(&options_array, filters);
+	}
+	dbus_message_iter_close_container(args, &options_array);
+}
+
+inline static String
+_platform_linux_portal_response_path(DBusMessage *message, memory::Allocator *allocator)
+{
+	DBusMessageIter args = {};
+	if (!dbus_message_iter_init(message, &args) || dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_UINT32)
+		return string_init(allocator);
+
+	dbus_uint32_t response = 1;
+	dbus_message_iter_get_basic(&args, &response);
+	if (response != 0 || !dbus_message_iter_next(&args) || dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_ARRAY)
+		return string_init(allocator);
+
+	DBusMessageIter results = {};
+	dbus_message_iter_recurse(&args, &results);
+	while (dbus_message_iter_get_arg_type(&results) == DBUS_TYPE_DICT_ENTRY)
+	{
+		DBusMessageIter entry = {};
+		dbus_message_iter_recurse(&results, &entry);
+		if (dbus_message_iter_get_arg_type(&entry) == DBUS_TYPE_STRING)
+		{
+			const char *key = nullptr;
+			dbus_message_iter_get_basic(&entry, &key);
+			if (key && ::strcmp(key, "uris") == 0 && dbus_message_iter_next(&entry) && dbus_message_iter_get_arg_type(&entry) == DBUS_TYPE_VARIANT)
+			{
+				DBusMessageIter variant = {};
+				dbus_message_iter_recurse(&entry, &variant);
+				if (dbus_message_iter_get_arg_type(&variant) == DBUS_TYPE_ARRAY)
+				{
+					DBusMessageIter uris = {};
+					dbus_message_iter_recurse(&variant, &uris);
+					if (dbus_message_iter_get_arg_type(&uris) == DBUS_TYPE_STRING)
+					{
+						const char *uri = nullptr;
+						dbus_message_iter_get_basic(&uris, &uri);
+						return _platform_linux_file_uri_to_path(uri, allocator);
+					}
+				}
+			}
+		}
+
+		dbus_message_iter_next(&results);
+	}
+
+	return string_init(allocator);
+}
+
+inline static String
+_platform_linux_portal_file_dialog_run(const char *method, const char *title, const char *filters, bool directory, memory::Allocator *allocator)
+{
+	DBusError error = {};
+	dbus_error_init(&error);
+	DBusConnection *connection = dbus_bus_get(DBUS_BUS_SESSION, &error);
+	if (dbus_error_is_set(&error) || connection == nullptr)
+	{
+		dbus_error_free(&error);
+		return string_init(allocator);
+	}
+	DEFER(dbus_connection_unref(connection););
+
+	DBusMessage *message = dbus_message_new_method_call("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop", "org.freedesktop.portal.FileChooser", method);
+	if (message == nullptr)
+		return string_init(allocator);
+	DEFER(dbus_message_unref(message););
+
+	const char *parent_window = "";
+	DBusMessageIter args = {};
+	dbus_message_iter_init_append(message, &args);
+	dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &parent_window);
+	dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &title);
+	_platform_linux_portal_append_options(&args, filters, directory);
+
+	DBusMessage *reply = dbus_connection_send_with_reply_and_block(connection, message, 30000, &error);
+	if (dbus_error_is_set(&error) || reply == nullptr)
+	{
+		dbus_error_free(&error);
+		return string_init(allocator);
+	}
+	DEFER(dbus_message_unref(reply););
+
+	const char *handle_path = nullptr;
+	if (!dbus_message_get_args(reply, &error, DBUS_TYPE_OBJECT_PATH, &handle_path, DBUS_TYPE_INVALID) || handle_path == nullptr)
+	{
+		dbus_error_free(&error);
+		return string_init(allocator);
+	}
+
+	char match_rule[1024] = {};
+	::snprintf(match_rule, sizeof(match_rule), "type='signal',interface='org.freedesktop.portal.Request',member='Response',path='%s'", handle_path);
+	dbus_bus_add_match(connection, match_rule, &error);
+	if (dbus_error_is_set(&error))
+	{
+		dbus_error_free(&error);
+		return string_init(allocator);
+	}
+	DEFER({
+		dbus_bus_remove_match(connection, match_rule, nullptr);
+		dbus_connection_flush(connection);
+	});
+	dbus_connection_flush(connection);
+
+	while (true)
+	{
+		dbus_connection_read_write(connection, -1);
+		DBusMessage *signal = dbus_connection_pop_message(connection);
+		if (signal == nullptr)
+			continue;
+		DEFER(dbus_message_unref(signal););
+
+		const char *signal_path = dbus_message_get_path(signal);
+		if (signal_path && dbus_message_is_signal(signal, "org.freedesktop.portal.Request", "Response") && ::strcmp(signal_path, handle_path) == 0)
+			return _platform_linux_portal_response_path(signal, allocator);
+	}
+}
+
+String
+platform_file_dialog_open(const char *filters, memory::Allocator *allocator)
+{
+	return _platform_linux_portal_file_dialog_run("OpenFile", "Open File", filters, false, allocator);
+}
+
+String
+platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
+{
+	return _platform_linux_portal_file_dialog_run("SaveFile", "Save File", filters, false, allocator);
+}
+
+String
+platform_directory_dialog_open(memory::Allocator *allocator)
+{
+	return _platform_linux_portal_file_dialog_run("OpenFile", "Open Directory", nullptr, true, allocator);
+}
+
+struct Platform_Linux_Clipboard_Data
+{
+	xcb_atom_t type;
+	I32 format;
+	Array<U8> data;
+};
+
+inline static Platform_Linux_Clipboard_Data
+_platform_linux_clipboard_read_target(xcb_connection_t *connection, xcb_window_t window, xcb_atom_t clipboard, xcb_atom_t target, xcb_atom_t property, memory::Allocator *allocator)
+{
+	Platform_Linux_Clipboard_Data result {
+		.type = XCB_ATOM_NONE,
+		.format = 0,
+		.data = array_init<U8>(allocator)
+	};
+
+	::xcb_delete_property(connection, window, property);
+	::xcb_convert_selection(connection, window, clipboard, target, property, XCB_CURRENT_TIME);
+	::xcb_flush(connection);
+
+	I32 fd = ::xcb_get_file_descriptor(connection);
+	if (fd < 0)
+		return result;
+
+	while (true)
+	{
+		while (xcb_generic_event_t *event = ::xcb_poll_for_event(connection))
+		{
+			DEFER(::free(event););
+			if ((event->response_type & ~0x80) != XCB_SELECTION_NOTIFY)
+				continue;
+
+			xcb_selection_notify_event_t *notify = (xcb_selection_notify_event_t *)event;
+			if (notify->selection != clipboard || notify->target != target)
+				continue;
+
+			if (notify->property == XCB_ATOM_NONE)
+				return result;
+
+			xcb_get_property_cookie_t cookie = ::xcb_get_property(connection, false, window, property, XCB_GET_PROPERTY_TYPE_ANY, 0, U32_MAX / 4);
+			xcb_get_property_reply_t *reply = ::xcb_get_property_reply(connection, cookie, nullptr);
+			if (reply == nullptr)
+				return result;
+			DEFER(::free(reply););
+
+			I32 value_length = ::xcb_get_property_value_length(reply);
+			result.type = reply->type;
+			result.format = reply->format;
+			array_resize(result.data, (U64)value_length);
+			if (value_length > 0)
+				::memcpy(result.data.data, ::xcb_get_property_value(reply), (U64)value_length);
+			return result;
+		}
+
+		fd_set read_fds = {};
+		FD_ZERO(&read_fds);
+		FD_SET(fd, &read_fds);
+		timeval timeout = {};
+		timeout.tv_sec = 5;
+		I32 select_result = ::select(fd + 1, &read_fds, nullptr, nullptr, &timeout);
+		if (select_result == 0)
+			return result;
+		if (select_result < 0 && errno != EINTR)
+			return result;
+	}
+}
+
+inline static bool
+_platform_linux_clipboard_create_read_window(xcb_connection_t **connection, xcb_window_t *window)
+{
+	I32 screen_index = 0;
+	*connection = ::xcb_connect(nullptr, &screen_index);
+	if (*connection == nullptr || ::xcb_connection_has_error(*connection))
+	{
+		if (*connection)
+			::xcb_disconnect(*connection);
+		*connection = nullptr;
 		return false;
-	return ::pclose(file_handle) == 0;
+	}
+
+	const xcb_setup_t *setup = ::xcb_get_setup(*connection);
+	xcb_screen_iterator_t iterator = ::xcb_setup_roots_iterator(setup);
+	for (I32 i = 0; i < screen_index; ++i)
+		::xcb_screen_next(&iterator);
+	xcb_screen_t *screen = iterator.data;
+
+	*window = ::xcb_generate_id(*connection);
+	U32 event_mask = XCB_EVENT_MASK_PROPERTY_CHANGE;
+	::xcb_create_window(*connection, XCB_COPY_FROM_PARENT, *window, screen->root, 0, 0, 1, 1, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, XCB_CW_EVENT_MASK, &event_mask);
+	return true;
+}
+
+inline static String
+_platform_linux_clipboard_media_type_from_atom(xcb_connection_t *connection, xcb_atom_t atom, xcb_atom_t targets_atom, xcb_atom_t utf8_string_atom, xcb_atom_t text_atom, memory::Allocator *allocator)
+{
+	if (atom == XCB_ATOM_NONE || atom == targets_atom)
+		return string_init(allocator);
+
+	if (atom == utf8_string_atom || atom == text_atom || atom == XCB_ATOM_STRING)
+		return string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator);
+
+	xcb_get_atom_name_cookie_t cookie = ::xcb_get_atom_name(connection, atom);
+	xcb_get_atom_name_reply_t *reply = ::xcb_get_atom_name_reply(connection, cookie, nullptr);
+	if (reply == nullptr)
+		return string_init(allocator);
+	DEFER(::free(reply););
+
+	const char *name = ::xcb_get_atom_name_name(reply);
+	I32 name_length = ::xcb_get_atom_name_name_length(reply);
+	for (I32 i = 0; i < name_length; ++i)
+		if (name[i] == '/')
+			return string_from(name, name + name_length, allocator);
+
+	return string_init(allocator);
+}
+
+inline static Platform_Clipboard_Item
+_platform_linux_clipboard_item_copy(const Platform_Clipboard_Item &item, memory::Allocator *allocator)
+{
+	return Platform_Clipboard_Item {
+		.media_type = string_copy(item.media_type, allocator),
+		.data = array_copy(item.data, allocator)
+	};
+}
+
+inline static Platform_Linux_Clipboard_Item *
+_platform_linux_clipboard_find_item_by_media_type(Platform_Window_Context *ctx, const String &media_type)
+{
+	if (_platform_clipboard_media_type_is_text(media_type))
+		return _platform_linux_clipboard_find_text_item(ctx);
+
+	for (U64 i = 0; i < ctx->clipboard_items.count; ++i)
+		if (ctx->clipboard_items[i].item.media_type == media_type)
+			return ctx->clipboard_items.data + i;
+	return nullptr;
+}
+
+Array<String>
+platform_window_clipboard_query_media_types(Platform_Window &window, memory::Allocator *allocator)
+{
+	validate(window.handle != nullptr, "[PLATFORM][LINUX]: Clipboard read requires an initialized platform window.");
+
+	Array<String> media_types = array_init<String>(allocator);
+	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	if (ctx->clipboard_owned)
+	{
+		for (U64 i = 0; i < ctx->clipboard_items.count; ++i)
+			if (!_platform_clipboard_media_type_exists(media_types, ctx->clipboard_items[i].item.media_type))
+				array_push(media_types, string_copy(ctx->clipboard_items[i].item.media_type, allocator));
+		return media_types;
+	}
+
+	xcb_connection_t *connection = nullptr;
+	xcb_window_t read_window = XCB_NONE;
+	if (!_platform_linux_clipboard_create_read_window(&connection, &read_window))
+		return media_types;
+	DEFER(::xcb_disconnect(connection););
+	DEFER(::xcb_destroy_window(connection, read_window););
+
+	xcb_atom_t clipboard = _platform_linux_intern_atom(connection, "CLIPBOARD");
+	xcb_atom_t targets = _platform_linux_intern_atom(connection, "TARGETS");
+	xcb_atom_t utf8_string = _platform_linux_intern_atom(connection, "UTF8_STRING");
+	xcb_atom_t text = _platform_linux_intern_atom(connection, "TEXT");
+	xcb_atom_t property = _platform_linux_intern_atom(connection, "CORE_CLIPBOARD_READ");
+	if (clipboard == XCB_ATOM_NONE || targets == XCB_ATOM_NONE || utf8_string == XCB_ATOM_NONE || property == XCB_ATOM_NONE)
+		return media_types;
+
+	Platform_Linux_Clipboard_Data data = _platform_linux_clipboard_read_target(connection, read_window, clipboard, targets, property, memory::temp_allocator());
+	if (data.format != 32 || data.data.count == 0)
+		return media_types;
+
+	U64 atom_count = data.data.count / sizeof(xcb_atom_t);
+	xcb_atom_t *atoms = (xcb_atom_t *)data.data.data;
+	for (U64 i = 0; i < atom_count; ++i)
+	{
+		String media_type = _platform_linux_clipboard_media_type_from_atom(connection, atoms[i], targets, utf8_string, text, memory::temp_allocator());
+		if (media_type.count > 0 && !_platform_clipboard_media_type_exists(media_types, media_type))
+			array_push(media_types, string_copy(media_type, allocator));
+	}
+
+	return media_types;
+}
+
+Platform_Clipboard_Item
+platform_window_clipboard_item_read(Platform_Window &window, const String &media_type, memory::Allocator *allocator)
+{
+	validate(window.handle != nullptr, "[PLATFORM][LINUX]: Clipboard read requires an initialized platform window.");
+
+	Platform_Clipboard_Item result {
+		.media_type = string_init(allocator),
+		.data = array_init<U8>(allocator)
+	};
+	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	if (ctx->clipboard_owned)
+	{
+		Platform_Linux_Clipboard_Item *item = _platform_linux_clipboard_find_item_by_media_type(ctx, media_type);
+		return item ? _platform_linux_clipboard_item_copy(item->item, allocator) : result;
+	}
+
+	xcb_connection_t *connection = nullptr;
+	xcb_window_t read_window = XCB_NONE;
+	if (!_platform_linux_clipboard_create_read_window(&connection, &read_window))
+		return result;
+	DEFER(::xcb_disconnect(connection););
+	DEFER(::xcb_destroy_window(connection, read_window););
+
+	xcb_atom_t clipboard = _platform_linux_intern_atom(connection, "CLIPBOARD");
+	xcb_atom_t utf8_string = _platform_linux_intern_atom(connection, "UTF8_STRING");
+	xcb_atom_t text = _platform_linux_intern_atom(connection, "TEXT");
+	xcb_atom_t property = _platform_linux_intern_atom(connection, "CORE_CLIPBOARD_READ");
+	if (clipboard == XCB_ATOM_NONE || utf8_string == XCB_ATOM_NONE || property == XCB_ATOM_NONE)
+		return result;
+
+	xcb_atom_t target = _platform_linux_intern_atom(connection, media_type.data);
+	Platform_Linux_Clipboard_Data data = {};
+	if (target != XCB_ATOM_NONE)
+		data = _platform_linux_clipboard_read_target(connection, read_window, clipboard, target, property, allocator);
+	if (data.type == XCB_ATOM_NONE && _platform_clipboard_media_type_is_text(media_type))
+		data = _platform_linux_clipboard_read_target(connection, read_window, clipboard, utf8_string, property, allocator);
+	if (data.type == XCB_ATOM_NONE && _platform_clipboard_media_type_is_text(media_type) && text != XCB_ATOM_NONE)
+		data = _platform_linux_clipboard_read_target(connection, read_window, clipboard, text, property, allocator);
+	if (data.type == XCB_ATOM_NONE && _platform_clipboard_media_type_is_text(media_type))
+		data = _platform_linux_clipboard_read_target(connection, read_window, clipboard, XCB_ATOM_STRING, property, allocator);
+
+	if (data.type == XCB_ATOM_NONE || data.format != 8)
+	{
+		array_deinit(data.data);
+		return result;
+	}
+
+	string_deinit(result.media_type);
+	result.media_type = _platform_clipboard_media_type_is_text(media_type) ? string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator) : string_copy(media_type, allocator);
+	array_deinit(result.data);
+	result.data = data.data;
+	return result;
 }
 
 bool
-platform_file_dialog_save(char *path, U32 path_length, const char *filters)
+platform_window_clipboard_item_write(Platform_Window &window, const Platform_Clipboard_Item *items, U32 item_count)
 {
-	::memset(path, 0, path_length);
-
-	char command[2048];
-	::sprintf(command, "/usr/bin/zenity --file-selection --modal --save --file-filter=%s --title=\"Save file.\"", filters);
-	FILE *file_handle = ::popen(command, "r");
-	char *result = ::fgets(path, path_length, file_handle);
-	if (result == nullptr)
+	validate(window.handle != nullptr, "[PLATFORM][LINUX]: Clipboard write requires an initialized platform window.");
+	if (items == nullptr || item_count == 0)
 		return false;
-	return ::pclose(file_handle) == 0;
+
+	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	_platform_linux_clipboard_items_deinit(ctx->clipboard_items);
+	ctx->clipboard_items = array_init_with_capacity<Platform_Linux_Clipboard_Item>(item_count, memory::heap_allocator());
+
+	for (U32 i = 0; i < item_count; ++i)
+	{
+		if (items[i].media_type.count == 0)
+		{
+			_platform_linux_clipboard_items_deinit(ctx->clipboard_items);
+			return false;
+		}
+
+		xcb_atom_t atom = _platform_linux_intern_atom(ctx->connection, items[i].media_type.data);
+		if (atom == XCB_ATOM_NONE)
+		{
+			_platform_linux_clipboard_items_deinit(ctx->clipboard_items);
+			return false;
+		}
+
+		Platform_Linux_Clipboard_Item item {
+			.item = {
+				.media_type = string_copy(items[i].media_type, memory::heap_allocator()),
+				.data = array_copy(items[i].data, memory::heap_allocator())
+			},
+			.atom = atom
+		};
+		array_push(ctx->clipboard_items, item);
+	}
+
+	::xcb_set_selection_owner(ctx->connection, ctx->window, ctx->clipboard_atom, XCB_CURRENT_TIME);
+	xcb_get_selection_owner_cookie_t cookie = ::xcb_get_selection_owner(ctx->connection, ctx->clipboard_atom);
+	xcb_get_selection_owner_reply_t *reply = ::xcb_get_selection_owner_reply(ctx->connection, cookie, nullptr);
+	DEFER(if (reply) ::free(reply););
+
+	ctx->clipboard_owned = reply && reply->owner == ctx->window;
+	if (!ctx->clipboard_owned)
+	{
+		_platform_linux_clipboard_items_deinit(ctx->clipboard_items);
+		return false;
+	}
+
+	::xcb_flush(ctx->connection);
+	return true;
 }
 
 U64
@@ -1158,16 +2282,4 @@ platform_callstack_resolve([[maybe_unused]] void **callstack, [[maybe_unused]] P
 	if (symbols)
 		::free(symbols);
 #endif
-}
-
-Platform_Font
-platform_font_init(const char *, const char *, U32, bool)
-{
-	return {};
-}
-
-void
-platform_font_deinit(Platform_Font *)
-{
-
 }

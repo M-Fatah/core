@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.25)
 
 project(core VERSION 0.0.1)
 
@@ -10,6 +10,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
 endif()
 
 option(CORE_BUILD_UNITTEST "Enable building unittest." ${CORE_IS_MAIN_PROJECT})
+option(CORE_BUILD_TEST     "Enable building test."     ${CORE_IS_MAIN_PROJECT})
 option(CORE_INSTALL        "Enable installing core."   ${CORE_IS_MAIN_PROJECT})
 option(CORE_BUILD_UNITY    "Enable unity build."       OFF)
 option(CORE_BUILD_STATIC   "Enable static build."      OFF)
@@ -33,6 +34,7 @@ target_compile_definitions(core-options INTERFACE
     $<$<PLATFORM_ID:Windows>:PLATFORM_WINDOWS=1>
     $<$<PLATFORM_ID:Linux>:PLATFORM_LINUX=1>
     $<$<PLATFORM_ID:Darwin>:PLATFORM_MACOS=1>
+    $<$<PLATFORM_ID:Android>:PLATFORM_ANDROID=1>
 )
 target_compile_options(core-options INTERFACE
     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>: -Werror -Wall -Wno-c++2b-extensions -Wno-c++11-narrowing -Wno-deprecated-declarations -Wno-invalid-offsetof -Wno-missing-braces>
@@ -54,7 +56,7 @@ if(CORE_SIMD_FORCE_SCALAR)
     target_compile_definitions(core-options INTERFACE SIMD_FORCE_SCALAR=1)
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
     target_compile_definitions(core-options INTERFACE SIMD_NEON=1)
-elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|x64)$")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|x64)$" AND NOT ANDROID)
     target_compile_definitions(core-options INTERFACE SIMD_AVX=1)
     if(MSVC)
         target_compile_options(core-options INTERFACE /arch:AVX)
@@ -64,7 +66,10 @@ elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|x64)$")
 endif()
 
 add_subdirectory(core)
-add_subdirectory(test)
+
+if(CORE_BUILD_TEST)
+    add_subdirectory(test)
+endif()
 
 if (CORE_BUILD_UNITTEST)
     message(STATUS "Build unittest flag is enabled.")

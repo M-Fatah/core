@@ -7,6 +7,7 @@
 #include "core/memory/memory.h"
 
 #include <dlfcn.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +23,7 @@
 #include <AppKit/AppKit.h>
 #include <Cocoa/Cocoa.h>
 #include <Carbon/Carbon.h>
+#include <IOKit/pwr_mgt/IOPMLib.h>
 #include <mach-o/dyld.h>
 #include <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <dirent.h>
@@ -36,8 +38,117 @@ struct Platform_Window_Context
 	NSWindow *window;
 	Content_View *content_view;
 	Window_Delegate *window_delegate;
+	Platform_Input *input;
+	Platform_Text_Input_Desc text_input;
+	String text_input_text;
+	IOPMAssertionID power_assertion;
+	bool fullscreen;
+	bool edge_to_edge;
+	bool power_assertion_active;
 	bool should_quit;
 };
+
+inline static Platform_Window_Orientation
+_platform_macos_window_orientation(U32 width, U32 height)
+{
+	if (width == 0 || height == 0)
+		return PLATFORM_WINDOW_ORIENTATION_UNKNOWN;
+	return width >= height ? PLATFORM_WINDOW_ORIENTATION_LANDSCAPE : PLATFORM_WINDOW_ORIENTATION_PORTRAIT;
+}
+
+inline static Platform_Window_Metrics
+_platform_macos_window_metrics(Platform_Window_Context *ctx, U32 width, U32 height)
+{
+	F32 density_scale = 1.0f;
+	Platform_Window_Insets safe_area = {};
+	@autoreleasepool
+	{
+		if (ctx && ctx->content_view)
+		{
+			NSEdgeInsets insets = [ctx->content_view safeAreaInsets];
+			safe_area.left = insets.left > 0.0 ? (U32)insets.left : 0;
+			safe_area.top = insets.top > 0.0 ? (U32)insets.top : 0;
+			safe_area.right = insets.right > 0.0 ? (U32)insets.right : 0;
+			safe_area.bottom = insets.bottom > 0.0 ? (U32)insets.bottom : 0;
+		}
+
+		NSScreen *screen = ctx && ctx->window ? [ctx->window screen] : nil;
+		if (screen == nil)
+			screen = [NSScreen mainScreen];
+		if (screen)
+			density_scale = (F32)[screen backingScaleFactor];
+	}
+
+	U32 content_width = width > safe_area.left + safe_area.right ? width - safe_area.left - safe_area.right : 0;
+	U32 content_height = height > safe_area.top + safe_area.bottom ? height - safe_area.top - safe_area.bottom : 0;
+	return Platform_Window_Metrics {
+		.content_rect = Platform_Window_Rect { .x = (I32)safe_area.left, .y = (I32)safe_area.bottom, .width = content_width, .height = content_height },
+		.safe_area = safe_area,
+		.density_scale = density_scale,
+		.dpi_x = 72.0f * density_scale,
+		.dpi_y = 72.0f * density_scale,
+		.orientation = _platform_macos_window_orientation(width, height)
+	};
+}
+
+inline static void
+_platform_macos_window_keep_screen_on_set(Platform_Window_Context *ctx, bool enabled)
+{
+	if (ctx->power_assertion_active == enabled)
+		return;
+
+	if (enabled)
+	{
+		CFStringRef reason = CFSTR("Core window requested keep screen on");
+		IOReturn result = IOPMAssertionCreateWithName(kIOPMAssertionTypeNoDisplaySleep, kIOPMAssertionLevelOn, reason, &ctx->power_assertion);
+		if (result == kIOReturnSuccess)
+			ctx->power_assertion_active = true;
+	}
+	else
+	{
+		IOPMAssertionRelease(ctx->power_assertion);
+		ctx->power_assertion = 0;
+		ctx->power_assertion_active = false;
+	}
+}
+
+inline static void
+_platform_macos_window_fullscreen_set(Platform_Window_Context *ctx, bool enabled)
+{
+	if (ctx->fullscreen == enabled)
+		return;
+
+	@autoreleasepool
+	{
+		[ctx->window toggleFullScreen:nil];
+	}
+	ctx->fullscreen = enabled;
+}
+
+inline static void
+_platform_macos_window_edge_to_edge_set(Platform_Window_Context *ctx, bool enabled)
+{
+	if (ctx->edge_to_edge == enabled)
+		return;
+
+	@autoreleasepool
+	{
+		NSWindowStyleMask style = [ctx->window styleMask];
+		if (enabled)
+		{
+			[ctx->window setStyleMask:style | NSWindowStyleMaskFullSizeContentView];
+			[ctx->window setTitleVisibility:NSWindowTitleHidden];
+			[ctx->window setTitlebarAppearsTransparent:YES];
+		}
+		else
+		{
+			[ctx->window setStyleMask:style & ~NSWindowStyleMaskFullSizeContentView];
+			[ctx->window setTitleVisibility:NSWindowTitleVisible];
+			[ctx->window setTitlebarAppearsTransparent:NO];
+		}
+	}
+	ctx->edge_to_edge = enabled;
+}
 
 // TODO: Remove from here.
 inline static void
@@ -173,23 +284,68 @@ _platform_key_from_key_code(I32 key_code)
 	return PLATFORM_KEY_COUNT;
 }
 
+inline static void
+_platform_macos_text_input_events_reset(Platform_Input &input)
+{
+	for (U64 i = 0; i < input.text_input_events.count; ++i)
+	{
+		string_deinit(input.text_input_events[i].text);
+		input.text_input_events[i] = {};
+	}
+	input.text_input_events.count = 0;
+}
+
+inline static NSString *
+_platform_macos_text_input_string(Platform_Window_Context *ctx)
+{
+	if (ctx->text_input_text.count == 0)
+		return @"";
+	NSString *text = [NSString stringWithUTF8String:ctx->text_input_text.data];
+	return text ? text : @"";
+}
+
+inline static NSUInteger
+_platform_macos_utf16_index_from_utf8_offset(const String &text, U32 offset)
+{
+	U64 byte_count = offset > text.count ? text.count : offset;
+	if (byte_count == 0 || text.data == nullptr)
+		return 0;
+	String prefix = string_from(text.data, text.data + byte_count, memory::temp_allocator());
+	NSString *prefix_string = [NSString stringWithUTF8String:prefix.data];
+	return prefix_string ? [prefix_string length] : 0;
+}
+
+inline static NSRange
+_platform_macos_text_input_range_from_utf8_offsets(Platform_Window_Context *ctx, U32 start, U32 end)
+{
+	NSUInteger location = _platform_macos_utf16_index_from_utf8_offset(ctx->text_input_text, start);
+	NSUInteger limit = _platform_macos_utf16_index_from_utf8_offset(ctx->text_input_text, end);
+	if (limit < location)
+	{
+		NSUInteger swap = location;
+		location = limit;
+		limit = swap;
+	}
+	return NSMakeRange(location, limit - location);
+}
+
 @interface Content_View : NSView<NSTextInputClient>
 {
-	NSWindow *window;
+	Platform_Window_Context *ctx;
 }
 
 - (instancetype)
-init:(NSWindow *)window;
+init:(Platform_Window_Context *)ctx;
 @end
 
 @implementation Content_View
 - (instancetype)
-init:(NSWindow *)iwindow
+init:(Platform_Window_Context *)ictx
 {
 	self = [super init];
 	if (self != nil)
 	{
-		window = iwindow;
+		ctx = ictx;
 	}
 	return self;
 }
@@ -221,43 +377,87 @@ acceptsFirstMouse:(NSEvent *)event
 - (void)
 insertText:(id)string replacementRange:(NSRange)replacementRange
 {
+	unused(replacementRange);
+	if (ctx->input == nullptr || !ctx->text_input.enabled)
+		return;
 
+	NSString *text = [string isKindOfClass:[NSAttributedString class]] ? [(NSAttributedString *)string string] : (NSString *)string;
+	const char *utf8 = [text UTF8String];
+	if (utf8)
+	{
+		array_push(ctx->input->text_input_events, Platform_Text_Input_Event {
+			.type = PLATFORM_TEXT_INPUT_EVENT_COMMIT,
+			.text = string_from(utf8, utf8 + ::strlen(utf8))
+		});
+	}
 }
 
 - (void)
 setMarkedText:(id)string selectedRange:(NSRange)selectedRange replacementRange:(NSRange)replacementRange
 {
+	unused(selectedRange, replacementRange);
+	if (ctx->input == nullptr || !ctx->text_input.enabled)
+		return;
 
+	NSString *text = [string isKindOfClass:[NSAttributedString class]] ? [(NSAttributedString *)string string] : (NSString *)string;
+	const char *utf8 = [text UTF8String];
+	if (utf8)
+	{
+		array_push(ctx->input->text_input_events, Platform_Text_Input_Event {
+			.type = PLATFORM_TEXT_INPUT_EVENT_COMPOSE,
+			.text = string_from(utf8, utf8 + ::strlen(utf8))
+		});
+	}
 }
 
 - (void)
 unmarkText
 {
-
+	if (ctx->input && ctx->text_input.enabled)
+	{
+		array_push(ctx->input->text_input_events, Platform_Text_Input_Event {
+			.type = PLATFORM_TEXT_INPUT_EVENT_COMPOSE_END
+		});
+	}
 }
 
 - (NSRange)
 selectedRange
 {
-	return {NSNotFound, 0};
+	if (!ctx->text_input.enabled)
+		return {NSNotFound, 0};
+	return _platform_macos_text_input_range_from_utf8_offsets(ctx, ctx->text_input.selection_start, ctx->text_input.selection_end);
 }
 
 - (NSRange)
 markedRange
 {
-	return {NSNotFound, 0};
+	if (!ctx->text_input.enabled || ctx->text_input.composing_start == ctx->text_input.composing_end)
+		return {NSNotFound, 0};
+	return _platform_macos_text_input_range_from_utf8_offsets(ctx, ctx->text_input.composing_start, ctx->text_input.composing_end);
 }
 
 - (BOOL)
 hasMarkedText
 {
-	return false;
+	return ctx->text_input.enabled && ctx->text_input.composing_start != ctx->text_input.composing_end;
 }
 
 - (nullable NSAttributedString *)
 attributedSubstringForProposedRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange
 {
-	return nil;
+	NSString *text = _platform_macos_text_input_string(ctx);
+	if (range.location == NSNotFound || range.location >= [text length])
+		return nil;
+
+	NSUInteger end = range.location + range.length;
+	if (end > [text length])
+		end = [text length];
+
+	NSRange clamped_range = NSMakeRange(range.location, end - range.location);
+	if (actualRange)
+		*actualRange = clamped_range;
+	return [[NSAttributedString alloc] initWithString:[text substringWithRange:clamped_range]];
 }
 
 - (NSArray<NSAttributedStringKey> *)
@@ -269,13 +469,23 @@ validAttributesForMarkedText
 - (NSRect)
 firstRectForCharacterRange:(NSRange)range actualRange:(nullable NSRangePointer)actualRange
 {
-	return NSMakeRect(0, 0, 0, 0);
+	unused(range);
+	if (actualRange)
+		*actualRange = NSMakeRange(0, 0);
+	if (!ctx->text_input.enabled)
+		return NSMakeRect(0, 0, 0, 0);
+
+	NSRect rect = NSMakeRect(ctx->text_input.x, ctx->text_input.y, ctx->text_input.width, ctx->text_input.height);
+	return [[self window] convertRectToScreen:[self convertRect:rect toView:nil]];
 }
 
 - (NSUInteger)
 characterIndexForPoint:(NSPoint)point
 {
-	return 0;
+	unused(point);
+	if (!ctx->text_input.enabled)
+		return 0;
+	return _platform_macos_utf16_index_from_utf8_offset(ctx->text_input_text, ctx->text_input.selection_end);
 }
 @end
 
@@ -416,6 +626,56 @@ platform_path_get_temp_directory(memory::Allocator *allocator)
 }
 
 String
+platform_path_get_app_data_directory(memory::Allocator *allocator)
+{
+	String result = string_init(allocator);
+	@autoreleasepool
+	{
+		NSArray *paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES);
+		if ([paths count] > 0)
+		{
+			string_deinit(result);
+			result = string_from([[paths objectAtIndex:0] UTF8String], allocator);
+		}
+	}
+
+	if (result.count == 0)
+	{
+		string_deinit(result);
+		return platform_path_get_temp_directory(allocator);
+	}
+
+	if (result[result.count - 1] != '/')
+		string_append(result, '/');
+	return result;
+}
+
+String
+platform_path_get_cache_directory(memory::Allocator *allocator)
+{
+	String result = string_init(allocator);
+	@autoreleasepool
+	{
+		NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+		if ([paths count] > 0)
+		{
+			string_deinit(result);
+			result = string_from([[paths objectAtIndex:0] UTF8String], allocator);
+		}
+	}
+
+	if (result.count == 0)
+	{
+		string_deinit(result);
+		return platform_path_get_temp_directory(allocator);
+	}
+
+	if (result[result.count - 1] != '/')
+		string_append(result, '/');
+	return result;
+}
+
+String
 platform_environment_variable_get(const String &name, memory::Allocator *allocator)
 {
 	const char *value = ::getenv(name.data);
@@ -510,6 +770,60 @@ platform_path_write_file(const String &path, Memory_Block block)
 	return bytes_written;
 }
 
+inline static bool
+_platform_macos_extension_matches(const String &file_name, const String &extension_filter)
+{
+	if (extension_filter.count == 0)
+		return true;
+
+	U64 extension_position = string_find_last_of(file_name, '.');
+	if (extension_position == U64(-1))
+		return false;
+
+	U64 extension_count = file_name.count - extension_position - 1;
+	if (extension_count != extension_filter.count)
+		return false;
+
+	for (U64 i = 0; i < extension_count; ++i)
+	{
+		if (file_name.data[extension_position + 1 + i] != extension_filter.data[i])
+			return false;
+	}
+
+	return true;
+}
+
+inline static String
+_platform_macos_path_join(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	if (directory.count == 0 || name.count == 0)
+		return string_init(allocator);
+
+	String result = string_copy(directory, allocator);
+	string_replace(result, '\\', '/');
+	if (result[result.count - 1] != '/')
+		string_append(result, '/');
+	string_append(result, name);
+	string_replace(result, '\\', '/');
+	return result;
+}
+
+inline static String
+_platform_macos_path_parent(const String &path, memory::Allocator *allocator)
+{
+	String result = string_copy(path, allocator);
+	string_replace(result, '\\', '/');
+	U64 slash = string_find_last_of(result, '/');
+	if (slash == U64(-1))
+	{
+		string_clear(result);
+		string_append(result, '.');
+		return result;
+	}
+	string_resize(result, slash);
+	return result;
+}
+
 Array<String>
 platform_path_list_files(const String &directory, const String &extension_filter, memory::Allocator *allocator)
 {
@@ -533,24 +847,128 @@ platform_path_list_files(const String &directory, const String &extension_filter
 			continue;
 
 		String file_name = string_from(entry->d_name, memory::temp_allocator());
-		if (extension_filter.count > 0)
-		{
-			U64 extension_position = string_find_last_of(file_name, '.');
-			if (extension_position == U64(-1))
-				continue;
-
-			String file_extension = string_with_capacity(file_name.count - extension_position - 1, memory::temp_allocator());
-			for (U64 i = extension_position + 1; i < file_name.count; ++i)
-				string_append(file_extension, file_name.data[i]);
-
-			if (file_extension != extension_filter)
-				continue;
-		}
+		if (!_platform_macos_extension_matches(file_name, extension_filter))
+			continue;
 
 		array_push(files, string_copy(file_name, allocator));
 	}
 
 	return files;
+}
+
+inline static void
+_platform_macos_path_list_files_recursive(Array<String> &files, const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	DIR *dir = ::opendir(directory.data);
+	if (!dir)
+		return;
+	DEFER(validate(::closedir(dir) == 0, "[PLATFORM][MACOS]: Failed to close recursive directory."););
+
+	struct dirent *entry = nullptr;
+	while ((entry = ::readdir(dir)) != nullptr)
+	{
+		String file_name = string_from(entry->d_name, memory::temp_allocator());
+		if (file_name == "." || file_name == "..")
+			continue;
+
+		String child_path = _platform_macos_path_join(directory, file_name, memory::temp_allocator());
+		if (platform_path_is_directory(child_path))
+		{
+			_platform_macos_path_list_files_recursive(files, child_path, extension_filter, allocator);
+			continue;
+		}
+
+		if (_platform_macos_extension_matches(file_name, extension_filter))
+			array_push(files, string_copy(child_path, allocator));
+	}
+}
+
+Array<String>
+platform_path_list_files_recursive(const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	Array<String> files = array_init<String>(allocator);
+	_platform_macos_path_list_files_recursive(files, directory, extension_filter, allocator);
+	return files;
+}
+
+String
+platform_path_create_file(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	String result = _platform_macos_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	I32 file_handle = ::open(result.data, O_WRONLY | O_CREAT | O_EXCL, S_IRWXU);
+	if (file_handle == -1)
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	validate(::close(file_handle) == 0, "[PLATFORM][MACOS]: Failed to close created file.");
+	return result;
+}
+
+String
+platform_path_create_directory(const String &directory, const String &name, memory::Allocator *allocator)
+{
+	String result = _platform_macos_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (::mkdir(result.data, S_IRWXU) != 0)
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	return result;
+}
+
+String
+platform_path_rename(const String &path, const String &name, memory::Allocator *allocator)
+{
+	String directory = _platform_macos_path_parent(path, memory::temp_allocator());
+	String result = _platform_macos_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (::rename(path.data, result.data) != 0)
+	{
+		string_deinit(result);
+		return string_init(allocator);
+	}
+	return result;
+}
+
+String
+platform_path_move(const String &path, const String &directory, memory::Allocator *allocator)
+{
+	String name = platform_path_get_file_name(path, memory::temp_allocator());
+	String result = _platform_macos_path_join(directory, name, allocator);
+	if (result.count == 0)
+		return result;
+
+	if (::rename(path.data, result.data) == 0)
+		return result;
+
+	if (errno == EXDEV && platform_path_is_file(path) && platform_file_copy(path.data, result.data) && platform_file_delete(path.data))
+		return result;
+
+	if (platform_path_is_file(result))
+		platform_file_delete(result.data);
+	string_deinit(result);
+	return string_init(allocator);
+}
+
+String
+platform_resource_read(const String &path, memory::Allocator *allocator)
+{
+	return platform_path_read_file(path, allocator);
+}
+
+Array<String>
+platform_resource_list_files(const String &directory, const String &extension_filter, memory::Allocator *allocator)
+{
+	return platform_path_list_files(directory, extension_filter, allocator);
 }
 
 // C.
@@ -780,8 +1198,9 @@ platform_window_init(U32 width, U32 height, const char *title)
 							defer:NO];
 		[window makeKeyAndOrderFront:window];
 		validate(window, "[PLATFORM][MACOS]: Failed to create window.");
+		ctx->window = window;
 
-		Content_View *content_view = [[Content_View alloc] init:window];
+		Content_View *content_view = [[Content_View alloc] init:ctx];
 		validate(content_view, "[PLATFORM][MACOS]: Failed to create content view.");
 		[content_view setWantsLayer:YES];
 
@@ -799,17 +1218,23 @@ platform_window_init(U32 width, U32 height, const char *title)
 		[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 		[NSApp activateIgnoringOtherApps:YES];
 
-		ctx->window          = window;
 		ctx->content_view    = content_view;
 		ctx->window_delegate = window_delegate;
 	}
 
-	return Platform_Window {
+	Platform_Window self {
 		.handle = ctx,
 		.width  = width,
 		.height = height,
-		.input  = {}
+		.metrics = _platform_macos_window_metrics(ctx, width, height),
+		.input  = {},
+		.focused = true,
+		.started = true,
+		.surface_valid = true,
+		.surface_changed = true
 	};
+	self.input.text_input_events = array_init<Platform_Text_Input_Event>(memory::heap_allocator());
+	return self;
 }
 
 void
@@ -821,19 +1246,34 @@ platform_window_deinit(Platform_Window *self)
 	{
 		[ctx->window orderOut:nil];
 		[ctx->window setDelegate:nil];
+		_platform_macos_window_keep_screen_on_set(ctx, false);
 		[ctx->content_view release];
 		[ctx->window close];
 		[ctx->window_delegate release];
 		[NSApp setDelegate:nil];
 	}
 
+	if (ctx->text_input_text.capacity > 0)
+		string_deinit(ctx->text_input_text);
 	memory::deallocate(ctx);
+	self->handle = nullptr;
+	self->metrics = {};
+	self->presentation = {};
+	self->close_requested = true;
+	self->started = false;
+	self->surface_valid = false;
+	_platform_macos_text_input_events_reset(self->input);
+	array_deinit(self->input.text_input_events);
 }
 
 bool
 platform_window_poll(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	bool surface_changed = self->surface_changed;
+	self->surface_changed = false;
+	self->low_memory = false;
+	self->save_state_requested = false;
 
 	for (I32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{
@@ -843,9 +1283,12 @@ platform_window_poll(Platform_Window *self)
 		self->input.keys[i].release_count = 0;
 	}
 	self->input.mouse_wheel = 0.0f;
+	_platform_macos_text_input_events_reset(self->input);
 
 	@autoreleasepool
 	{
+		ctx->input = &self->input;
+		DEFER(ctx->input = nullptr;);
 		while (NSEvent *event = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES])
 		{
 			switch (event.type)
@@ -914,8 +1357,15 @@ platform_window_poll(Platform_Window *self)
 
 		// NOTE: Window size.
 		NSSize window_size = ctx->content_view.frame.size;
-		self->width  = window_size.width;
-		self->height = window_size.height;
+		U32 width = (U32)window_size.width;
+		U32 height = (U32)window_size.height;
+		if (self->width != width || self->height != height)
+		{
+			self->width = width;
+			self->height = height;
+			surface_changed = true;
+		}
+		self->metrics = _platform_macos_window_metrics(ctx, self->width, self->height);
 
 		// NOTE: Mouse movement.
 		NSPoint mouse_position = [ctx->content_view convertPoint:[ctx->window convertScreenToBase:[NSEvent mouseLocation]] fromView:nil];
@@ -923,21 +1373,25 @@ platform_window_poll(Platform_Window *self)
 		self->input.mouse_dy = mouse_position.y - self->input.mouse_y;
 		self->input.mouse_x  = mouse_position.x;
 		self->input.mouse_y  = mouse_position.y;
+
+		self->focused = [ctx->window isKeyWindow];
 	}
 
-	return !ctx->should_quit;
+	self->close_requested = ctx->should_quit;
+	self->paused = false;
+	self->surface_valid = !self->close_requested && self->width > 0 && self->height > 0;
+	self->surface_changed = surface_changed;
+	return !self->close_requested;
 }
 
-// TODO: Rename native_connection?
-void
-platform_window_get_native_handles(Platform_Window *self, void **native_handle, void **native_connection)
+Platform_Window_Native_Handles
+platform_window_get_native_handles(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
-
-	if (native_handle)
-		*native_handle = ctx->window;
-	if (native_connection)
-		*native_connection = ctx->content_view;
+	return Platform_Window_Native_Handles {
+		.window = ctx->window,
+		.context = ctx->content_view
+	};
 }
 
 void
@@ -953,7 +1407,37 @@ platform_window_close(Platform_Window *self)
 {
 	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
 
+	self->close_requested = true;
+	self->surface_valid = false;
 	[ctx->window performClose:ctx->window];
+}
+
+void
+platform_window_presentation_set(Platform_Window &window, const Platform_Window_Presentation_Desc &desc)
+{
+	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	bool fullscreen = (desc.flags & (PLATFORM_WINDOW_PRESENTATION_FLAG_FULLSCREEN | PLATFORM_WINDOW_PRESENTATION_FLAG_IMMERSIVE)) != 0;
+	_platform_macos_window_fullscreen_set(ctx, fullscreen);
+	_platform_macos_window_edge_to_edge_set(ctx, (desc.flags & PLATFORM_WINDOW_PRESENTATION_FLAG_EDGE_TO_EDGE) != 0);
+	_platform_macos_window_keep_screen_on_set(ctx, (desc.flags & PLATFORM_WINDOW_PRESENTATION_FLAG_KEEP_SCREEN_ON) != 0);
+	window.presentation = desc;
+	window.surface_changed = true;
+}
+
+void
+platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc)
+{
+	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	Platform_Text_Input_Desc text_input_desc = desc;
+	window.text_input = text_input_desc;
+	window.text_input.text = {};
+	if (ctx->text_input_text.capacity > 0)
+		string_deinit(ctx->text_input_text);
+	ctx->text_input = text_input_desc;
+	ctx->text_input.text = {};
+	ctx->text_input_text = text_input_desc.enabled && text_input_desc.text.count > 0 ? string_copy(text_input_desc.text) : String {};
+	if (text_input_desc.enabled)
+		[ctx->window makeFirstResponder:ctx->content_view];
 }
 
 void
@@ -1098,11 +1582,9 @@ platform_file_delete(const char *filepath)
 	return ::unlink(filepath) == 0;
 }
 
-bool
-platform_file_dialog_open(char *path, U32 path_length, const char *filters)
+String
+platform_file_dialog_open(const char *filters, memory::Allocator *allocator)
 {
-	::memset(path, 0, path_length);
-
 	@autoreleasepool
 	{
 		NSApplication *application = [NSApplication sharedApplication];
@@ -1118,20 +1600,16 @@ platform_file_dialog_open(char *path, U32 path_length, const char *filters)
 		if ([open_panel runModal] == NSModalResponseOK)
 		{
 			NSURL *url = [[open_panel URLs] objectAtIndex:0];
-			validate(url.path.length <= path_length, "[PLATFORM][MACOS]: Open file dialog selected path is longer than passed path length.");
-			::snprintf(path, path_length, "%s", [url.path cStringUsingEncoding:(NSASCIIStringEncoding)]);
-			return true;
+			return string_from([url.path UTF8String], allocator);
 		}
 	}
 
-	return false;
+	return string_init(allocator);
 }
 
-bool
-platform_file_dialog_save(char *path, U32 path_length, const char *filters)
+String
+platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
 {
-	::memset(path, 0, path_length);
-
 	@autoreleasepool
 	{
 		NSApplication *application = [NSApplication sharedApplication];
@@ -1145,13 +1623,151 @@ platform_file_dialog_save(char *path, U32 path_length, const char *filters)
 		if ([save_panel runModal] == NSModalResponseOK)
 		{
 			NSURL *url = [save_panel URL];
-			validate(url.path.length <= path_length, "[PLATFORM][MACOS]: Save file dialog selected path is longer than passed path length.");
-			::snprintf(path, path_length, "%s", [url.path cStringUsingEncoding:(NSASCIIStringEncoding)]);
-			return true;
+			return string_from([url.path UTF8String], allocator);
 		}
 	}
 
-	return false;
+	return string_init(allocator);
+}
+
+String
+platform_directory_dialog_open(memory::Allocator *allocator)
+{
+	@autoreleasepool
+	{
+		NSApplication *application = [NSApplication sharedApplication];
+		[application setActivationPolicy:NSApplicationActivationPolicyAccessory];
+
+		NSOpenPanel *open_panel = [NSOpenPanel openPanel];
+		open_panel.allowsMultipleSelection = false;
+		open_panel.canChooseDirectories    = true;
+		open_panel.canChooseFiles          = false;
+		open_panel.canCreateDirectories    = true;
+
+		if ([open_panel runModal] == NSModalResponseOK)
+		{
+			NSURL *url = [[open_panel URLs] objectAtIndex:0];
+			return string_from([url.path UTF8String], allocator);
+		}
+	}
+
+	return string_init(allocator);
+}
+
+inline static NSString *
+_platform_macos_clipboard_type_from_media_type(const String &media_type)
+{
+	if (media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 || media_type == "text/plain")
+		return NSPasteboardTypeString;
+	if (media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_IMAGE_PNG)
+		return @"public.png";
+	return [NSString stringWithUTF8String:(media_type.data ? media_type.data : "")];
+}
+
+inline static String
+_platform_macos_clipboard_media_type_from_type(NSString *type, memory::Allocator *allocator)
+{
+	if ([type isEqualToString:NSPasteboardTypeString])
+		return string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator);
+	if ([type isEqualToString:@"public.png"])
+		return string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_IMAGE_PNG, allocator);
+	if ([type isEqualToString:@"public.tiff"])
+		return string_from("image/tiff", allocator);
+	return string_from([type UTF8String], allocator);
+}
+
+Array<String>
+platform_window_clipboard_query_media_types(Platform_Window &, memory::Allocator *allocator)
+{
+	Array<String> media_types = array_init<String>(allocator);
+	@autoreleasepool
+	{
+		NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+		for (NSString *type in [pasteboard types])
+			array_push(media_types, _platform_macos_clipboard_media_type_from_type(type, allocator));
+	}
+	return media_types;
+}
+
+Platform_Clipboard_Item
+platform_window_clipboard_item_read(Platform_Window &, const String &media_type, memory::Allocator *allocator)
+{
+	Platform_Clipboard_Item result {
+		.media_type = string_init(allocator),
+		.data = array_init<U8>(allocator)
+	};
+
+	@autoreleasepool
+	{
+		NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+		NSString *type = _platform_macos_clipboard_type_from_media_type(media_type);
+		if (type == nil)
+			return result;
+
+		if (media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 || media_type == "text/plain")
+		{
+			NSString *text = [pasteboard stringForType:type];
+			if (text == nil)
+				return result;
+
+			const char *text_data = [text UTF8String];
+			string_deinit(result.media_type);
+			result.media_type = string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator);
+			array_resize(result.data, ::strlen(text_data));
+			::memcpy(result.data.data, text_data, result.data.count);
+			return result;
+		}
+
+		NSData *data = [pasteboard dataForType:type];
+		if (data == nil)
+			return result;
+
+		string_deinit(result.media_type);
+		result.media_type = string_copy(media_type, allocator);
+		array_resize(result.data, [data length]);
+		::memcpy(result.data.data, [data bytes], result.data.count);
+	}
+
+	return result;
+}
+
+bool
+platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard_Item *items, U32 item_count)
+{
+	if (items == nullptr || item_count == 0)
+		return false;
+
+	@autoreleasepool
+	{
+		NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+		[pasteboard clearContents];
+
+		for (U32 i = 0; i < item_count; ++i)
+		{
+			NSString *type = _platform_macos_clipboard_type_from_media_type(items[i].media_type);
+			if (type == nil)
+				return false;
+
+			if (items[i].media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 || items[i].media_type == "text/plain")
+			{
+				NSString *text = [[NSString alloc] initWithBytes:items[i].data.data length:items[i].data.count encoding:NSUTF8StringEncoding];
+				if (text == nil)
+					return false;
+				DEFER([text release];);
+
+				if (![pasteboard setString:text forType:NSPasteboardTypeString])
+					return false;
+			}
+			else
+			{
+				NSData *data = [NSData dataWithBytes:items[i].data.data length:items[i].data.count];
+				if (![pasteboard setData:data forType:type])
+					return false;
+			}
+		}
+	}
+
+	return true;
 }
 
 U64
@@ -1226,16 +1842,4 @@ platform_callstack_resolve([[maybe_unused]] void **callstack, [[maybe_unused]] P
 	if (symbols)
 		::free(symbols);
 #endif
-}
-
-Platform_Font
-platform_font_init(const char *, const char *, U32, bool)
-{
-	return {};
-}
-
-void
-platform_font_deinit(Platform_Font *)
-{
-
 }
