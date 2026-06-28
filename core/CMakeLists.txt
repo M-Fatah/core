@@ -131,6 +131,7 @@ elseif(ANDROID)
         |
         |import android.app.NativeActivity;
         |import android.content.pm.ActivityInfo;
+        |import android.content.pm.PackageManager;
         |import android.content.ClipData;
         |import android.content.ClipDescription;
         |import android.content.ClipboardManager;
@@ -209,6 +210,7 @@ elseif(ANDROID)
         |    private int coreWindowStatusBarColor;
         |    private int coreWindowNavigationBarColor;
         |    private int coreWindowCutoutMode;
+        |    private boolean coreNativeLibraryLoaded;
         |
         |    private static native void nativeActivityDestroying(boolean changingConfigurations, boolean finishing);
         |    private static native void nativeMemoryPressure();
@@ -220,6 +222,31 @@ elseif(ANDROID)
         |    private static native void nativeTextInputDelete(int beforeLength, int afterLength);
         |    private static native void nativeTextInputSelection(int start, int end);
         |    private static native void nativeTextInputAction(int action);
+        |
+        |    private void coreLoadNativeLibrary() {
+        |        if (coreNativeLibraryLoaded) {
+        |            return;
+        |        }
+        |
+        |        ActivityInfo activityInfo;
+        |        try {
+        |            activityInfo = getPackageManager().getActivityInfo(getComponentName(), PackageManager.GET_META_DATA);
+        |        } catch (PackageManager.NameNotFoundException exception) {
+        |            throw new UnsatisfiedLinkError("Core NativeActivity metadata could not be read: " + exception.getMessage());
+        |        }
+        |
+        |        if (activityInfo.metaData == null) {
+        |            throw new UnsatisfiedLinkError("Core NativeActivity requires android.app.lib_name metadata.");
+        |        }
+        |
+        |        String libraryName = activityInfo.metaData.getString("android.app.lib_name");
+        |        if (libraryName == null || libraryName.length() == 0) {
+        |            throw new UnsatisfiedLinkError("Core NativeActivity requires a non-empty android.app.lib_name metadata value.");
+        |        }
+        |
+        |        System.loadLibrary(libraryName);
+        |        coreNativeLibraryLoaded = true;
+        |    }
         |
         |    private static String coreCleanExtension(String extension) {
         |        if (extension == null) {
@@ -1266,6 +1293,7 @@ elseif(ANDROID)
         |
         |    @Override
         |    protected void onDestroy() {
+        |        coreLoadNativeLibrary();
         |        nativeActivityDestroying(isChangingConfigurations(), isFinishing());
         |        super.onDestroy();
         |    }
@@ -1274,12 +1302,14 @@ elseif(ANDROID)
         |    public void onTrimMemory(int level) {
         |        super.onTrimMemory(level);
         |        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW && level != ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
+        |            coreLoadNativeLibrary();
         |            nativeMemoryPressure();
         |        }
         |    }
         |
         |    @Override
         |    protected void onCreate(Bundle savedInstanceState) {
+        |        coreLoadNativeLibrary();
         |        super.onCreate(savedInstanceState);
         |        coreTextInputEnsureView();
         |        coreWindowPresentationCapture();
