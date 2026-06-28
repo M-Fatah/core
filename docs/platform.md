@@ -216,6 +216,8 @@ The app manifest declares Core's generated `NativeActivity` subclass and names t
 </manifest>
 ```
 
+`CoreNativeActivity` loads the app native library named by `android.app.lib_name` before its lifecycle callbacks call Core native bridge methods. Keep that metadata on the activity even if the app also has its own package, signing, and APK build flow.
+
 The `configChanges` list is still recommended because it avoids avoidable Activity churn while Core owns the app loop. If Android recreates `core.android.CoreNativeActivity` for a configuration change, Core preserves the existing Android context, rebinds the new Activity, reapplies window presentation policy, and `platform_android_native_activity_on_create` returns false so the app does not create a second thread. If the Activity is finishing, the existing app thread must exit through `platform_window_poll` and call `platform_window_deinit` before a new Core Android window is started.
 
 APK packaging belongs in the app repo. A CMake-only app can package with Android SDK tools (`aapt2`, `zipalign`, `apksigner`, `adb`), or the app can use Gradle. Either way, package `libmy_android_app.so` into `lib/<abi>/`, package Core resources into APK `assets/`, sign the APK, install it, then launch the manifest package.
