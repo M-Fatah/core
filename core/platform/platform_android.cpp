@@ -34,20 +34,12 @@ enum
 	PLATFORM_ANDROID_LOOPER_INPUT = 1
 };
 
-struct Platform_Task
-{
-	void (*function)(void *);
-	void *user_data;
-};
-
 struct Platform_Thread
 {
 	pthread_t handle;
-	pthread_mutex_t mutex;
-	pthread_cond_t condition;
-	bool is_running;
-	bool has_task;
-	Platform_Task task;
+	Platform_Thread_Function function;
+	void *data;
+	bool joined;
 };
 
 struct Platform_Context
@@ -2810,42 +2802,29 @@ platform_virtual_memory_release(Memory_Block block)
 	validate(result == 0, "[PLATFORM][ANDROID]: Failed to release virtual memory.");
 }
 
-static void *
-_platform_thread_main_routine(void *user_data)
+U32
+platform_get_logical_processor_count()
 {
-	Platform_Thread *self = (Platform_Thread *)user_data;
+	long count = ::sysconf(_SC_NPROCESSORS_ONLN);
+	return count > 0 ? (U32)count : U32(1);
+}
 
-	while (true)
-	{
-		validate(::pthread_mutex_lock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to lock thread mutex.");
-		while (self->is_running && !self->has_task)
-			validate(::pthread_cond_wait(&self->condition, &self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to wait for thread condition.");
-
-		if (!self->is_running)
-		{
-			validate(::pthread_mutex_unlock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to unlock thread mutex.");
-			break;
-		}
-
-		Platform_Task task = self->task;
-		self->task = {};
-		self->has_task = false;
-		validate(::pthread_mutex_unlock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to unlock thread mutex.");
-
-		if (task.function)
-			task.function(task.user_data);
-	}
-
+static void *
+_platform_thread_main_routine(void *thread)
+{
+	Platform_Thread *self = (Platform_Thread *)thread;
+	self->function(self->data);
 	return nullptr;
 }
 
 Platform_Thread *
-platform_thread_init()
+platform_thread_init(Platform_Thread_Desc desc)
 {
+	validate(desc.function != nullptr, "[PLATFORM][ANDROID]: Thread function is not valid.");
+
 	Platform_Thread *self = memory::allocate_zeroed<Platform_Thread>();
-	self->is_running = true;
-	validate(::pthread_mutex_init(&self->mutex, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize thread mutex.");
-	validate(::pthread_cond_init(&self->condition, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize thread condition.");
+	self->function = desc.function;
+	self->data = desc.data;
 	validate(::pthread_create(&self->handle, nullptr, _platform_thread_main_routine, self) == 0, "[PLATFORM][ANDROID]: Failed to create thread.");
 	return self;
 }
@@ -2853,28 +2832,27 @@ platform_thread_init()
 void
 platform_thread_deinit(Platform_Thread *self)
 {
-	validate(::pthread_mutex_lock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to lock thread mutex.");
-	self->is_running = false;
-	validate(::pthread_cond_signal(&self->condition) == 0, "[PLATFORM][ANDROID]: Failed to signal thread condition.");
-	validate(::pthread_mutex_unlock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to unlock thread mutex.");
-
-	validate(::pthread_join(self->handle, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to join thread.");
-	validate(::pthread_cond_destroy(&self->condition) == 0, "[PLATFORM][ANDROID]: Failed to destroy thread condition.");
-	validate(::pthread_mutex_destroy(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to destroy thread mutex.");
+	platform_thread_join(self);
 	memory::deallocate(self);
 }
 
 void
-platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_data)
+platform_thread_join(Platform_Thread *self)
 {
-	validate(::pthread_mutex_lock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to lock thread mutex.");
-	self->task = Platform_Task {
-		.function = function,
-		.user_data = user_data
-	};
-	self->has_task = true;
-	validate(::pthread_cond_signal(&self->condition) == 0, "[PLATFORM][ANDROID]: Failed to signal thread condition.");
-	validate(::pthread_mutex_unlock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to unlock thread mutex.");
+	if (self->joined)
+		return;
+
+	validate(::pthread_join(self->handle, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to join thread.");
+	self->joined = true;
+}
+
+void
+platform_thread_sleep(U32 milliseconds)
+{
+	struct timespec ts = {};
+	ts.tv_sec = milliseconds / 1000;
+	ts.tv_nsec = (milliseconds % 1000) * 1000 * 1000;
+	::nanosleep(&ts, nullptr);
 }
 
 Platform_Window

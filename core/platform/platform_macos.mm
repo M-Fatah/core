@@ -17,7 +17,6 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <pthread.h>
-#include <atomic>
 
 #include <Foundation/Foundation.h>
 #include <AppKit/AppKit.h>
@@ -1127,60 +1126,65 @@ platform_virtual_memory_release(Memory_Block block)
 	validate(result == 0, "[PLATFORM][MACOS]: Failed to release virtual memory.");
 }
 
-struct Platform_Task
+U32
+platform_get_logical_processor_count()
 {
-	void (*function)(void *);
-	void *user_data;
-};
+	long count = ::sysconf(_SC_NPROCESSORS_ONLN);
+	return count > 0 ? (U32)count : U32(1);
+}
 
 struct Platform_Thread
 {
 	pthread_t handle;
-	std::atomic<bool> is_running;
-	Platform_Task task;
+	Platform_Thread_Function function;
+	void *data;
+	bool joined;
 };
 
 static void *
-_platform_thread_main_routine(void *user_data)
+_platform_thread_main_routine(void *thread)
 {
-	Platform_Thread *self = (Platform_Thread *)user_data;
-	while (self->is_running)
-	{
-		if (self->task.function)
-		{
-			self->task.function(self->task.user_data);
-			self->task = {};
-		}
-	}
+	Platform_Thread *self = (Platform_Thread *)thread;
+	self->function(self->data);
 	return nullptr;
 }
 
 Platform_Thread *
-platform_thread_init()
+platform_thread_init(Platform_Thread_Desc desc)
 {
+	validate(desc.function != nullptr, "[PLATFORM][MACOS]: Thread function is not valid.");
+
 	Platform_Thread *self = memory::allocate_zeroed<Platform_Thread>();
-	self->is_running = true;
-	::pthread_create(&self->handle, nullptr, _platform_thread_main_routine, self);
+	self->function = desc.function;
+	self->data = desc.data;
+	validate(::pthread_create(&self->handle, nullptr, _platform_thread_main_routine, self) == 0, "[PLATFORM][MACOS]: Failed to create thread.");
 	return self;
 }
 
 void
 platform_thread_deinit(Platform_Thread *self)
 {
-	self->is_running = false;
-	::pthread_join(self->handle, nullptr);
-
+	platform_thread_join(self);
 	memory::deallocate(self);
 }
 
 void
-platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_data)
+platform_thread_join(Platform_Thread *self)
 {
-	Platform_Task task {
-		.function  = function,
-		.user_data = user_data
-	};
-	self->task = task;
+	if (self->joined)
+		return;
+
+	validate(::pthread_join(self->handle, nullptr) == 0, "[PLATFORM][MACOS]: Failed to join thread.");
+	self->joined = true;
+}
+
+void
+platform_thread_sleep(U32 milliseconds)
+{
+	struct timespec ts;
+	ts.tv_sec = milliseconds / 1000;
+	ts.tv_nsec = (milliseconds % 1000) * 1000 * 1000;
+	::nanosleep(&ts, 0);
 }
 
 // TODO: Return early with error message if failed to create objects.

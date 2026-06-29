@@ -371,8 +371,6 @@ typedef struct Platform_Api
 	I64 last_write_time;
 } Platform_Api;
 
-typedef struct Platform_Thread Platform_Thread;
-
 typedef enum PLATFORM_KEY
 {
 	// Mouse.
@@ -682,14 +680,31 @@ CORE_API void
 platform_virtual_memory_release(Memory_Block block);
 
 
+CORE_API U32
+platform_get_logical_processor_count();
+
+
+struct Platform_Thread;
+
+using Platform_Thread_Function = void (*)(void *);
+
+struct Platform_Thread_Desc
+{
+	Platform_Thread_Function function;
+	void *data;
+};
+
 CORE_API Platform_Thread *
-platform_thread_init();
+platform_thread_init(Platform_Thread_Desc desc);
 
 CORE_API void
 platform_thread_deinit(Platform_Thread *self);
 
 CORE_API void
-platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_data);
+platform_thread_join(Platform_Thread *self);
+
+CORE_API void
+platform_thread_sleep(U32 milliseconds);
 
 
 CORE_API Platform_Window

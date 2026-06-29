@@ -52,6 +52,33 @@ TESTER_TEST("[PLATFORM] callstack")
 	#endif
 }
 
+struct Platform_Thread_Test_Context
+{
+	U32 value;
+};
+
+inline static void
+_platform_thread_test_entry(void *data)
+{
+	Platform_Thread_Test_Context *context = (Platform_Thread_Test_Context *)data;
+	platform_thread_sleep(0);
+	context->value = 42;
+}
+
+TESTER_TEST("[PLATFORM] thread")
+{
+	Platform_Thread_Test_Context context = {};
+	Platform_Thread *thread = platform_thread_init(Platform_Thread_Desc {
+		.function = _platform_thread_test_entry,
+		.data = &context
+	});
+
+	platform_thread_join(thread);
+	TESTER_CHECK(context.value == 42);
+	platform_thread_deinit(thread);
+	TESTER_CHECK(platform_get_logical_processor_count() > 0);
+}
+
 TESTER_TEST("[PLATFORM] path utilities")
 {
 	String executable_path = platform_path_get_executable_path(memory::temp_allocator());
