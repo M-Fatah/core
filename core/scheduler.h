@@ -26,3 +26,6 @@ scheduler_deinit(Scheduler *self);
 
 CORE_API void
 scheduler_submit(Scheduler *self, Scheduler_Task task);
+
+CORE_API void
+scheduler_wait_idle(Scheduler *self);

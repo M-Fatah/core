@@ -21,9 +21,7 @@ TESTER_TEST("[CORE]: Scheduler")
 struct Scheduler_Test_Task_Context
 {
 	Platform_Mutex *mutex;
-	Platform_Condition_Variable *condition_variable;
 	U32 finished_count;
-	U32 task_count;
 };
 
 inline static void
@@ -32,9 +30,7 @@ _scheduler_test_task(void *data)
 	Scheduler_Test_Task_Context *context = (Scheduler_Test_Task_Context *)data;
 
 	platform_mutex_lock(context->mutex);
-	context->finished_count += 1;
-	if (context->finished_count == context->task_count)
-		platform_condition_variable_signal(context->condition_variable);
+	++context->finished_count;
 	platform_mutex_unlock(context->mutex);
 }
 
@@ -43,11 +39,8 @@ TESTER_TEST("[CORE]: Scheduler Submit")
 	constexpr U32 TASK_COUNT = 64;
 
 	Platform_Mutex *mutex = platform_mutex_init();
-	Platform_Condition_Variable *condition_variable = platform_condition_variable_init();
 	Scheduler_Test_Task_Context context = {
-		.mutex = mutex,
-		.condition_variable = condition_variable,
-		.task_count = TASK_COUNT
+		.mutex = mutex
 	};
 
 	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
@@ -62,14 +55,14 @@ TESTER_TEST("[CORE]: Scheduler Submit")
 		});
 	}
 
+	scheduler_wait_idle(scheduler);
+
 	platform_mutex_lock(mutex);
-	while (context.finished_count != TASK_COUNT)
-		platform_condition_variable_wait(condition_variable, mutex);
+	U32 finished_count = context.finished_count;
 	platform_mutex_unlock(mutex);
 
-	TESTER_CHECK(context.finished_count == TASK_COUNT);
+	TESTER_CHECK(finished_count == TASK_COUNT);
 	scheduler_deinit(scheduler);
-	platform_condition_variable_deinit(condition_variable);
 	platform_mutex_deinit(mutex);
 }
 

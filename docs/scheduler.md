@@ -38,11 +38,17 @@ scheduler_submit(scheduler, Scheduler_Task {
 	.function = task_entry,
 	.data = user_data
 });
+
+scheduler_wait_idle(scheduler);
 ```
 
 Submitted tasks are stored in a FIFO `Ring_Buffer<Scheduler_Task>`. Workers take tasks from the front of the queue and execute them outside the scheduler mutex.
 
 Task data must remain valid until the task has executed.
+
+`scheduler_wait_idle` blocks until there are no queued tasks and no worker is currently executing a task.
+
+Call `scheduler_wait_idle` from the thread coordinating the scheduler. A scheduler task must not wait for its own scheduler to become idle because that task is part of the active task count.
 
 ---
 

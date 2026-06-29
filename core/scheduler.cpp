@@ -17,9 +17,11 @@ struct Scheduler
 	Platform_Mutex *mutex;
 	Platform_Condition_Variable *startup_condition_variable;
 	Platform_Condition_Variable *work_condition_variable;
+	Platform_Condition_Variable *idle_condition_variable;
 	Array<Scheduler_Worker> workers;
 	Ring_Buffer<Scheduler_Task> tasks;
 	U32 started_worker_count;
+	U32 active_task_count;
 	bool running;
 };
 
@@ -36,7 +38,7 @@ _scheduler_worker_entry(void *data)
 	Scheduler *self = worker->scheduler;
 
 	platform_mutex_lock(self->mutex);
-	self->started_worker_count += 1;
+	++self->started_worker_count;
 	platform_condition_variable_signal(self->startup_condition_variable);
 	while (true)
 	{
@@ -48,11 +50,15 @@ _scheduler_worker_entry(void *data)
 
 		Scheduler_Task task = ring_buffer_front(self->tasks);
 		ring_buffer_pop_front(self->tasks);
+		++self->active_task_count;
 		platform_mutex_unlock(self->mutex);
 
 		task.function(task.data);
 
 		platform_mutex_lock(self->mutex);
+		--self->active_task_count;
+		if (ring_buffer_is_empty(self->tasks) && self->active_task_count == 0)
+			platform_condition_variable_broadcast(self->idle_condition_variable);
 	}
 	platform_mutex_unlock(self->mutex);
 }
@@ -67,6 +73,7 @@ scheduler_init(Scheduler_Desc desc)
 	self->mutex = platform_mutex_init();
 	self->startup_condition_variable = platform_condition_variable_init();
 	self->work_condition_variable = platform_condition_variable_init();
+	self->idle_condition_variable = platform_condition_variable_init();
 	self->workers = array_init_with_count<Scheduler_Worker>(desc.worker_count);
 	self->tasks = ring_buffer_init<Scheduler_Task>();
 	self->running = true;
@@ -99,6 +106,7 @@ scheduler_deinit(Scheduler *self)
 
 	destroy(self->workers);
 	ring_buffer_deinit(self->tasks);
+	platform_condition_variable_deinit(self->idle_condition_variable);
 	platform_condition_variable_deinit(self->work_condition_variable);
 	platform_condition_variable_deinit(self->startup_condition_variable);
 	platform_mutex_deinit(self->mutex);
@@ -114,5 +122,14 @@ scheduler_submit(Scheduler *self, Scheduler_Task task)
 	validate(self->running, "[SCHEDULER]: Cannot submit task after shutdown.");
 	ring_buffer_push_back(self->tasks, task);
 	platform_condition_variable_signal(self->work_condition_variable);
+	platform_mutex_unlock(self->mutex);
+}
+
+void
+scheduler_wait_idle(Scheduler *self)
+{
+	platform_mutex_lock(self->mutex);
+	while (!ring_buffer_is_empty(self->tasks) || self->active_task_count != 0)
+		platform_condition_variable_wait(self->idle_condition_variable, self->mutex);
 	platform_mutex_unlock(self->mutex);
 }
