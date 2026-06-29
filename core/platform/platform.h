@@ -722,6 +722,24 @@ CORE_API void
 platform_mutex_unlock(Platform_Mutex *self);
 
 
+struct Platform_Condition_Variable;
+
+CORE_API Platform_Condition_Variable *
+platform_condition_variable_init();
+
+CORE_API void
+platform_condition_variable_deinit(Platform_Condition_Variable *self);
+
+CORE_API void
+platform_condition_variable_wait(Platform_Condition_Variable *self, Platform_Mutex *mutex);
+
+CORE_API void
+platform_condition_variable_signal(Platform_Condition_Variable *self);
+
+CORE_API void
+platform_condition_variable_broadcast(Platform_Condition_Variable *self);
+
+
 CORE_API Platform_Window
 platform_window_init(U32 width, U32 height, const char *title);
 

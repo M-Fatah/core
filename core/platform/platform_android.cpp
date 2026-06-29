@@ -2887,6 +2887,44 @@ platform_mutex_unlock(Platform_Mutex *self)
 	validate(::pthread_mutex_unlock(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to unlock mutex.");
 }
 
+struct Platform_Condition_Variable
+{
+	pthread_cond_t handle;
+};
+
+Platform_Condition_Variable *
+platform_condition_variable_init()
+{
+	Platform_Condition_Variable *self = memory::allocate_zeroed<Platform_Condition_Variable>();
+	validate(::pthread_cond_init(&self->handle, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize condition variable.");
+	return self;
+}
+
+void
+platform_condition_variable_deinit(Platform_Condition_Variable *self)
+{
+	validate(::pthread_cond_destroy(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to destroy condition variable.");
+	memory::deallocate(self);
+}
+
+void
+platform_condition_variable_wait(Platform_Condition_Variable *self, Platform_Mutex *mutex)
+{
+	validate(::pthread_cond_wait(&self->handle, &mutex->handle) == 0, "[PLATFORM][ANDROID]: Failed to wait for condition variable.");
+}
+
+void
+platform_condition_variable_signal(Platform_Condition_Variable *self)
+{
+	validate(::pthread_cond_signal(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to signal condition variable.");
+}
+
+void
+platform_condition_variable_broadcast(Platform_Condition_Variable *self)
+{
+	validate(::pthread_cond_broadcast(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to broadcast condition variable.");
+}
+
 Platform_Window
 platform_window_init(U32, U32, const char *)
 {

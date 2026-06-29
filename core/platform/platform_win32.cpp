@@ -998,6 +998,44 @@ platform_mutex_unlock(Platform_Mutex *self)
 	::ReleaseSRWLockExclusive(&self->handle);
 }
 
+struct Platform_Condition_Variable
+{
+	CONDITION_VARIABLE handle;
+};
+
+Platform_Condition_Variable *
+platform_condition_variable_init()
+{
+	Platform_Condition_Variable *self = memory::allocate_zeroed<Platform_Condition_Variable>();
+	::InitializeConditionVariable(&self->handle);
+	return self;
+}
+
+void
+platform_condition_variable_deinit(Platform_Condition_Variable *self)
+{
+	memory::deallocate(self);
+}
+
+void
+platform_condition_variable_wait(Platform_Condition_Variable *self, Platform_Mutex *mutex)
+{
+	BOOL result = ::SleepConditionVariableSRW(&self->handle, &mutex->handle, INFINITE, 0);
+	validate(result, "[PLATFORM][WINDOWS]: Failed to wait for condition variable.");
+}
+
+void
+platform_condition_variable_signal(Platform_Condition_Variable *self)
+{
+	::WakeConditionVariable(&self->handle);
+}
+
+void
+platform_condition_variable_broadcast(Platform_Condition_Variable *self)
+{
+	::WakeAllConditionVariable(&self->handle);
+}
+
 inline static void
 _platform_win32_window_keep_screen_on_set(Platform_Window_Context *ctx, bool enabled)
 {
