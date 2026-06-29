@@ -3,10 +3,20 @@
 #include <core/base64.h>
 #include <core/log.h>
 #include <core/result.h>
+#include <core/scheduler.h>
 #include <core/memory/memory.h>
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
 #include <core/platform/platform.h>
+
+TESTER_TEST("[CORE]: Scheduler")
+{
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2
+	});
+	TESTER_CHECK(scheduler != nullptr);
+	scheduler_deinit(scheduler);
+}
 
 TESTER_TEST("[CORE]: Arena_Allocator")
 {

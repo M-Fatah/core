@@ -19,6 +19,7 @@
 | [Reflect](reflect.md) | `core/reflect.h` | Compile-time type reflection: kinds, names, fields, enums |
 | [Serialization](serialization.md) | `core/serialization/` | Binary and JSON serializers |
 | [ECS](ecs.md) | `core/ecs.h` | Minimal entity-component system |
+| [Scheduler](scheduler.md) | `core/scheduler.h` | Long-lived worker-thread lifetime helper |
 | [Platform](platform.md) | `core/platform/platform.h` | File I/O, paths, dialogs |
 
 ---

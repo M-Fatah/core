@@ -346,10 +346,6 @@ platform_resource_list_files(const char *directory, const char *extension_filter
 	return platform_resource_list_files(string_literal(directory), string_literal(extension_filter), allocator);
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define SECOND_TO_MILLISECOND      1000.0f
 #define MILLISOCEND_TO_SECOND      0.001f
 #define MICROSECOND_TO_MILLISECOND 0.001f
@@ -651,6 +647,10 @@ typedef struct Platform_Clipboard_Item
 	Array<U8> data;
 } Platform_Clipboard_Item;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 CORE_API Platform_Api
 platform_api_init(const char *filepath);
 
@@ -659,6 +659,10 @@ platform_api_deinit(Platform_Api *self);
 
 CORE_API void *
 platform_api_load(Platform_Api *self);
+
+#ifdef __cplusplus
+}
+#endif
 
 
 CORE_API U64
@@ -706,6 +710,12 @@ platform_thread_join(Platform_Thread *self);
 CORE_API void
 platform_thread_sleep(U32 milliseconds);
 
+inline static void
+destroy(Platform_Thread *self)
+{
+	platform_thread_deinit(self);
+}
+
 
 struct Platform_Mutex;
 
@@ -721,6 +731,11 @@ platform_mutex_lock(Platform_Mutex *self);
 CORE_API void
 platform_mutex_unlock(Platform_Mutex *self);
 
+inline static void
+destroy(Platform_Mutex *self)
+{
+	platform_mutex_deinit(self);
+}
 
 struct Platform_Condition_Variable;
 
@@ -739,6 +754,11 @@ platform_condition_variable_signal(Platform_Condition_Variable *self);
 CORE_API void
 platform_condition_variable_broadcast(Platform_Condition_Variable *self);
 
+inline static void
+destroy(Platform_Condition_Variable *self)
+{
+	platform_condition_variable_deinit(self);
+}
 
 CORE_API Platform_Window
 platform_window_init(U32 width, U32 height, const char *title);
@@ -862,8 +882,6 @@ CORE_API void
 platform_callstack_resolve(void **callstack, Platform_Callstack_Frame *frames, U32 frame_count);
 
 #ifdef __cplusplus
-}
-
 inline static void
 platform_clipboard_item_deinit(Platform_Clipboard_Item &item)
 {
