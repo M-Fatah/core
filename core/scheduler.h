@@ -3,15 +3,26 @@
 #include "core/export.h"
 #include "core/defines.h"
 
-struct Scheduler;
+using Scheduler_Task_Function = void (*)(void *);
+
+struct Scheduler_Task
+{
+	Scheduler_Task_Function function;
+	void *data;
+};
 
 struct Scheduler_Desc
 {
 	U32 worker_count;
 };
 
+struct Scheduler;
+
 CORE_API Scheduler *
 scheduler_init(Scheduler_Desc desc);
 
 CORE_API void
 scheduler_deinit(Scheduler *self);
+
+CORE_API void
+scheduler_submit(Scheduler *self, Scheduler_Task task);

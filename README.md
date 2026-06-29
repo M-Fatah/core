@@ -34,7 +34,7 @@ The library favors explicit ownership, visible allocations, plain structs, free 
 | `core/reflect.h` | Compile-time type reflection helpers |
 | `core/serialization/` | Binary and JSON serializers |
 | `core/ecs.h` | Minimal ECS |
-| `core/scheduler.h` | Long-lived worker-thread lifetime helper |
+| `core/scheduler.h` | Long-lived worker-thread scheduler |
 | `core/platform/platform.h` | Files, paths, resources, windows, input, timing, threads, callstacks |
 
 Full documentation lives in [`docs/`](docs/home.md).
