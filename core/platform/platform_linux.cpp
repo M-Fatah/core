@@ -861,6 +861,38 @@ platform_thread_sleep(U32 milliseconds)
 	nanosleep(&ts, 0);
 }
 
+struct Platform_Mutex
+{
+	pthread_mutex_t handle;
+};
+
+Platform_Mutex *
+platform_mutex_init()
+{
+	Platform_Mutex *self = memory::allocate_zeroed<Platform_Mutex>();
+	validate(::pthread_mutex_init(&self->handle, nullptr) == 0, "[PLATFORM][LINUX]: Failed to initialize mutex.");
+	return self;
+}
+
+void
+platform_mutex_deinit(Platform_Mutex *self)
+{
+	validate(::pthread_mutex_destroy(&self->handle) == 0, "[PLATFORM][LINUX]: Failed to destroy mutex.");
+	memory::deallocate(self);
+}
+
+void
+platform_mutex_lock(Platform_Mutex *self)
+{
+	validate(::pthread_mutex_lock(&self->handle) == 0, "[PLATFORM][LINUX]: Failed to lock mutex.");
+}
+
+void
+platform_mutex_unlock(Platform_Mutex *self)
+{
+	validate(::pthread_mutex_unlock(&self->handle) == 0, "[PLATFORM][LINUX]: Failed to unlock mutex.");
+}
+
 struct Platform_Window_Context
 {
 	Display *display;

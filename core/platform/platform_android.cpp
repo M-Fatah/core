@@ -2855,6 +2855,38 @@ platform_thread_sleep(U32 milliseconds)
 	::nanosleep(&ts, nullptr);
 }
 
+struct Platform_Mutex
+{
+	pthread_mutex_t handle;
+};
+
+Platform_Mutex *
+platform_mutex_init()
+{
+	Platform_Mutex *self = memory::allocate_zeroed<Platform_Mutex>();
+	validate(::pthread_mutex_init(&self->handle, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize mutex.");
+	return self;
+}
+
+void
+platform_mutex_deinit(Platform_Mutex *self)
+{
+	validate(::pthread_mutex_destroy(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to destroy mutex.");
+	memory::deallocate(self);
+}
+
+void
+platform_mutex_lock(Platform_Mutex *self)
+{
+	validate(::pthread_mutex_lock(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to lock mutex.");
+}
+
+void
+platform_mutex_unlock(Platform_Mutex *self)
+{
+	validate(::pthread_mutex_unlock(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to unlock mutex.");
+}
+
 Platform_Window
 platform_window_init(U32, U32, const char *)
 {

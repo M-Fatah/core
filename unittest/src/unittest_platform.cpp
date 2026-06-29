@@ -79,6 +79,55 @@ TESTER_TEST("[PLATFORM] thread")
 	TESTER_CHECK(platform_get_logical_processor_count() > 0);
 }
 
+struct Platform_Mutex_Test_Context
+{
+	Platform_Mutex *mutex;
+	U32 *counter;
+	U32 iteration_count;
+};
+
+inline static void
+_platform_mutex_test_entry(void *data)
+{
+	Platform_Mutex_Test_Context *context = (Platform_Mutex_Test_Context *)data;
+	for (U32 i = 0; i < context->iteration_count; ++i)
+	{
+		platform_mutex_lock(context->mutex);
+		*context->counter += 1;
+		platform_mutex_unlock(context->mutex);
+	}
+}
+
+TESTER_TEST("[PLATFORM] mutex")
+{
+	constexpr U32 THREAD_COUNT = 4;
+	constexpr U32 ITERATION_COUNT = 10000;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	U32 counter = 0;
+	Platform_Thread *threads[THREAD_COUNT] = {};
+	Platform_Mutex_Test_Context contexts[THREAD_COUNT] = {};
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+	{
+		contexts[i] = Platform_Mutex_Test_Context {
+			.mutex = mutex,
+			.counter = &counter,
+			.iteration_count = ITERATION_COUNT
+		};
+		threads[i] = platform_thread_init(Platform_Thread_Desc {
+			.function = _platform_mutex_test_entry,
+			.data = &contexts[i]
+		});
+	}
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+		platform_thread_deinit(threads[i]);
+
+	TESTER_CHECK(counter == THREAD_COUNT * ITERATION_COUNT);
+	platform_mutex_deinit(mutex);
+}
+
 TESTER_TEST("[PLATFORM] path utilities")
 {
 	String executable_path = platform_path_get_executable_path(memory::temp_allocator());

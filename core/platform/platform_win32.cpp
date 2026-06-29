@@ -967,6 +967,37 @@ platform_thread_sleep(U32 milliseconds)
 	Sleep(milliseconds);
 }
 
+struct Platform_Mutex
+{
+	SRWLOCK handle;
+};
+
+Platform_Mutex *
+platform_mutex_init()
+{
+	Platform_Mutex *self = memory::allocate_zeroed<Platform_Mutex>();
+	::InitializeSRWLock(&self->handle);
+	return self;
+}
+
+void
+platform_mutex_deinit(Platform_Mutex *self)
+{
+	memory::deallocate(self);
+}
+
+void
+platform_mutex_lock(Platform_Mutex *self)
+{
+	::AcquireSRWLockExclusive(&self->handle);
+}
+
+void
+platform_mutex_unlock(Platform_Mutex *self)
+{
+	::ReleaseSRWLockExclusive(&self->handle);
+}
+
 inline static void
 _platform_win32_window_keep_screen_on_set(Platform_Window_Context *ctx, bool enabled)
 {

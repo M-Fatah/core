@@ -707,6 +707,21 @@ CORE_API void
 platform_thread_sleep(U32 milliseconds);
 
 
+struct Platform_Mutex;
+
+CORE_API Platform_Mutex *
+platform_mutex_init();
+
+CORE_API void
+platform_mutex_deinit(Platform_Mutex *self);
+
+CORE_API void
+platform_mutex_lock(Platform_Mutex *self);
+
+CORE_API void
+platform_mutex_unlock(Platform_Mutex *self);
+
+
 CORE_API Platform_Window
 platform_window_init(U32 width, U32 height, const char *title);
 
