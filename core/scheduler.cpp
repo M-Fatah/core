@@ -116,6 +116,7 @@ scheduler_init(Scheduler_Desc desc)
 	self->idle_condition_variable = platform_condition_variable_init();
 	self->workers = array_init_with_count<Scheduler_Worker>(desc.worker_count);
 	self->tasks = ring_buffer_init<Scheduler_Queued_Task>();
+	ring_buffer_reserve(self->tasks, desc.initial_task_queue_capacity);
 	self->running = true;
 
 	for (U32 i = 0; i < desc.worker_count; ++i)

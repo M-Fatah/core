@@ -12,7 +12,8 @@
 TESTER_TEST("[CORE]: Scheduler")
 {
 	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
-		.worker_count = 2
+		.worker_count = 2,
+		.initial_task_queue_capacity = 8
 	});
 	TESTER_CHECK(scheduler != nullptr);
 	scheduler_deinit(scheduler);
@@ -44,7 +45,8 @@ TESTER_TEST("[CORE]: Scheduler Submit")
 	};
 
 	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
-		.worker_count = 2
+		.worker_count = 2,
+		.initial_task_queue_capacity = TASK_COUNT
 	});
 
 	for (U32 i = 0; i < TASK_COUNT; ++i)

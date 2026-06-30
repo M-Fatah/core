@@ -12,7 +12,8 @@ Long-lived worker-thread scheduler built on the platform thread, mutex, and cond
 #include <core/scheduler.h>
 
 Scheduler *scheduler = scheduler_init(Scheduler_Desc {
-	.worker_count = 4
+	.worker_count = 4,
+	.initial_task_queue_capacity = 1024
 });
 
 scheduler_deinit(scheduler);
@@ -23,6 +24,8 @@ scheduler_deinit(scheduler);
 `scheduler_deinit` requests shutdown, wakes all workers, joins every worker thread, and releases scheduler-owned synchronization objects.
 
 `worker_count` must be greater than 0.
+
+`initial_task_queue_capacity` is optional. When greater than 0, the scheduler reserves task queue storage during initialization so normal task submission can avoid the first queue allocation.
 
 ---
 

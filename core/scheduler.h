@@ -16,6 +16,7 @@ struct Scheduler_Group;
 struct Scheduler_Desc
 {
 	U32 worker_count;
+	U32 initial_task_queue_capacity;
 };
 
 struct Scheduler;
