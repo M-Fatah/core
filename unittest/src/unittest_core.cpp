@@ -152,6 +152,82 @@ TESTER_TEST("[CORE]: Scheduler Wait Group")
 	platform_mutex_deinit(task_mutex);
 }
 
+struct Scheduler_Test_Waiting_Task_Context
+{
+	Scheduler *scheduler;
+	Scheduler_Group *group;
+	Platform_Mutex *mutex;
+	U32 child_task_count;
+	U32 finished_count;
+	bool parent_finished;
+};
+
+inline static void
+_scheduler_test_child_task(void *data)
+{
+	Scheduler_Test_Waiting_Task_Context *context = (Scheduler_Test_Waiting_Task_Context *)data;
+
+	platform_mutex_lock(context->mutex);
+	++context->finished_count;
+	platform_mutex_unlock(context->mutex);
+}
+
+inline static void
+_scheduler_test_waiting_parent_task(void *data)
+{
+	Scheduler_Test_Waiting_Task_Context *context = (Scheduler_Test_Waiting_Task_Context *)data;
+
+	for (U32 i = 0; i < context->child_task_count; ++i)
+	{
+		scheduler_submit(context->scheduler, Scheduler_Task {
+			.function = _scheduler_test_child_task,
+			.data = context
+		}, context->group);
+	}
+
+	scheduler_wait_group(context->scheduler, context->group);
+
+	platform_mutex_lock(context->mutex);
+	context->parent_finished = true;
+	platform_mutex_unlock(context->mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Worker Wait Group")
+{
+	constexpr U32 TASK_COUNT = 64;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 1
+	});
+	Scheduler_Group *group = scheduler_group_init(scheduler);
+	Scheduler_Test_Waiting_Task_Context context = {
+		.scheduler = scheduler,
+		.group = group,
+		.mutex = mutex,
+		.child_task_count = TASK_COUNT
+	};
+
+	scheduler_submit(scheduler, Scheduler_Task {
+		.function = _scheduler_test_waiting_parent_task,
+		.data = &context
+	});
+
+	scheduler_wait_all(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	bool parent_finished = context.parent_finished;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	TESTER_CHECK(parent_finished);
+
+	scheduler_group_deinit(scheduler, group);
+	scheduler_deinit(scheduler);
+	platform_mutex_deinit(mutex);
+}
+
 TESTER_TEST("[CORE]: Arena_Allocator")
 {
 	U64 page_size = platform_virtual_memory_get_page_size();

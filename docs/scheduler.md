@@ -48,7 +48,7 @@ Task data must remain valid until the task has executed.
 
 `scheduler_wait_all` blocks until there are no queued tasks and no worker is currently executing a task.
 
-Call `scheduler_wait_all` from the thread coordinating the scheduler. A scheduler task must not wait for its own scheduler to finish all work because that task is part of the active task count.
+Call `scheduler_wait_all` from the thread coordinating the scheduler. Scheduler workers cannot wait for all work because the running worker task is part of the active task count.
 
 ---
 
@@ -75,7 +75,9 @@ Groups track completion for a specific batch of tasks. `scheduler_wait_group` bl
 
 A group belongs to the scheduler passed to `scheduler_group_init`. Deinit the group after its pending task count reaches 0 and before deinitializing the scheduler.
 
-Call `scheduler_wait_group` from the thread coordinating the scheduler. A scheduler task must not wait for a group that includes itself.
+When `scheduler_wait_group` is called from a worker owned by the same scheduler, that worker executes queued tasks while it waits. This lets a task submit child tasks to a group and wait for them without putting the worker to sleep.
+
+The scheduler validates that a task does not wait for its own group.
 
 ---
 
