@@ -38,6 +38,7 @@ struct Scheduler
 	Ring_Buffer<Scheduler_Queued_Task> tasks;
 	U32 started_worker_count;
 	U32 active_task_count;
+	U32 live_group_count;
 	bool running;
 };
 
@@ -140,7 +141,10 @@ scheduler_init(Scheduler_Desc desc)
 void
 scheduler_deinit(Scheduler *self)
 {
+	validate(scheduler_current_worker == nullptr || scheduler_current_worker->scheduler != self, "[SCHEDULER]: Scheduler worker cannot deinit its own scheduler.");
+
 	platform_mutex_lock(self->mutex);
+	validate(self->live_group_count == 0, "[SCHEDULER]: Cannot deinit scheduler while task groups are alive.");
 	self->running = false;
 	platform_condition_variable_broadcast(self->work_condition_variable);
 	platform_mutex_unlock(self->mutex);
@@ -159,6 +163,11 @@ scheduler_group_init(Scheduler *self)
 {
 	validate(self != nullptr, "[SCHEDULER]: Scheduler is not valid.");
 
+	platform_mutex_lock(self->mutex);
+	validate(self->running, "[SCHEDULER]: Cannot create task group after shutdown.");
+	++self->live_group_count;
+	platform_mutex_unlock(self->mutex);
+
 	Scheduler_Group *group = memory::allocate_zeroed<Scheduler_Group>();
 	group->scheduler = self;
 	group->condition_variable = platform_condition_variable_init();
@@ -173,6 +182,8 @@ scheduler_group_deinit(Scheduler *self, Scheduler_Group *group)
 
 	platform_mutex_lock(self->mutex);
 	validate(group->pending_task_count == 0, "[SCHEDULER]: Cannot deinit task group while tasks are pending.");
+	validate(self->live_group_count > 0, "[SCHEDULER]: Scheduler live task group count underflow.");
+	--self->live_group_count;
 	platform_mutex_unlock(self->mutex);
 
 	platform_condition_variable_deinit(group->condition_variable);

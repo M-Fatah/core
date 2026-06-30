@@ -68,6 +68,73 @@ TESTER_TEST("[CORE]: Scheduler Submit")
 	platform_mutex_deinit(mutex);
 }
 
+TESTER_TEST("[CORE]: Scheduler Submit Batch")
+{
+	constexpr U32 TASK_COUNT = 64;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Task_Context context = {
+		.mutex = mutex
+	};
+	Scheduler_Task tasks[TASK_COUNT];
+
+	for (U32 i = 0; i < TASK_COUNT; ++i)
+	{
+		tasks[i] = Scheduler_Task {
+			.function = _scheduler_test_task,
+			.data = &context
+		};
+	}
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2,
+		.initial_task_queue_capacity = TASK_COUNT
+	});
+
+	scheduler_submit(scheduler, span_init(tasks));
+	scheduler_wait_all(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	scheduler_deinit(scheduler);
+	platform_mutex_deinit(mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Deinit Drains Tasks")
+{
+	constexpr U32 TASK_COUNT = 64;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Task_Context context = {
+		.mutex = mutex
+	};
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2,
+		.initial_task_queue_capacity = TASK_COUNT
+	});
+
+	for (U32 i = 0; i < TASK_COUNT; ++i)
+	{
+		scheduler_submit(scheduler, Scheduler_Task {
+			.function = _scheduler_test_task,
+			.data = &context
+		});
+	}
+
+	scheduler_deinit(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	platform_mutex_deinit(mutex);
+}
+
 struct Scheduler_Test_Blocking_Task_Context
 {
 	Platform_Mutex *mutex;
@@ -122,13 +189,15 @@ TESTER_TEST("[CORE]: Scheduler Wait Group")
 		platform_condition_variable_wait(blocking_condition_variable, blocking_mutex);
 	platform_mutex_unlock(blocking_mutex);
 
+	Scheduler_Task tasks[TASK_COUNT];
 	for (U32 i = 0; i < TASK_COUNT; ++i)
 	{
-		scheduler_submit(scheduler, Scheduler_Task {
+		tasks[i] = Scheduler_Task {
 			.function = _scheduler_test_task,
 			.data = &task_context
-		}, group);
+		};
 	}
+	scheduler_submit(scheduler, span_init(tasks), group);
 
 	scheduler_wait_group(scheduler, group);
 
