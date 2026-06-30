@@ -55,7 +55,7 @@ TESTER_TEST("[CORE]: Scheduler Submit")
 		});
 	}
 
-	scheduler_wait_idle(scheduler);
+	scheduler_wait_all(scheduler);
 
 	platform_mutex_lock(mutex);
 	U32 finished_count = context.finished_count;
@@ -64,6 +64,92 @@ TESTER_TEST("[CORE]: Scheduler Submit")
 	TESTER_CHECK(finished_count == TASK_COUNT);
 	scheduler_deinit(scheduler);
 	platform_mutex_deinit(mutex);
+}
+
+struct Scheduler_Test_Blocking_Task_Context
+{
+	Platform_Mutex *mutex;
+	Platform_Condition_Variable *condition_variable;
+	bool started;
+	bool release;
+	bool finished;
+};
+
+inline static void
+_scheduler_test_blocking_task(void *data)
+{
+	Scheduler_Test_Blocking_Task_Context *context = (Scheduler_Test_Blocking_Task_Context *)data;
+
+	platform_mutex_lock(context->mutex);
+	context->started = true;
+	platform_condition_variable_signal(context->condition_variable);
+	while (!context->release)
+		platform_condition_variable_wait(context->condition_variable, context->mutex);
+	context->finished = true;
+	platform_mutex_unlock(context->mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Wait Group")
+{
+	constexpr U32 TASK_COUNT = 64;
+
+	Platform_Mutex *task_mutex = platform_mutex_init();
+	Scheduler_Test_Task_Context task_context = {
+		.mutex = task_mutex
+	};
+
+	Platform_Mutex *blocking_mutex = platform_mutex_init();
+	Platform_Condition_Variable *blocking_condition_variable = platform_condition_variable_init();
+	Scheduler_Test_Blocking_Task_Context blocking_context = {
+		.mutex = blocking_mutex,
+		.condition_variable = blocking_condition_variable
+	};
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2
+	});
+	Scheduler_Group *group = scheduler_group_init(scheduler);
+
+	scheduler_submit(scheduler, Scheduler_Task {
+		.function = _scheduler_test_blocking_task,
+		.data = &blocking_context
+	});
+
+	platform_mutex_lock(blocking_mutex);
+	while (!blocking_context.started)
+		platform_condition_variable_wait(blocking_condition_variable, blocking_mutex);
+	platform_mutex_unlock(blocking_mutex);
+
+	for (U32 i = 0; i < TASK_COUNT; ++i)
+	{
+		scheduler_submit(scheduler, Scheduler_Task {
+			.function = _scheduler_test_task,
+			.data = &task_context
+		}, group);
+	}
+
+	scheduler_wait_group(scheduler, group);
+
+	platform_mutex_lock(task_mutex);
+	U32 finished_count = task_context.finished_count;
+	platform_mutex_unlock(task_mutex);
+
+	platform_mutex_lock(blocking_mutex);
+	bool blocking_task_finished = blocking_context.finished;
+	blocking_context.release = true;
+	platform_condition_variable_signal(blocking_condition_variable);
+	platform_mutex_unlock(blocking_mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	TESTER_CHECK(!blocking_task_finished);
+
+	scheduler_wait_all(scheduler);
+
+	scheduler_group_deinit(scheduler, group);
+	scheduler_deinit(scheduler);
+	platform_condition_variable_deinit(blocking_condition_variable);
+	platform_mutex_deinit(blocking_mutex);
+	platform_mutex_deinit(task_mutex);
 }
 
 TESTER_TEST("[CORE]: Arena_Allocator")

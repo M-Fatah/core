@@ -39,16 +39,43 @@ scheduler_submit(scheduler, Scheduler_Task {
 	.data = user_data
 });
 
-scheduler_wait_idle(scheduler);
+scheduler_wait_all(scheduler);
 ```
 
-Submitted tasks are stored in a FIFO `Ring_Buffer<Scheduler_Task>`. Workers take tasks from the front of the queue and execute them outside the scheduler mutex.
+Submitted tasks are stored in a FIFO queue. Workers take tasks from the front of the queue and execute them outside the scheduler mutex.
 
 Task data must remain valid until the task has executed.
 
-`scheduler_wait_idle` blocks until there are no queued tasks and no worker is currently executing a task.
+`scheduler_wait_all` blocks until there are no queued tasks and no worker is currently executing a task.
 
-Call `scheduler_wait_idle` from the thread coordinating the scheduler. A scheduler task must not wait for its own scheduler to become idle because that task is part of the active task count.
+Call `scheduler_wait_all` from the thread coordinating the scheduler. A scheduler task must not wait for its own scheduler to finish all work because that task is part of the active task count.
+
+---
+
+## Groups
+
+```cpp
+Scheduler_Group *group = scheduler_group_init(scheduler);
+
+scheduler_submit(scheduler, Scheduler_Task {
+	.function = task_entry,
+	.data = first_user_data
+}, group);
+
+scheduler_submit(scheduler, Scheduler_Task {
+	.function = task_entry,
+	.data = second_user_data
+}, group);
+
+scheduler_wait_group(scheduler, group);
+scheduler_group_deinit(scheduler, group);
+```
+
+Groups track completion for a specific batch of tasks. `scheduler_wait_group` blocks until every task submitted with that group has finished, but it does not wait for unrelated scheduler work.
+
+A group belongs to the scheduler passed to `scheduler_group_init`. Deinit the group after its pending task count reaches 0 and before deinitializing the scheduler.
+
+Call `scheduler_wait_group` from the thread coordinating the scheduler. A scheduler task must not wait for a group that includes itself.
 
 ---
 

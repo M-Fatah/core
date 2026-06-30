@@ -12,6 +12,19 @@ struct Scheduler_Worker
 	Platform_Thread *thread;
 };
 
+struct Scheduler_Group
+{
+	Scheduler *scheduler;
+	Platform_Condition_Variable *condition_variable;
+	U32 pending_task_count;
+};
+
+struct Scheduler_Queued_Task
+{
+	Scheduler_Task task;
+	Scheduler_Group *group;
+};
+
 struct Scheduler
 {
 	Platform_Mutex *mutex;
@@ -19,7 +32,7 @@ struct Scheduler
 	Platform_Condition_Variable *work_condition_variable;
 	Platform_Condition_Variable *idle_condition_variable;
 	Array<Scheduler_Worker> workers;
-	Ring_Buffer<Scheduler_Task> tasks;
+	Ring_Buffer<Scheduler_Queued_Task> tasks;
 	U32 started_worker_count;
 	U32 active_task_count;
 	bool running;
@@ -48,15 +61,21 @@ _scheduler_worker_entry(void *data)
 		if (!self->running && ring_buffer_is_empty(self->tasks))
 			break;
 
-		Scheduler_Task task = ring_buffer_front(self->tasks);
+		Scheduler_Queued_Task queued_task = ring_buffer_front(self->tasks);
 		ring_buffer_pop_front(self->tasks);
 		++self->active_task_count;
 		platform_mutex_unlock(self->mutex);
 
-		task.function(task.data);
+		queued_task.task.function(queued_task.task.data);
 
 		platform_mutex_lock(self->mutex);
 		--self->active_task_count;
+		if (queued_task.group != nullptr)
+		{
+			--queued_task.group->pending_task_count;
+			if (queued_task.group->pending_task_count == 0)
+				platform_condition_variable_broadcast(queued_task.group->condition_variable);
+		}
 		if (ring_buffer_is_empty(self->tasks) && self->active_task_count == 0)
 			platform_condition_variable_broadcast(self->idle_condition_variable);
 	}
@@ -75,7 +94,7 @@ scheduler_init(Scheduler_Desc desc)
 	self->work_condition_variable = platform_condition_variable_init();
 	self->idle_condition_variable = platform_condition_variable_init();
 	self->workers = array_init_with_count<Scheduler_Worker>(desc.worker_count);
-	self->tasks = ring_buffer_init<Scheduler_Task>();
+	self->tasks = ring_buffer_init<Scheduler_Queued_Task>();
 	self->running = true;
 
 	for (U32 i = 0; i < desc.worker_count; ++i)
@@ -113,6 +132,31 @@ scheduler_deinit(Scheduler *self)
 	memory::deallocate(self);
 }
 
+Scheduler_Group *
+scheduler_group_init(Scheduler *self)
+{
+	validate(self != nullptr, "[SCHEDULER]: Scheduler is not valid.");
+
+	Scheduler_Group *group = memory::allocate_zeroed<Scheduler_Group>();
+	group->scheduler = self;
+	group->condition_variable = platform_condition_variable_init();
+	return group;
+}
+
+void
+scheduler_group_deinit(Scheduler *self, Scheduler_Group *group)
+{
+	validate(group != nullptr, "[SCHEDULER]: Task group is not valid.");
+	validate(group->scheduler == self, "[SCHEDULER]: Task group belongs to a different scheduler.");
+
+	platform_mutex_lock(self->mutex);
+	validate(group->pending_task_count == 0, "[SCHEDULER]: Cannot deinit task group while tasks are pending.");
+	platform_mutex_unlock(self->mutex);
+
+	platform_condition_variable_deinit(group->condition_variable);
+	memory::deallocate(group);
+}
+
 void
 scheduler_submit(Scheduler *self, Scheduler_Task task)
 {
@@ -120,13 +164,45 @@ scheduler_submit(Scheduler *self, Scheduler_Task task)
 
 	platform_mutex_lock(self->mutex);
 	validate(self->running, "[SCHEDULER]: Cannot submit task after shutdown.");
-	ring_buffer_push_back(self->tasks, task);
+	ring_buffer_push_back(self->tasks, Scheduler_Queued_Task {
+		.task = task
+	});
 	platform_condition_variable_signal(self->work_condition_variable);
 	platform_mutex_unlock(self->mutex);
 }
 
 void
-scheduler_wait_idle(Scheduler *self)
+scheduler_submit(Scheduler *self, Scheduler_Task task, Scheduler_Group *group)
+{
+	validate(task.function != nullptr, "[SCHEDULER]: Task function is not valid.");
+	validate(group != nullptr, "[SCHEDULER]: Task group is not valid.");
+	validate(group->scheduler == self, "[SCHEDULER]: Task group belongs to a different scheduler.");
+
+	platform_mutex_lock(self->mutex);
+	validate(self->running, "[SCHEDULER]: Cannot submit task after shutdown.");
+	++group->pending_task_count;
+	ring_buffer_push_back(self->tasks, Scheduler_Queued_Task {
+		.task = task,
+		.group = group
+	});
+	platform_condition_variable_signal(self->work_condition_variable);
+	platform_mutex_unlock(self->mutex);
+}
+
+void
+scheduler_wait_group(Scheduler *self, Scheduler_Group *group)
+{
+	validate(group != nullptr, "[SCHEDULER]: Scheduler group is not valid.");
+	validate(group->scheduler == self, "[SCHEDULER]: Scheduler group belongs to a different scheduler.");
+
+	platform_mutex_lock(self->mutex);
+	while (group->pending_task_count != 0)
+		platform_condition_variable_wait(group->condition_variable, self->mutex);
+	platform_mutex_unlock(self->mutex);
+}
+
+void
+scheduler_wait_all(Scheduler *self)
 {
 	platform_mutex_lock(self->mutex);
 	while (!ring_buffer_is_empty(self->tasks) || self->active_task_count != 0)

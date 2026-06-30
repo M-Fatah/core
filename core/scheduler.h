@@ -11,6 +11,8 @@ struct Scheduler_Task
 	void *data;
 };
 
+struct Scheduler_Group;
+
 struct Scheduler_Desc
 {
 	U32 worker_count;
@@ -24,8 +26,20 @@ scheduler_init(Scheduler_Desc desc);
 CORE_API void
 scheduler_deinit(Scheduler *self);
 
+CORE_API Scheduler_Group *
+scheduler_group_init(Scheduler *self);
+
+CORE_API void
+scheduler_group_deinit(Scheduler *self, Scheduler_Group *group);
+
 CORE_API void
 scheduler_submit(Scheduler *self, Scheduler_Task task);
 
 CORE_API void
-scheduler_wait_idle(Scheduler *self);
+scheduler_submit(Scheduler *self, Scheduler_Task task, Scheduler_Group *group);
+
+CORE_API void
+scheduler_wait_group(Scheduler *self, Scheduler_Group *group);
+
+CORE_API void
+scheduler_wait_all(Scheduler *self);
