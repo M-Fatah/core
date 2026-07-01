@@ -76,6 +76,36 @@ Batch submission reserves queue space once, queues all task descriptors under on
 
 ---
 
+## Parallel For
+
+```cpp
+void process_items(U32 begin, U32 end, void *data)
+{
+	My_Context *context = (My_Context *)data;
+	for (U32 i = begin; i < end; ++i)
+	{
+		// Process item i.
+	}
+}
+
+scheduler_parallel_for(scheduler, Scheduler_Parallel_For_Desc {
+	.count = item_count,
+	.chunk_size = 64,
+	.function = process_items,
+	.data = &context
+});
+```
+
+`scheduler_parallel_for` splits `[0, count)` into half-open chunk ranges and submits one task per chunk. It waits for all chunks before returning.
+
+`chunk_size` controls task granularity. Smaller chunks can balance uneven work better, while larger chunks reduce scheduling overhead.
+
+The callback data must remain valid until `scheduler_parallel_for` returns.
+
+The helper uses the calling thread's temp allocator for its internal chunk task storage and resets that temporary storage before returning.
+
+---
+
 ## Groups
 
 ```cpp

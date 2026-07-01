@@ -4,6 +4,7 @@
 #include <core/log.h>
 #include <core/result.h>
 #include <core/scheduler.h>
+#include <core/validate.h>
 #include <core/memory/memory.h>
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
@@ -132,6 +133,76 @@ TESTER_TEST("[CORE]: Scheduler Deinit Drains Tasks")
 	platform_mutex_unlock(mutex);
 
 	TESTER_CHECK(finished_count == TASK_COUNT);
+	platform_mutex_deinit(mutex);
+}
+
+struct Scheduler_Test_Parallel_For_Context
+{
+	Platform_Mutex *mutex;
+	bool *visited;
+	U32 visited_count;
+	U32 index_sum;
+};
+
+inline static void
+_scheduler_test_parallel_for(U32 begin, U32 end, void *data)
+{
+	Scheduler_Test_Parallel_For_Context *context = (Scheduler_Test_Parallel_For_Context *)data;
+
+	for (U32 i = begin; i < end; ++i)
+	{
+		platform_mutex_lock(context->mutex);
+		validate(!context->visited[i], "[SCHEDULER][TEST]: Parallel for index was visited more than once.");
+		context->visited[i] = true;
+		++context->visited_count;
+		context->index_sum += i;
+		platform_mutex_unlock(context->mutex);
+	}
+}
+
+TESTER_TEST("[CORE]: Scheduler Parallel For")
+{
+	constexpr U32 ITEM_COUNT = 257;
+	constexpr U32 EXPECTED_INDEX_SUM = ITEM_COUNT * (ITEM_COUNT - 1) / 2;
+
+	bool visited[ITEM_COUNT] = {};
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Parallel_For_Context context = {
+		.mutex = mutex,
+		.visited = visited
+	};
+
+	memory::Allocator *temp_allocator = memory::temp_allocator();
+	memory::Arena_Allocator_Mark temp_allocator_mark = memory::temp_allocator_mark();
+	DEFER(memory::temp_allocator_reset_to_mark(temp_allocator_mark));
+	Memory_Block expected_temp_block = memory::allocate(temp_allocator, 16, alignof(U8));
+	memory::temp_allocator_reset_to_mark(temp_allocator_mark);
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2,
+		.initial_task_queue_capacity = 16
+	});
+
+	scheduler_parallel_for(scheduler, Scheduler_Parallel_For_Desc {
+		.count = ITEM_COUNT,
+		.chunk_size = 32,
+		.function = _scheduler_test_parallel_for,
+		.data = &context
+	});
+
+	platform_mutex_lock(mutex);
+	U32 visited_count = context.visited_count;
+	U32 index_sum = context.index_sum;
+	platform_mutex_unlock(mutex);
+	Memory_Block actual_temp_block = memory::allocate(temp_allocator, 16, alignof(U8));
+
+	for (U32 i = 0; i < ITEM_COUNT; ++i)
+		TESTER_CHECK(visited[i]);
+	TESTER_CHECK(visited_count == ITEM_COUNT);
+	TESTER_CHECK(index_sum == EXPECTED_INDEX_SUM);
+	TESTER_CHECK(actual_temp_block.data == expected_temp_block.data);
+
+	scheduler_deinit(scheduler);
 	platform_mutex_deinit(mutex);
 }
 
@@ -529,6 +600,32 @@ TESTER_TEST("[CORE]: Temp_Allocator_Mark")
 	memory::temp_allocator_reset_to_mark(start_mark);
 	Memory_Block first_reused = memory::allocate(temp, 16, alignof(U8));
 	TESTER_CHECK(first_reused.data == first.data);
+}
+
+struct Temp_Allocator_Thread_Test_Context
+{
+	memory::Allocator *allocator;
+};
+
+inline static void
+_temp_allocator_thread_test(void *data)
+{
+	Temp_Allocator_Thread_Test_Context *context = (Temp_Allocator_Thread_Test_Context *)data;
+	context->allocator = memory::temp_allocator();
+}
+
+TESTER_TEST("[CORE]: Temp_Allocator Thread Local")
+{
+	memory::Allocator *main_allocator = memory::temp_allocator();
+	Temp_Allocator_Thread_Test_Context context = {};
+	Platform_Thread *thread = platform_thread_init(Platform_Thread_Desc {
+		.function = _temp_allocator_thread_test,
+		.data = &context
+	});
+	platform_thread_deinit(thread);
+
+	TESTER_CHECK(context.allocator != nullptr);
+	TESTER_CHECK(context.allocator != main_allocator);
 }
 
 TESTER_TEST("[CORE]: Virtual_Memory")

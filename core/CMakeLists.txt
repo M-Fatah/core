@@ -64,7 +64,6 @@ set(SOURCE_FILES
     json.cpp
     scheduler.cpp
     tester.cpp
-    memory/memory.cpp
     memory/heap_allocator.cpp
     memory/arena_allocator.cpp
     memory/pool_allocator.cpp

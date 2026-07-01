@@ -1,24 +1,34 @@
 #include "core/scheduler.h"
-
+#include "core/defer.h"
 #include "core/validate.h"
 #include "core/memory/memory.h"
+#include "core/memory/arena_allocator.h"
+#include "core/math/u32.h"
 #include "core/containers/array.h"
 #include "core/containers/ring_buffer.h"
 #include "core/platform/platform.h"
 
 inline static thread_local struct Scheduler_Worker *scheduler_current_worker = nullptr;
 
-struct Scheduler_Queued_Task
+struct Scheduler_Parallel_For_Task_Context
 {
-	Scheduler_Task task;
-	Scheduler_Group *group;
+	Scheduler_Parallel_For_Function function;
+	void *data;
+	U32 begin;
+	U32 end;
 };
 
 struct Scheduler_Group
 {
 	Scheduler *scheduler;
 	Platform_Condition_Variable *condition_variable;
-	U32 pending_task_count;
+	U64 pending_task_count;
+};
+
+struct Scheduler_Queued_Task
+{
+	Scheduler_Task task;
+	Scheduler_Group *group;
 };
 
 struct Scheduler_Worker
@@ -48,8 +58,15 @@ destroy(Scheduler_Worker &self)
 	platform_thread_deinit(self.thread);
 }
 
+inline static void
+_scheduler_parallel_for_task(void *data)
+{
+	Scheduler_Parallel_For_Task_Context *context = (Scheduler_Parallel_For_Task_Context *)data;
+	context->function(context->begin, context->end, context->data);
+}
+
 inline static bool
-_scheduler_execute_next_task_locked(Scheduler *self)
+_scheduler_try_run_next_task_from_locked_queue(Scheduler *self)
 {
 	if (ring_buffer_is_empty(self->tasks))
 		return false;
@@ -80,7 +97,7 @@ _scheduler_execute_next_task_locked(Scheduler *self)
 }
 
 inline static void
-_scheduler_worker_entry(void *data)
+_scheduler_worker_main(void *data)
 {
 	Scheduler_Worker *worker = (Scheduler_Worker *)data;
 	Scheduler *self = worker->scheduler;
@@ -98,7 +115,7 @@ _scheduler_worker_entry(void *data)
 		if (!self->running && ring_buffer_is_empty(self->tasks))
 			break;
 
-		_scheduler_execute_next_task_locked(self);
+		_scheduler_try_run_next_task_from_locked_queue(self);
 	}
 	platform_mutex_unlock(self->mutex);
 	scheduler_current_worker = previous_worker;
@@ -125,7 +142,7 @@ scheduler_init(Scheduler_Desc desc)
 		Scheduler_Worker *worker = &self->workers[i];
 		worker->scheduler = self;
 		worker->thread = platform_thread_init(Platform_Thread_Desc {
-			.function = _scheduler_worker_entry,
+			.function = _scheduler_worker_main,
 			.data = worker
 		});
 	}
@@ -182,7 +199,6 @@ scheduler_group_deinit(Scheduler *self, Scheduler_Group *group)
 
 	platform_mutex_lock(self->mutex);
 	validate(group->pending_task_count == 0, "[SCHEDULER]: Cannot deinit task group while tasks are pending.");
-	validate(self->live_group_count > 0, "[SCHEDULER]: Scheduler live task group count underflow.");
 	--self->live_group_count;
 	platform_mutex_unlock(self->mutex);
 
@@ -205,6 +221,29 @@ scheduler_submit(Scheduler *self, Scheduler_Task task)
 }
 
 void
+scheduler_submit(Scheduler *self, Span<const Scheduler_Task> tasks)
+{
+	platform_mutex_lock(self->mutex);
+	validate(self->running, "[SCHEDULER]: Cannot submit task after shutdown.");
+	if (tasks.count != 0)
+	{
+		ring_buffer_reserve(self->tasks, tasks.count);
+		for (U64 i = 0; i < tasks.count; ++i)
+		{
+			ring_buffer_push_back(self->tasks, Scheduler_Queued_Task {
+				.task = tasks.data[i]
+			});
+		}
+
+		if (tasks.count == 1)
+			platform_condition_variable_signal(self->work_condition_variable);
+		else
+			platform_condition_variable_broadcast(self->work_condition_variable);
+	}
+	platform_mutex_unlock(self->mutex);
+}
+
+void
 scheduler_submit(Scheduler *self, Scheduler_Task task, Scheduler_Group *group)
 {
 	validate(task.function != nullptr, "[SCHEDULER]: Task function is not valid.");
@@ -223,6 +262,34 @@ scheduler_submit(Scheduler *self, Scheduler_Task task, Scheduler_Group *group)
 }
 
 void
+scheduler_submit(Scheduler *self, Span<const Scheduler_Task> tasks, Scheduler_Group *group)
+{
+	validate(group != nullptr, "[SCHEDULER]: Task group is not valid.");
+	validate(group->scheduler == self, "[SCHEDULER]: Task group belongs to a different scheduler.");
+
+	platform_mutex_lock(self->mutex);
+	validate(self->running, "[SCHEDULER]: Cannot submit task after shutdown.");
+	if (tasks.count != 0)
+	{
+		group->pending_task_count += tasks.count;
+		ring_buffer_reserve(self->tasks, tasks.count);
+		for (U64 i = 0; i < tasks.count; ++i)
+		{
+			ring_buffer_push_back(self->tasks, Scheduler_Queued_Task {
+				.task = tasks.data[i],
+				.group = group
+			});
+		}
+
+		if (tasks.count == 1)
+			platform_condition_variable_signal(self->work_condition_variable);
+		else
+			platform_condition_variable_broadcast(self->work_condition_variable);
+	}
+	platform_mutex_unlock(self->mutex);
+}
+
+void
 scheduler_wait_group(Scheduler *self, Scheduler_Group *group)
 {
 	validate(group != nullptr, "[SCHEDULER]: Scheduler group is not valid.");
@@ -234,7 +301,7 @@ scheduler_wait_group(Scheduler *self, Scheduler_Group *group)
 	if (scheduler_current_worker != nullptr && scheduler_current_worker->scheduler == self)
 	{
 		while (group->pending_task_count != 0)
-			if (!_scheduler_execute_next_task_locked(self))
+			if (!_scheduler_try_run_next_task_from_locked_queue(self))
 				platform_condition_variable_wait(group->condition_variable, self->mutex);
 	}
 	else
@@ -254,4 +321,44 @@ scheduler_wait_all(Scheduler *self)
 	while (!ring_buffer_is_empty(self->tasks) || self->active_task_count != 0)
 		platform_condition_variable_wait(self->idle_condition_variable, self->mutex);
 	platform_mutex_unlock(self->mutex);
+}
+
+void
+scheduler_parallel_for(Scheduler *self, Scheduler_Parallel_For_Desc desc)
+{
+	if (desc.count == 0)
+		return;
+
+	validate(self != nullptr, "[SCHEDULER]: Scheduler is not valid.");
+	validate(desc.function != nullptr, "[SCHEDULER]: Parallel for function is not valid.");
+	validate(desc.chunk_size > 0, "[SCHEDULER]: Parallel for chunk size must be greater than 0.");
+
+	memory::Arena_Allocator_Mark temp_allocator_mark = memory::temp_allocator_mark();
+	DEFER(memory::temp_allocator_reset_to_mark(temp_allocator_mark));
+
+	U32 chunk_count = (U32)(((U64)desc.count + desc.chunk_size - 1) / desc.chunk_size);
+	Array<Scheduler_Parallel_For_Task_Context> contexts = array_init_with_count<Scheduler_Parallel_For_Task_Context>(chunk_count, memory::temp_allocator());
+	Array<Scheduler_Task> tasks = array_init_with_count<Scheduler_Task>(chunk_count, memory::temp_allocator());
+
+	for (U32 i = 0; i < chunk_count; ++i)
+	{
+		U32 begin = i * desc.chunk_size;
+		U32 remaining_count = desc.count - begin;
+		U32 range_count = u32_min(remaining_count, desc.chunk_size);
+		contexts[i] = Scheduler_Parallel_For_Task_Context {
+			.function = desc.function,
+			.data = desc.data,
+			.begin = begin,
+			.end = begin + range_count
+		};
+		tasks[i] = Scheduler_Task {
+			.function = _scheduler_parallel_for_task,
+			.data = &contexts[i]
+		};
+	}
+
+	Scheduler_Group *group = scheduler_group_init(self);
+	DEFER(scheduler_group_deinit(self, group));
+	scheduler_submit(self, span_init(tasks), group);
+	scheduler_wait_group(self, group);
 }

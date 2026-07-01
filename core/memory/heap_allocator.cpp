@@ -234,4 +234,11 @@ namespace memory
 	{
 		self->deallocate(block);
 	}
+
+	Allocator *
+	heap_allocator()
+	{
+		static Heap_Allocator allocator;
+		return &allocator;
+	}
 }

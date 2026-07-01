@@ -4,6 +4,16 @@
 #include "core/defines.h"
 #include "core/containers/span.h"
 
+using Scheduler_Parallel_For_Function = void (*)(U32 begin, U32 end, void *data);
+
+struct Scheduler_Parallel_For_Desc
+{
+	U32 count;
+	U32 chunk_size;
+	Scheduler_Parallel_For_Function function;
+	void *data;
+};
+
 using Scheduler_Task_Function = void (*)(void *);
 
 struct Scheduler_Task
@@ -51,3 +61,6 @@ scheduler_wait_group(Scheduler *self, Scheduler_Group *group);
 
 CORE_API void
 scheduler_wait_all(Scheduler *self);
+
+CORE_API void
+scheduler_parallel_for(Scheduler *self, Scheduler_Parallel_For_Desc desc);
