@@ -45,6 +45,27 @@ platform_virtual_memory_release(block);
 
 ---
 
+## Threads
+
+```cpp
+Platform_Thread *thread = platform_thread_init(Platform_Thread_Desc {
+	.function = audio_thread_entry,
+	.data = audio_state,
+	.name = "Audio"
+});
+
+platform_thread_join(thread);
+platform_thread_deinit(thread);
+
+platform_thread_set_current_name("Main");
+```
+
+`Platform_Thread_Desc::name` is optional. Core copies the name during `platform_thread_init`, so the descriptor string does not need to outlive the call. Thread names are for debuggers, profilers, and platform tools; they do not affect scheduling.
+
+Platform thread-name APIs have native length limits, especially on POSIX platforms. Passing a name rejected by the OS fails validation.
+
+---
+
 ## Callstacks
 
 Platform exposes callstack capture and resolve primitives. It does not log callstacks directly; callers decide how to format or report resolved frames.

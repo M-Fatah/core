@@ -696,6 +696,7 @@ struct Platform_Thread_Desc
 {
 	Platform_Thread_Function function;
 	void *data;
+	const char *name;
 };
 
 CORE_API Platform_Thread *
@@ -709,6 +710,9 @@ platform_thread_join(Platform_Thread *self);
 
 CORE_API void
 platform_thread_sleep(U32 milliseconds);
+
+CORE_API void
+platform_thread_set_current_name(const char *name);
 
 inline static void
 destroy(Platform_Thread *self)

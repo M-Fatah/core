@@ -1,3 +1,7 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "core/platform/platform.h"
 
 #include "core/validate.h"
@@ -812,6 +816,7 @@ struct Platform_Thread
 	pthread_t handle;
 	Platform_Thread_Function function;
 	void *data;
+	String name;
 	bool joined;
 };
 
@@ -819,6 +824,8 @@ static void *
 _platform_thread_main_routine(void *thread)
 {
 	Platform_Thread *self = (Platform_Thread *)thread;
+	if (self->name.count != 0)
+		platform_thread_set_current_name(self->name.data);
 	self->function(self->data);
 	return nullptr;
 }
@@ -831,6 +838,8 @@ platform_thread_init(Platform_Thread_Desc desc)
 	Platform_Thread *self = memory::allocate_zeroed<Platform_Thread>();
 	self->function = desc.function;
 	self->data = desc.data;
+	if (desc.name != nullptr)
+		self->name = string_from(desc.name);
 	validate(::pthread_create(&self->handle, nullptr, _platform_thread_main_routine, self) == 0, "[PLATFORM][LINUX]: Failed to create thread.");
 	return self;
 }
@@ -839,6 +848,7 @@ void
 platform_thread_deinit(Platform_Thread *self)
 {
 	platform_thread_join(self);
+	string_deinit(self->name);
 	memory::deallocate(self);
 }
 
@@ -859,6 +869,15 @@ platform_thread_sleep(U32 milliseconds)
 	ts.tv_sec = milliseconds / 1000;
 	ts.tv_nsec = (milliseconds % 1000) * 1000 * 1000;
 	nanosleep(&ts, 0);
+}
+
+void
+platform_thread_set_current_name(const char *name)
+{
+	if (name == nullptr || name[0] == '\0')
+		return;
+
+	validate(::pthread_setname_np(::pthread_self(), name) == 0, "[PLATFORM][LINUX]: Failed to set thread name.");
 }
 
 struct Platform_Mutex

@@ -70,7 +70,8 @@ TESTER_TEST("[PLATFORM] thread")
 	Platform_Thread_Test_Context context = {};
 	Platform_Thread *thread = platform_thread_init(Platform_Thread_Desc {
 		.function = _platform_thread_test_entry,
-		.data = &context
+		.data = &context,
+		.name = "CoreTest"
 	});
 
 	platform_thread_join(thread);

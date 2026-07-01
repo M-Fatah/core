@@ -28,6 +28,7 @@ struct Scheduler_Desc
 {
 	U32 worker_count;
 	U32 initial_task_queue_capacity;
+	const char *worker_name;
 };
 
 struct Scheduler;

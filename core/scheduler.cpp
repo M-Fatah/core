@@ -152,7 +152,8 @@ scheduler_init(Scheduler_Desc desc)
 		worker->blocking_depth = 0;
 		worker->thread = platform_thread_init(Platform_Thread_Desc {
 			.function = _scheduler_worker_main,
-			.data = worker
+			.data = worker,
+			.name = desc.worker_name != nullptr ? desc.worker_name : "Scheduler"
 		});
 	}
 

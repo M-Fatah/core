@@ -906,6 +906,7 @@ struct Platform_Thread
 	HANDLE handle;
 	Platform_Thread_Function function;
 	void *data;
+	String name;
 	bool joined;
 };
 
@@ -923,6 +924,8 @@ static DWORD
 _platform_thread_main_routine(void *thread)
 {
 	Platform_Thread *self = (Platform_Thread *)thread;
+	if (self->name.count != 0)
+		platform_thread_set_current_name(self->name.data);
 	self->function(self->data);
 	return 0;
 }
@@ -935,6 +938,8 @@ platform_thread_init(Platform_Thread_Desc desc)
 	Platform_Thread *self = memory::allocate_zeroed<Platform_Thread>();
 	self->function = desc.function;
 	self->data = desc.data;
+	if (desc.name != nullptr)
+		self->name = string_from(desc.name);
 	self->handle = ::CreateThread(nullptr, 0, _platform_thread_main_routine, self, 0, nullptr);
 	validate(self->handle != nullptr, "[PLATFORM][WINDOWS]: Failed to create thread.");
 	return self;
@@ -944,6 +949,7 @@ void
 platform_thread_deinit(Platform_Thread *self)
 {
 	platform_thread_join(self);
+	string_deinit(self->name);
 	memory::deallocate(self);
 }
 
@@ -965,6 +971,24 @@ void
 platform_thread_sleep(U32 milliseconds)
 {
 	Sleep(milliseconds);
+}
+
+void
+platform_thread_set_current_name(const char *name)
+{
+	if (name == nullptr || name[0] == '\0')
+		return;
+
+	int name_wide_count = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, -1, nullptr, 0);
+	validate(name_wide_count > 0, "[PLATFORM][WINDOWS]: Failed to convert thread name.");
+
+	Memory_Block name_wide_block = memory::allocate((U64)name_wide_count * sizeof(wchar_t), alignof(wchar_t));
+	DEFER(memory::deallocate(name_wide_block));
+	wchar_t *name_wide = (wchar_t *)name_wide_block.data;
+	int converted_count = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, -1, name_wide, name_wide_count);
+	validate(converted_count == name_wide_count, "[PLATFORM][WINDOWS]: Failed to convert thread name.");
+
+	validate(SUCCEEDED(::SetThreadDescription(::GetCurrentThread(), name_wide)), "[PLATFORM][WINDOWS]: Failed to set thread name.");
 }
 
 struct Platform_Mutex

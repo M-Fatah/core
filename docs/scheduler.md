@@ -13,7 +13,8 @@ Long-lived worker-thread scheduler built on the platform thread, mutex, and cond
 
 Scheduler *scheduler = scheduler_init(Scheduler_Desc {
 	.worker_count = 4,
-	.initial_task_queue_capacity = 1024
+	.initial_task_queue_capacity = 1024,
+	.worker_name = "GameWorker"
 });
 
 scheduler_deinit(scheduler);
@@ -28,6 +29,8 @@ All `Scheduler_Group` objects created from the scheduler must be deinitialized b
 `worker_count` must be greater than 0.
 
 `initial_task_queue_capacity` is optional. When greater than 0, the scheduler reserves task queue storage during initialization so normal task submission can avoid the first queue allocation.
+
+`worker_name` is optional. When omitted, scheduler worker threads use `"Scheduler"` as their platform thread name.
 
 ---
 
