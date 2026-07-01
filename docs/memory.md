@@ -1,6 +1,6 @@
 # Memory & Allocators
 
-**Header:** `core/memory/memory.h`
+**Header:** `core/memory/allocator.h`
 
 All containers and most utilities accept a `memory::Allocator *`. The allocator API returns a `Memory_Block`, so ownership carries both the pointer and the allocation size.
 
@@ -66,11 +66,11 @@ memory::deallocate(heap, block);
 
 ### Temp Allocator
 
-A global arena intended to be cleared every frame or tick. Use it for short-lived strings and intermediate buffers. Do not store pointers from it across frames. `memory::temp_allocator()` returns `memory::Allocator *`. The global temp arena is embedded in Core's memory context and does not depend on the heap allocator, so it remains available during heap leak reporting.
+A thread-local arena intended to be cleared every frame or tick on the calling thread. Use it for short-lived strings and intermediate buffers. Do not store pointers from it across frames or pass temp marks across threads. `memory::temp_allocator()` returns `memory::Allocator *`. The temp arena does not depend on the heap allocator, so it remains available during heap leak reporting.
 
 ```cpp
 String msg = format("Hello {}!", name, memory::temp_allocator());
-// msg.data is valid until temp_allocator is cleared
+// msg.data is valid until this thread's temp allocator is cleared
 
 memory::temp_allocator_clear();
 ```
@@ -86,7 +86,7 @@ DEFER(memory::temp_allocator_reset_to_mark(mark));
 Memory_Block scratch = memory::allocate(memory::temp_allocator(), 1024, alignof(U8));
 ```
 
-Resetting to a temp mark invalidates scratch allocations made after that mark and lets later temp allocations reuse that space.
+Resetting to a temp mark invalidates scratch allocations made after that mark on the same thread and lets later temp allocations reuse that space.
 
 ### Arena Allocator
 

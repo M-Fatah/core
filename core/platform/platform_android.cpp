@@ -3,7 +3,7 @@
 #include "core/validate.h"
 #include "core/defer.h"
 #include "core/math/u64.h"
-#include "core/memory/memory.h"
+#include "core/memory/allocator.h"
 
 #include <android/asset_manager.h>
 #include <android/configuration.h>
@@ -34,20 +34,13 @@ enum
 	PLATFORM_ANDROID_LOOPER_INPUT = 1
 };
 
-struct Platform_Task
-{
-	void (*function)(void *);
-	void *user_data;
-};
-
 struct Platform_Thread
 {
 	pthread_t handle;
-	pthread_mutex_t mutex;
-	pthread_cond_t condition;
-	bool is_running;
-	bool has_task;
-	Platform_Task task;
+	Platform_Thread_Function function;
+	void *data;
+	String name;
+	bool joined;
 };
 
 struct Platform_Context
@@ -2810,42 +2803,33 @@ platform_virtual_memory_release(Memory_Block block)
 	validate(result == 0, "[PLATFORM][ANDROID]: Failed to release virtual memory.");
 }
 
-static void *
-_platform_thread_main_routine(void *user_data)
+U32
+platform_get_logical_processor_count()
 {
-	Platform_Thread *self = (Platform_Thread *)user_data;
+	long count = ::sysconf(_SC_NPROCESSORS_ONLN);
+	return count > 0 ? (U32)count : U32(1);
+}
 
-	while (true)
-	{
-		validate(::pthread_mutex_lock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to lock thread mutex.");
-		while (self->is_running && !self->has_task)
-			validate(::pthread_cond_wait(&self->condition, &self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to wait for thread condition.");
-
-		if (!self->is_running)
-		{
-			validate(::pthread_mutex_unlock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to unlock thread mutex.");
-			break;
-		}
-
-		Platform_Task task = self->task;
-		self->task = {};
-		self->has_task = false;
-		validate(::pthread_mutex_unlock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to unlock thread mutex.");
-
-		if (task.function)
-			task.function(task.user_data);
-	}
-
+static void *
+_platform_thread_main_routine(void *thread)
+{
+	Platform_Thread *self = (Platform_Thread *)thread;
+	if (self->name.count != 0)
+		platform_thread_set_current_name(self->name.data);
+	self->function(self->data);
 	return nullptr;
 }
 
 Platform_Thread *
-platform_thread_init()
+platform_thread_init(Platform_Thread_Desc desc)
 {
+	validate(desc.function != nullptr, "[PLATFORM][ANDROID]: Thread function is not valid.");
+
 	Platform_Thread *self = memory::allocate_zeroed<Platform_Thread>();
-	self->is_running = true;
-	validate(::pthread_mutex_init(&self->mutex, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize thread mutex.");
-	validate(::pthread_cond_init(&self->condition, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize thread condition.");
+	self->function = desc.function;
+	self->data = desc.data;
+	if (desc.name != nullptr)
+		self->name = string_from(desc.name);
 	validate(::pthread_create(&self->handle, nullptr, _platform_thread_main_routine, self) == 0, "[PLATFORM][ANDROID]: Failed to create thread.");
 	return self;
 }
@@ -2853,28 +2837,107 @@ platform_thread_init()
 void
 platform_thread_deinit(Platform_Thread *self)
 {
-	validate(::pthread_mutex_lock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to lock thread mutex.");
-	self->is_running = false;
-	validate(::pthread_cond_signal(&self->condition) == 0, "[PLATFORM][ANDROID]: Failed to signal thread condition.");
-	validate(::pthread_mutex_unlock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to unlock thread mutex.");
-
-	validate(::pthread_join(self->handle, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to join thread.");
-	validate(::pthread_cond_destroy(&self->condition) == 0, "[PLATFORM][ANDROID]: Failed to destroy thread condition.");
-	validate(::pthread_mutex_destroy(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to destroy thread mutex.");
+	platform_thread_join(self);
+	string_deinit(self->name);
 	memory::deallocate(self);
 }
 
 void
-platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_data)
+platform_thread_join(Platform_Thread *self)
 {
-	validate(::pthread_mutex_lock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to lock thread mutex.");
-	self->task = Platform_Task {
-		.function = function,
-		.user_data = user_data
-	};
-	self->has_task = true;
-	validate(::pthread_cond_signal(&self->condition) == 0, "[PLATFORM][ANDROID]: Failed to signal thread condition.");
-	validate(::pthread_mutex_unlock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to unlock thread mutex.");
+	if (self->joined)
+		return;
+
+	validate(::pthread_join(self->handle, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to join thread.");
+	self->joined = true;
+}
+
+void
+platform_thread_sleep(U32 milliseconds)
+{
+	struct timespec ts = {};
+	ts.tv_sec = milliseconds / 1000;
+	ts.tv_nsec = (milliseconds % 1000) * 1000 * 1000;
+	::nanosleep(&ts, nullptr);
+}
+
+void
+platform_thread_set_current_name(const char *name)
+{
+	if (name == nullptr || name[0] == '\0')
+		return;
+
+	validate(::pthread_setname_np(::pthread_self(), name) == 0, "[PLATFORM][ANDROID]: Failed to set thread name.");
+}
+
+struct Platform_Mutex
+{
+	pthread_mutex_t handle;
+};
+
+Platform_Mutex *
+platform_mutex_init()
+{
+	Platform_Mutex *self = memory::allocate_zeroed<Platform_Mutex>();
+	validate(::pthread_mutex_init(&self->handle, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize mutex.");
+	return self;
+}
+
+void
+platform_mutex_deinit(Platform_Mutex *self)
+{
+	validate(::pthread_mutex_destroy(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to destroy mutex.");
+	memory::deallocate(self);
+}
+
+void
+platform_mutex_lock(Platform_Mutex *self)
+{
+	validate(::pthread_mutex_lock(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to lock mutex.");
+}
+
+void
+platform_mutex_unlock(Platform_Mutex *self)
+{
+	validate(::pthread_mutex_unlock(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to unlock mutex.");
+}
+
+struct Platform_Condition_Variable
+{
+	pthread_cond_t handle;
+};
+
+Platform_Condition_Variable *
+platform_condition_variable_init()
+{
+	Platform_Condition_Variable *self = memory::allocate_zeroed<Platform_Condition_Variable>();
+	validate(::pthread_cond_init(&self->handle, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize condition variable.");
+	return self;
+}
+
+void
+platform_condition_variable_deinit(Platform_Condition_Variable *self)
+{
+	validate(::pthread_cond_destroy(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to destroy condition variable.");
+	memory::deallocate(self);
+}
+
+void
+platform_condition_variable_wait(Platform_Condition_Variable *self, Platform_Mutex *mutex)
+{
+	validate(::pthread_cond_wait(&self->handle, &mutex->handle) == 0, "[PLATFORM][ANDROID]: Failed to wait for condition variable.");
+}
+
+void
+platform_condition_variable_signal(Platform_Condition_Variable *self)
+{
+	validate(::pthread_cond_signal(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to signal condition variable.");
+}
+
+void
+platform_condition_variable_broadcast(Platform_Condition_Variable *self)
+{
+	validate(::pthread_cond_broadcast(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to broadcast condition variable.");
 }
 
 Platform_Window

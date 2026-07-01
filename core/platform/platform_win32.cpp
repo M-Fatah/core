@@ -3,7 +3,7 @@
 #include "core/defer.h"
 #include "core/validate.h"
 #include "core/math/u64.h"
-#include "core/memory/memory.h"
+#include "core/memory/allocator.h"
 #include "core/containers/array.h"
 
 #define NOMINMAX
@@ -11,7 +11,6 @@
 #include <DbgHelp.h>
 #include <ShlObj.h>
 #include <math.h>
-#include <atomic>
 
 // TODO: Remove from here.
 inline static void
@@ -894,17 +893,21 @@ platform_virtual_memory_release(Memory_Block block)
 	validate(result, "[PLATFORM][WINDOWS]: Failed to release virtual memory.");
 }
 
-struct Platform_Task
+U32
+platform_get_logical_processor_count()
 {
-	void (*function)(void *);
-	void *user_data;
-};
+	SYSTEM_INFO system_info = {};
+	::GetSystemInfo(&system_info);
+	return system_info.dwNumberOfProcessors ? (U32)system_info.dwNumberOfProcessors : U32(1);
+}
 
 struct Platform_Thread
 {
 	HANDLE handle;
-	std::atomic<bool> is_running;
-	Platform_Task task;
+	Platform_Thread_Function function;
+	void *data;
+	String name;
+	bool joined;
 };
 
 struct Platform_Window_Context
@@ -918,45 +921,143 @@ struct Platform_Window_Context
 };
 
 static DWORD
-_platform_thread_main_routine(void *user_data)
+_platform_thread_main_routine(void *thread)
 {
-	Platform_Thread *self = (Platform_Thread *)user_data;
-	while (self->is_running)
-	{
-		if (self->task.function)
-		{
-			self->task.function(self->task.user_data);
-			self->task = {};
-		}
-	}
+	Platform_Thread *self = (Platform_Thread *)thread;
+	if (self->name.count != 0)
+		platform_thread_set_current_name(self->name.data);
+	self->function(self->data);
 	return 0;
 }
 
 Platform_Thread *
-platform_thread_init()
+platform_thread_init(Platform_Thread_Desc desc)
 {
+	validate(desc.function != nullptr, "[PLATFORM][WINDOWS]: Thread function is not valid.");
+
 	Platform_Thread *self = memory::allocate_zeroed<Platform_Thread>();
-	self->is_running = true;
+	self->function = desc.function;
+	self->data = desc.data;
+	if (desc.name != nullptr)
+		self->name = string_from(desc.name);
 	self->handle = ::CreateThread(nullptr, 0, _platform_thread_main_routine, self, 0, nullptr);
+	validate(self->handle != nullptr, "[PLATFORM][WINDOWS]: Failed to create thread.");
 	return self;
 }
 
 void
 platform_thread_deinit(Platform_Thread *self)
 {
-	self->is_running = false;
-	::CloseHandle(self->handle);
+	platform_thread_join(self);
+	string_deinit(self->name);
 	memory::deallocate(self);
 }
 
 void
-platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_data)
+platform_thread_join(Platform_Thread *self)
 {
-	Platform_Task task {
-		.function  = function,
-		.user_data = user_data
-	};
-	self->task = task;
+	if (self->joined)
+		return;
+
+	DWORD wait_result = ::WaitForSingleObject(self->handle, INFINITE);
+	validate(wait_result == WAIT_OBJECT_0, "[PLATFORM][WINDOWS]: Failed to join thread.");
+	bool closed = ::CloseHandle(self->handle);
+	validate(closed, "[PLATFORM][WINDOWS]: Failed to close thread handle.");
+	self->handle = nullptr;
+	self->joined = true;
+}
+
+void
+platform_thread_sleep(U32 milliseconds)
+{
+	Sleep(milliseconds);
+}
+
+void
+platform_thread_set_current_name(const char *name)
+{
+	if (name == nullptr || name[0] == '\0')
+		return;
+
+	int name_wide_count = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, -1, nullptr, 0);
+	validate(name_wide_count > 0, "[PLATFORM][WINDOWS]: Failed to convert thread name.");
+
+	Memory_Block name_wide_block = memory::allocate((U64)name_wide_count * sizeof(wchar_t), alignof(wchar_t));
+	DEFER(memory::deallocate(name_wide_block));
+	wchar_t *name_wide = (wchar_t *)name_wide_block.data;
+	int converted_count = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, -1, name_wide, name_wide_count);
+	validate(converted_count == name_wide_count, "[PLATFORM][WINDOWS]: Failed to convert thread name.");
+
+	validate(SUCCEEDED(::SetThreadDescription(::GetCurrentThread(), name_wide)), "[PLATFORM][WINDOWS]: Failed to set thread name.");
+}
+
+struct Platform_Mutex
+{
+	SRWLOCK handle;
+};
+
+Platform_Mutex *
+platform_mutex_init()
+{
+	Platform_Mutex *self = memory::allocate_zeroed<Platform_Mutex>();
+	::InitializeSRWLock(&self->handle);
+	return self;
+}
+
+void
+platform_mutex_deinit(Platform_Mutex *self)
+{
+	memory::deallocate(self);
+}
+
+void
+platform_mutex_lock(Platform_Mutex *self)
+{
+	::AcquireSRWLockExclusive(&self->handle);
+}
+
+void
+platform_mutex_unlock(Platform_Mutex *self)
+{
+	::ReleaseSRWLockExclusive(&self->handle);
+}
+
+struct Platform_Condition_Variable
+{
+	CONDITION_VARIABLE handle;
+};
+
+Platform_Condition_Variable *
+platform_condition_variable_init()
+{
+	Platform_Condition_Variable *self = memory::allocate_zeroed<Platform_Condition_Variable>();
+	::InitializeConditionVariable(&self->handle);
+	return self;
+}
+
+void
+platform_condition_variable_deinit(Platform_Condition_Variable *self)
+{
+	memory::deallocate(self);
+}
+
+void
+platform_condition_variable_wait(Platform_Condition_Variable *self, Platform_Mutex *mutex)
+{
+	BOOL result = ::SleepConditionVariableSRW(&self->handle, &mutex->handle, INFINITE, 0);
+	validate(result, "[PLATFORM][WINDOWS]: Failed to wait for condition variable.");
+}
+
+void
+platform_condition_variable_signal(Platform_Condition_Variable *self)
+{
+	::WakeConditionVariable(&self->handle);
+}
+
+void
+platform_condition_variable_broadcast(Platform_Condition_Variable *self)
+{
+	::WakeAllConditionVariable(&self->handle);
 }
 
 inline static void

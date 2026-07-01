@@ -10,6 +10,7 @@ set(HEADER_FILES
     print.h
     reflect.h
     result.h
+    scheduler.h
     source_location.h
     tester.h
     containers/array.h
@@ -46,7 +47,7 @@ set(HEADER_FILES
     math/f64x4x4.h
     math/quaternion.h
     math/random.h
-    memory/memory.h
+    memory/allocator.h
     memory/heap_allocator.h
     memory/arena_allocator.h
     memory/pool_allocator.h
@@ -61,8 +62,8 @@ set(SOURCE_FILES
     base64.cpp
     ecs.cpp
     json.cpp
+    scheduler.cpp
     tester.cpp
-    memory/memory.cpp
     memory/heap_allocator.cpp
     memory/arena_allocator.cpp
     memory/pool_allocator.cpp

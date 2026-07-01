@@ -4,7 +4,7 @@
 #include "core/defer.h"
 #include "core/formatter.h"
 #include "core/math/u64.h"
-#include "core/memory/memory.h"
+#include "core/memory/allocator.h"
 
 #include <dlfcn.h>
 #include <errno.h>
@@ -17,7 +17,6 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <pthread.h>
-#include <atomic>
 
 #include <Foundation/Foundation.h>
 #include <AppKit/AppKit.h>
@@ -1127,60 +1126,150 @@ platform_virtual_memory_release(Memory_Block block)
 	validate(result == 0, "[PLATFORM][MACOS]: Failed to release virtual memory.");
 }
 
-struct Platform_Task
+U32
+platform_get_logical_processor_count()
 {
-	void (*function)(void *);
-	void *user_data;
-};
+	long count = ::sysconf(_SC_NPROCESSORS_ONLN);
+	return count > 0 ? (U32)count : U32(1);
+}
 
 struct Platform_Thread
 {
 	pthread_t handle;
-	std::atomic<bool> is_running;
-	Platform_Task task;
+	Platform_Thread_Function function;
+	void *data;
+	String name;
+	bool joined;
 };
 
 static void *
-_platform_thread_main_routine(void *user_data)
+_platform_thread_main_routine(void *thread)
 {
-	Platform_Thread *self = (Platform_Thread *)user_data;
-	while (self->is_running)
-	{
-		if (self->task.function)
-		{
-			self->task.function(self->task.user_data);
-			self->task = {};
-		}
-	}
+	Platform_Thread *self = (Platform_Thread *)thread;
+	if (self->name.count != 0)
+		platform_thread_set_current_name(self->name.data);
+	self->function(self->data);
 	return nullptr;
 }
 
 Platform_Thread *
-platform_thread_init()
+platform_thread_init(Platform_Thread_Desc desc)
 {
+	validate(desc.function != nullptr, "[PLATFORM][MACOS]: Thread function is not valid.");
+
 	Platform_Thread *self = memory::allocate_zeroed<Platform_Thread>();
-	self->is_running = true;
-	::pthread_create(&self->handle, nullptr, _platform_thread_main_routine, self);
+	self->function = desc.function;
+	self->data = desc.data;
+	if (desc.name != nullptr)
+		self->name = string_from(desc.name);
+	validate(::pthread_create(&self->handle, nullptr, _platform_thread_main_routine, self) == 0, "[PLATFORM][MACOS]: Failed to create thread.");
 	return self;
 }
 
 void
 platform_thread_deinit(Platform_Thread *self)
 {
-	self->is_running = false;
-	::pthread_join(self->handle, nullptr);
-
+	platform_thread_join(self);
+	string_deinit(self->name);
 	memory::deallocate(self);
 }
 
 void
-platform_thread_run(Platform_Thread *self, void (*function)(void *), void *user_data)
+platform_thread_join(Platform_Thread *self)
 {
-	Platform_Task task {
-		.function  = function,
-		.user_data = user_data
-	};
-	self->task = task;
+	if (self->joined)
+		return;
+
+	validate(::pthread_join(self->handle, nullptr) == 0, "[PLATFORM][MACOS]: Failed to join thread.");
+	self->joined = true;
+}
+
+void
+platform_thread_sleep(U32 milliseconds)
+{
+	struct timespec ts;
+	ts.tv_sec = milliseconds / 1000;
+	ts.tv_nsec = (milliseconds % 1000) * 1000 * 1000;
+	::nanosleep(&ts, 0);
+}
+
+void
+platform_thread_set_current_name(const char *name)
+{
+	if (name == nullptr || name[0] == '\0')
+		return;
+
+	validate(::pthread_setname_np(name) == 0, "[PLATFORM][MACOS]: Failed to set thread name.");
+}
+
+struct Platform_Mutex
+{
+	pthread_mutex_t handle;
+};
+
+Platform_Mutex *
+platform_mutex_init()
+{
+	Platform_Mutex *self = memory::allocate_zeroed<Platform_Mutex>();
+	validate(::pthread_mutex_init(&self->handle, nullptr) == 0, "[PLATFORM][MACOS]: Failed to initialize mutex.");
+	return self;
+}
+
+void
+platform_mutex_deinit(Platform_Mutex *self)
+{
+	validate(::pthread_mutex_destroy(&self->handle) == 0, "[PLATFORM][MACOS]: Failed to destroy mutex.");
+	memory::deallocate(self);
+}
+
+void
+platform_mutex_lock(Platform_Mutex *self)
+{
+	validate(::pthread_mutex_lock(&self->handle) == 0, "[PLATFORM][MACOS]: Failed to lock mutex.");
+}
+
+void
+platform_mutex_unlock(Platform_Mutex *self)
+{
+	validate(::pthread_mutex_unlock(&self->handle) == 0, "[PLATFORM][MACOS]: Failed to unlock mutex.");
+}
+
+struct Platform_Condition_Variable
+{
+	pthread_cond_t handle;
+};
+
+Platform_Condition_Variable *
+platform_condition_variable_init()
+{
+	Platform_Condition_Variable *self = memory::allocate_zeroed<Platform_Condition_Variable>();
+	validate(::pthread_cond_init(&self->handle, nullptr) == 0, "[PLATFORM][MACOS]: Failed to initialize condition variable.");
+	return self;
+}
+
+void
+platform_condition_variable_deinit(Platform_Condition_Variable *self)
+{
+	validate(::pthread_cond_destroy(&self->handle) == 0, "[PLATFORM][MACOS]: Failed to destroy condition variable.");
+	memory::deallocate(self);
+}
+
+void
+platform_condition_variable_wait(Platform_Condition_Variable *self, Platform_Mutex *mutex)
+{
+	validate(::pthread_cond_wait(&self->handle, &mutex->handle) == 0, "[PLATFORM][MACOS]: Failed to wait for condition variable.");
+}
+
+void
+platform_condition_variable_signal(Platform_Condition_Variable *self)
+{
+	validate(::pthread_cond_signal(&self->handle) == 0, "[PLATFORM][MACOS]: Failed to signal condition variable.");
+}
+
+void
+platform_condition_variable_broadcast(Platform_Condition_Variable *self)
+{
+	validate(::pthread_cond_broadcast(&self->handle) == 0, "[PLATFORM][MACOS]: Failed to broadcast condition variable.");
 }
 
 // TODO: Return early with error message if failed to create objects.

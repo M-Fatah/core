@@ -3,7 +3,7 @@
 #include "core/export.h"
 #include "core/defines.h"
 #include "core/result.h"
-#include "core/memory/memory.h"
+#include "core/memory/allocator.h"
 #include "core/containers/array.h"
 #include "core/containers/string.h"
 #include "core/containers/hash_table.h"
