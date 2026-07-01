@@ -3,7 +3,7 @@
 #include "core/defer.h"
 #include "core/validate.h"
 #include "core/math/u64.h"
-#include "core/memory/memory.h"
+#include "core/memory/allocator.h"
 #include "core/containers/array.h"
 
 #define NOMINMAX

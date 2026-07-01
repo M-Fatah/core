@@ -3,7 +3,7 @@
 #include "core/validate.h"
 #include "core/defer.h"
 #include "core/math/u64.h"
-#include "core/memory/memory.h"
+#include "core/memory/allocator.h"
 
 #include <android/asset_manager.h>
 #include <android/configuration.h>

@@ -1,6 +1,6 @@
 # Memory & Allocators
 
-**Header:** `core/memory/memory.h`
+**Header:** `core/memory/allocator.h`
 
 All containers and most utilities accept a `memory::Allocator *`. The allocator API returns a `Memory_Block`, so ownership carries both the pointer and the allocation size.
 

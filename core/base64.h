@@ -2,7 +2,7 @@
 
 #include "core/defines.h"
 #include "core/export.h"
-#include "core/memory/memory.h"
+#include "core/memory/allocator.h"
 #include "core/containers/string.h"
 
 /*

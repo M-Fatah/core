@@ -8,7 +8,7 @@
 
 | Module | Header | Description |
 |---|---|---|
-| [Memory & Allocators](memory.md) | `core/memory/memory.h` | Allocator interface, heap, arena, pool, temp allocators |
+| [Memory & Allocators](memory.md) | `core/memory/allocator.h` | Allocator interface, heap, arena, pool, temp allocators |
 | [Containers](containers.md) | `core/containers/` | Array, Stack\_Array, Span, String, Hash\_Table, Hash\_Set, String\_Interner |
 | [Formatter](formatter.md) | `core/formatter.h` | `format()` / `Formatter` — type-safe string formatting |
 | [Print & Log](print-log.md) | `core/print.h`, `core/log.h` | Colored output, log levels |

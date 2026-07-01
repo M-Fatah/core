@@ -47,7 +47,7 @@ set(HEADER_FILES
     math/f64x4x4.h
     math/quaternion.h
     math/random.h
-    memory/memory.h
+    memory/allocator.h
     memory/heap_allocator.h
     memory/arena_allocator.h
     memory/pool_allocator.h

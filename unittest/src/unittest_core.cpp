@@ -5,7 +5,7 @@
 #include <core/result.h>
 #include <core/scheduler.h>
 #include <core/validate.h>
-#include <core/memory/memory.h>
+#include <core/memory/allocator.h>
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
 #include <core/platform/platform.h>

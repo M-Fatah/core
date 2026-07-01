@@ -4,7 +4,7 @@
 #include "core/defer.h"
 #include "core/formatter.h"
 #include "core/math/u64.h"
-#include "core/memory/memory.h"
+#include "core/memory/allocator.h"
 
 #include <stdio.h>
 #include <errno.h>
