@@ -21,7 +21,6 @@ struct Scheduler_Parallel_For_Task_Context
 struct Scheduler_Group
 {
 	Scheduler *scheduler;
-	Platform_Condition_Variable *condition_variable;
 	U64 pending_task_count;
 };
 
@@ -44,6 +43,7 @@ struct Scheduler
 	Platform_Condition_Variable *startup_condition_variable;
 	Platform_Condition_Variable *work_condition_variable;
 	Platform_Condition_Variable *idle_condition_variable;
+	Platform_Condition_Variable *group_condition_variable;
 	Array<Scheduler_Worker> workers;
 	Ring_Buffer<Scheduler_Queued_Task> tasks;
 	U32 started_worker_count;
@@ -87,7 +87,7 @@ _scheduler_try_run_next_task_from_locked_queue(Scheduler *self)
 	{
 		--queued_task.group->pending_task_count;
 		if (queued_task.group->pending_task_count == 0)
-			platform_condition_variable_broadcast(queued_task.group->condition_variable);
+			platform_condition_variable_broadcast(self->group_condition_variable);
 	}
 
 	if (ring_buffer_is_empty(self->tasks) && self->active_task_count == 0)
@@ -132,6 +132,7 @@ scheduler_init(Scheduler_Desc desc)
 	self->startup_condition_variable = platform_condition_variable_init();
 	self->work_condition_variable = platform_condition_variable_init();
 	self->idle_condition_variable = platform_condition_variable_init();
+	self->group_condition_variable = platform_condition_variable_init();
 	self->workers = array_init_with_count<Scheduler_Worker>(desc.worker_count);
 	self->tasks = ring_buffer_init<Scheduler_Queued_Task>();
 	ring_buffer_reserve(self->tasks, desc.initial_task_queue_capacity);
@@ -168,6 +169,7 @@ scheduler_deinit(Scheduler *self)
 
 	destroy(self->workers);
 	ring_buffer_deinit(self->tasks);
+	platform_condition_variable_deinit(self->group_condition_variable);
 	platform_condition_variable_deinit(self->idle_condition_variable);
 	platform_condition_variable_deinit(self->work_condition_variable);
 	platform_condition_variable_deinit(self->startup_condition_variable);
@@ -187,7 +189,6 @@ scheduler_group_init(Scheduler *self)
 
 	Scheduler_Group *group = memory::allocate_zeroed<Scheduler_Group>();
 	group->scheduler = self;
-	group->condition_variable = platform_condition_variable_init();
 	return group;
 }
 
@@ -202,7 +203,6 @@ scheduler_group_deinit(Scheduler *self, Scheduler_Group *group)
 	--self->live_group_count;
 	platform_mutex_unlock(self->mutex);
 
-	platform_condition_variable_deinit(group->condition_variable);
 	memory::deallocate(group);
 }
 
@@ -302,12 +302,12 @@ scheduler_wait_group(Scheduler *self, Scheduler_Group *group)
 	{
 		while (group->pending_task_count != 0)
 			if (!_scheduler_try_run_next_task_from_locked_queue(self))
-				platform_condition_variable_wait(group->condition_variable, self->mutex);
+				platform_condition_variable_wait(self->group_condition_variable, self->mutex);
 	}
 	else
 	{
 		while (group->pending_task_count != 0)
-			platform_condition_variable_wait(group->condition_variable, self->mutex);
+			platform_condition_variable_wait(self->group_condition_variable, self->mutex);
 	}
 	platform_mutex_unlock(self->mutex);
 }
