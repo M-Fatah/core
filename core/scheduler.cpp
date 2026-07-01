@@ -35,6 +35,8 @@ struct Scheduler_Worker
 	Scheduler *scheduler;
 	Platform_Thread *thread;
 	Scheduler_Group *current_group;
+	U32 index;
+	U32 blocking_depth;
 };
 
 struct Scheduler
@@ -49,6 +51,7 @@ struct Scheduler
 	U32 started_worker_count;
 	U32 active_task_count;
 	U32 live_group_count;
+	U32 blocked_worker_count;
 	bool running;
 };
 
@@ -80,6 +83,7 @@ _scheduler_try_run_next_task_from_locked_queue(Scheduler *self)
 	scheduler_current_worker->current_group = queued_task.group;
 	queued_task.task.function(queued_task.task.data);
 	scheduler_current_worker->current_group = previous_group;
+	validate(scheduler_current_worker->blocking_depth == 0, "[SCHEDULER]: Scheduler worker finished task while still marked as blocking.");
 
 	platform_mutex_lock(self->mutex);
 	--self->active_task_count;
@@ -141,7 +145,11 @@ scheduler_init(Scheduler_Desc desc)
 	for (U32 i = 0; i < desc.worker_count; ++i)
 	{
 		Scheduler_Worker *worker = &self->workers[i];
+		*worker = Scheduler_Worker {};
 		worker->scheduler = self;
+		worker->current_group = nullptr;
+		worker->index = i;
+		worker->blocking_depth = 0;
 		worker->thread = platform_thread_init(Platform_Thread_Desc {
 			.function = _scheduler_worker_main,
 			.data = worker
@@ -168,6 +176,7 @@ scheduler_deinit(Scheduler *self)
 	platform_mutex_unlock(self->mutex);
 
 	destroy(self->workers);
+	validate(self->blocked_worker_count == 0, "[SCHEDULER]: Cannot deinit scheduler while workers are marked as blocking.");
 	ring_buffer_deinit(self->tasks);
 	platform_condition_variable_deinit(self->group_condition_variable);
 	platform_condition_variable_deinit(self->idle_condition_variable);
@@ -180,8 +189,6 @@ scheduler_deinit(Scheduler *self)
 Scheduler_Group *
 scheduler_group_init(Scheduler *self)
 {
-	validate(self != nullptr, "[SCHEDULER]: Scheduler is not valid.");
-
 	platform_mutex_lock(self->mutex);
 	validate(self->running, "[SCHEDULER]: Cannot create task group after shutdown.");
 	++self->live_group_count;
@@ -195,7 +202,6 @@ scheduler_group_init(Scheduler *self)
 void
 scheduler_group_deinit(Scheduler *self, Scheduler_Group *group)
 {
-	validate(group != nullptr, "[SCHEDULER]: Task group is not valid.");
 	validate(group->scheduler == self, "[SCHEDULER]: Task group belongs to a different scheduler.");
 
 	platform_mutex_lock(self->mutex);
@@ -209,8 +215,6 @@ scheduler_group_deinit(Scheduler *self, Scheduler_Group *group)
 void
 scheduler_submit(Scheduler *self, Scheduler_Task task)
 {
-	validate(task.function != nullptr, "[SCHEDULER]: Task function is not valid.");
-
 	platform_mutex_lock(self->mutex);
 	validate(self->running, "[SCHEDULER]: Cannot submit task after shutdown.");
 	ring_buffer_push_back(self->tasks, Scheduler_Queued_Task {
@@ -246,8 +250,6 @@ scheduler_submit(Scheduler *self, Span<const Scheduler_Task> tasks)
 void
 scheduler_submit(Scheduler *self, Scheduler_Task task, Scheduler_Group *group)
 {
-	validate(task.function != nullptr, "[SCHEDULER]: Task function is not valid.");
-	validate(group != nullptr, "[SCHEDULER]: Task group is not valid.");
 	validate(group->scheduler == self, "[SCHEDULER]: Task group belongs to a different scheduler.");
 
 	platform_mutex_lock(self->mutex);
@@ -264,7 +266,6 @@ scheduler_submit(Scheduler *self, Scheduler_Task task, Scheduler_Group *group)
 void
 scheduler_submit(Scheduler *self, Span<const Scheduler_Task> tasks, Scheduler_Group *group)
 {
-	validate(group != nullptr, "[SCHEDULER]: Task group is not valid.");
 	validate(group->scheduler == self, "[SCHEDULER]: Task group belongs to a different scheduler.");
 
 	platform_mutex_lock(self->mutex);
@@ -292,7 +293,6 @@ scheduler_submit(Scheduler *self, Span<const Scheduler_Task> tasks, Scheduler_Gr
 void
 scheduler_wait_group(Scheduler *self, Scheduler_Group *group)
 {
-	validate(group != nullptr, "[SCHEDULER]: Scheduler group is not valid.");
 	validate(group->scheduler == self, "[SCHEDULER]: Scheduler group belongs to a different scheduler.");
 	if (scheduler_current_worker != nullptr && scheduler_current_worker->scheduler == self)
 		validate(scheduler_current_worker->current_group != group, "[SCHEDULER]: Scheduler task cannot wait for its own group.");
@@ -324,13 +324,64 @@ scheduler_wait_all(Scheduler *self)
 }
 
 void
+scheduler_worker_block_ahead(Scheduler *self)
+{
+	validate(scheduler_current_worker != nullptr && scheduler_current_worker->scheduler == self, "[SCHEDULER]: Only a scheduler worker can mark itself as blocking.");
+
+	platform_mutex_lock(self->mutex);
+	validate(scheduler_current_worker->blocking_depth < U32_MAX, "[SCHEDULER]: Worker blocking depth overflow.");
+	if (scheduler_current_worker->blocking_depth == 0)
+		++self->blocked_worker_count;
+	++scheduler_current_worker->blocking_depth;
+	platform_mutex_unlock(self->mutex);
+}
+
+void
+scheduler_worker_block_clear(Scheduler *self)
+{
+	validate(scheduler_current_worker != nullptr && scheduler_current_worker->scheduler == self, "[SCHEDULER]: Only a scheduler worker can clear its blocking marker.");
+
+	platform_mutex_lock(self->mutex);
+	validate(scheduler_current_worker->blocking_depth > 0, "[SCHEDULER]: Worker blocking marker was not set.");
+	--scheduler_current_worker->blocking_depth;
+	if (scheduler_current_worker->blocking_depth == 0)
+	{
+		validate(self->blocked_worker_count > 0, "[SCHEDULER]: Blocked worker count underflow.");
+		--self->blocked_worker_count;
+	}
+	platform_mutex_unlock(self->mutex);
+}
+
+U32
+scheduler_get_worker_count(Scheduler *self)
+{
+	return (U32)self->workers.count;
+}
+
+U32
+scheduler_get_blocked_worker_count(Scheduler *self)
+{
+	platform_mutex_lock(self->mutex);
+	U32 result = self->blocked_worker_count;
+	platform_mutex_unlock(self->mutex);
+	return result;
+}
+
+U32
+scheduler_get_current_worker_index(Scheduler *self)
+{
+	if (scheduler_current_worker == nullptr || scheduler_current_worker->scheduler != self)
+		return U32_MAX;
+
+	return scheduler_current_worker->index;
+}
+
+void
 scheduler_parallel_for(Scheduler *self, Scheduler_Parallel_For_Desc desc)
 {
 	if (desc.count == 0)
 		return;
 
-	validate(self != nullptr, "[SCHEDULER]: Scheduler is not valid.");
-	validate(desc.function != nullptr, "[SCHEDULER]: Parallel for function is not valid.");
 	validate(desc.chunk_size > 0, "[SCHEDULER]: Parallel for chunk size must be greater than 0.");
 
 	memory::Arena_Allocator_Mark temp_allocator_mark = memory::temp_allocator_mark();

@@ -31,6 +31,34 @@ All `Scheduler_Group` objects created from the scheduler must be deinitialized b
 
 ---
 
+## Worker Queries
+
+```cpp
+U32 worker_count = scheduler_get_worker_count(scheduler);
+U32 worker_index = scheduler_get_current_worker_index(scheduler);
+```
+
+`scheduler_get_worker_count` returns the number of worker threads owned by the scheduler.
+
+`scheduler_get_current_worker_index` returns the calling worker's index inside that scheduler. It returns `U32_MAX` when called from a non-worker thread or from a worker owned by a different scheduler.
+
+This is useful for indexing caller-owned per-worker scratch buffers, compiler state, profiling counters, or game-system temporary state without adding locks.
+
+Workers can also mark that they are about to enter blocking work:
+
+```cpp
+scheduler_worker_block_ahead(scheduler);
+DEFER(scheduler_worker_block_clear(scheduler));
+
+// Blocking file IO, process wait, network wait, or OS wait.
+```
+
+`scheduler_worker_block_ahead` and `scheduler_worker_block_clear` must be called by a worker owned by that scheduler. Blocking markers are nested; every `scheduler_worker_block_ahead` must be matched by one `scheduler_worker_block_clear`.
+
+`scheduler_get_blocked_worker_count` returns how many workers currently have at least one active blocking marker. This is diagnostic state for profiling, tools, and future scheduler policies; it does not create replacement workers by itself.
+
+---
+
 ## Tasks
 
 ```cpp

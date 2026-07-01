@@ -20,6 +20,167 @@ TESTER_TEST("[CORE]: Scheduler")
 	scheduler_deinit(scheduler);
 }
 
+struct Scheduler_Test_Worker_Query_Context
+{
+	Scheduler *scheduler;
+	Scheduler *other_scheduler;
+	Platform_Mutex *mutex;
+	U32 worker_count;
+	U32 worker_index;
+	U32 other_scheduler_worker_index;
+};
+
+inline static void
+_scheduler_test_worker_query_task(void *data)
+{
+	Scheduler_Test_Worker_Query_Context *context = (Scheduler_Test_Worker_Query_Context *)data;
+	U32 worker_count = scheduler_get_worker_count(context->scheduler);
+	U32 worker_index = scheduler_get_current_worker_index(context->scheduler);
+	U32 other_scheduler_worker_index = scheduler_get_current_worker_index(context->other_scheduler);
+
+	platform_mutex_lock(context->mutex);
+	context->worker_count = worker_count;
+	context->worker_index = worker_index;
+	context->other_scheduler_worker_index = other_scheduler_worker_index;
+	platform_mutex_unlock(context->mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Worker Queries")
+{
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2
+	});
+	Scheduler *other_scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 1
+	});
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Worker_Query_Context context = {
+		.scheduler = scheduler,
+		.other_scheduler = other_scheduler,
+		.mutex = mutex,
+		.worker_index = U32_MAX,
+		.other_scheduler_worker_index = U32_MAX
+	};
+
+	TESTER_CHECK(scheduler_get_worker_count(scheduler) == 2);
+	TESTER_CHECK(scheduler_get_current_worker_index(scheduler) == U32_MAX);
+
+	scheduler_submit(scheduler, Scheduler_Task {
+		.function = _scheduler_test_worker_query_task,
+		.data = &context
+	});
+	scheduler_wait_all(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 worker_count = context.worker_count;
+	U32 worker_index = context.worker_index;
+	U32 other_scheduler_worker_index = context.other_scheduler_worker_index;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(worker_count == 2);
+	TESTER_CHECK(worker_index < 2);
+	TESTER_CHECK(other_scheduler_worker_index == U32_MAX);
+
+	platform_mutex_deinit(mutex);
+	scheduler_deinit(other_scheduler);
+	scheduler_deinit(scheduler);
+}
+
+struct Scheduler_Test_Worker_Blocking_Context
+{
+	Scheduler *scheduler;
+	Platform_Mutex *mutex;
+	Platform_Condition_Variable *condition_variable;
+	U32 count_after_first_block;
+	U32 count_after_nested_block;
+	U32 count_after_first_clear;
+	U32 count_after_final_clear;
+	bool block_started;
+	bool release;
+};
+
+inline static void
+_scheduler_test_worker_blocking_task(void *data)
+{
+	Scheduler_Test_Worker_Blocking_Context *context = (Scheduler_Test_Worker_Blocking_Context *)data;
+
+	scheduler_worker_block_ahead(context->scheduler);
+	U32 count_after_first_block = scheduler_get_blocked_worker_count(context->scheduler);
+	scheduler_worker_block_ahead(context->scheduler);
+	U32 count_after_nested_block = scheduler_get_blocked_worker_count(context->scheduler);
+
+	platform_mutex_lock(context->mutex);
+	context->count_after_first_block = count_after_first_block;
+	context->count_after_nested_block = count_after_nested_block;
+	context->block_started = true;
+	platform_condition_variable_signal(context->condition_variable);
+	while (!context->release)
+		platform_condition_variable_wait(context->condition_variable, context->mutex);
+	platform_mutex_unlock(context->mutex);
+
+	scheduler_worker_block_clear(context->scheduler);
+	U32 count_after_first_clear = scheduler_get_blocked_worker_count(context->scheduler);
+	scheduler_worker_block_clear(context->scheduler);
+	U32 count_after_final_clear = scheduler_get_blocked_worker_count(context->scheduler);
+
+	platform_mutex_lock(context->mutex);
+	context->count_after_first_clear = count_after_first_clear;
+	context->count_after_final_clear = count_after_final_clear;
+	platform_mutex_unlock(context->mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Worker Blocking")
+{
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 1
+	});
+	Platform_Mutex *mutex = platform_mutex_init();
+	Platform_Condition_Variable *condition_variable = platform_condition_variable_init();
+	Scheduler_Test_Worker_Blocking_Context context = {
+		.scheduler = scheduler,
+		.mutex = mutex,
+		.condition_variable = condition_variable
+	};
+
+	TESTER_CHECK(scheduler_get_blocked_worker_count(scheduler) == 0);
+
+	scheduler_submit(scheduler, Scheduler_Task {
+		.function = _scheduler_test_worker_blocking_task,
+		.data = &context
+	});
+
+	platform_mutex_lock(mutex);
+	while (!context.block_started)
+		platform_condition_variable_wait(condition_variable, mutex);
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(scheduler_get_blocked_worker_count(scheduler) == 1);
+
+	platform_mutex_lock(mutex);
+	context.release = true;
+	platform_condition_variable_signal(condition_variable);
+	platform_mutex_unlock(mutex);
+
+	scheduler_wait_all(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 count_after_first_block = context.count_after_first_block;
+	U32 count_after_nested_block = context.count_after_nested_block;
+	U32 count_after_first_clear = context.count_after_first_clear;
+	U32 count_after_final_clear = context.count_after_final_clear;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(count_after_first_block == 1);
+	TESTER_CHECK(count_after_nested_block == 1);
+	TESTER_CHECK(count_after_first_clear == 1);
+	TESTER_CHECK(count_after_final_clear == 0);
+	TESTER_CHECK(scheduler_get_blocked_worker_count(scheduler) == 0);
+
+	platform_condition_variable_deinit(condition_variable);
+	platform_mutex_deinit(mutex);
+	scheduler_deinit(scheduler);
+}
+
 struct Scheduler_Test_Task_Context
 {
 	Platform_Mutex *mutex;

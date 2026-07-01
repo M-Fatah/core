@@ -63,4 +63,19 @@ CORE_API void
 scheduler_wait_all(Scheduler *self);
 
 CORE_API void
+scheduler_worker_block_ahead(Scheduler *self);
+
+CORE_API void
+scheduler_worker_block_clear(Scheduler *self);
+
+CORE_API U32
+scheduler_get_worker_count(Scheduler *self);
+
+CORE_API U32
+scheduler_get_blocked_worker_count(Scheduler *self);
+
+CORE_API U32
+scheduler_get_current_worker_index(Scheduler *self);
+
+CORE_API void
 scheduler_parallel_for(Scheduler *self, Scheduler_Parallel_For_Desc desc);
