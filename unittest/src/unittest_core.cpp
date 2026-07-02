@@ -13,9 +13,6 @@
 
 TESTER_TEST("[CORE]: Atomic")
 {
-	static_assert(Atomic_Type<U32>);
-	static_assert(Atomic_Type<U64>);
-
 	Atomic<U32> value = atomic_init((U32)7);
 	TESTER_CHECK(atomic_load(value) == 7);
 
@@ -436,6 +433,43 @@ TESTER_TEST("[CORE]: Scheduler Parallel For")
 	TESTER_CHECK(visited_count == ITEM_COUNT);
 	TESTER_CHECK(index_sum == EXPECTED_INDEX_SUM);
 	TESTER_CHECK(actual_temp_block.data == expected_temp_block.data);
+
+	scheduler_deinit(scheduler);
+	platform_mutex_deinit(mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Parallel For Auto Chunk Size")
+{
+	constexpr U32 ITEM_COUNT = 257;
+	constexpr U32 EXPECTED_INDEX_SUM = ITEM_COUNT * (ITEM_COUNT - 1) / 2;
+
+	bool visited[ITEM_COUNT] = {};
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Parallel_For_Context context = {
+		.mutex = mutex,
+		.visited = visited
+	};
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2,
+		.initial_task_queue_capacity = 16
+	});
+
+	scheduler_parallel_for(scheduler, Scheduler_Parallel_For_Desc {
+		.count = ITEM_COUNT,
+		.function = _scheduler_test_parallel_for,
+		.data = &context
+	});
+
+	platform_mutex_lock(mutex);
+	U32 visited_count = context.visited_count;
+	U32 index_sum = context.index_sum;
+	platform_mutex_unlock(mutex);
+
+	for (U32 i = 0; i < ITEM_COUNT; ++i)
+		TESTER_CHECK(visited[i]);
+	TESTER_CHECK(visited_count == ITEM_COUNT);
+	TESTER_CHECK(index_sum == EXPECTED_INDEX_SUM);
 
 	scheduler_deinit(scheduler);
 	platform_mutex_deinit(mutex);

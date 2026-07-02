@@ -13,7 +13,7 @@ Atomic<U32> state = atomic_init((U32)0);
 Atomic<U64> counter = atomic_init((U64)100);
 ```
 
-The `Atomic_Type` concept currently accepts `U32` and `U64`.
+`Atomic<T>` currently accepts `U32` and `U64`.
 
 ---
 

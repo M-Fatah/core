@@ -129,7 +129,7 @@ scheduler_parallel_for(scheduler, Scheduler_Parallel_For_Desc {
 
 `scheduler_parallel_for` splits `[0, count)` into half-open chunk ranges and submits one task per chunk. It waits for all chunks before returning.
 
-`chunk_size` controls task granularity. Smaller chunks can balance uneven work better, while larger chunks reduce scheduling overhead.
+`chunk_size` controls task granularity. Smaller chunks can balance uneven work better, while larger chunks reduce scheduling overhead. Leave it as `0` to let the scheduler choose a chunk size from the current worker count.
 
 The callback data must remain valid until `scheduler_parallel_for` returns.
 

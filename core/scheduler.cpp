@@ -10,14 +10,6 @@
 
 inline static thread_local struct Scheduler_Worker *scheduler_current_worker = nullptr;
 
-struct Scheduler_Parallel_For_Task_Context
-{
-	Scheduler_Parallel_For_Function function;
-	void *data;
-	U32 begin;
-	U32 end;
-};
-
 struct Scheduler_Group
 {
 	Scheduler *scheduler;
@@ -55,19 +47,6 @@ struct Scheduler
 	bool running;
 };
 
-inline static void
-destroy(Scheduler_Worker &self)
-{
-	platform_thread_deinit(self.thread);
-}
-
-inline static void
-_scheduler_parallel_for_task(void *data)
-{
-	Scheduler_Parallel_For_Task_Context *context = (Scheduler_Parallel_For_Task_Context *)data;
-	context->function(context->begin, context->end, context->data);
-}
-
 inline static bool
 _scheduler_try_run_next_task_from_locked_queue(Scheduler *self)
 {
@@ -100,36 +79,34 @@ _scheduler_try_run_next_task_from_locked_queue(Scheduler *self)
 	return true;
 }
 
-inline static void
-_scheduler_worker_main(void *data)
-{
-	Scheduler_Worker *worker = (Scheduler_Worker *)data;
-	Scheduler *self = worker->scheduler;
-	Scheduler_Worker *previous_worker = scheduler_current_worker;
-	scheduler_current_worker = worker;
-
-	platform_mutex_lock(self->mutex);
-	++self->started_worker_count;
-	platform_condition_variable_signal(self->startup_condition_variable);
-	while (true)
-	{
-		while (self->running && ring_buffer_is_empty(self->tasks))
-			platform_condition_variable_wait(self->work_condition_variable, self->mutex);
-
-		if (!self->running && ring_buffer_is_empty(self->tasks))
-			break;
-
-		_scheduler_try_run_next_task_from_locked_queue(self);
-	}
-	platform_mutex_unlock(self->mutex);
-	scheduler_current_worker = previous_worker;
-}
-
 // API.
 Scheduler *
 scheduler_init(Scheduler_Desc desc)
 {
 	validate(desc.worker_count > 0, "[SCHEDULER]: Worker count must be greater than 0.");
+
+	Platform_Thread_Function worker_function = [](void *data) {
+		Scheduler_Worker *worker = (Scheduler_Worker *)data;
+		Scheduler *self = worker->scheduler;
+		Scheduler_Worker *previous_worker = scheduler_current_worker;
+		scheduler_current_worker = worker;
+
+		platform_mutex_lock(self->mutex);
+		++self->started_worker_count;
+		platform_condition_variable_signal(self->startup_condition_variable);
+		while (true)
+		{
+			while (self->running && ring_buffer_is_empty(self->tasks))
+				platform_condition_variable_wait(self->work_condition_variable, self->mutex);
+
+			if (!self->running && ring_buffer_is_empty(self->tasks))
+				break;
+
+			_scheduler_try_run_next_task_from_locked_queue(self);
+		}
+		platform_mutex_unlock(self->mutex);
+		scheduler_current_worker = previous_worker;
+	};
 
 	Scheduler *self = memory::allocate_zeroed<Scheduler>();
 	self->mutex = platform_mutex_init();
@@ -151,7 +128,7 @@ scheduler_init(Scheduler_Desc desc)
 		worker->index = i;
 		worker->blocking_depth = 0;
 		worker->thread = platform_thread_init(Platform_Thread_Desc {
-			.function = _scheduler_worker_main,
+			.function = worker_function,
 			.data = worker,
 			.name = desc.worker_name != nullptr ? desc.worker_name : "Scheduler"
 		});
@@ -176,7 +153,9 @@ scheduler_deinit(Scheduler *self)
 	platform_condition_variable_broadcast(self->work_condition_variable);
 	platform_mutex_unlock(self->mutex);
 
-	destroy(self->workers);
+	for (U64 i = 0; i < self->workers.count; ++i)
+		platform_thread_deinit(self->workers[i].thread);
+	array_deinit(self->workers);
 	validate(self->blocked_worker_count == 0, "[SCHEDULER]: Cannot deinit scheduler while workers are marked as blocking.");
 	ring_buffer_deinit(self->tasks);
 	platform_condition_variable_deinit(self->group_condition_variable);
@@ -383,7 +362,28 @@ scheduler_parallel_for(Scheduler *self, Scheduler_Parallel_For_Desc desc)
 	if (desc.count == 0)
 		return;
 
-	validate(desc.chunk_size > 0, "[SCHEDULER]: Parallel for chunk size must be greater than 0.");
+	struct Scheduler_Parallel_For_Task_Context
+	{
+		Scheduler_Parallel_For_Function function;
+		void *data;
+		U32 begin;
+		U32 end;
+	};
+
+	Scheduler_Task_Function task_function = [](void *data) {
+		Scheduler_Parallel_For_Task_Context *context = (Scheduler_Parallel_For_Task_Context *)data;
+		context->function(context->begin, context->end, context->data);
+	};
+
+	auto auto_chunk_size = [](Scheduler *self, U32 count) -> U32 {
+		U64 target_chunk_count = self->workers.count * 4;
+		if (target_chunk_count > count)
+			target_chunk_count = count;
+		return (U32)(((U64)count + target_chunk_count - 1) / target_chunk_count);
+	};
+
+	if (desc.chunk_size == 0)
+		desc.chunk_size = auto_chunk_size(self, desc.count);
 
 	memory::Arena_Allocator_Mark temp_allocator_mark = memory::temp_allocator_mark();
 	DEFER(memory::temp_allocator_reset_to_mark(temp_allocator_mark));
@@ -404,7 +404,7 @@ scheduler_parallel_for(Scheduler *self, Scheduler_Parallel_For_Desc desc)
 			.end = begin + range_count
 		};
 		tasks[i] = Scheduler_Task {
-			.function = _scheduler_parallel_for_task,
+			.function = task_function,
 			.data = &contexts[i]
 		};
 	}
