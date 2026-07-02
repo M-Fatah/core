@@ -475,6 +475,44 @@ TESTER_TEST("[CORE]: Scheduler Parallel For Auto Chunk Size")
 	platform_mutex_deinit(mutex);
 }
 
+TESTER_TEST("[CORE]: Scheduler Parallel For Small Chunk Stress")
+{
+	constexpr U32 ITEM_COUNT = 1024;
+	constexpr U32 EXPECTED_INDEX_SUM = ITEM_COUNT * (ITEM_COUNT - 1) / 2;
+
+	bool visited[ITEM_COUNT] = {};
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Parallel_For_Context context = {
+		.mutex = mutex,
+		.visited = visited
+	};
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 4,
+		.initial_task_queue_capacity = ITEM_COUNT
+	});
+
+	scheduler_parallel_for(scheduler, Scheduler_Parallel_For_Desc {
+		.count = ITEM_COUNT,
+		.chunk_size = 1,
+		.function = _scheduler_test_parallel_for,
+		.data = &context
+	});
+
+	platform_mutex_lock(mutex);
+	U32 visited_count = context.visited_count;
+	U32 index_sum = context.index_sum;
+	platform_mutex_unlock(mutex);
+
+	for (U32 i = 0; i < ITEM_COUNT; ++i)
+		TESTER_CHECK(visited[i]);
+	TESTER_CHECK(visited_count == ITEM_COUNT);
+	TESTER_CHECK(index_sum == EXPECTED_INDEX_SUM);
+
+	scheduler_deinit(scheduler);
+	platform_mutex_deinit(mutex);
+}
+
 struct Scheduler_Test_Blocking_Task_Context
 {
 	Platform_Mutex *mutex;
@@ -496,6 +534,124 @@ _scheduler_test_blocking_task(void *data)
 		platform_condition_variable_wait(context->condition_variable, context->mutex);
 	context->finished = true;
 	platform_mutex_unlock(context->mutex);
+}
+
+struct Scheduler_Test_Stealing_Context
+{
+	Scheduler *scheduler;
+	Platform_Mutex *mutex;
+	Platform_Condition_Variable *condition_variable;
+	U32 blocked_worker_index;
+	U32 finished_count;
+	U32 stolen_task_count;
+	bool block_started;
+	bool release;
+	bool blocking_finished;
+};
+
+struct Scheduler_Test_Stealing_Task
+{
+	Scheduler_Test_Stealing_Context *context;
+	U32 target_worker_index;
+};
+
+inline static void
+_scheduler_test_stealing_blocking_task(void *data)
+{
+	Scheduler_Test_Stealing_Context *context = (Scheduler_Test_Stealing_Context *)data;
+	U32 worker_index = scheduler_get_current_worker_index(context->scheduler);
+
+	platform_mutex_lock(context->mutex);
+	context->blocked_worker_index = worker_index;
+	context->block_started = true;
+	platform_condition_variable_signal(context->condition_variable);
+	while (!context->release)
+		platform_condition_variable_wait(context->condition_variable, context->mutex);
+	context->blocking_finished = true;
+	platform_mutex_unlock(context->mutex);
+}
+
+inline static void
+_scheduler_test_stealing_task(void *data)
+{
+	Scheduler_Test_Stealing_Task *task = (Scheduler_Test_Stealing_Task *)data;
+	Scheduler_Test_Stealing_Context *context = task->context;
+	U32 worker_index = scheduler_get_current_worker_index(context->scheduler);
+
+	platform_mutex_lock(context->mutex);
+	++context->finished_count;
+	if (task->target_worker_index == context->blocked_worker_index && worker_index != context->blocked_worker_index)
+		++context->stolen_task_count;
+	platform_mutex_unlock(context->mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Steals From Blocked Worker")
+{
+	constexpr U32 WORKER_COUNT = 2;
+	constexpr U32 TASK_COUNT = 64;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Platform_Condition_Variable *condition_variable = platform_condition_variable_init();
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = WORKER_COUNT,
+		.initial_task_queue_capacity = TASK_COUNT + 1
+	});
+	Scheduler_Group *group = scheduler_group_init(scheduler);
+	Scheduler_Test_Stealing_Context context = {
+		.scheduler = scheduler,
+		.mutex = mutex,
+		.condition_variable = condition_variable,
+		.blocked_worker_index = U32_MAX
+	};
+
+	scheduler_submit(scheduler, Scheduler_Task {
+		.function = _scheduler_test_stealing_blocking_task,
+		.data = &context
+	});
+
+	platform_mutex_lock(mutex);
+	while (!context.block_started)
+		platform_condition_variable_wait(condition_variable, mutex);
+	U32 blocked_worker_index = context.blocked_worker_index;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(blocked_worker_index < WORKER_COUNT);
+
+	Scheduler_Test_Stealing_Task task_data[TASK_COUNT];
+	Scheduler_Task tasks[TASK_COUNT];
+	for (U32 i = 0; i < TASK_COUNT; ++i)
+	{
+		task_data[i] = Scheduler_Test_Stealing_Task {
+			.context = &context,
+			.target_worker_index = (1 + i) % WORKER_COUNT
+		};
+		tasks[i] = Scheduler_Task {
+			.function = _scheduler_test_stealing_task,
+			.data = &task_data[i]
+		};
+	}
+
+	scheduler_submit(scheduler, span_init(tasks), group);
+	scheduler_wait_group(scheduler, group);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	U32 stolen_task_count = context.stolen_task_count;
+	bool blocking_finished = context.blocking_finished;
+	context.release = true;
+	platform_condition_variable_signal(condition_variable);
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	TESTER_CHECK(stolen_task_count > 0);
+	TESTER_CHECK(!blocking_finished);
+
+	scheduler_wait_all(scheduler);
+
+	scheduler_group_deinit(scheduler, group);
+	scheduler_deinit(scheduler);
+	platform_condition_variable_deinit(condition_variable);
+	platform_mutex_deinit(mutex);
 }
 
 TESTER_TEST("[CORE]: Scheduler Wait Group")
@@ -610,6 +766,43 @@ TESTER_TEST("[CORE]: Scheduler Worker Wait Group")
 	Platform_Mutex *mutex = platform_mutex_init();
 	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
 		.worker_count = 1
+	});
+	Scheduler_Group *group = scheduler_group_init(scheduler);
+	Scheduler_Test_Waiting_Task_Context context = {
+		.scheduler = scheduler,
+		.group = group,
+		.mutex = mutex,
+		.child_task_count = TASK_COUNT
+	};
+
+	scheduler_submit(scheduler, Scheduler_Task {
+		.function = _scheduler_test_waiting_parent_task,
+		.data = &context
+	});
+
+	scheduler_wait_all(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	bool parent_finished = context.parent_finished;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	TESTER_CHECK(parent_finished);
+
+	scheduler_group_deinit(scheduler, group);
+	scheduler_deinit(scheduler);
+	platform_mutex_deinit(mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Worker Wait Group Multi Worker")
+{
+	constexpr U32 TASK_COUNT = 128;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 3,
+		.initial_task_queue_capacity = TASK_COUNT
 	});
 	Scheduler_Group *group = scheduler_group_init(scheduler);
 	Scheduler_Test_Waiting_Task_Context context = {

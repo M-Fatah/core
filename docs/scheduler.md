@@ -28,7 +28,7 @@ All `Scheduler_Group` objects created from the scheduler must be deinitialized b
 
 `worker_count` must be greater than 0.
 
-`initial_task_queue_capacity` is optional. When greater than 0, the scheduler reserves task queue storage during initialization so normal task submission can avoid the first queue allocation.
+`initial_task_queue_capacity` is optional. When greater than 0, the scheduler distributes that capacity across worker task queues during initialization so normal task submission can avoid the first queue allocation.
 
 `worker_name` is optional. When omitted, scheduler worker threads use `"Scheduler"` as their platform thread name.
 
@@ -78,7 +78,7 @@ scheduler_submit(scheduler, Scheduler_Task {
 scheduler_wait_all(scheduler);
 ```
 
-Submitted tasks are stored in a FIFO queue. Workers take tasks from the front of the queue and execute them outside the scheduler mutex.
+Submitted tasks are distributed round-robin across worker FIFO queues. Workers take tasks from their own queue first, then steal from other worker queues when their own queue is empty. Tasks execute outside the scheduler mutex.
 
 Task data must remain valid until the task has executed.
 
@@ -103,7 +103,7 @@ Scheduler_Task tasks[] = {
 scheduler_submit(scheduler, span_init(tasks));
 ```
 
-Batch submission reserves queue space once, queues all task descriptors under one scheduler lock, and wakes workers once after the batch is queued. It copies `Scheduler_Task` values into the scheduler queue; task data must still remain valid until the matching task has executed.
+Batch submission reserves worker queue space, queues all task descriptors under one scheduler lock, and wakes workers once after the batch is queued. It copies `Scheduler_Task` values into scheduler-owned queues; task data must still remain valid until the matching task has executed.
 
 ---
 
@@ -173,7 +173,7 @@ Groups track completion for a specific batch of tasks. `scheduler_wait_group` bl
 
 A group belongs to the scheduler passed to `scheduler_group_init`. Deinit the group after its pending task count reaches 0 and before deinitializing the scheduler. The scheduler tracks live groups and validates that none are alive during `scheduler_deinit`.
 
-When `scheduler_wait_group` is called from a worker owned by the same scheduler, that worker executes queued tasks while it waits. This lets a task submit child tasks to a group and wait for them without putting the worker to sleep.
+When `scheduler_wait_group` is called from a worker owned by the same scheduler, that worker executes tasks from its own queue first and can steal from other worker queues while it waits. This lets a task submit child tasks to a group and wait for them without putting the worker to sleep.
 
 The scheduler validates that a task does not wait for its own group.
 
