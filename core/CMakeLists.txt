@@ -1,4 +1,5 @@
 set(HEADER_FILES
+    atomic.h
     base64.h
     defer.h
     defines.h
@@ -13,6 +14,10 @@ set(HEADER_FILES
     scheduler.h
     source_location.h
     tester.h
+    compiler/compiler_clang.h
+    compiler/compiler_gcc.h
+    compiler/compiler_msvc.h
+    compiler/compiler.h
     containers/array.h
     containers/hash_set.h
     containers/hash_table.h

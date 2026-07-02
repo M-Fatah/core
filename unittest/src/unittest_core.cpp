@@ -1,4 +1,5 @@
 #include <core/tester.h>
+#include <core/atomic.h>
 #include <core/json.h>
 #include <core/base64.h>
 #include <core/log.h>
@@ -9,6 +10,79 @@
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
 #include <core/platform/platform.h>
+
+TESTER_TEST("[CORE]: Atomic")
+{
+	static_assert(Atomic_Type<U32>);
+	static_assert(Atomic_Type<U64>);
+
+	Atomic<U32> value = atomic_init((U32)7);
+	TESTER_CHECK(atomic_load(value) == 7);
+
+	atomic_store(value, 11, COMPILER_ATOMIC_MEMORY_ORDER_RELEASE);
+	TESTER_CHECK(atomic_load(value, COMPILER_ATOMIC_MEMORY_ORDER_ACQUIRE) == 11);
+	TESTER_CHECK(atomic_exchange(value, 19) == 11);
+	TESTER_CHECK(atomic_load(value) == 19);
+
+	U32 expected = 19;
+	TESTER_CHECK(atomic_compare_exchange(value, expected, 23));
+	TESTER_CHECK(expected == 19);
+	TESTER_CHECK(atomic_load(value) == 23);
+
+	expected = 19;
+	TESTER_CHECK(!atomic_compare_exchange(value, expected, 31));
+	TESTER_CHECK(expected == 23);
+	TESTER_CHECK(atomic_load(value) == 23);
+
+	Atomic<U64> counter = atomic_init((U64)40);
+	TESTER_CHECK(atomic_fetch_add(counter, (U64)2, COMPILER_ATOMIC_MEMORY_ORDER_RELAXED) == 40);
+	TESTER_CHECK(atomic_load(counter) == 42);
+	TESTER_CHECK(atomic_fetch_sub(counter, (U64)10, COMPILER_ATOMIC_MEMORY_ORDER_RELAXED) == 42);
+	TESTER_CHECK(atomic_load(counter) == 32);
+}
+
+struct Atomic_Test_Thread_Context
+{
+	Atomic<U64> *counter;
+	U32 iteration_count;
+};
+
+inline static void
+_atomic_test_thread_main(void *data)
+{
+	Atomic_Test_Thread_Context *context = (Atomic_Test_Thread_Context *)data;
+	for (U32 i = 0; i < context->iteration_count; ++i)
+		atomic_fetch_add(*context->counter, (U64)1, COMPILER_ATOMIC_MEMORY_ORDER_RELAXED);
+}
+
+TESTER_TEST("[CORE]: Atomic Threads")
+{
+	const U32 THREAD_COUNT = 4;
+	const U32 ITERATION_COUNT = 4096;
+	Atomic<U64> counter = atomic_init((U64)0);
+	Atomic_Test_Thread_Context context = {
+		.counter = &counter,
+		.iteration_count = ITERATION_COUNT
+	};
+	Platform_Thread *threads[THREAD_COUNT];
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+	{
+		threads[i] = platform_thread_init(Platform_Thread_Desc {
+			.function = _atomic_test_thread_main,
+			.data = &context,
+			.name = "AtomicTest"
+		});
+	}
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+		platform_thread_join(threads[i]);
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+		platform_thread_deinit(threads[i]);
+
+	TESTER_CHECK(atomic_load(counter) == (U64)THREAD_COUNT * ITERATION_COUNT);
+}
 
 TESTER_TEST("[CORE]: Scheduler")
 {
