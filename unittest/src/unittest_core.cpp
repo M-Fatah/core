@@ -1,12 +1,1197 @@
 #include <core/tester.h>
+#include <core/atomic.h>
 #include <core/json.h>
 #include <core/base64.h>
 #include <core/log.h>
 #include <core/result.h>
-#include <core/memory/memory.h>
+#include <core/scheduler.h>
+#include <core/validate.h>
+#include <core/memory/allocator.h>
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
 #include <core/platform/platform.h>
+
+TESTER_TEST("[CORE]: Atomic")
+{
+	Atomic<U32> value = atomic_init((U32)7);
+	TESTER_CHECK(atomic_load(value) == 7);
+
+	atomic_store(value, 11, COMPILER_ATOMIC_MEMORY_ORDER_RELEASE);
+	TESTER_CHECK(atomic_load(value, COMPILER_ATOMIC_MEMORY_ORDER_ACQUIRE) == 11);
+	TESTER_CHECK(atomic_exchange(value, 19) == 11);
+	TESTER_CHECK(atomic_load(value) == 19);
+
+	U32 expected = 19;
+	TESTER_CHECK(atomic_compare_exchange(value, expected, 23));
+	TESTER_CHECK(expected == 19);
+	TESTER_CHECK(atomic_load(value) == 23);
+
+	expected = 19;
+	TESTER_CHECK(!atomic_compare_exchange(value, expected, 31));
+	TESTER_CHECK(expected == 23);
+	TESTER_CHECK(atomic_load(value) == 23);
+
+	Atomic<U64> counter = atomic_init((U64)40);
+	TESTER_CHECK(atomic_fetch_add(counter, (U64)2, COMPILER_ATOMIC_MEMORY_ORDER_RELAXED) == 40);
+	TESTER_CHECK(atomic_load(counter) == 42);
+	TESTER_CHECK(atomic_fetch_sub(counter, (U64)10, COMPILER_ATOMIC_MEMORY_ORDER_RELAXED) == 42);
+	TESTER_CHECK(atomic_load(counter) == 32);
+}
+
+struct Atomic_Test_Thread_Context
+{
+	Atomic<U64> *counter;
+	U32 iteration_count;
+};
+
+inline static void
+_atomic_test_thread_main(void *data)
+{
+	Atomic_Test_Thread_Context *context = (Atomic_Test_Thread_Context *)data;
+	for (U32 i = 0; i < context->iteration_count; ++i)
+		atomic_fetch_add(*context->counter, (U64)1, COMPILER_ATOMIC_MEMORY_ORDER_RELAXED);
+}
+
+TESTER_TEST("[CORE]: Atomic Threads")
+{
+	const U32 THREAD_COUNT = 4;
+	const U32 ITERATION_COUNT = 4096;
+	Atomic<U64> counter = atomic_init((U64)0);
+	Atomic_Test_Thread_Context context = {
+		.counter = &counter,
+		.iteration_count = ITERATION_COUNT
+	};
+	Platform_Thread *threads[THREAD_COUNT];
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+	{
+		threads[i] = platform_thread_init(Platform_Thread_Desc {
+			.function = _atomic_test_thread_main,
+			.data = &context,
+			.name = "AtomicTest"
+		});
+	}
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+		platform_thread_join(threads[i]);
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+		platform_thread_deinit(threads[i]);
+
+	TESTER_CHECK(atomic_load(counter) == (U64)THREAD_COUNT * ITERATION_COUNT);
+}
+
+TESTER_TEST("[CORE]: Scheduler")
+{
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2,
+		.initial_task_queue_capacity = 8
+	});
+	TESTER_CHECK(scheduler != nullptr);
+	scheduler_deinit(scheduler);
+}
+
+struct Scheduler_Test_Worker_Query_Context
+{
+	Scheduler *scheduler;
+	Scheduler *other_scheduler;
+	Platform_Mutex *mutex;
+	U32 worker_thread_count;
+	U32 worker_index;
+	U32 other_scheduler_worker_index;
+};
+
+inline static void
+_scheduler_test_worker_query_task(void *data)
+{
+	Scheduler_Test_Worker_Query_Context *context = (Scheduler_Test_Worker_Query_Context *)data;
+	Scheduler_Stats stats = scheduler_get_stats(context->scheduler);
+	U32 worker_thread_count = stats.worker_count + stats.replacement_worker_count;
+	U32 worker_index = scheduler_get_current_worker_index(context->scheduler);
+	U32 other_scheduler_worker_index = scheduler_get_current_worker_index(context->other_scheduler);
+
+	platform_mutex_lock(context->mutex);
+	context->worker_thread_count = worker_thread_count;
+	context->worker_index = worker_index;
+	context->other_scheduler_worker_index = other_scheduler_worker_index;
+	platform_mutex_unlock(context->mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Worker Queries")
+{
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2
+	});
+	Scheduler *other_scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 1
+	});
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Worker_Query_Context context = {
+		.scheduler = scheduler,
+		.other_scheduler = other_scheduler,
+		.mutex = mutex,
+		.worker_index = U32_MAX,
+		.other_scheduler_worker_index = U32_MAX
+	};
+
+	Scheduler_Stats stats = scheduler_get_stats(scheduler);
+	TESTER_CHECK(stats.worker_count + stats.replacement_worker_count == 2);
+	TESTER_CHECK(scheduler_get_current_worker_index(scheduler) == U32_MAX);
+
+	scheduler_submit(scheduler, Scheduler_Task {
+		.function = _scheduler_test_worker_query_task,
+		.data = &context
+	});
+	scheduler_wait_all(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 worker_thread_count = context.worker_thread_count;
+	U32 worker_index = context.worker_index;
+	U32 other_scheduler_worker_index = context.other_scheduler_worker_index;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(worker_thread_count == 2);
+	TESTER_CHECK(worker_index < 2);
+	TESTER_CHECK(other_scheduler_worker_index == U32_MAX);
+
+	platform_mutex_deinit(mutex);
+	scheduler_deinit(other_scheduler);
+	scheduler_deinit(scheduler);
+}
+
+struct Scheduler_Test_Worker_Blocking_Context
+{
+	Scheduler *scheduler;
+	Platform_Mutex *mutex;
+	Platform_Condition_Variable *condition_variable;
+	U32 count_after_first_block;
+	U32 count_after_nested_block;
+	U32 count_after_first_clear;
+	U32 count_after_final_clear;
+	bool block_started;
+	bool release;
+};
+
+inline static void
+_scheduler_test_worker_blocking_task(void *data)
+{
+	Scheduler_Test_Worker_Blocking_Context *context = (Scheduler_Test_Worker_Blocking_Context *)data;
+
+	scheduler_worker_block_ahead(context->scheduler);
+	U32 count_after_first_block = scheduler_get_stats(context->scheduler).blocked_worker_count;
+	scheduler_worker_block_ahead(context->scheduler);
+	U32 count_after_nested_block = scheduler_get_stats(context->scheduler).blocked_worker_count;
+
+	platform_mutex_lock(context->mutex);
+	context->count_after_first_block = count_after_first_block;
+	context->count_after_nested_block = count_after_nested_block;
+	context->block_started = true;
+	platform_condition_variable_signal(context->condition_variable);
+	while (!context->release)
+		platform_condition_variable_wait(context->condition_variable, context->mutex);
+	platform_mutex_unlock(context->mutex);
+
+	scheduler_worker_block_clear(context->scheduler);
+	U32 count_after_first_clear = scheduler_get_stats(context->scheduler).blocked_worker_count;
+	scheduler_worker_block_clear(context->scheduler);
+	U32 count_after_final_clear = scheduler_get_stats(context->scheduler).blocked_worker_count;
+
+	platform_mutex_lock(context->mutex);
+	context->count_after_first_clear = count_after_first_clear;
+	context->count_after_final_clear = count_after_final_clear;
+	platform_mutex_unlock(context->mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Worker Blocking")
+{
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 1
+	});
+	Platform_Mutex *mutex = platform_mutex_init();
+	Platform_Condition_Variable *condition_variable = platform_condition_variable_init();
+	Scheduler_Test_Worker_Blocking_Context context = {
+		.scheduler = scheduler,
+		.mutex = mutex,
+		.condition_variable = condition_variable
+	};
+
+	TESTER_CHECK(scheduler_get_stats(scheduler).blocked_worker_count == 0);
+
+	scheduler_submit(scheduler, Scheduler_Task {
+		.function = _scheduler_test_worker_blocking_task,
+		.data = &context
+	});
+
+	platform_mutex_lock(mutex);
+	while (!context.block_started)
+		platform_condition_variable_wait(condition_variable, mutex);
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(scheduler_get_stats(scheduler).blocked_worker_count == 1);
+
+	platform_mutex_lock(mutex);
+	context.release = true;
+	platform_condition_variable_signal(condition_variable);
+	platform_mutex_unlock(mutex);
+
+	scheduler_wait_all(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 count_after_first_block = context.count_after_first_block;
+	U32 count_after_nested_block = context.count_after_nested_block;
+	U32 count_after_first_clear = context.count_after_first_clear;
+	U32 count_after_final_clear = context.count_after_final_clear;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(count_after_first_block == 1);
+	TESTER_CHECK(count_after_nested_block == 1);
+	TESTER_CHECK(count_after_first_clear == 1);
+	TESTER_CHECK(count_after_final_clear == 0);
+	TESTER_CHECK(scheduler_get_stats(scheduler).blocked_worker_count == 0);
+
+	platform_condition_variable_deinit(condition_variable);
+	platform_mutex_deinit(mutex);
+	scheduler_deinit(scheduler);
+}
+
+struct Scheduler_Test_Worker_Blocking_Replacement_Context
+{
+	Scheduler *scheduler;
+	Platform_Mutex *mutex;
+	Platform_Condition_Variable *condition_variable;
+	U32 worker_count;
+	U32 finished_count;
+	U32 replacement_worker_finished_count;
+	bool block_started;
+	bool release;
+	bool blocking_finished;
+};
+
+inline static void
+_scheduler_test_worker_blocking_replacement_blocking_task(void *data)
+{
+	Scheduler_Test_Worker_Blocking_Replacement_Context *context = (Scheduler_Test_Worker_Blocking_Replacement_Context *)data;
+
+	scheduler_worker_block_ahead(context->scheduler);
+	scheduler_worker_block_ahead(context->scheduler);
+
+	platform_mutex_lock(context->mutex);
+	context->block_started = true;
+	platform_condition_variable_signal(context->condition_variable);
+	while (!context->release)
+		platform_condition_variable_wait(context->condition_variable, context->mutex);
+	platform_mutex_unlock(context->mutex);
+
+	scheduler_worker_block_clear(context->scheduler);
+	scheduler_worker_block_clear(context->scheduler);
+
+	platform_mutex_lock(context->mutex);
+	context->blocking_finished = true;
+	platform_mutex_unlock(context->mutex);
+}
+
+inline static void
+_scheduler_test_worker_blocking_replacement_task(void *data)
+{
+	Scheduler_Test_Worker_Blocking_Replacement_Context *context = (Scheduler_Test_Worker_Blocking_Replacement_Context *)data;
+	U32 worker_index = scheduler_get_current_worker_index(context->scheduler);
+
+	platform_mutex_lock(context->mutex);
+	++context->finished_count;
+	if (worker_index >= context->worker_count)
+		++context->replacement_worker_finished_count;
+	platform_mutex_unlock(context->mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Worker Blocking Replacement")
+{
+	constexpr U32 TASK_COUNT = 64;
+	constexpr U32 WORKER_COUNT = 1;
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = WORKER_COUNT,
+		.replacement_worker_count = 1,
+		.initial_task_queue_capacity = TASK_COUNT + 1
+	});
+	Scheduler_Group *group = scheduler_group_init(scheduler);
+	Platform_Mutex *mutex = platform_mutex_init();
+	Platform_Condition_Variable *condition_variable = platform_condition_variable_init();
+	Scheduler_Test_Worker_Blocking_Replacement_Context context = {
+		.scheduler = scheduler,
+		.mutex = mutex,
+		.condition_variable = condition_variable,
+		.worker_count = WORKER_COUNT
+	};
+
+	Scheduler_Stats stats = scheduler_get_stats(scheduler);
+	TESTER_CHECK(stats.worker_count + stats.replacement_worker_count == WORKER_COUNT + 1);
+
+	scheduler_submit(scheduler, Scheduler_Task {
+		.function = _scheduler_test_worker_blocking_replacement_blocking_task,
+		.data = &context
+	});
+
+	platform_mutex_lock(mutex);
+	while (!context.block_started)
+		platform_condition_variable_wait(condition_variable, mutex);
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(scheduler_get_stats(scheduler).blocked_worker_count == 1);
+
+	Scheduler_Task tasks[TASK_COUNT];
+	for (U32 i = 0; i < TASK_COUNT; ++i)
+	{
+		tasks[i] = Scheduler_Task {
+			.function = _scheduler_test_worker_blocking_replacement_task,
+			.data = &context
+		};
+	}
+
+	scheduler_submit(scheduler, span_init(tasks), group);
+	scheduler_wait_group(scheduler, group);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	U32 replacement_worker_finished_count = context.replacement_worker_finished_count;
+	bool blocking_finished = context.blocking_finished;
+	context.release = true;
+	platform_condition_variable_signal(condition_variable);
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	TESTER_CHECK(replacement_worker_finished_count == TASK_COUNT);
+	TESTER_CHECK(!blocking_finished);
+
+	scheduler_wait_all(scheduler);
+	TESTER_CHECK(scheduler_get_stats(scheduler).blocked_worker_count == 0);
+
+	platform_condition_variable_deinit(condition_variable);
+	platform_mutex_deinit(mutex);
+	scheduler_group_deinit(scheduler, group);
+	scheduler_deinit(scheduler);
+}
+
+struct Scheduler_Test_Stats_Context
+{
+	Scheduler *scheduler;
+	Platform_Mutex *mutex;
+	Platform_Condition_Variable *condition_variable;
+	U32 finished_count;
+	bool block_started;
+	bool release;
+};
+
+inline static void
+_scheduler_test_stats_blocking_task(void *data)
+{
+	Scheduler_Test_Stats_Context *context = (Scheduler_Test_Stats_Context *)data;
+
+	scheduler_worker_block_ahead(context->scheduler);
+
+	platform_mutex_lock(context->mutex);
+	context->block_started = true;
+	platform_condition_variable_signal(context->condition_variable);
+	while (!context->release)
+		platform_condition_variable_wait(context->condition_variable, context->mutex);
+	platform_mutex_unlock(context->mutex);
+
+	scheduler_worker_block_clear(context->scheduler);
+}
+
+inline static void
+_scheduler_test_stats_task(void *data)
+{
+	Scheduler_Test_Stats_Context *context = (Scheduler_Test_Stats_Context *)data;
+
+	platform_mutex_lock(context->mutex);
+	++context->finished_count;
+	platform_mutex_unlock(context->mutex);
+}
+
+inline static void
+_scheduler_test_stats_wait_for_block(Scheduler_Test_Stats_Context *context)
+{
+	platform_mutex_lock(context->mutex);
+	while (!context->block_started)
+		platform_condition_variable_wait(context->condition_variable, context->mutex);
+	platform_mutex_unlock(context->mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Stats")
+{
+	constexpr U32 TASK_COUNT = 3;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Platform_Condition_Variable *condition_variable = platform_condition_variable_init();
+
+	Scheduler *replacement_scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 1,
+		.replacement_worker_count = 1,
+		.initial_task_queue_capacity = 1
+	});
+	Scheduler_Test_Stats_Context context = {
+		.scheduler = replacement_scheduler,
+		.mutex = mutex,
+		.condition_variable = condition_variable
+	};
+
+	Scheduler_Stats stats = scheduler_get_stats(replacement_scheduler);
+	TESTER_CHECK(stats.worker_count == 1);
+	TESTER_CHECK(stats.replacement_worker_count == 1);
+	TESTER_CHECK(stats.active_replacement_worker_count == 0);
+	TESTER_CHECK(stats.blocked_worker_count == 0);
+	TESTER_CHECK(stats.active_task_count == 0);
+	TESTER_CHECK(stats.queued_task_count == 0);
+	TESTER_CHECK(stats.live_group_count == 0);
+
+	Scheduler_Group *group = scheduler_group_init(replacement_scheduler);
+	stats = scheduler_get_stats(replacement_scheduler);
+	TESTER_CHECK(stats.live_group_count == 1);
+
+	scheduler_submit(replacement_scheduler, Scheduler_Task {
+		.function = _scheduler_test_stats_blocking_task,
+		.data = &context
+	});
+
+	_scheduler_test_stats_wait_for_block(&context);
+
+	stats = scheduler_get_stats(replacement_scheduler);
+	TESTER_CHECK(stats.worker_count == 1);
+	TESTER_CHECK(stats.replacement_worker_count == 1);
+	TESTER_CHECK(stats.active_replacement_worker_count == 1);
+	TESTER_CHECK(stats.blocked_worker_count == 1);
+	TESTER_CHECK(stats.active_task_count == 1);
+	TESTER_CHECK(stats.queued_task_count == 0);
+	TESTER_CHECK(stats.live_group_count == 1);
+
+	platform_mutex_lock(mutex);
+	context.release = true;
+	platform_condition_variable_signal(condition_variable);
+	platform_mutex_unlock(mutex);
+
+	scheduler_wait_all(replacement_scheduler);
+
+	stats = scheduler_get_stats(replacement_scheduler);
+	TESTER_CHECK(stats.active_replacement_worker_count == 0);
+	TESTER_CHECK(stats.blocked_worker_count == 0);
+	TESTER_CHECK(stats.active_task_count == 0);
+	TESTER_CHECK(stats.queued_task_count == 0);
+	TESTER_CHECK(stats.live_group_count == 1);
+
+	scheduler_group_deinit(replacement_scheduler, group);
+
+	stats = scheduler_get_stats(replacement_scheduler);
+	TESTER_CHECK(stats.live_group_count == 0);
+
+	scheduler_deinit(replacement_scheduler);
+
+	Scheduler *queued_scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 1,
+		.initial_task_queue_capacity = TASK_COUNT + 1
+	});
+	group = scheduler_group_init(queued_scheduler);
+	context = Scheduler_Test_Stats_Context {
+		.scheduler = queued_scheduler,
+		.mutex = mutex,
+		.condition_variable = condition_variable
+	};
+
+	scheduler_submit(queued_scheduler, Scheduler_Task {
+		.function = _scheduler_test_stats_blocking_task,
+		.data = &context
+	});
+
+	_scheduler_test_stats_wait_for_block(&context);
+
+	stats = scheduler_get_stats(queued_scheduler);
+	TESTER_CHECK(stats.worker_count == 1);
+	TESTER_CHECK(stats.replacement_worker_count == 0);
+	TESTER_CHECK(stats.active_replacement_worker_count == 0);
+	TESTER_CHECK(stats.blocked_worker_count == 1);
+	TESTER_CHECK(stats.active_task_count == 1);
+	TESTER_CHECK(stats.queued_task_count == 0);
+	TESTER_CHECK(stats.live_group_count == 1);
+
+	Scheduler_Task tasks[TASK_COUNT];
+	for (U32 i = 0; i < TASK_COUNT; ++i)
+	{
+		tasks[i] = Scheduler_Task {
+			.function = _scheduler_test_stats_task,
+			.data = &context
+		};
+	}
+
+	scheduler_submit(queued_scheduler, span_init(tasks), group);
+
+	stats = scheduler_get_stats(queued_scheduler);
+	TESTER_CHECK(stats.active_replacement_worker_count == 0);
+	TESTER_CHECK(stats.blocked_worker_count == 1);
+	TESTER_CHECK(stats.active_task_count == 1);
+	TESTER_CHECK(stats.queued_task_count == TASK_COUNT);
+	TESTER_CHECK(stats.live_group_count == 1);
+
+	platform_mutex_lock(mutex);
+	context.release = true;
+	platform_condition_variable_signal(condition_variable);
+	platform_mutex_unlock(mutex);
+
+	scheduler_wait_group(queued_scheduler, group);
+	scheduler_wait_all(queued_scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	platform_mutex_unlock(mutex);
+
+	stats = scheduler_get_stats(queued_scheduler);
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	TESTER_CHECK(stats.active_replacement_worker_count == 0);
+	TESTER_CHECK(stats.blocked_worker_count == 0);
+	TESTER_CHECK(stats.active_task_count == 0);
+	TESTER_CHECK(stats.queued_task_count == 0);
+	TESTER_CHECK(stats.live_group_count == 1);
+
+	scheduler_group_deinit(queued_scheduler, group);
+
+	stats = scheduler_get_stats(queued_scheduler);
+	TESTER_CHECK(stats.live_group_count == 0);
+
+	scheduler_deinit(queued_scheduler);
+	platform_condition_variable_deinit(condition_variable);
+	platform_mutex_deinit(mutex);
+}
+
+struct Scheduler_Test_Task_Context
+{
+	Platform_Mutex *mutex;
+	U32 finished_count;
+};
+
+inline static void
+_scheduler_test_task(void *data)
+{
+	Scheduler_Test_Task_Context *context = (Scheduler_Test_Task_Context *)data;
+
+	platform_mutex_lock(context->mutex);
+	++context->finished_count;
+	platform_mutex_unlock(context->mutex);
+}
+
+inline static void
+_scheduler_test_delayed_task(void *data)
+{
+	platform_thread_sleep(1);
+	_scheduler_test_task(data);
+}
+
+TESTER_TEST("[CORE]: Scheduler Submit")
+{
+	constexpr U32 TASK_COUNT = 64;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Task_Context context = {
+		.mutex = mutex
+	};
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2,
+		.initial_task_queue_capacity = TASK_COUNT
+	});
+
+	for (U32 i = 0; i < TASK_COUNT; ++i)
+	{
+		scheduler_submit(scheduler, Scheduler_Task {
+			.function = _scheduler_test_task,
+			.data = &context
+		});
+	}
+
+	scheduler_wait_all(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	scheduler_deinit(scheduler);
+	platform_mutex_deinit(mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Submit Batch")
+{
+	constexpr U32 TASK_COUNT = 257;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Task_Context context = {
+		.mutex = mutex
+	};
+	Scheduler_Task tasks[TASK_COUNT];
+
+	for (U32 i = 0; i < TASK_COUNT; ++i)
+	{
+		tasks[i] = Scheduler_Task {
+			.function = _scheduler_test_task,
+			.data = &context
+		};
+	}
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 3,
+		.initial_task_queue_capacity = 1
+	});
+
+	scheduler_submit(scheduler, span_init(tasks));
+	scheduler_wait_all(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	scheduler_deinit(scheduler);
+	platform_mutex_deinit(mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Deinit Drains Tasks")
+{
+	constexpr U32 TASK_COUNT = 64;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Task_Context context = {
+		.mutex = mutex
+	};
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2,
+		.initial_task_queue_capacity = TASK_COUNT
+	});
+
+	for (U32 i = 0; i < TASK_COUNT; ++i)
+	{
+		scheduler_submit(scheduler, Scheduler_Task {
+			.function = _scheduler_test_task,
+			.data = &context
+		});
+	}
+
+	scheduler_deinit(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	platform_mutex_deinit(mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Deinit Drains Queued Tasks")
+{
+	constexpr U32 TASK_COUNT = 96;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Task_Context context = {
+		.mutex = mutex
+	};
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 4,
+		.initial_task_queue_capacity = 1
+	});
+
+	for (U32 i = 0; i < TASK_COUNT; ++i)
+	{
+		scheduler_submit(scheduler, Scheduler_Task {
+			.function = _scheduler_test_delayed_task,
+			.data = &context
+		});
+	}
+
+	scheduler_deinit(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	platform_mutex_deinit(mutex);
+}
+
+struct Scheduler_Test_Parallel_For_Context
+{
+	Platform_Mutex *mutex;
+	bool *visited;
+	U32 visited_count;
+	U32 index_sum;
+};
+
+inline static void
+_scheduler_test_parallel_for(U32 begin, U32 end, void *data)
+{
+	Scheduler_Test_Parallel_For_Context *context = (Scheduler_Test_Parallel_For_Context *)data;
+
+	for (U32 i = begin; i < end; ++i)
+	{
+		platform_mutex_lock(context->mutex);
+		validate(!context->visited[i], "[SCHEDULER][TEST]: Parallel for index was visited more than once.");
+		context->visited[i] = true;
+		++context->visited_count;
+		context->index_sum += i;
+		platform_mutex_unlock(context->mutex);
+	}
+}
+
+TESTER_TEST("[CORE]: Scheduler Parallel For")
+{
+	constexpr U32 ITEM_COUNT = 257;
+	constexpr U32 EXPECTED_INDEX_SUM = ITEM_COUNT * (ITEM_COUNT - 1) / 2;
+
+	bool visited[ITEM_COUNT] = {};
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Parallel_For_Context context = {
+		.mutex = mutex,
+		.visited = visited
+	};
+
+	memory::Allocator *temp_allocator = memory::temp_allocator();
+	memory::Arena_Allocator_Mark temp_allocator_mark = memory::temp_allocator_mark();
+	DEFER(memory::temp_allocator_reset_to_mark(temp_allocator_mark));
+	Memory_Block expected_temp_block = memory::allocate(temp_allocator, 16, alignof(U8));
+	memory::temp_allocator_reset_to_mark(temp_allocator_mark);
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2,
+		.initial_task_queue_capacity = 16
+	});
+
+	scheduler_parallel_for(scheduler, Scheduler_Parallel_For_Desc {
+		.count = ITEM_COUNT,
+		.chunk_size = 32,
+		.function = _scheduler_test_parallel_for,
+		.data = &context
+	});
+
+	platform_mutex_lock(mutex);
+	U32 visited_count = context.visited_count;
+	U32 index_sum = context.index_sum;
+	platform_mutex_unlock(mutex);
+	Memory_Block actual_temp_block = memory::allocate(temp_allocator, 16, alignof(U8));
+
+	for (U32 i = 0; i < ITEM_COUNT; ++i)
+		TESTER_CHECK(visited[i]);
+	TESTER_CHECK(visited_count == ITEM_COUNT);
+	TESTER_CHECK(index_sum == EXPECTED_INDEX_SUM);
+	TESTER_CHECK(actual_temp_block.data == expected_temp_block.data);
+
+	scheduler_deinit(scheduler);
+	platform_mutex_deinit(mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Parallel For Auto Chunk Size")
+{
+	constexpr U32 ITEM_COUNT = 257;
+	constexpr U32 EXPECTED_INDEX_SUM = ITEM_COUNT * (ITEM_COUNT - 1) / 2;
+
+	bool visited[ITEM_COUNT] = {};
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Parallel_For_Context context = {
+		.mutex = mutex,
+		.visited = visited
+	};
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2,
+		.initial_task_queue_capacity = 16
+	});
+
+	scheduler_parallel_for(scheduler, Scheduler_Parallel_For_Desc {
+		.count = ITEM_COUNT,
+		.function = _scheduler_test_parallel_for,
+		.data = &context
+	});
+
+	platform_mutex_lock(mutex);
+	U32 visited_count = context.visited_count;
+	U32 index_sum = context.index_sum;
+	platform_mutex_unlock(mutex);
+
+	for (U32 i = 0; i < ITEM_COUNT; ++i)
+		TESTER_CHECK(visited[i]);
+	TESTER_CHECK(visited_count == ITEM_COUNT);
+	TESTER_CHECK(index_sum == EXPECTED_INDEX_SUM);
+
+	scheduler_deinit(scheduler);
+	platform_mutex_deinit(mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Parallel For Small Chunk Stress")
+{
+	constexpr U32 ITEM_COUNT = 1024;
+	constexpr U32 EXPECTED_INDEX_SUM = ITEM_COUNT * (ITEM_COUNT - 1) / 2;
+
+	bool visited[ITEM_COUNT] = {};
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler_Test_Parallel_For_Context context = {
+		.mutex = mutex,
+		.visited = visited
+	};
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 4,
+		.initial_task_queue_capacity = ITEM_COUNT
+	});
+
+	scheduler_parallel_for(scheduler, Scheduler_Parallel_For_Desc {
+		.count = ITEM_COUNT,
+		.chunk_size = 1,
+		.function = _scheduler_test_parallel_for,
+		.data = &context
+	});
+
+	platform_mutex_lock(mutex);
+	U32 visited_count = context.visited_count;
+	U32 index_sum = context.index_sum;
+	platform_mutex_unlock(mutex);
+
+	for (U32 i = 0; i < ITEM_COUNT; ++i)
+		TESTER_CHECK(visited[i]);
+	TESTER_CHECK(visited_count == ITEM_COUNT);
+	TESTER_CHECK(index_sum == EXPECTED_INDEX_SUM);
+
+	scheduler_deinit(scheduler);
+	platform_mutex_deinit(mutex);
+}
+
+struct Scheduler_Test_Blocking_Task_Context
+{
+	Platform_Mutex *mutex;
+	Platform_Condition_Variable *condition_variable;
+	bool started;
+	bool release;
+	bool finished;
+};
+
+inline static void
+_scheduler_test_blocking_task(void *data)
+{
+	Scheduler_Test_Blocking_Task_Context *context = (Scheduler_Test_Blocking_Task_Context *)data;
+
+	platform_mutex_lock(context->mutex);
+	context->started = true;
+	platform_condition_variable_signal(context->condition_variable);
+	while (!context->release)
+		platform_condition_variable_wait(context->condition_variable, context->mutex);
+	context->finished = true;
+	platform_mutex_unlock(context->mutex);
+}
+
+struct Scheduler_Test_Stealing_Context
+{
+	Scheduler *scheduler;
+	Platform_Mutex *mutex;
+	Platform_Condition_Variable *condition_variable;
+	U32 blocked_worker_index;
+	U32 finished_count;
+	U32 stolen_task_count;
+	U32 first_stolen_task_index;
+	bool block_started;
+	bool release;
+	bool blocking_finished;
+};
+
+struct Scheduler_Test_Stealing_Task
+{
+	Scheduler_Test_Stealing_Context *context;
+	U32 queued_worker_index;
+	U32 index;
+};
+
+inline static void
+_scheduler_test_stealing_blocking_task(void *data)
+{
+	Scheduler_Test_Stealing_Context *context = (Scheduler_Test_Stealing_Context *)data;
+	U32 worker_index = scheduler_get_current_worker_index(context->scheduler);
+
+	platform_mutex_lock(context->mutex);
+	context->blocked_worker_index = worker_index;
+	context->block_started = true;
+	platform_condition_variable_signal(context->condition_variable);
+	while (!context->release)
+		platform_condition_variable_wait(context->condition_variable, context->mutex);
+	context->blocking_finished = true;
+	platform_mutex_unlock(context->mutex);
+}
+
+inline static void
+_scheduler_test_stealing_task(void *data)
+{
+	Scheduler_Test_Stealing_Task *task = (Scheduler_Test_Stealing_Task *)data;
+	Scheduler_Test_Stealing_Context *context = task->context;
+	U32 worker_index = scheduler_get_current_worker_index(context->scheduler);
+
+	platform_mutex_lock(context->mutex);
+	++context->finished_count;
+	if (task->queued_worker_index == context->blocked_worker_index && worker_index != context->blocked_worker_index)
+	{
+		if (context->first_stolen_task_index == U32_MAX)
+			context->first_stolen_task_index = task->index;
+		++context->stolen_task_count;
+	}
+	platform_mutex_unlock(context->mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Steals From Blocked Worker")
+{
+	constexpr U32 WORKER_COUNT = 2;
+	constexpr U32 TASK_COUNT = 64;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Platform_Condition_Variable *condition_variable = platform_condition_variable_init();
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = WORKER_COUNT,
+		.initial_task_queue_capacity = TASK_COUNT + 1
+	});
+	Scheduler_Group *group = scheduler_group_init(scheduler);
+	Scheduler_Test_Stealing_Context context = {
+		.scheduler = scheduler,
+		.mutex = mutex,
+		.condition_variable = condition_variable,
+		.blocked_worker_index = U32_MAX,
+		.first_stolen_task_index = U32_MAX
+	};
+
+	scheduler_submit(scheduler, Scheduler_Task {
+		.function = _scheduler_test_stealing_blocking_task,
+		.data = &context
+	});
+
+	platform_mutex_lock(mutex);
+	while (!context.block_started)
+		platform_condition_variable_wait(condition_variable, mutex);
+	U32 blocked_worker_index = context.blocked_worker_index;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(blocked_worker_index < WORKER_COUNT);
+
+	Scheduler_Test_Stealing_Task task_data[TASK_COUNT];
+	Scheduler_Task tasks[TASK_COUNT];
+	for (U32 i = 0; i < TASK_COUNT; ++i)
+	{
+		task_data[i] = Scheduler_Test_Stealing_Task {
+			.context = &context,
+			.queued_worker_index = (1 + i) % WORKER_COUNT,
+			.index = i
+		};
+		tasks[i] = Scheduler_Task {
+			.function = _scheduler_test_stealing_task,
+			.data = &task_data[i]
+		};
+	}
+
+	scheduler_submit(scheduler, span_init(tasks), group);
+	scheduler_wait_group(scheduler, group);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	U32 stolen_task_count = context.stolen_task_count;
+	U32 first_stolen_task_index = context.first_stolen_task_index;
+	bool blocking_finished = context.blocking_finished;
+	context.release = true;
+	platform_condition_variable_signal(condition_variable);
+	platform_mutex_unlock(mutex);
+
+	U32 expected_first_stolen_task_index = TASK_COUNT - 1;
+	while ((1 + expected_first_stolen_task_index) % WORKER_COUNT != blocked_worker_index)
+		--expected_first_stolen_task_index;
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	TESTER_CHECK(stolen_task_count > 0);
+	TESTER_CHECK(first_stolen_task_index == expected_first_stolen_task_index);
+	TESTER_CHECK(!blocking_finished);
+
+	scheduler_wait_all(scheduler);
+
+	scheduler_group_deinit(scheduler, group);
+	scheduler_deinit(scheduler);
+	platform_condition_variable_deinit(condition_variable);
+	platform_mutex_deinit(mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Wait Group")
+{
+	constexpr U32 TASK_COUNT = 64;
+
+	Platform_Mutex *task_mutex = platform_mutex_init();
+	Scheduler_Test_Task_Context task_context = {
+		.mutex = task_mutex
+	};
+
+	Platform_Mutex *blocking_mutex = platform_mutex_init();
+	Platform_Condition_Variable *blocking_condition_variable = platform_condition_variable_init();
+	Scheduler_Test_Blocking_Task_Context blocking_context = {
+		.mutex = blocking_mutex,
+		.condition_variable = blocking_condition_variable
+	};
+
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 2
+	});
+	Scheduler_Group *group = scheduler_group_init(scheduler);
+
+	scheduler_submit(scheduler, Scheduler_Task {
+		.function = _scheduler_test_blocking_task,
+		.data = &blocking_context
+	});
+
+	platform_mutex_lock(blocking_mutex);
+	while (!blocking_context.started)
+		platform_condition_variable_wait(blocking_condition_variable, blocking_mutex);
+	platform_mutex_unlock(blocking_mutex);
+
+	Scheduler_Task tasks[TASK_COUNT];
+	for (U32 i = 0; i < TASK_COUNT; ++i)
+	{
+		tasks[i] = Scheduler_Task {
+			.function = _scheduler_test_task,
+			.data = &task_context
+		};
+	}
+	scheduler_submit(scheduler, span_init(tasks), group);
+
+	scheduler_wait_group(scheduler, group);
+
+	platform_mutex_lock(task_mutex);
+	U32 finished_count = task_context.finished_count;
+	platform_mutex_unlock(task_mutex);
+
+	platform_mutex_lock(blocking_mutex);
+	bool blocking_task_finished = blocking_context.finished;
+	blocking_context.release = true;
+	platform_condition_variable_signal(blocking_condition_variable);
+	platform_mutex_unlock(blocking_mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	TESTER_CHECK(!blocking_task_finished);
+
+	scheduler_wait_all(scheduler);
+
+	scheduler_group_deinit(scheduler, group);
+	scheduler_deinit(scheduler);
+	platform_condition_variable_deinit(blocking_condition_variable);
+	platform_mutex_deinit(blocking_mutex);
+	platform_mutex_deinit(task_mutex);
+}
+
+struct Scheduler_Test_Waiting_Task_Context
+{
+	Scheduler *scheduler;
+	Scheduler_Group *group;
+	Platform_Mutex *mutex;
+	U32 child_task_count;
+	U32 finished_count;
+	bool parent_finished;
+};
+
+inline static void
+_scheduler_test_child_task(void *data)
+{
+	Scheduler_Test_Waiting_Task_Context *context = (Scheduler_Test_Waiting_Task_Context *)data;
+
+	platform_mutex_lock(context->mutex);
+	++context->finished_count;
+	platform_mutex_unlock(context->mutex);
+}
+
+inline static void
+_scheduler_test_waiting_parent_task(void *data)
+{
+	Scheduler_Test_Waiting_Task_Context *context = (Scheduler_Test_Waiting_Task_Context *)data;
+
+	for (U32 i = 0; i < context->child_task_count; ++i)
+	{
+		scheduler_submit(context->scheduler, Scheduler_Task {
+			.function = _scheduler_test_child_task,
+			.data = context
+		}, context->group);
+	}
+
+	scheduler_wait_group(context->scheduler, context->group);
+
+	platform_mutex_lock(context->mutex);
+	context->parent_finished = true;
+	platform_mutex_unlock(context->mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Worker Wait Group")
+{
+	constexpr U32 TASK_COUNT = 64;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 1
+	});
+	Scheduler_Group *group = scheduler_group_init(scheduler);
+	Scheduler_Test_Waiting_Task_Context context = {
+		.scheduler = scheduler,
+		.group = group,
+		.mutex = mutex,
+		.child_task_count = TASK_COUNT
+	};
+
+	scheduler_submit(scheduler, Scheduler_Task {
+		.function = _scheduler_test_waiting_parent_task,
+		.data = &context
+	});
+
+	scheduler_wait_all(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	bool parent_finished = context.parent_finished;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	TESTER_CHECK(parent_finished);
+
+	scheduler_group_deinit(scheduler, group);
+	scheduler_deinit(scheduler);
+	platform_mutex_deinit(mutex);
+}
+
+TESTER_TEST("[CORE]: Scheduler Worker Wait Group Multi Worker")
+{
+	constexpr U32 TASK_COUNT = 128;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Scheduler *scheduler = scheduler_init(Scheduler_Desc {
+		.worker_count = 3,
+		.initial_task_queue_capacity = TASK_COUNT
+	});
+	Scheduler_Group *group = scheduler_group_init(scheduler);
+	Scheduler_Test_Waiting_Task_Context context = {
+		.scheduler = scheduler,
+		.group = group,
+		.mutex = mutex,
+		.child_task_count = TASK_COUNT
+	};
+
+	scheduler_submit(scheduler, Scheduler_Task {
+		.function = _scheduler_test_waiting_parent_task,
+		.data = &context
+	});
+
+	scheduler_wait_all(scheduler);
+
+	platform_mutex_lock(mutex);
+	U32 finished_count = context.finished_count;
+	bool parent_finished = context.parent_finished;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT);
+	TESTER_CHECK(parent_finished);
+
+	scheduler_group_deinit(scheduler, group);
+	scheduler_deinit(scheduler);
+	platform_mutex_deinit(mutex);
+}
 
 TESTER_TEST("[CORE]: Arena_Allocator")
 {
@@ -238,6 +1423,32 @@ TESTER_TEST("[CORE]: Temp_Allocator_Mark")
 	memory::temp_allocator_reset_to_mark(start_mark);
 	Memory_Block first_reused = memory::allocate(temp, 16, alignof(U8));
 	TESTER_CHECK(first_reused.data == first.data);
+}
+
+struct Temp_Allocator_Thread_Test_Context
+{
+	memory::Allocator *allocator;
+};
+
+inline static void
+_temp_allocator_thread_test(void *data)
+{
+	Temp_Allocator_Thread_Test_Context *context = (Temp_Allocator_Thread_Test_Context *)data;
+	context->allocator = memory::temp_allocator();
+}
+
+TESTER_TEST("[CORE]: Temp_Allocator Thread Local")
+{
+	memory::Allocator *main_allocator = memory::temp_allocator();
+	Temp_Allocator_Thread_Test_Context context = {};
+	Platform_Thread *thread = platform_thread_init(Platform_Thread_Desc {
+		.function = _temp_allocator_thread_test,
+		.data = &context
+	});
+	platform_thread_deinit(thread);
+
+	TESTER_CHECK(context.allocator != nullptr);
+	TESTER_CHECK(context.allocator != main_allocator);
 }
 
 TESTER_TEST("[CORE]: Virtual_Memory")

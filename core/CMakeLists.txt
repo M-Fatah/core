@@ -1,4 +1,5 @@
 set(HEADER_FILES
+    atomic.h
     base64.h
     defer.h
     defines.h
@@ -10,8 +11,13 @@ set(HEADER_FILES
     print.h
     reflect.h
     result.h
+    scheduler.h
     source_location.h
     tester.h
+    compiler/compiler_clang.h
+    compiler/compiler_gcc.h
+    compiler/compiler_msvc.h
+    compiler/compiler.h
     containers/array.h
     containers/hash_set.h
     containers/hash_table.h
@@ -46,7 +52,7 @@ set(HEADER_FILES
     math/f64x4x4.h
     math/quaternion.h
     math/random.h
-    memory/memory.h
+    memory/allocator.h
     memory/heap_allocator.h
     memory/arena_allocator.h
     memory/pool_allocator.h
@@ -61,8 +67,8 @@ set(SOURCE_FILES
     base64.cpp
     ecs.cpp
     json.cpp
+    scheduler.cpp
     tester.cpp
-    memory/memory.cpp
     memory/heap_allocator.cpp
     memory/arena_allocator.cpp
     memory/pool_allocator.cpp

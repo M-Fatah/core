@@ -52,6 +52,206 @@ TESTER_TEST("[PLATFORM] callstack")
 	#endif
 }
 
+struct Platform_Thread_Test_Context
+{
+	U32 value;
+};
+
+inline static void
+_platform_thread_test_entry(void *data)
+{
+	Platform_Thread_Test_Context *context = (Platform_Thread_Test_Context *)data;
+	platform_thread_sleep(0);
+	context->value = 42;
+}
+
+TESTER_TEST("[PLATFORM] thread")
+{
+	Platform_Thread_Test_Context context = {};
+	Platform_Thread *thread = platform_thread_init(Platform_Thread_Desc {
+		.function = _platform_thread_test_entry,
+		.data = &context,
+		.name = "CoreTest"
+	});
+
+	platform_thread_join(thread);
+	TESTER_CHECK(context.value == 42);
+	platform_thread_deinit(thread);
+	TESTER_CHECK(platform_get_logical_processor_count() > 0);
+}
+
+struct Platform_Mutex_Test_Context
+{
+	Platform_Mutex *mutex;
+	U32 *counter;
+	U32 iteration_count;
+};
+
+inline static void
+_platform_mutex_test_entry(void *data)
+{
+	Platform_Mutex_Test_Context *context = (Platform_Mutex_Test_Context *)data;
+	for (U32 i = 0; i < context->iteration_count; ++i)
+	{
+		platform_mutex_lock(context->mutex);
+		*context->counter += 1;
+		platform_mutex_unlock(context->mutex);
+	}
+}
+
+TESTER_TEST("[PLATFORM] mutex")
+{
+	constexpr U32 THREAD_COUNT = 4;
+	constexpr U32 ITERATION_COUNT = 10000;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	U32 counter = 0;
+	Platform_Thread *threads[THREAD_COUNT] = {};
+	Platform_Mutex_Test_Context contexts[THREAD_COUNT] = {};
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+	{
+		contexts[i] = Platform_Mutex_Test_Context {
+			.mutex = mutex,
+			.counter = &counter,
+			.iteration_count = ITERATION_COUNT
+		};
+		threads[i] = platform_thread_init(Platform_Thread_Desc {
+			.function = _platform_mutex_test_entry,
+			.data = &contexts[i]
+		});
+	}
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+		platform_thread_deinit(threads[i]);
+
+	TESTER_CHECK(counter == THREAD_COUNT * ITERATION_COUNT);
+	platform_mutex_deinit(mutex);
+}
+
+struct Platform_Condition_Variable_Signal_Test_Context
+{
+	Platform_Mutex *mutex;
+	Platform_Condition_Variable *waiting_condition_variable;
+	Platform_Condition_Variable *ready_condition_variable;
+	bool waiting;
+	bool ready;
+	bool woke;
+};
+
+inline static void
+_platform_condition_variable_signal_test_entry(void *data)
+{
+	Platform_Condition_Variable_Signal_Test_Context *context = (Platform_Condition_Variable_Signal_Test_Context *)data;
+
+	platform_mutex_lock(context->mutex);
+	context->waiting = true;
+	platform_condition_variable_signal(context->waiting_condition_variable);
+	while (!context->ready)
+		platform_condition_variable_wait(context->ready_condition_variable, context->mutex);
+	context->woke = true;
+	platform_mutex_unlock(context->mutex);
+}
+
+TESTER_TEST("[PLATFORM] condition variable signal")
+{
+	Platform_Mutex *mutex = platform_mutex_init();
+	Platform_Condition_Variable *waiting_condition_variable = platform_condition_variable_init();
+	Platform_Condition_Variable *ready_condition_variable = platform_condition_variable_init();
+	Platform_Condition_Variable_Signal_Test_Context context = {
+		.mutex = mutex,
+		.waiting_condition_variable = waiting_condition_variable,
+		.ready_condition_variable = ready_condition_variable
+	};
+
+	Platform_Thread *thread = platform_thread_init(Platform_Thread_Desc {
+		.function = _platform_condition_variable_signal_test_entry,
+		.data = &context
+	});
+
+	platform_mutex_lock(mutex);
+	while (!context.waiting)
+		platform_condition_variable_wait(waiting_condition_variable, mutex);
+	context.ready = true;
+	platform_condition_variable_signal(ready_condition_variable);
+	platform_mutex_unlock(mutex);
+
+	platform_thread_deinit(thread);
+	TESTER_CHECK(context.woke);
+	platform_condition_variable_deinit(ready_condition_variable);
+	platform_condition_variable_deinit(waiting_condition_variable);
+	platform_mutex_deinit(mutex);
+}
+
+struct Platform_Condition_Variable_Broadcast_Test_Context
+{
+	Platform_Mutex *mutex;
+	Platform_Condition_Variable *waiting_condition_variable;
+	Platform_Condition_Variable *ready_condition_variable;
+	U32 *waiting_count;
+	U32 *wake_count;
+	bool *ready;
+};
+
+inline static void
+_platform_condition_variable_broadcast_test_entry(void *data)
+{
+	Platform_Condition_Variable_Broadcast_Test_Context *context = (Platform_Condition_Variable_Broadcast_Test_Context *)data;
+
+	platform_mutex_lock(context->mutex);
+	*context->waiting_count += 1;
+	platform_condition_variable_signal(context->waiting_condition_variable);
+	while (!*context->ready)
+		platform_condition_variable_wait(context->ready_condition_variable, context->mutex);
+	*context->wake_count += 1;
+	platform_mutex_unlock(context->mutex);
+}
+
+TESTER_TEST("[PLATFORM] condition variable broadcast")
+{
+	constexpr U32 THREAD_COUNT = 4;
+
+	Platform_Mutex *mutex = platform_mutex_init();
+	Platform_Condition_Variable *waiting_condition_variable = platform_condition_variable_init();
+	Platform_Condition_Variable *ready_condition_variable = platform_condition_variable_init();
+	Platform_Thread *threads[THREAD_COUNT] = {};
+	Platform_Condition_Variable_Broadcast_Test_Context contexts[THREAD_COUNT] = {};
+	U32 waiting_count = 0;
+	U32 wake_count = 0;
+	bool ready = false;
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+	{
+		contexts[i] = Platform_Condition_Variable_Broadcast_Test_Context {
+			.mutex = mutex,
+			.waiting_condition_variable = waiting_condition_variable,
+			.ready_condition_variable = ready_condition_variable,
+			.waiting_count = &waiting_count,
+			.wake_count = &wake_count,
+			.ready = &ready
+		};
+		threads[i] = platform_thread_init(Platform_Thread_Desc {
+			.function = _platform_condition_variable_broadcast_test_entry,
+			.data = &contexts[i]
+		});
+	}
+
+	platform_mutex_lock(mutex);
+	while (waiting_count != THREAD_COUNT)
+		platform_condition_variable_wait(waiting_condition_variable, mutex);
+	ready = true;
+	platform_condition_variable_broadcast(ready_condition_variable);
+	platform_mutex_unlock(mutex);
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+		platform_thread_deinit(threads[i]);
+
+	TESTER_CHECK(wake_count == THREAD_COUNT);
+	platform_condition_variable_deinit(ready_condition_variable);
+	platform_condition_variable_deinit(waiting_condition_variable);
+	platform_mutex_deinit(mutex);
+}
+
 TESTER_TEST("[PLATFORM] path utilities")
 {
 	String executable_path = platform_path_get_executable_path(memory::temp_allocator());

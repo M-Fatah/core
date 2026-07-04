@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/export.h"
-#include "core/memory/memory.h"
+#include "core/memory/allocator.h"
 
 namespace memory
 {

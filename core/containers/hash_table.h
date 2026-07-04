@@ -4,7 +4,7 @@
 #include "core/hash.h"
 #include "core/math/u64.h"
 #include "core/reflect.h"
-#include "core/memory/memory.h"
+#include "core/memory/allocator.h"
 #include "core/containers/array.h"
 
 #include <initializer_list>

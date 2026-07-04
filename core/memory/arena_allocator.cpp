@@ -225,4 +225,29 @@ namespace memory
 	{
 		return self->ctx->peak;
 	}
+
+	Allocator *
+	temp_allocator()
+	{
+		static thread_local Arena_Allocator allocator;
+		return &allocator;
+	}
+
+	void
+	temp_allocator_clear()
+	{
+		((Arena_Allocator *)temp_allocator())->clear();
+	}
+
+	Arena_Allocator_Mark
+	temp_allocator_mark()
+	{
+		return arena_allocator_mark((Arena_Allocator *)temp_allocator());
+	}
+
+	void
+	temp_allocator_reset_to_mark(Arena_Allocator_Mark mark)
+	{
+		arena_allocator_reset_to_mark((Arena_Allocator *)temp_allocator(), mark);
+	}
 }

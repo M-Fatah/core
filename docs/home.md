@@ -8,17 +8,20 @@
 
 | Module | Header | Description |
 |---|---|---|
-| [Memory & Allocators](memory.md) | `core/memory/memory.h` | Allocator interface, heap, arena, pool, temp allocators |
+| [Memory & Allocators](memory.md) | `core/memory/allocator.h` | Allocator interface, heap, arena, pool, temp allocators |
 | [Containers](containers.md) | `core/containers/` | Array, Stack\_Array, Span, String, Hash\_Table, Hash\_Set, String\_Interner |
 | [Formatter](formatter.md) | `core/formatter.h` | `format()` / `Formatter` — type-safe string formatting |
 | [Print & Log](print-log.md) | `core/print.h`, `core/log.h` | Colored output, log levels |
 | [Defer](defer.md) | `core/defer.h` | RAII scope-exit macro |
 | [Validate](validate.md) | `core/validate.h` | Runtime assertions with source location |
+| [Compiler](compiler.md) | `core/compiler/compiler.h` | Compiler-specific inline primitives |
 | [Result & Error](result.md) | `core/result.h` | Error-returning pattern without exceptions |
 | [Hash](hash.md) | `core/hash.h` | FNV-32 and type-generic `hash()` overloads |
 | [Reflect](reflect.md) | `core/reflect.h` | Compile-time type reflection: kinds, names, fields, enums |
 | [Serialization](serialization.md) | `core/serialization/` | Binary and JSON serializers |
 | [ECS](ecs.md) | `core/ecs.h` | Minimal entity-component system |
+| [Atomic](atomic.md) | `core/atomic.h` | Typed U32/U64 atomic operations |
+| [Scheduler](scheduler.md) | `core/scheduler.h` | Long-lived worker-thread lifetime helper |
 | [Platform](platform.md) | `core/platform/platform.h` | File I/O, paths, dialogs |
 
 ---

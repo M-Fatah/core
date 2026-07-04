@@ -9,7 +9,6 @@
 
 /*
 	TODO:
-	- [ ] Rename this file to allocator.h?
 	- [ ] Add meta allocator to arena and pool allocators?
 */
 
