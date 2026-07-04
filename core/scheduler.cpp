@@ -40,71 +40,58 @@ struct Scheduler
 	Platform_Condition_Variable *idle_condition_variable;
 	Platform_Condition_Variable *group_condition_variable;
 	Array<Scheduler_Worker> workers;
-	U64 next_worker_index;
-	U64 queued_task_count;
+	U32 worker_count;
+	U32 active_replacement_worker_count;
+	U32 queued_task_count;
 	U32 started_worker_count;
 	U32 active_task_count;
 	U32 live_group_count;
 	U32 blocked_worker_count;
-	bool running;
+	U32 next_worker_index;
+	bool is_running;
 };
 
 inline static void
-_scheduler_wake_task_waiters(Scheduler *self)
+_scheduler_update_active_replacement_worker_count(Scheduler *self)
 {
+	U32 replacement_worker_count = (U32)self->workers.count - self->worker_count;
+	U32 active_replacement_worker_count = u32_min(self->blocked_worker_count, replacement_worker_count);
+	if (self->active_replacement_worker_count == active_replacement_worker_count)
+		return;
+
+	self->active_replacement_worker_count = active_replacement_worker_count;
 	platform_condition_variable_broadcast(self->work_condition_variable);
-	platform_condition_variable_broadcast(self->group_condition_variable);
-}
-
-inline static void
-_scheduler_queue_task(Scheduler *self, Scheduler_Queued_Task queued_task)
-{
-	Scheduler_Worker *worker = &self->workers[self->next_worker_index];
-	self->next_worker_index = (self->next_worker_index + 1) % self->workers.count;
-	ring_buffer_push_back(worker->tasks, queued_task);
-	++self->queued_task_count;
-}
-
-inline static void
-_scheduler_reserve_worker_queue_space(Scheduler *self, U64 task_count)
-{
-	U64 worker_count = self->workers.count;
-	U64 task_count_per_worker = task_count / worker_count;
-	U64 extra_task_count = task_count % worker_count;
-
-	for (U64 i = 0; i < worker_count; ++i)
-	{
-		U64 worker_offset = i >= self->next_worker_index ? i - self->next_worker_index : worker_count - self->next_worker_index + i;
-		U64 worker_task_count = task_count_per_worker;
-		if (worker_offset < extra_task_count)
-			++worker_task_count;
-		ring_buffer_reserve(self->workers[i].tasks, worker_task_count);
-	}
 }
 
 inline static bool
 _scheduler_try_run_next_task_from_locked_worker_queues(Scheduler *self, Scheduler_Worker *worker)
 {
-	Scheduler_Worker *source_worker = worker;
-	if (ring_buffer_is_empty(source_worker->tasks))
+	Scheduler_Queued_Task queued_task = {};
+	if (!ring_buffer_is_empty(worker->tasks))
 	{
-		source_worker = nullptr;
-		for (U64 i = 1; i < self->workers.count; ++i)
+		queued_task = ring_buffer_front(worker->tasks);
+		ring_buffer_pop_front(worker->tasks);
+	}
+	else
+	{
+		Scheduler_Worker *source_worker = nullptr;
+		for (U32 i = 0; i < self->worker_count; ++i)
 		{
-			Scheduler_Worker *other_worker = &self->workers[(worker->index + i) % self->workers.count];
-			if (!ring_buffer_is_empty(other_worker->tasks))
-			{
-				source_worker = other_worker;
-				break;
-			}
+			Scheduler_Worker *other_worker = &self->workers[(worker->index + i) % self->worker_count];
+			if (other_worker == worker || ring_buffer_is_empty(other_worker->tasks))
+				continue;
+
+			source_worker = other_worker;
+			break;
 		}
+
+		if (source_worker == nullptr)
+			return false;
+
+		queued_task = ring_buffer_back(source_worker->tasks);
+		ring_buffer_pop_back(source_worker->tasks);
 	}
 
-	if (source_worker == nullptr)
-		return false;
-
-	Scheduler_Queued_Task queued_task = ring_buffer_front(source_worker->tasks);
-	ring_buffer_pop_front(source_worker->tasks);
 	--self->queued_task_count;
 	++self->active_task_count;
 	platform_mutex_unlock(self->mutex);
@@ -135,61 +122,70 @@ Scheduler *
 scheduler_init(Scheduler_Desc desc)
 {
 	validate(desc.worker_count > 0, "[SCHEDULER]: Worker count must be greater than 0.");
+	U32 total_worker_count = desc.worker_count + desc.replacement_worker_count;
 
 	Platform_Thread_Function worker_function = [](void *data) {
 		Scheduler_Worker *worker = (Scheduler_Worker *)data;
 		Scheduler *self = worker->scheduler;
-		Scheduler_Worker *previous_worker = scheduler_current_worker;
 		scheduler_current_worker = worker;
+		constexpr auto worker_is_active = [](Scheduler *self, Scheduler_Worker *worker) -> bool {
+			if (worker->index < self->worker_count)
+				return true;
+			return worker->index - self->worker_count < self->active_replacement_worker_count;
+		};
 
 		platform_mutex_lock(self->mutex);
 		++self->started_worker_count;
 		platform_condition_variable_signal(self->startup_condition_variable);
 		while (true)
 		{
-			while (self->running && self->queued_task_count == 0)
+			while (self->is_running && (self->queued_task_count == 0 || !worker_is_active(self, worker)))
 				platform_condition_variable_wait(self->work_condition_variable, self->mutex);
 
-			if (!self->running && self->queued_task_count == 0)
+			if (!self->is_running && (self->queued_task_count == 0 || !worker_is_active(self, worker)))
 				break;
 
 			_scheduler_try_run_next_task_from_locked_worker_queues(self, worker);
 		}
 		platform_mutex_unlock(self->mutex);
-		scheduler_current_worker = previous_worker;
+		scheduler_current_worker = nullptr;
 	};
 
 	Scheduler *self = memory::allocate_zeroed<Scheduler>();
-	self->mutex = platform_mutex_init();
+	self->mutex                      = platform_mutex_init();
 	self->startup_condition_variable = platform_condition_variable_init();
-	self->work_condition_variable = platform_condition_variable_init();
-	self->idle_condition_variable = platform_condition_variable_init();
-	self->group_condition_variable = platform_condition_variable_init();
-	self->workers = array_init_with_count<Scheduler_Worker>(desc.worker_count);
-	self->running = true;
+	self->work_condition_variable    = platform_condition_variable_init();
+	self->idle_condition_variable    = platform_condition_variable_init();
+	self->group_condition_variable   = platform_condition_variable_init();
+	self->workers                    = array_init_with_count<Scheduler_Worker>(total_worker_count);
+	self->worker_count               = desc.worker_count;
+	self->is_running                 = true;
 
-	for (U32 i = 0; i < desc.worker_count; ++i)
+	U64 task_queue_capacity_per_worker = desc.initial_task_queue_capacity / desc.worker_count;
+	U64 extra_task_queue_capacity      = desc.initial_task_queue_capacity % desc.worker_count;
+	for (U32 i = 0; i < total_worker_count; ++i)
 	{
 		Scheduler_Worker *worker = &self->workers[i];
 		*worker = Scheduler_Worker {};
 		worker->scheduler = self;
 		worker->tasks = ring_buffer_init<Scheduler_Queued_Task>();
-		U64 task_queue_capacity = desc.initial_task_queue_capacity / desc.worker_count;
-		if (i < desc.initial_task_queue_capacity % desc.worker_count)
-			++task_queue_capacity;
-		ring_buffer_reserve(worker->tasks, task_queue_capacity);
-		worker->current_group = nullptr;
+		if (i < desc.worker_count)
+		{
+			U64 task_queue_capacity = task_queue_capacity_per_worker;
+			if (i < extra_task_queue_capacity)
+				++task_queue_capacity;
+			ring_buffer_reserve(worker->tasks, task_queue_capacity);
+		}
 		worker->index = i;
-		worker->blocking_depth = 0;
 		worker->thread = platform_thread_init(Platform_Thread_Desc {
 			.function = worker_function,
 			.data = worker,
-			.name = desc.worker_name != nullptr ? desc.worker_name : "Scheduler"
+			.name = desc.worker_thread_name != nullptr ? desc.worker_thread_name : "Scheduler"
 		});
 	}
 
 	platform_mutex_lock(self->mutex);
-	while (self->started_worker_count != desc.worker_count)
+	while (self->started_worker_count != total_worker_count)
 		platform_condition_variable_wait(self->startup_condition_variable, self->mutex);
 	platform_mutex_unlock(self->mutex);
 
@@ -203,15 +199,17 @@ scheduler_deinit(Scheduler *self)
 
 	platform_mutex_lock(self->mutex);
 	validate(self->live_group_count == 0, "[SCHEDULER]: Cannot deinit scheduler while task groups are alive.");
-	self->running = false;
+	self->is_running = false;
 	platform_condition_variable_broadcast(self->work_condition_variable);
 	platform_mutex_unlock(self->mutex);
 
 	for (U64 i = 0; i < self->workers.count; ++i)
-	{
 		platform_thread_deinit(self->workers[i].thread);
+
+	validate(self->queued_task_count == 0 && self->active_task_count == 0, "[SCHEDULER]: Shutdown did not drain all tasks.");
+
+	for (U64 i = 0; i < self->workers.count; ++i)
 		ring_buffer_deinit(self->workers[i].tasks);
-	}
 	array_deinit(self->workers);
 	validate(self->blocked_worker_count == 0, "[SCHEDULER]: Cannot deinit scheduler while workers are marked as blocking.");
 	platform_condition_variable_deinit(self->group_condition_variable);
@@ -226,7 +224,7 @@ Scheduler_Group *
 scheduler_group_init(Scheduler *self)
 {
 	platform_mutex_lock(self->mutex);
-	validate(self->running, "[SCHEDULER]: Cannot create task group after shutdown.");
+	validate(self->is_running, "[SCHEDULER]: Cannot create task group after shutdown.");
 	++self->live_group_count;
 	platform_mutex_unlock(self->mutex);
 
@@ -249,71 +247,40 @@ scheduler_group_deinit(Scheduler *self, Scheduler_Group *group)
 }
 
 void
-scheduler_submit(Scheduler *self, Scheduler_Task task)
-{
-	platform_mutex_lock(self->mutex);
-	validate(self->running, "[SCHEDULER]: Cannot submit task after shutdown.");
-	_scheduler_queue_task(self, Scheduler_Queued_Task {
-		.task = task
-	});
-	_scheduler_wake_task_waiters(self);
-	platform_mutex_unlock(self->mutex);
-}
-
-void
-scheduler_submit(Scheduler *self, Span<const Scheduler_Task> tasks)
-{
-	platform_mutex_lock(self->mutex);
-	validate(self->running, "[SCHEDULER]: Cannot submit task after shutdown.");
-	if (tasks.count != 0)
-	{
-		_scheduler_reserve_worker_queue_space(self, tasks.count);
-		for (U64 i = 0; i < tasks.count; ++i)
-		{
-			_scheduler_queue_task(self, Scheduler_Queued_Task {
-				.task = tasks.data[i]
-			});
-		}
-		_scheduler_wake_task_waiters(self);
-	}
-	platform_mutex_unlock(self->mutex);
-}
-
-void
-scheduler_submit(Scheduler *self, Scheduler_Task task, Scheduler_Group *group)
-{
-	validate(group->scheduler == self, "[SCHEDULER]: Task group belongs to a different scheduler.");
-
-	platform_mutex_lock(self->mutex);
-	validate(self->running, "[SCHEDULER]: Cannot submit task after shutdown.");
-	++group->pending_task_count;
-	_scheduler_queue_task(self, Scheduler_Queued_Task {
-		.task = task,
-		.group = group
-	});
-	_scheduler_wake_task_waiters(self);
-	platform_mutex_unlock(self->mutex);
-}
-
-void
 scheduler_submit(Scheduler *self, Span<const Scheduler_Task> tasks, Scheduler_Group *group)
 {
-	validate(group->scheduler == self, "[SCHEDULER]: Task group belongs to a different scheduler.");
+	validate(group == nullptr || group->scheduler == self, "[SCHEDULER]: Task group belongs to a different scheduler.");
 
 	platform_mutex_lock(self->mutex);
-	validate(self->running, "[SCHEDULER]: Cannot submit task after shutdown.");
+	validate(self->is_running, "[SCHEDULER]: Cannot submit task after shutdown.");
 	if (tasks.count != 0)
 	{
-		group->pending_task_count += tasks.count;
-		_scheduler_reserve_worker_queue_space(self, tasks.count);
+		U64 task_count_per_worker = tasks.count / self->worker_count;
+		U64 remaining_task_count = tasks.count % self->worker_count;
+		for (U32 i = 0; i < self->worker_count; ++i)
+		{
+			U64 worker_offset = i >= self->next_worker_index ? i - self->next_worker_index : self->worker_count - self->next_worker_index + i;
+			U64 worker_task_count = task_count_per_worker;
+			if (worker_offset < remaining_task_count)
+				++worker_task_count;
+			ring_buffer_reserve(self->workers[i].tasks, worker_task_count);
+		}
+
+		if (group != nullptr)
+			group->pending_task_count += tasks.count;
+
 		for (U64 i = 0; i < tasks.count; ++i)
 		{
-			_scheduler_queue_task(self, Scheduler_Queued_Task {
+			Scheduler_Worker *worker = &self->workers[self->next_worker_index];
+			self->next_worker_index = (self->next_worker_index + 1) % self->worker_count;
+			ring_buffer_push_back(worker->tasks, Scheduler_Queued_Task {
 				.task = tasks.data[i],
 				.group = group
 			});
+			++self->queued_task_count;
 		}
-		_scheduler_wake_task_waiters(self);
+		platform_condition_variable_broadcast(self->work_condition_variable);
+		platform_condition_variable_broadcast(self->group_condition_variable);
 	}
 	platform_mutex_unlock(self->mutex);
 }
@@ -322,20 +289,15 @@ void
 scheduler_wait_group(Scheduler *self, Scheduler_Group *group)
 {
 	validate(group->scheduler == self, "[SCHEDULER]: Scheduler group belongs to a different scheduler.");
-	if (scheduler_current_worker != nullptr && scheduler_current_worker->scheduler == self)
-		validate(scheduler_current_worker->current_group != group, "[SCHEDULER]: Scheduler task cannot wait for its own group.");
+	bool is_scheduler_worker = scheduler_current_worker != nullptr && scheduler_current_worker->scheduler == self;
+	validate(!is_scheduler_worker || scheduler_current_worker->current_group != group, "[SCHEDULER]: Scheduler task cannot wait for its own group.");
 
 	platform_mutex_lock(self->mutex);
-	if (scheduler_current_worker != nullptr && scheduler_current_worker->scheduler == self)
+	while (group->pending_task_count != 0)
 	{
-		while (group->pending_task_count != 0)
-			if (!_scheduler_try_run_next_task_from_locked_worker_queues(self, scheduler_current_worker))
-				platform_condition_variable_wait(self->group_condition_variable, self->mutex);
-	}
-	else
-	{
-		while (group->pending_task_count != 0)
-			platform_condition_variable_wait(self->group_condition_variable, self->mutex);
+		if (is_scheduler_worker && _scheduler_try_run_next_task_from_locked_worker_queues(self, scheduler_current_worker))
+			continue;
+		platform_condition_variable_wait(self->group_condition_variable, self->mutex);
 	}
 	platform_mutex_unlock(self->mutex);
 }
@@ -357,9 +319,11 @@ scheduler_worker_block_ahead(Scheduler *self)
 	validate(scheduler_current_worker != nullptr && scheduler_current_worker->scheduler == self, "[SCHEDULER]: Only a scheduler worker can mark itself as blocking.");
 
 	platform_mutex_lock(self->mutex);
-	validate(scheduler_current_worker->blocking_depth < U32_MAX, "[SCHEDULER]: Worker blocking depth overflow.");
 	if (scheduler_current_worker->blocking_depth == 0)
+	{
 		++self->blocked_worker_count;
+		_scheduler_update_active_replacement_worker_count(self);
+	}
 	++scheduler_current_worker->blocking_depth;
 	platform_mutex_unlock(self->mutex);
 }
@@ -374,25 +338,10 @@ scheduler_worker_block_clear(Scheduler *self)
 	--scheduler_current_worker->blocking_depth;
 	if (scheduler_current_worker->blocking_depth == 0)
 	{
-		validate(self->blocked_worker_count > 0, "[SCHEDULER]: Blocked worker count underflow.");
 		--self->blocked_worker_count;
+		_scheduler_update_active_replacement_worker_count(self);
 	}
 	platform_mutex_unlock(self->mutex);
-}
-
-U32
-scheduler_get_worker_count(Scheduler *self)
-{
-	return (U32)self->workers.count;
-}
-
-U32
-scheduler_get_blocked_worker_count(Scheduler *self)
-{
-	platform_mutex_lock(self->mutex);
-	U32 result = self->blocked_worker_count;
-	platform_mutex_unlock(self->mutex);
-	return result;
 }
 
 U32
@@ -404,6 +353,23 @@ scheduler_get_current_worker_index(Scheduler *self)
 	return scheduler_current_worker->index;
 }
 
+Scheduler_Stats
+scheduler_get_stats(Scheduler *self)
+{
+	platform_mutex_lock(self->mutex);
+	Scheduler_Stats stats = {
+		.worker_count = self->worker_count,
+		.replacement_worker_count = (U32)self->workers.count - self->worker_count,
+		.active_replacement_worker_count = self->active_replacement_worker_count,
+		.blocked_worker_count = self->blocked_worker_count,
+		.active_task_count = self->active_task_count,
+		.queued_task_count = self->queued_task_count,
+		.live_group_count = self->live_group_count
+	};
+	platform_mutex_unlock(self->mutex);
+	return stats;
+}
+
 void
 scheduler_parallel_for(Scheduler *self, Scheduler_Parallel_For_Desc desc)
 {
@@ -412,19 +378,19 @@ scheduler_parallel_for(Scheduler *self, Scheduler_Parallel_For_Desc desc)
 
 	struct Scheduler_Parallel_For_Task_Context
 	{
-		Scheduler_Parallel_For_Function function;
+		void (*function)(U32 begin, U32 end, void *data);
 		void *data;
 		U32 begin;
 		U32 end;
 	};
 
-	Scheduler_Task_Function task_function = [](void *data) {
+	constexpr auto task_function = [](void *data) {
 		Scheduler_Parallel_For_Task_Context *context = (Scheduler_Parallel_For_Task_Context *)data;
 		context->function(context->begin, context->end, context->data);
 	};
 
-	auto auto_chunk_size = [](Scheduler *self, U32 count) -> U32 {
-		U64 target_chunk_count = self->workers.count * 4;
+	constexpr auto auto_chunk_size = [](Scheduler *self, U32 count) -> U32 {
+		U64 target_chunk_count = self->worker_count * 4;
 		if (target_chunk_count > count)
 			target_chunk_count = count;
 		return (U32)(((U64)count + target_chunk_count - 1) / target_chunk_count);

@@ -1756,24 +1756,15 @@ platform_query_microseconds()
 {
 	LARGE_INTEGER frequency;
 	LARGE_INTEGER ticks;
-	if (QueryPerformanceFrequency(&frequency) == false)
-	{
-		validate(false, "[PLATFORM]: Failed to query performance frequency.");
-	}
-	if (QueryPerformanceCounter(&ticks) == false)
-	{
-		validate(false, "[PLATFORM]: Failed to query performance counter.");
-	}
+	validate(QueryPerformanceFrequency(&frequency) != false, "[PLATFORM]: Failed to query performance frequency.");
+	validate(QueryPerformanceCounter(&ticks) != false, "[PLATFORM]: Failed to query performance counter.");
 	return ticks.QuadPart * 1000000 / frequency.QuadPart;
 }
 
 void
 platform_sleep_set_period(U32 period)
 {
-	if (timeBeginPeriod(period) != TIMERR_NOERROR)
-	{
-		validate(false, "[PLATFORM]: Failed to set time begin period.");
-	}
+	validate(timeBeginPeriod(period) == TIMERR_NOERROR, "[PLATFORM]: Failed to set time begin period.");
 }
 
 void

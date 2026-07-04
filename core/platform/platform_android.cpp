@@ -3423,8 +3423,7 @@ platform_file_open(const String &path, Platform_File_Mode mode)
 void
 platform_file_close(Platform_File_Handle handle)
 {
-	if (handle)
-		validate(::close(_platform_file_handle_to_fd(handle)) == 0, "[PLATFORM][ANDROID]: Failed to close file handle.");
+	validate(!handle || ::close(_platform_file_handle_to_fd(handle)) == 0, "[PLATFORM][ANDROID]: Failed to close file handle.");
 }
 
 U64
