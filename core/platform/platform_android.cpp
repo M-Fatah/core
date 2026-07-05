@@ -2940,6 +2940,56 @@ platform_condition_variable_broadcast(Platform_Condition_Variable *self)
 	validate(::pthread_cond_broadcast(&self->handle) == 0, "[PLATFORM][ANDROID]: Failed to broadcast condition variable.");
 }
 
+struct Platform_Semaphore
+{
+	pthread_mutex_t mutex;
+	pthread_cond_t condition_variable;
+	U32 count;
+};
+
+Platform_Semaphore *
+platform_semaphore_init(U32 initial_count)
+{
+	Platform_Semaphore *self = memory::allocate_zeroed<Platform_Semaphore>();
+	validate(::pthread_mutex_init(&self->mutex, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize semaphore mutex.");
+	validate(::pthread_cond_init(&self->condition_variable, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize semaphore condition variable.");
+	self->count = initial_count;
+	return self;
+}
+
+void
+platform_semaphore_deinit(Platform_Semaphore *self)
+{
+	validate(::pthread_cond_destroy(&self->condition_variable) == 0, "[PLATFORM][ANDROID]: Failed to destroy semaphore condition variable.");
+	validate(::pthread_mutex_destroy(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to destroy semaphore mutex.");
+	memory::deallocate(self);
+}
+
+void
+platform_semaphore_wait(Platform_Semaphore *self)
+{
+	validate(::pthread_mutex_lock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to lock semaphore mutex.");
+	while (self->count == 0)
+		validate(::pthread_cond_wait(&self->condition_variable, &self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to wait for semaphore condition variable.");
+	--self->count;
+	validate(::pthread_mutex_unlock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to unlock semaphore mutex.");
+}
+
+void
+platform_semaphore_signal(Platform_Semaphore *self, U32 count)
+{
+	if (count == 0)
+		return;
+
+	validate(::pthread_mutex_lock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to lock semaphore mutex.");
+	self->count += count;
+	if (count == 1)
+		validate(::pthread_cond_signal(&self->condition_variable) == 0, "[PLATFORM][ANDROID]: Failed to signal semaphore condition variable.");
+	else
+		validate(::pthread_cond_broadcast(&self->condition_variable) == 0, "[PLATFORM][ANDROID]: Failed to broadcast semaphore condition variable.");
+	validate(::pthread_mutex_unlock(&self->mutex) == 0, "[PLATFORM][ANDROID]: Failed to unlock semaphore mutex.");
+}
+
 Platform_Window
 platform_window_init(U32, U32, const char *)
 {

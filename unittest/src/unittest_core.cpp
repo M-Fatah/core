@@ -81,6 +81,78 @@ TESTER_TEST("[CORE]: Atomic Threads")
 	TESTER_CHECK(atomic_load(counter) == (U64)THREAD_COUNT * ITERATION_COUNT);
 }
 
+struct Platform_Semaphore_Test_Context
+{
+	Platform_Semaphore *ready_semaphore;
+	Platform_Semaphore *start_semaphore;
+	Platform_Semaphore *done_semaphore;
+	Platform_Mutex *mutex;
+	U32 finished_count;
+};
+
+inline static void
+_platform_semaphore_test_thread(void *data)
+{
+	Platform_Semaphore_Test_Context *context = (Platform_Semaphore_Test_Context *)data;
+	platform_semaphore_signal(context->ready_semaphore);
+	platform_semaphore_wait(context->start_semaphore);
+
+	platform_mutex_lock(context->mutex);
+	++context->finished_count;
+	platform_mutex_unlock(context->mutex);
+
+	platform_semaphore_signal(context->done_semaphore);
+}
+
+TESTER_TEST("[CORE]: Platform Semaphore")
+{
+	constexpr U32 THREAD_COUNT = 4;
+
+	Platform_Semaphore *ready_semaphore = platform_semaphore_init();
+	Platform_Semaphore *start_semaphore = platform_semaphore_init();
+	Platform_Semaphore *done_semaphore = platform_semaphore_init();
+	Platform_Mutex *mutex = platform_mutex_init();
+	Platform_Semaphore_Test_Context context = {
+		.ready_semaphore = ready_semaphore,
+		.start_semaphore = start_semaphore,
+		.done_semaphore = done_semaphore,
+		.mutex = mutex
+	};
+	Platform_Thread *threads[THREAD_COUNT];
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+	{
+		threads[i] = platform_thread_init(Platform_Thread_Desc {
+			.function = _platform_semaphore_test_thread,
+			.data = &context,
+			.name = "SemaphoreTest"
+		});
+	}
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+		platform_semaphore_wait(ready_semaphore);
+
+	platform_mutex_lock(mutex);
+	TESTER_CHECK(context.finished_count == 0);
+	platform_mutex_unlock(mutex);
+
+	platform_semaphore_signal(start_semaphore, THREAD_COUNT);
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+		platform_semaphore_wait(done_semaphore);
+
+	for (U32 i = 0; i < THREAD_COUNT; ++i)
+		platform_thread_deinit(threads[i]);
+
+	platform_mutex_lock(mutex);
+	TESTER_CHECK(context.finished_count == THREAD_COUNT);
+	platform_mutex_unlock(mutex);
+
+	platform_mutex_deinit(mutex);
+	platform_semaphore_deinit(done_semaphore);
+	platform_semaphore_deinit(start_semaphore);
+	platform_semaphore_deinit(ready_semaphore);
+}
+
 TESTER_TEST("[CORE]: Scheduler")
 {
 	Scheduler *scheduler = scheduler_init(Scheduler_Desc {

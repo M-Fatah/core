@@ -764,6 +764,26 @@ destroy(Platform_Condition_Variable *self)
 	platform_condition_variable_deinit(self);
 }
 
+struct Platform_Semaphore;
+
+CORE_API Platform_Semaphore *
+platform_semaphore_init(U32 initial_count = 0);
+
+CORE_API void
+platform_semaphore_deinit(Platform_Semaphore *self);
+
+CORE_API void
+platform_semaphore_wait(Platform_Semaphore *self);
+
+CORE_API void
+platform_semaphore_signal(Platform_Semaphore *self, U32 count = 1);
+
+inline static void
+destroy(Platform_Semaphore *self)
+{
+	platform_semaphore_deinit(self);
+}
+
 CORE_API Platform_Window
 platform_window_init(U32 width, U32 height, const char *title);
 

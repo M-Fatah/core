@@ -1060,6 +1060,43 @@ platform_condition_variable_broadcast(Platform_Condition_Variable *self)
 	::WakeAllConditionVariable(&self->handle);
 }
 
+struct Platform_Semaphore
+{
+	HANDLE handle;
+};
+
+Platform_Semaphore *
+platform_semaphore_init(U32 initial_count)
+{
+	constexpr LONG max_count = 0x7fffffff;
+	Platform_Semaphore *self = memory::allocate_zeroed<Platform_Semaphore>();
+	self->handle = ::CreateSemaphoreW(nullptr, (LONG)initial_count, max_count, nullptr);
+	validate(self->handle != nullptr, "[PLATFORM][WINDOWS]: Failed to initialize semaphore.");
+	return self;
+}
+
+void
+platform_semaphore_deinit(Platform_Semaphore *self)
+{
+	validate(::CloseHandle(self->handle), "[PLATFORM][WINDOWS]: Failed to close semaphore handle.");
+	memory::deallocate(self);
+}
+
+void
+platform_semaphore_wait(Platform_Semaphore *self)
+{
+	DWORD wait_result = ::WaitForSingleObject(self->handle, INFINITE);
+	validate(wait_result == WAIT_OBJECT_0, "[PLATFORM][WINDOWS]: Failed to wait for semaphore.");
+}
+
+void
+platform_semaphore_signal(Platform_Semaphore *self, U32 count)
+{
+	if (count == 0)
+		return;
+	validate(::ReleaseSemaphore(self->handle, (LONG)count, nullptr), "[PLATFORM][WINDOWS]: Failed to signal semaphore.");
+}
+
 inline static void
 _platform_win32_window_keep_screen_on_set(Platform_Window_Context *ctx, bool enabled)
 {
