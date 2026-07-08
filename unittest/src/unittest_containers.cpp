@@ -4,7 +4,7 @@
 #include <core/containers/hash_set.h>
 #include <core/containers/hash_table.h>
 #include <core/containers/ring_buffer.h>
-#include <core/containers/span.h>
+#include <core/containers/slice.h>
 #include <core/containers/stack_array.h>
 #include <core/containers/string.h>
 #include <core/containers/string_interner.h>
@@ -1449,101 +1449,150 @@ TESTER_TEST("[CONTAINERS]: String Interner")
 	TESTER_CHECK(s == string_interner_intern(interner, begin, end));
 }
 
-TESTER_TEST("[CONTAINERS]: Span")
+TESTER_TEST("[CONTAINERS]: Slice")
 {
-	// ("span_init from pointer + count")
+	// ("slice_from pointer + count")
 	{
 		I32 values[] = {10, 20, 30};
-		auto span = span_init(values, 3);
-		TESTER_CHECK(span.data == values);
-		TESTER_CHECK(span.count == 3);
+		auto slice = slice_from(values, 3);
+		TESTER_CHECK(slice.data == values);
+		TESTER_CHECK(slice.count == 3);
 	}
 
-	// ("span_init from two pointers")
+	// ("slice_from two pointers")
 	{
 		I32 values[] = {1, 2, 3, 4, 5};
-		auto span = span_init(values, values + 5);
-		TESTER_CHECK(span.data == values);
-		TESTER_CHECK(span.count == 5);
+		auto slice = slice_from(values, values + 5);
+		TESTER_CHECK(slice.data == values);
+		TESTER_CHECK(slice.count == 5);
 	}
 
-	// ("span_init from C array")
+	// ("slice_from C array")
 	{
 		I32 values[4] = {7, 8, 9, 10};
-		auto span = span_init(values);
-		TESTER_CHECK(span.data == values);
-		TESTER_CHECK(span.count == 4);
+		auto slice = slice_from(values);
+		TESTER_CHECK(slice.data == values);
+		TESTER_CHECK(slice.count == 4);
+
+		char chars[3] = {'a', 'b', 'c'};
+		auto char_slice = slice_from(chars);
+		TESTER_CHECK(char_slice.data == chars);
+		TESTER_CHECK(char_slice.count == 3);
+		char_slice[0] = 'x';
+		TESTER_CHECK(chars[0] == 'x');
 	}
 
-	// ("span_init from Array")
+	// ("mutable to const")
+	{
+		I32 values[2] = {1, 2};
+		Slice<I32> mutable_slice = slice_from(values);
+		Slice<const I32> const_slice = mutable_slice;
+		TESTER_CHECK(const_slice.data == values);
+		TESTER_CHECK(const_slice.count == 2);
+	}
+
+	// ("single value")
+	{
+		I32 value = 42;
+		auto slice = slice_from(value);
+		TESTER_CHECK(slice.data == &value);
+		TESTER_CHECK(slice.count == 1);
+		slice[0] = 7;
+		TESTER_CHECK(value == 7);
+
+		constexpr auto check = [](Slice<const I32> slice) {
+			TESTER_CHECK(slice.count == 1);
+			TESTER_CHECK(slice[0] == 9);
+		};
+		check((I32)9);
+	}
+
+	// ("slice_from Array")
 	{
 		auto array = array_init_from<I32>({1, 2, 3});
 		DEFER(array_deinit(array));
 
-		auto span = span_init(array);
-		TESTER_CHECK(span.data == array.data);
-		TESTER_CHECK(span.count == array.count);
+		auto slice = slice_from(array);
+		TESTER_CHECK(slice.data == array.data);
+		TESTER_CHECK(slice.count == array.count);
 	}
 
-	// ("span_init from Stack_Array")
+	// ("slice_from Stack_Array")
 	{
 		Stack_Array<I32, 3> array{{1, 2, 3}};
-		auto span = span_init(array);
-		TESTER_CHECK(span.data == array.data);
-		TESTER_CHECK(span.count == 3);
+		auto slice = slice_from(array);
+		TESTER_CHECK(slice.data == array.data);
+		TESTER_CHECK(slice.count == 3);
 	}
 
-	// ("span_init from c-string")
+	// ("slice_from c-string")
 	{
-		Span<const char> span = span_init("hello");
-		TESTER_CHECK(span.count == 5);
-		TESTER_CHECK(span[0] == 'h');
-		TESTER_CHECK(span[4] == 'o');
+		Slice<const char> slice = slice_from("hello");
+		TESTER_CHECK(slice.count == 5);
+		TESTER_CHECK(slice[0] == 'h');
+		TESTER_CHECK(slice[4] == 'o');
+
+		Slice<const char> view = slice_from("hello");
+		TESTER_CHECK(view.count == 5);
+		TESTER_CHECK(view[0] == 'h');
+		TESTER_CHECK(view[4] == 'o');
+
+		const char *c_string = "world";
+		Slice<const char> c_string_view = slice_from(c_string);
+		TESTER_CHECK(c_string_view.count == 5);
+		TESTER_CHECK(c_string_view[0] == 'w');
+		TESTER_CHECK(c_string_view[4] == 'd');
+
+		const char *null_c_string = nullptr;
+		TESTER_CHECK(slice_is_empty(slice_from(null_c_string)));
+		TESTER_CHECK(slice_is_empty(slice_from(nullptr)));
 	}
 
-	// ("span_init from braced values used inline as function argument")
+	// ("initializer list")
 	{
-		auto check = [](Span<const I32> span) {
-			TESTER_CHECK(span.count == 4);
-			TESTER_CHECK(span[0] == 1);
-			TESTER_CHECK(span[3] == 4);
+		constexpr auto check = [](Slice<const I32> slice) {
+			TESTER_CHECK(slice.count == 4);
+			TESTER_CHECK(slice[0] == 1);
+			TESTER_CHECK(slice[3] == 4);
 		};
-		check(span_init({1, 2, 3, 4}));
+
+		check({1, 2, 3, 4});
+		check(slice_from({1, 2, 3, 4}));
 	}
 
 	// ("operator[]")
 	{
 		I32 values[] = {10, 20, 30};
-		auto span = span_init(values, 3);
-		TESTER_CHECK(span[0] == 10);
-		TESTER_CHECK(span[1] == 20);
-		TESTER_CHECK(span[2] == 30);
+		auto slice = slice_from(values, 3);
+		TESTER_CHECK(slice[0] == 10);
+		TESTER_CHECK(slice[1] == 20);
+		TESTER_CHECK(slice[2] == 30);
 	}
 
-	// ("mutation through span")
+	// ("mutation through slice")
 	{
 		I32 values[] = {1, 2, 3};
-		auto span = span_init(values, 3);
-		span[0] = 99;
+		auto slice = slice_from(values, 3);
+		slice[0] = 99;
 		TESTER_CHECK(values[0] == 99);
 	}
 
-	// ("span_is_empty")
+	// ("slice_is_empty")
 	{
 		I32 values[] = {1};
-		TESTER_CHECK(span_is_empty(span_init((I32 *)nullptr, (U64)0)) == true);
-		TESTER_CHECK(span_is_empty(span_init(values, 1)) == false);
+		TESTER_CHECK(slice_is_empty(slice_from((I32 *)nullptr, (U64)0)) == true);
+		TESTER_CHECK(slice_is_empty(slice_from(values, 1)) == false);
 	}
 
-	// ("span_first / span_last")
+	// ("slice_front / slice_back")
 	{
 		I32 values[] = {10, 20, 30};
-		auto span = span_init(values, 3);
-		TESTER_CHECK(span_first(span) == 10);
-		TESTER_CHECK(span_last(span) == 30);
+		auto slice = slice_from(values, 3);
+		TESTER_CHECK(slice_front(slice) == 10);
+		TESTER_CHECK(slice_back(slice) == 30);
 
-		span_first(span) = 99;
-		span_last(span) = 77;
+		slice_front(slice) = 99;
+		slice_back(slice) = 77;
 		TESTER_CHECK(values[0] == 99);
 		TESTER_CHECK(values[2] == 77);
 	}
@@ -1551,9 +1600,9 @@ TESTER_TEST("[CONTAINERS]: Span")
 	// ("range-based for")
 	{
 		I32 values[] = {1, 2, 3, 4, 5};
-		auto span = span_init(values, 5);
+		auto slice = slice_from(values, 5);
 		I32 sum = 0;
-		for (I32 v : span)
+		for (I32 v : slice)
 			sum += v;
 		TESTER_CHECK(sum == 15);
 	}
@@ -1573,7 +1622,7 @@ TESTER_TEST("[CONTAINERS]: Ring_Buffer")
 		TESTER_CHECK(rb.allocator != nullptr);
 	}
 
-	// ("push_back / first / last")
+	// ("push_back / front / back")
 	{
 		auto rb = ring_buffer_init<I32>();
 		DEFER(ring_buffer_deinit(rb));
@@ -1590,7 +1639,7 @@ TESTER_TEST("[CONTAINERS]: Ring_Buffer")
 		TESTER_CHECK(rb[2] == 3);
 	}
 
-	// ("push_front / first / last")
+	// ("push_front / front / back")
 	{
 		auto rb = ring_buffer_init<I32>();
 		DEFER(ring_buffer_deinit(rb));

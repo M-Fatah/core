@@ -419,7 +419,7 @@ TESTER_TEST("[CORE]: Scheduler Worker Blocking Replacement")
 		};
 	}
 
-	scheduler_submit(scheduler, span_init(tasks), group);
+	scheduler_submit(scheduler, slice_from(tasks), group);
 	scheduler_wait_group(scheduler, group);
 
 	platform_mutex_lock(mutex);
@@ -593,7 +593,7 @@ TESTER_TEST("[CORE]: Scheduler Stats")
 		};
 	}
 
-	scheduler_submit(queued_scheduler, span_init(tasks), group);
+	scheduler_submit(queued_scheduler, slice_from(tasks), group);
 
 	stats = scheduler_get_stats(queued_scheduler);
 	TESTER_CHECK(stats.active_replacement_worker_count == 0);
@@ -711,7 +711,7 @@ TESTER_TEST("[CORE]: Scheduler Submit Batch")
 		.initial_task_queue_capacity = 1
 	});
 
-	scheduler_submit(scheduler, span_init(tasks));
+	scheduler_submit(scheduler, slice_from(tasks));
 	scheduler_wait_all(scheduler);
 
 	platform_mutex_lock(mutex);
@@ -719,6 +719,24 @@ TESTER_TEST("[CORE]: Scheduler Submit Batch")
 	platform_mutex_unlock(mutex);
 
 	TESTER_CHECK(finished_count == TASK_COUNT);
+
+	scheduler_submit(scheduler, {
+		Scheduler_Task {
+			.function = _scheduler_test_task,
+			.data = &context
+		},
+		Scheduler_Task {
+			.function = _scheduler_test_task,
+			.data = &context
+		}
+	});
+	scheduler_wait_all(scheduler);
+
+	platform_mutex_lock(mutex);
+	finished_count = context.finished_count;
+	platform_mutex_unlock(mutex);
+
+	TESTER_CHECK(finished_count == TASK_COUNT + 2);
 	scheduler_deinit(scheduler);
 	platform_mutex_deinit(mutex);
 }
@@ -1058,7 +1076,7 @@ TESTER_TEST("[CORE]: Scheduler Steals From Blocked Worker")
 		};
 	}
 
-	scheduler_submit(scheduler, span_init(tasks), group);
+	scheduler_submit(scheduler, slice_from(tasks), group);
 	scheduler_wait_group(scheduler, group);
 
 	platform_mutex_lock(mutex);
@@ -1126,7 +1144,7 @@ TESTER_TEST("[CORE]: Scheduler Wait Group")
 			.data = &task_context
 		};
 	}
-	scheduler_submit(scheduler, span_init(tasks), group);
+	scheduler_submit(scheduler, slice_from(tasks), group);
 
 	scheduler_wait_group(scheduler, group);
 

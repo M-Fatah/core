@@ -128,7 +128,7 @@ Scheduler_Task tasks[] = {
 	}
 };
 
-scheduler_submit(scheduler, span_init(tasks));
+scheduler_submit(scheduler, slice_from(tasks));
 ```
 
 Batch submission reserves space in each target worker queue, queues all task descriptors under one scheduler lock, and wakes workers once after the batch is queued. It copies `Scheduler_Task` values into scheduler-owned queues; task data must still remain valid until the matching task has executed.
@@ -201,7 +201,7 @@ Scheduler_Task more_tasks[] = {
 	}
 };
 
-scheduler_submit(scheduler, span_init(more_tasks), group);
+scheduler_submit(scheduler, slice_from(more_tasks), group);
 
 scheduler_wait_group(scheduler, group);
 ```

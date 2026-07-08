@@ -2,7 +2,7 @@
 
 #include "core/export.h"
 #include "core/defines.h"
-#include "core/containers/span.h"
+#include "core/containers/slice.h"
 
 /*
 TODO:
@@ -58,7 +58,7 @@ CORE_API void
 scheduler_group_deinit(Scheduler *self, Scheduler_Group *group);
 
 CORE_API void
-scheduler_submit(Scheduler *self, Span<const Scheduler_Task> tasks, Scheduler_Group *group = nullptr);
+scheduler_submit(Scheduler *self, Slice<const Scheduler_Task> tasks, Scheduler_Group *group = nullptr);
 
 CORE_API void
 scheduler_wait_group(Scheduler *self, Scheduler_Group *group);
