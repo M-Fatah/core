@@ -29,4 +29,4 @@ On failure it prints the condition, the message, and the source location, then a
 | Release behavior | Strips out | Configurable |
 | Used by containers | No | Yes (bounds checks) |
 
-All container bounds checks (`array[i]`, `span[i]`, etc.) use `validate` internally.
+All container bounds checks (`array[i]`, `slice[i]`, etc.) use `validate` internally.

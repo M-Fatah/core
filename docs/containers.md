@@ -101,46 +101,51 @@ Supports range-based `for` via `begin()` / `end()`.
 
 ---
 
-## Span\<T\>
+## Slice\<T\>
 
-**Header:** `core/containers/span.h`
+**Header:** `core/containers/slice.h`
 
 A **non-owning view** over a contiguous sequence. Never allocates. No `_deinit`.
+Use `slice_from(...)` to make the borrowed lifetime explicit.
+Use `Slice<const char>` for borrowed text.
 
 ```cpp
-#include <core/containers/span.h>
+#include <core/containers/slice.h>
 
 Array<int> arr = array_init_from<int>({1, 2, 3, 4, 5});
 DEFER(array_deinit(arr));
 
-Span<int>       view  = span_init(arr);           // mutable view
-Span<const int> cview = span_init((const Array<int>&)arr); // read-only view
+Slice<int>       view  = slice_from(arr);           // mutable view
+Slice<const int> cview = slice_from((const Array<int>&)arr); // read-only view
 ```
 
 ### Construction
 
 | Function | Returns | Description |
 |---|---|---|
-| `span_init(T *data, u64 count)` | `Span<T>` | From pointer + count |
-| `span_init(T *first, T *last)` | `Span<T>` | From pointer pair |
-| `span_init(T (&arr)[N])` | `Span<T>` | From C array |
-| `span_init(Array<T> &)` | `Span<T>` | Mutable view of Array |
-| `span_init(const Array<T> &)` | `Span<const T>` | Read-only view of Array |
-| `span_init(Stack_Array<T,N> &)` | `Span<T>` | Mutable view of Stack\_Array |
-| `span_init(const char *)` | `Span<const char>` | View of a C string (no null) |
-| `span_init({1,2,3})` | `Span<const T>` | From initializer\_list — **only safe as a function argument**, never store in a variable |
+| `slice_from(T *data, U64 count)` | `Slice<T>` | From pointer + count |
+| `slice_from(T *first, T *last)` | `Slice<T>` | From pointer pair |
+| `slice_from(T (&arr)[N])` | `Slice<T>` | From C array |
+| `slice_from({1,2,3})` | `Slice<const T>` | Read-only view of an initializer list |
+| `slice_from(Array<T> &)` | `Slice<T>` | Mutable view of Array |
+| `slice_from(const Array<T> &)` | `Slice<const T>` | Read-only view of Array |
+| `slice_from(Stack_Array<T,N> &)` | `Slice<T>` | Mutable view of Stack\_Array |
+| `slice_from(const Stack_Array<T,N> &)` | `Slice<const T>` | Read-only view of Stack\_Array |
+| `slice_from(const char *)` | `Slice<const char>` | View of a C string without the null terminator |
 
 ### Functions
 
 | Function | Description |
 |---|---|
-| `span_is_empty(span)` | `count == 0` |
-| `span_first(span)` | Reference to first element |
-| `span_last(span)` | Reference to last element |
+| `slice_is_empty(slice)` | `count == 0` |
+| `slice_front(slice)` | Reference to first element |
+| `slice_back(slice)` | Reference to last element |
 
 Supports range-based `for` via `begin()` / `end()`.
 
-> **Lifetime rule for initializer\_list:** The backing array of `std::initializer_list` is a temporary. It lives only for the duration of the enclosing full-expression. Never store a `Span` constructed from `{}` in a named variable — pass it directly as a function argument.
+Initializer-list and temporary single-value slices are valid only for the current full expression. A function that stores a `Slice` must copy the data it cares about.
+Functions taking `Slice<const T>` can receive initializer lists directly, such as `process({a, b, c})`.
+`slice_from` from a string literal or C string stops at the first null terminator. Use `slice_from(data, count)` for raw character buffers.
 
 ---
 

@@ -247,7 +247,7 @@ scheduler_group_deinit(Scheduler *self, Scheduler_Group *group)
 }
 
 void
-scheduler_submit(Scheduler *self, Span<const Scheduler_Task> tasks, Scheduler_Group *group)
+scheduler_submit(Scheduler *self, Slice<const Scheduler_Task> tasks, Scheduler_Group *group)
 {
 	validate(group == nullptr || group->scheduler == self, "[SCHEDULER]: Task group belongs to a different scheduler.");
 
@@ -425,6 +425,6 @@ scheduler_parallel_for(Scheduler *self, Scheduler_Parallel_For_Desc desc)
 
 	Scheduler_Group *group = scheduler_group_init(self);
 	DEFER(scheduler_group_deinit(self, group));
-	scheduler_submit(self, span_init(tasks), group);
+	scheduler_submit(self, slice_from(tasks), group);
 	scheduler_wait_group(self, group);
 }

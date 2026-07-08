@@ -22,7 +22,7 @@ The library favors explicit ownership, visible allocations, plain structs, free 
 |---|---|
 | `core/defines.h` | Primitive aliases, utility macros, platform/compiler defines |
 | `core/memory/` | Heap, arena, pool, temp allocator, virtual-memory-backed allocation |
-| `core/containers/` | Array, string, span, ring buffer, hash table, hash set, stack array |
+| `core/containers/` | Array, string, slice, ring buffer, hash table, hash set, stack array |
 | `core/math/` | Scalar helpers, vectors, matrices, quaternion, random, NEON / AVX / scalar paths |
 | `core/formatter.h` | Type-safe formatting with Core strings and math types |
 | `core/print.h`, `core/log.h` | Colored printing and log helpers |
