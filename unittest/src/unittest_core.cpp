@@ -1,5 +1,6 @@
 #include <core/tester.h>
 #include <core/atomic.h>
+#include <core/command_line.h>
 #include <core/json.h>
 #include <core/base64.h>
 #include <core/log.h>
@@ -10,6 +11,200 @@
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
 #include <core/platform/platform.h>
+
+TESTER_TEST("[CORE]: Command Line")
+{
+	static Command_Line_Option_Desc option_descs[] = {
+		Command_Line_Option_Desc {.name = "help",    .short_name = 'h'},
+		Command_Line_Option_Desc {.name = "verbose", .short_name = 'v'},
+		Command_Line_Option_Desc {.name = "output",  .short_name = 'o', .requires_value = true},
+		Command_Line_Option_Desc {.name = "include", .short_name = 'I', .requires_value = true},
+		Command_Line_Option_Desc {.name = "threads", .short_name = 'j', .requires_value = true},
+	};
+	char executable[] = "compiler";
+	char main_file[] = "main.cpp";
+	char math_file[] = "math.cpp";
+	char output[] = "--output=game.exe";
+	char include_core[] = "-Icore";
+	char include[] = "-I";
+	char deps[] = "deps";
+	char threads[] = "--threads";
+	char thread_count[] = "8";
+	char verbose[] = "--verbose";
+	char verbose_short[] = "-v";
+	char separator[] = "--";
+	char literal[] = "--literal";
+	char *arguments[] = {
+		executable,
+		main_file,
+		math_file,
+		output,
+		include_core,
+		include,
+		deps,
+		threads,
+		thread_count,
+		verbose,
+		verbose_short,
+		separator,
+		literal
+	};
+
+	Command_Line command_line = command_line_init(arguments, (I32)slice_from(arguments).count, option_descs);
+	DEFER(command_line_deinit(command_line));
+
+	TESTER_CHECK(!command_line_has_errors(command_line));
+	TESTER_CHECK(slice_from(command_line.executable) == slice_from("compiler"));
+	TESTER_CHECK(command_line_has_option(command_line, "output"));
+	TESTER_CHECK(command_line_has_option(command_line, "verbose"));
+	TESTER_CHECK(!command_line_has_option(command_line, "help"));
+
+	TESTER_CHECK(command_line.options.count == 4);
+
+	Slice<const char *> output_values = command_line_get_option_values(command_line, "output");
+	TESTER_CHECK(output_values.count == 1);
+	TESTER_CHECK(slice_from(output_values[0]) == slice_from("game.exe"));
+
+	Slice<const char *> thread_values = command_line_get_option_values(command_line, "threads");
+	TESTER_CHECK(thread_values.count == 1);
+	TESTER_CHECK(slice_from(thread_values[0]) == slice_from("8"));
+
+	Slice<const char *> include_values = command_line_get_option_values(command_line, "include");
+	TESTER_CHECK(include_values.count == 2);
+	TESTER_CHECK(slice_from(include_values[0]) == slice_from("core"));
+	TESTER_CHECK(slice_from(include_values[1]) == slice_from("deps"));
+
+	Slice<const char *> verbose_values = command_line_get_option_values(command_line, "verbose");
+	TESTER_CHECK(verbose_values.count == 2);
+	TESTER_CHECK(verbose_values[0] == nullptr);
+	TESTER_CHECK(verbose_values[1] == nullptr);
+	TESTER_CHECK(command_line_get_option_values(command_line, "help").count == 0);
+
+	Slice<const char *> positionals = slice_from(command_line.positionals);
+	TESTER_CHECK(positionals.count == 3);
+	TESTER_CHECK(slice_from(positionals[0]) == slice_from("main.cpp"));
+	TESTER_CHECK(slice_from(positionals[1]) == slice_from("math.cpp"));
+	TESTER_CHECK(slice_from(positionals[2]) == slice_from("--literal"));
+}
+
+TESTER_TEST("[CORE]: Command Line Argc Argv")
+{
+	static Command_Line_Option_Desc option_descs[] = {
+		Command_Line_Option_Desc {.name = "help", .short_name = 'h'},
+	};
+	char executable[] = "tool";
+	char help[] = "--help";
+	char *arguments[] = {executable, help};
+
+	Command_Line command_line = command_line_init(arguments, (I32)slice_from(arguments).count, option_descs);
+	DEFER(command_line_deinit(command_line));
+
+	TESTER_CHECK(!command_line_has_errors(command_line));
+	TESTER_CHECK(slice_from(command_line.executable) == slice_from("tool"));
+	TESTER_CHECK(command_line_has_option(command_line, "help"));
+	Slice<const char *> values = command_line_get_option_values(command_line, "help");
+	TESTER_CHECK(values.count == 1);
+	TESTER_CHECK(values[0] == nullptr);
+}
+
+TESTER_TEST("[CORE]: Command Line Grammar")
+{
+	static Command_Line_Option_Desc option_descs[] = {
+		Command_Line_Option_Desc {.name = "help",    .short_name = 'h'},
+		Command_Line_Option_Desc {.name = "verbose", .short_name = 'v'},
+		Command_Line_Option_Desc {.name = "output",  .short_name = 'o', .requires_value = true},
+	};
+	char executable[] = "tool";
+	char dash[] = "-";
+	char output[] = "--output";
+	char option_value[] = "--verbose";
+	char separator[] = "--";
+	char literal[] = "--help";
+	char *arguments[] = {
+		executable,
+		dash,
+		output,
+		option_value,
+		separator,
+		literal
+	};
+
+	Command_Line command_line = command_line_init(arguments, (I32)slice_from(arguments).count, option_descs);
+	DEFER(command_line_deinit(command_line));
+
+	TESTER_CHECK(!command_line_has_errors(command_line));
+	TESTER_CHECK(command_line_has_option(command_line, "output"));
+	TESTER_CHECK(!command_line_has_option(command_line, "verbose"));
+	TESTER_CHECK(!command_line_has_option(command_line, "help"));
+
+	Slice<const char *> output_values = command_line_get_option_values(command_line, "output");
+	TESTER_CHECK(output_values.count == 1);
+	TESTER_CHECK(slice_from(output_values[0]) == "--verbose");
+
+	TESTER_CHECK(command_line.positionals.count == 2);
+	TESTER_CHECK(slice_from(command_line.positionals[0]) == "-");
+	TESTER_CHECK(slice_from(command_line.positionals[1]) == "--help");
+}
+
+TESTER_TEST("[CORE]: Command Line Empty")
+{
+	Command_Line command_line = command_line_init(nullptr, 0, {});
+	DEFER(command_line_deinit(command_line));
+
+	TESTER_CHECK(command_line.executable == nullptr);
+	TESTER_CHECK(command_line.options.count == 0);
+	TESTER_CHECK(command_line.positionals.count == 0);
+	TESTER_CHECK(!command_line_has_errors(command_line));
+}
+
+TESTER_TEST("[CORE]: Command Line Errors")
+{
+	static Command_Line_Option_Desc option_descs[] = {
+		Command_Line_Option_Desc {.name = "help", .short_name = 'h'},
+		Command_Line_Option_Desc {.name = "output", .short_name = 'o', .requires_value = true},
+	};
+	char executable[] = "tool";
+	char unknown[] = "--unknown";
+	char unknown_short[] = "-x";
+	char help[] = "--help=true";
+	char help_short[] = "-htrue";
+	char empty_output[] = "--output=";
+	char output_short[] = "-o";
+	char empty_value[] = "";
+	char output[] = "--output";
+	char *arguments[] = {
+		executable,
+		unknown,
+		unknown_short,
+		help,
+		help_short,
+		empty_output,
+		output_short,
+		empty_value,
+		output
+	};
+
+	Command_Line command_line = command_line_init(arguments, (I32)slice_from(arguments).count, option_descs);
+	DEFER(command_line_deinit(command_line));
+
+	TESTER_CHECK(command_line_has_errors(command_line));
+	Slice<const Command_Line_Error> errors = slice_from(command_line.errors);
+	TESTER_CHECK(errors.count == 7);
+	TESTER_CHECK(errors[0].code == COMMAND_LINE_ERROR_UNKNOWN_OPTION);
+	TESTER_CHECK(slice_from(errors[0].argument) == slice_from("--unknown"));
+	TESTER_CHECK(errors[1].code == COMMAND_LINE_ERROR_UNKNOWN_OPTION);
+	TESTER_CHECK(slice_from(errors[1].argument) == slice_from("-x"));
+	TESTER_CHECK(errors[2].code == COMMAND_LINE_ERROR_UNEXPECTED_VALUE);
+	TESTER_CHECK(slice_from(errors[2].argument) == slice_from("--help=true"));
+	TESTER_CHECK(errors[3].code == COMMAND_LINE_ERROR_UNEXPECTED_VALUE);
+	TESTER_CHECK(slice_from(errors[3].argument) == slice_from("-htrue"));
+	TESTER_CHECK(errors[4].code == COMMAND_LINE_ERROR_MISSING_VALUE);
+	TESTER_CHECK(slice_from(errors[4].argument) == slice_from("--output="));
+	TESTER_CHECK(errors[5].code == COMMAND_LINE_ERROR_MISSING_VALUE);
+	TESTER_CHECK(slice_from(errors[5].argument) == slice_from("-o"));
+	TESTER_CHECK(errors[6].code == COMMAND_LINE_ERROR_MISSING_VALUE);
+	TESTER_CHECK(slice_from(errors[6].argument) == slice_from("--output"));
+}
 
 TESTER_TEST("[CORE]: Atomic")
 {
