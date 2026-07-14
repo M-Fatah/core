@@ -514,6 +514,14 @@ TESTER_TEST("[CONTAINERS]: String")
 		TESTER_CHECK(s2 == "Hello, xxxWorld!");
 		string_replace_first_occurance(s2, "xxx", "");
 		TESTER_CHECK(s2 == "Hello, World!");
+
+		auto s3 = string_from("xxxHelloxxxxxxWorldxxx", memory::temp_allocator());
+		string_replace(s3, "xxx", "-");
+		TESTER_CHECK(s3 == "-Hello--World-");
+
+		auto s4 = string_from("aaaa", memory::temp_allocator());
+		string_replace(s4, "aa", "b");
+		TESTER_CHECK(s4 == "bb");
 	}
 
 	// ("starts with")

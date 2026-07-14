@@ -2469,13 +2469,16 @@ platform_path_get_current_module_path(memory::Allocator *allocator)
 String
 platform_path_get_file_name(const String &path, memory::Allocator *allocator)
 {
+	if (path.count == 0)
+		return string_init(allocator);
+
 	if (_platform_android_is_content_uri(path.data))
 		return _platform_android_content_display_name(path.data, allocator);
 
-	String path_temp = string_copy(path, memory::temp_allocator());
-	string_replace(path_temp, "\\", "/");
-	Array<String> splits = string_split(path_temp, "/", true, memory::temp_allocator());
-	return string_copy(array_back(splits), allocator);
+	U64 slash = string_find_last_of(path, '/');
+	U64 backslash = string_find_last_of(path, '\\');
+	U64 separator = backslash != U64(-1) && (slash == U64(-1) || backslash > slash) ? backslash : slash;
+	return string_from(path.data + (separator == U64(-1) ? 0 : separator + 1), path.data + path.count, allocator);
 }
 
 String
