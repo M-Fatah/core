@@ -31,6 +31,7 @@ The library favors explicit ownership, visible allocations, plain structs, free 
 | `core/tester.h` | Small unit-test framework |
 | `core/result.h` | Result/error-returning pattern |
 | `core/hash.h` | FNV-32 and type-generic hashing |
+| `core/command_line.h` | Descriptor-driven command-line parser |
 | `core/reflect.h` | Compile-time type reflection helpers |
 | `core/serialization/` | Binary and JSON serializers |
 | `core/ecs.h` | Minimal ECS |

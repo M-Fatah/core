@@ -1548,6 +1548,27 @@ TESTER_TEST("[CONTAINERS]: Slice")
 		TESTER_CHECK(slice_is_empty(slice_from(nullptr)));
 	}
 
+	// ("character slice equality")
+	{
+		TESTER_CHECK(slice_from("hello") == slice_from("hello"));
+		TESTER_CHECK(slice_from("hello") != slice_from("world"));
+		TESTER_CHECK(slice_from("hello") != slice_from("hell"));
+		TESTER_CHECK(slice_from("") == slice_from(""));
+
+		const char *hello = "hello";
+		const char *world = "world";
+		TESTER_CHECK(slice_from("hello") == hello);
+		TESTER_CHECK(hello == slice_from("hello"));
+		TESTER_CHECK(slice_from("hello") != world);
+		TESTER_CHECK(world != slice_from("hello"));
+		TESTER_CHECK(slice_from("hello") != "hell");
+		TESTER_CHECK(slice_from("hello") != "hello!");
+		TESTER_CHECK("hell" != slice_from("hello"));
+		TESTER_CHECK("hello!" != slice_from("hello"));
+		TESTER_CHECK(slice_from("") == nullptr);
+		TESTER_CHECK(nullptr == slice_from(""));
+	}
+
 	// ("initializer list")
 	{
 		constexpr auto check = [](Slice<const I32> slice) {

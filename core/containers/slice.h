@@ -75,6 +75,64 @@ struct Slice
 		validate(index < count, "[SLICE]: Access out of range.");
 		return data[index];
 	}
+
+	inline bool
+	operator==(const Slice &other) const
+	requires (is_same_v<T, const char>)
+	{
+		const Slice &self = *this;
+		if (self.count != other.count)
+			return false;
+
+		for (U64 i = 0; i < self.count; ++i)
+			if (self.data[i] != other.data[i])
+				return false;
+		return true;
+	}
+
+	inline bool
+	operator!=(const Slice &other) const
+	requires (is_same_v<T, const char>)
+	{
+		const Slice &self = *this;
+		return !(self == other);
+	}
+
+	inline bool
+	operator==(const char *other) const
+	requires (is_same_v<T, const char>)
+	{
+		const Slice &self = *this;
+		if (other == nullptr)
+			return self.count == 0;
+
+		for (U64 i = 0; i < self.count; ++i)
+			if (other[i] == '\0' || self.data[i] != other[i])
+				return false;
+		return other[self.count] == '\0';
+	}
+
+	inline bool
+	operator!=(const char *other) const
+	requires (is_same_v<T, const char>)
+	{
+		const Slice &self = *this;
+		return !(self == other);
+	}
+
+	friend inline bool
+	operator==(const char *self, const Slice &other)
+	requires (is_same_v<T, const char>)
+	{
+		return other == self;
+	}
+
+	friend inline bool
+	operator!=(const char *self, const Slice &other)
+	requires (is_same_v<T, const char>)
+	{
+		return other != self;
+	}
 };
 
 template <typename T>

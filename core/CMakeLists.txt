@@ -1,6 +1,7 @@
 set(HEADER_FILES
     atomic.h
     base64.h
+    command_line.h
     defer.h
     defines.h
     ecs.h
@@ -65,6 +66,7 @@ set(HEADER_FILES
 set(SOURCE_FILES
     containers/string_interner.cpp
     base64.cpp
+    command_line.cpp
     ecs.cpp
     json.cpp
     scheduler.cpp
