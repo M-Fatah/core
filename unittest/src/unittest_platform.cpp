@@ -257,10 +257,29 @@ TESTER_TEST("[PLATFORM] path utilities")
 	String executable_path = platform_path_get_executable_path(memory::temp_allocator());
 	TESTER_CHECK(executable_path.count > 0);
 	TESTER_CHECK(platform_path_is_file(executable_path));
+	TESTER_CHECK(executable_path.count == string_literal(executable_path.data).count);
+	TESTER_CHECK(executable_path.data[executable_path.count] == '\0');
 
 	String module_path = platform_path_get_current_module_path(memory::temp_allocator());
 	TESTER_CHECK(module_path.count > 0);
 	TESTER_CHECK(platform_path_is_file(module_path));
+	TESTER_CHECK(module_path.count == string_literal(module_path.data).count);
+	TESTER_CHECK(module_path.data[module_path.count] == '\0');
+
+	String working_directory = platform_path_get_current_working_directory(memory::temp_allocator());
+	TESTER_CHECK(working_directory.count > 0);
+	TESTER_CHECK(working_directory.count == string_literal(working_directory.data).count);
+	TESTER_CHECK(working_directory.data[working_directory.count] == '\0');
+
+	String absolute_path = platform_path_get_absolute(".", memory::temp_allocator());
+	TESTER_CHECK(absolute_path.count > 0);
+	TESTER_CHECK(absolute_path.count == string_literal(absolute_path.data).count);
+	TESTER_CHECK(absolute_path.data[absolute_path.count] == '\0');
+
+	TESTER_CHECK(platform_path_get_file_name("folder\\sub/file.txt", memory::temp_allocator()) == "file.txt");
+	TESTER_CHECK(platform_path_get_file_name("file.txt", memory::temp_allocator()) == "file.txt");
+	TESTER_CHECK(platform_path_get_file_name("folder/", memory::temp_allocator()).count == 0);
+	TESTER_CHECK(platform_path_get_file_name(String{}, memory::temp_allocator()).count == 0);
 
 	String missing_env = platform_environment_variable_get("__CORE_UNITTEST_MISSING_ENVIRONMENT_VARIABLE__", memory::temp_allocator());
 	TESTER_CHECK(missing_env.count == 0);

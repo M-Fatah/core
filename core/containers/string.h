@@ -625,13 +625,10 @@ string_replace(String &self, char to_replace, char replacement)
 inline static void
 string_replace(String &self, const String &to_replace, const String &replacement)
 {
-	auto splits = string_split(self, to_replace, memory::temp_allocator());
+	auto splits = string_split(self, to_replace, false, memory::temp_allocator());
 	DEFER(destroy(splits));
 
 	String copy = string_init(self.allocator);
-	if (string_starts_with(self, to_replace))
-		string_append(copy, replacement);
-
 	for (U64 i = 0; i < splits.count; ++i)
 	{
 		string_append(copy, splits[i]);

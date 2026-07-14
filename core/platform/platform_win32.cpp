@@ -271,12 +271,13 @@ platform_path_is_directory(const String &path)
 String
 platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 {
-	DWORD full_path_length = ::GetFullPathName(path.data, 0, nullptr, nullptr);
+	DWORD required_length = ::GetFullPathName(path.data, 0, nullptr, nullptr);
+	validate(required_length > 0, "[PLATFORM][WIN32]: Failed to get absolute path length.");
 
-	String full_path = string_init(allocator);
+	String full_path = string_with_capacity(required_length + 1, allocator);
+	DWORD full_path_length = ::GetFullPathName(path.data, (DWORD)full_path.capacity, full_path.data, nullptr);
+	validate(full_path_length > 0 && full_path_length < full_path.capacity, "[PLATFORM][WIN32]: Failed to get absolute path.");
 	string_resize(full_path, full_path_length);
-
-	validate(::GetFullPathName(path.data, full_path_length, full_path.data, nullptr));
 
 	string_replace(full_path, '\\', '/');
 
@@ -304,11 +305,13 @@ platform_path_get_directory(const String &path, memory::Allocator *allocator)
 String
 platform_path_get_current_working_directory(memory::Allocator *allocator)
 {
-	DWORD path_directory_length = ::GetCurrentDirectory(0, nullptr);
+	DWORD required_length = ::GetCurrentDirectory(0, nullptr);
+	validate(required_length > 0, "[PLATFORM][WIN32]: Failed to get current working directory length.");
 
-	String path_directory = string_init(allocator);
+	String path_directory = string_with_capacity(required_length + 1, allocator);
+	DWORD path_directory_length = ::GetCurrentDirectory((DWORD)path_directory.capacity, path_directory.data);
+	validate(path_directory_length > 0 && path_directory_length < path_directory.capacity, "[PLATFORM][WIN32]: Failed to get current working directory.");
 	string_resize(path_directory, path_directory_length);
-	validate(::GetCurrentDirectory(path_directory_length, path_directory.data));
 	string_replace(path_directory, '\\', '/');
 	return path_directory;
 }
@@ -416,10 +419,13 @@ platform_path_get_current_module_path(memory::Allocator *allocator)
 String
 platform_path_get_file_name(const String &path, memory::Allocator *allocator)
 {
-	String path_temp = string_copy(path, memory::temp_allocator());
-	string_replace(path_temp, "\\", "/");
-	Array<String> splits = string_split(path_temp, "/", true, memory::temp_allocator());
-	return string_copy(array_back(splits), allocator);
+	if (path.count == 0)
+		return string_init(allocator);
+
+	U64 slash = string_find_last_of(path, '/');
+	U64 backslash = string_find_last_of(path, '\\');
+	U64 separator = backslash != U64(-1) && (slash == U64(-1) || backslash > slash) ? backslash : slash;
+	return string_from(path.data + (separator == U64(-1) ? 0 : separator + 1), path.data + path.count, allocator);
 }
 
 String
