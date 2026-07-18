@@ -111,7 +111,7 @@ application:(UIApplication *)application configurationForConnectingSceneSession:
 }
 @end
 
-extern "C" __attribute__((visibility("default"))) Platform_Window *
+extern "C" __attribute__((used, visibility("default"))) Platform_Window *
 core_ios_test_window()
 {
 	return _core_ios_test_window;
