@@ -759,7 +759,7 @@ testClipboard
 		}
 	};
 	XCTAssertFalse(platform_window_clipboard_item_write(*window, nullptr, 0));
-	XCTAssertTrue(platform_window_clipboard_item_write(*window, items, count_of(items)));
+	XCTAssertTrue(platform_window_clipboard_item_write(*window, items, (U32)count_of(items)));
 
 	Array<String> media_types = platform_window_clipboard_query_media_types(*window);
 	bool found_text = false;
