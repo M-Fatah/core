@@ -1,5 +1,15 @@
 #include <core/tester.h>
+#include <core/defer.h>
 #include <core/platform/platform.h>
+
+inline static bool
+_platform_test_bytes_equal(const char *lhs, const char *rhs, U64 size)
+{
+	for (U64 i = 0; i < size; ++i)
+		if (lhs[i] != rhs[i])
+			return false;
+	return true;
+}
 
 TESTER_TEST("[PLATFORM] virtual memory")
 {
@@ -298,49 +308,189 @@ TESTER_TEST("[PLATFORM] file")
 	string_append(filepath, "test.platform");
 	String copy_filepath = string_copy(temp_directory, memory::temp_allocator());
 	string_append(copy_filepath, "test_copy.platform");
+	String empty_filepath = string_copy(temp_directory, memory::temp_allocator());
+	string_append(empty_filepath, "test_empty.platform");
+	String missing_filepath = string_copy(temp_directory, memory::temp_allocator());
+	string_append(missing_filepath, "test_missing.platform");
+	if (platform_path_is_valid(missing_filepath))
+		TESTER_CHECK(platform_path_delete_file(missing_filepath));
+	TESTER_CHECK(!platform_path_is_valid(missing_filepath));
 
-	U64 written_size = platform_file_write(filepath.data, write_mem);
+	U64 written_size = platform_path_write_file(filepath.data, write_mem);
 	TESTER_CHECK(written_size == write_mem.size);
+	TESTER_CHECK(platform_path_is_valid(filepath));
+	TESTER_CHECK(platform_path_is_file(filepath));
 
-	U64 file_size = platform_file_size(filepath.data);
+	U64 file_size = platform_path_get_file_size(filepath);
 	TESTER_CHECK(file_size == write_mem.size);
 
-	U32 read_data[1024] = {};
-	Memory_Block read_mem = {read_data, sizeof(read_data)};
+	String read_content = platform_path_read_file(filepath.data);
+	DEFER(string_deinit(read_content));
+	TESTER_CHECK(read_content.allocator == memory::heap_allocator());
+	TESTER_CHECK(read_content.count == written_size);
+	TESTER_CHECK(read_content.data[read_content.count] == '\0');
+	TESTER_CHECK(_platform_test_bytes_equal(read_content.data, (const char *)write_data, written_size));
 
-	U64 read_size = platform_file_read(filepath.data, read_mem);
-	TESTER_CHECK(read_size == written_size);
-	TESTER_CHECK(read_size == read_mem.size);
+	U8 copy_padding[sizeof(write_data) + 1] = {};
+	Memory_Block copy_padding_mem = {copy_padding, sizeof(copy_padding)};
+	TESTER_CHECK(platform_path_write_file(copy_filepath, copy_padding_mem) == copy_padding_mem.size);
 
-	bool same = true;
-	for (U32 i = 0; i < 1024; ++i)
-	{
-		if (read_data[i] != write_data[i])
-		{
-			same = false;
-			break;
-		}
-	}
-	TESTER_CHECK(same == true);
-
-	bool copy_result = platform_file_copy(filepath.data, copy_filepath.data);
+	bool copy_result = platform_path_copy_file(filepath, copy_filepath);
 	TESTER_CHECK(copy_result == true);
 
-	read_size = platform_file_read(copy_filepath.data, read_mem);
-	TESTER_CHECK(read_size == written_size);
-	TESTER_CHECK(read_size == read_mem.size);
+	String copy_content = platform_path_read_file(copy_filepath.data, memory::temp_allocator());
+	DEFER(string_deinit(copy_content));
+	TESTER_CHECK(copy_content.allocator == memory::temp_allocator());
+	TESTER_CHECK(copy_content.count == written_size);
+	TESTER_CHECK(_platform_test_bytes_equal(copy_content.data, (const char *)write_data, written_size));
 
-	same = true;
-	for (U32 i = 0; i < 1024; ++i)
-	{
-		if (read_data[i] != write_data[i])
-		{
-			same = false;
-			break;
-		}
-	}
-	TESTER_CHECK(same == true);
+	constexpr char TRUNCATED_CONTENT[] = "short";
+	U64 truncated_size = platform_path_write_file(copy_filepath.data, TRUNCATED_CONTENT);
+	TESTER_CHECK(truncated_size == sizeof(TRUNCATED_CONTENT) - 1);
 
-	TESTER_CHECK(platform_file_delete(filepath.data));
-	TESTER_CHECK(platform_file_delete(copy_filepath.data));
+	String truncated_content = platform_path_read_file(copy_filepath.data);
+	DEFER(string_deinit(truncated_content));
+	TESTER_CHECK(truncated_content.count == truncated_size);
+	TESTER_CHECK(_platform_test_bytes_equal(truncated_content.data, TRUNCATED_CONTENT, truncated_size));
+
+	U64 empty_size = platform_path_write_file(empty_filepath, Memory_Block{});
+	TESTER_CHECK(empty_size == 0);
+	TESTER_CHECK(platform_path_is_valid(empty_filepath));
+	TESTER_CHECK(platform_path_get_file_size(empty_filepath) == 0);
+
+	String empty_content = platform_path_read_file(empty_filepath.data);
+	DEFER(string_deinit(empty_content));
+	TESTER_CHECK(empty_content.count == 0);
+	TESTER_CHECK(empty_content.data[0] == '\0');
+
+	String missing_content = platform_path_read_file(missing_filepath.data);
+	DEFER(string_deinit(missing_content));
+	TESTER_CHECK(missing_content.count == 0);
+	TESTER_CHECK(missing_content.data[0] == '\0');
+
+	TESTER_CHECK(platform_path_delete_file(filepath));
+	TESTER_CHECK(platform_path_delete_file(copy_filepath));
+	TESTER_CHECK(platform_path_delete_file(empty_filepath));
+	TESTER_CHECK(!platform_path_is_valid(filepath));
+	TESTER_CHECK(!platform_path_is_valid(copy_filepath));
+	TESTER_CHECK(!platform_path_is_valid(empty_filepath));
+}
+
+TESTER_TEST("[PLATFORM] file handle")
+{
+	constexpr char INITIAL_DATA[] = "0123456789";
+	constexpr char REPLACEMENT_DATA[] = "AB";
+	constexpr char APPEND_DATA[] = "XY";
+	constexpr U64 INITIAL_DATA_SIZE = sizeof(INITIAL_DATA) - 1;
+	constexpr U64 REPLACEMENT_DATA_SIZE = sizeof(REPLACEMENT_DATA) - 1;
+	constexpr U64 APPEND_DATA_SIZE = sizeof(APPEND_DATA) - 1;
+
+	String temp_directory = platform_path_get_temp_directory(memory::temp_allocator());
+	String filepath = string_copy(temp_directory, memory::temp_allocator());
+	string_append(filepath, "test_handle.platform");
+	platform_path_delete_file(filepath);
+	DEFER(platform_path_delete_file(filepath););
+
+	Platform_File_Handle file = platform_file_open(filepath, PLATFORM_FILE_MODE_READ);
+	TESTER_CHECK(file == PLATFORM_FILE_HANDLE_INVALID);
+	if (file != PLATFORM_FILE_HANDLE_INVALID)
+		platform_file_close(file);
+
+	file = platform_file_open(filepath, PLATFORM_FILE_MODE_WRITE);
+	TESTER_CHECK(file != PLATFORM_FILE_HANDLE_INVALID);
+	if (file == PLATFORM_FILE_HANDLE_INVALID)
+		return;
+	TESTER_CHECK(platform_file_size(file) == 0);
+	TESTER_CHECK(platform_file_tell(file) == 0);
+	TESTER_CHECK(platform_file_write(file, INITIAL_DATA, INITIAL_DATA_SIZE) == INITIAL_DATA_SIZE);
+	TESTER_CHECK(platform_file_tell(file) == INITIAL_DATA_SIZE);
+	TESTER_CHECK(platform_file_size(file) == INITIAL_DATA_SIZE);
+	platform_file_close(file);
+
+	file = platform_file_open(filepath, PLATFORM_FILE_MODE_READ);
+	TESTER_CHECK(file != PLATFORM_FILE_HANDLE_INVALID);
+	if (file == PLATFORM_FILE_HANDLE_INVALID)
+		return;
+	TESTER_CHECK(platform_file_size(file) == INITIAL_DATA_SIZE);
+	char read_data[INITIAL_DATA_SIZE] = {};
+	TESTER_CHECK(platform_file_read(file, read_data, 4) == 4);
+	TESTER_CHECK(_platform_test_bytes_equal(read_data, "0123", 4));
+	TESTER_CHECK(platform_file_tell(file) == 4);
+	TESTER_CHECK(platform_file_seek(file, 2, PLATFORM_FILE_SEEK_ORIGIN_CURRENT));
+	TESTER_CHECK(platform_file_tell(file) == 6);
+	TESTER_CHECK(platform_file_read(file, read_data, 2) == 2);
+	TESTER_CHECK(_platform_test_bytes_equal(read_data, "67", 2));
+	TESTER_CHECK(platform_file_seek(file, -2, PLATFORM_FILE_SEEK_ORIGIN_END));
+	TESTER_CHECK(platform_file_tell(file) == INITIAL_DATA_SIZE - 2);
+	TESTER_CHECK(platform_file_read(file, read_data, 2) == 2);
+	TESTER_CHECK(_platform_test_bytes_equal(read_data, "89", 2));
+	TESTER_CHECK(platform_file_seek(file, 0, PLATFORM_FILE_SEEK_ORIGIN_BEGIN));
+	TESTER_CHECK(platform_file_read(file, read_data, INITIAL_DATA_SIZE) == INITIAL_DATA_SIZE);
+	TESTER_CHECK(_platform_test_bytes_equal(read_data, INITIAL_DATA, INITIAL_DATA_SIZE));
+	TESTER_CHECK(platform_file_read(file, read_data, 1) == 0);
+	platform_file_close(file);
+
+	file = platform_file_open(filepath, PLATFORM_FILE_MODE_READ_WRITE);
+	TESTER_CHECK(file != PLATFORM_FILE_HANDLE_INVALID);
+	if (file == PLATFORM_FILE_HANDLE_INVALID)
+		return;
+	TESTER_CHECK(platform_file_seek(file, 4, PLATFORM_FILE_SEEK_ORIGIN_BEGIN));
+	TESTER_CHECK(platform_file_write(file, REPLACEMENT_DATA, REPLACEMENT_DATA_SIZE) == REPLACEMENT_DATA_SIZE);
+	TESTER_CHECK(platform_file_tell(file) == 6);
+	TESTER_CHECK(platform_file_size(file) == INITIAL_DATA_SIZE);
+	TESTER_CHECK(platform_file_seek(file, 0, PLATFORM_FILE_SEEK_ORIGIN_BEGIN));
+	TESTER_CHECK(platform_file_read(file, read_data, INITIAL_DATA_SIZE) == INITIAL_DATA_SIZE);
+	TESTER_CHECK(_platform_test_bytes_equal(read_data, "0123AB6789", INITIAL_DATA_SIZE));
+	platform_file_close(file);
+
+	file = platform_file_open(filepath, PLATFORM_FILE_MODE_APPEND);
+	TESTER_CHECK(file != PLATFORM_FILE_HANDLE_INVALID);
+	if (file == PLATFORM_FILE_HANDLE_INVALID)
+		return;
+	TESTER_CHECK(platform_file_write(file, APPEND_DATA, APPEND_DATA_SIZE) == APPEND_DATA_SIZE);
+	TESTER_CHECK(platform_file_size(file) == INITIAL_DATA_SIZE + APPEND_DATA_SIZE);
+	platform_file_close(file);
+
+	file = platform_file_open(filepath, PLATFORM_FILE_MODE_READ);
+	TESTER_CHECK(file != PLATFORM_FILE_HANDLE_INVALID);
+	if (file == PLATFORM_FILE_HANDLE_INVALID)
+		return;
+	char final_data[INITIAL_DATA_SIZE + APPEND_DATA_SIZE] = {};
+	TESTER_CHECK(platform_file_read(file, final_data, sizeof(final_data)) == sizeof(final_data));
+	TESTER_CHECK(_platform_test_bytes_equal(final_data, "0123AB6789XY", sizeof(final_data)));
+	platform_file_close(file);
+
+	file = platform_file_open(filepath, PLATFORM_FILE_MODE_WRITE);
+	TESTER_CHECK(file != PLATFORM_FILE_HANDLE_INVALID);
+	if (file == PLATFORM_FILE_HANDLE_INVALID)
+		return;
+	TESTER_CHECK(platform_file_size(file) == 0);
+	platform_file_close(file);
+}
+
+TESTER_TEST("[PLATFORM] clipboard item description")
+{
+	U8 source[] = {1, 2, 3};
+	Platform_Clipboard_Item_Desc item {
+		.media_type = string_literal(PLATFORM_CLIPBOARD_MEDIA_TYPE_BINARY),
+		.data = slice_from(source)
+	};
+	TESTER_CHECK(item.media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_BINARY);
+	TESTER_CHECK(item.media_type.allocator == nullptr);
+	TESTER_CHECK(item.data.data == source);
+	TESTER_CHECK(item.data.count == count_of(source));
+	TESTER_CHECK(item.data[0] == source[0]);
+	TESTER_CHECK(item.data[2] == source[2]);
+}
+
+TESTER_TEST("[PLATFORM] window description")
+{
+	Platform_Window_Desc desc {
+		.width = 1280,
+		.height = 720,
+		.title = "Core"
+	};
+	TESTER_CHECK(desc.width == 1280);
+	TESTER_CHECK(desc.height == 720);
+	TESTER_CHECK(desc.title == string_literal("Core"));
 }

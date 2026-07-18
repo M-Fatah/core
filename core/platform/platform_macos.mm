@@ -2,12 +2,13 @@
 
 #include "core/validate.h"
 #include "core/defer.h"
-#include "core/formatter.h"
 #include "core/math/u64.h"
 #include "core/memory/allocator.h"
 
 #include <dlfcn.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -147,17 +148,6 @@ _platform_macos_window_edge_to_edge_set(Platform_Window_Context *ctx, bool enabl
 		}
 	}
 	ctx->edge_to_edge = enabled;
-}
-
-// TODO: Remove from here.
-inline static void
-_string_concat(const char *a, const char *b, char *result)
-{
-	while (*a != '\0')
-		*result++ = *a++;
-
-	while (*b != '\0')
-		*result++ = *b++;
 }
 
 inline static PLATFORM_KEY
@@ -583,7 +573,9 @@ platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 		return string_from(buffer, allocator);
 
 	String full_path = platform_path_get_current_working_directory(allocator);
-	string_append(full_path, format("/{}", path));
+	if (full_path.count > 0 && full_path[full_path.count - 1] != '/')
+		string_append(full_path, '/');
+	string_append(full_path, path);
 	return full_path;
 }
 
@@ -743,17 +735,21 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 	I32 file_handle = ::open(path.data, O_RDONLY, S_IRWXU);
 	if (file_handle == -1)
 		return content;
+	DEFER(validate(::close(file_handle) == 0, "[PLATFORM]: Failed to close file handle."));
 
-	U64 file_size = platform_file_size(path.data);
+	U64 file_size = platform_path_get_file_size(path);
 	if (file_size == 0)
 		return content;
 
 	string_resize(content, file_size);
 
 	I64 bytes_read = ::read(file_handle, content.data, content.count);
-	validate(::close(file_handle) == 0, "[PLATFORM]: Failed to close file handle.");
 	if (bytes_read == -1)
+	{
+		string_deinit(content);
 		return content;
+	}
+	validate((I64)content.count == bytes_read);
 
 	return content;
 }
@@ -952,11 +948,11 @@ platform_path_move(const String &path, const String &directory, memory::Allocato
 	if (::rename(path.data, result.data) == 0)
 		return result;
 
-	if (errno == EXDEV && platform_path_is_file(path) && platform_file_copy(path.data, result.data) && platform_file_delete(path.data))
+	if (errno == EXDEV && platform_path_is_file(path) && platform_path_copy_file(path, result) && platform_path_delete_file(path))
 		return result;
 
 	if (platform_path_is_file(result))
-		platform_file_delete(result.data);
+		platform_path_delete_file(result);
 	string_deinit(result);
 	return string_init(allocator);
 }
@@ -979,19 +975,23 @@ platform_api_init(const char *filepath)
 {
 	Platform_Api self = {};
 
-	char src_relative_path[128] = {};
-	_string_concat(filepath, ".dylib", src_relative_path);
+	char src_relative_path[PATH_MAX] = {};
+	I32 src_relative_path_length = ::snprintf(src_relative_path, sizeof(src_relative_path), "%s.dylib", filepath);
+	validate(src_relative_path_length > 0 && src_relative_path_length < (I32)sizeof(src_relative_path), "[PLATFORM][MACOS]: Library path is too long.");
 
-	char dst_relative_path[128] = {};
-	_string_concat(src_relative_path, ".tmp", dst_relative_path);
+	char dst_relative_path[PATH_MAX] = {};
+	I32 dst_relative_path_length = ::snprintf(dst_relative_path, sizeof(dst_relative_path), "%s.tmp", src_relative_path);
+	validate(dst_relative_path_length > 0 && dst_relative_path_length < (I32)sizeof(dst_relative_path), "[PLATFORM][MACOS]: Temporary library path is too long.");
 
 	char src_absolute_path[PATH_MAX] = {};
-	_string_concat(current_executable_directory, src_relative_path, src_absolute_path);
+	I32 src_absolute_path_length = ::snprintf(src_absolute_path, sizeof(src_absolute_path), "%s%s", current_executable_directory, src_relative_path);
+	validate(src_absolute_path_length > 0 && src_absolute_path_length < (I32)sizeof(src_absolute_path), "[PLATFORM][MACOS]: Absolute library path is too long.");
 
 	char dst_absolute_path[PATH_MAX] = {};
-	_string_concat(current_executable_directory, src_relative_path, dst_absolute_path);
+	I32 dst_absolute_path_length = ::snprintf(dst_absolute_path, sizeof(dst_absolute_path), "%s%s", current_executable_directory, dst_relative_path);
+	validate(dst_absolute_path_length > 0 && dst_absolute_path_length < (I32)sizeof(dst_absolute_path), "[PLATFORM][MACOS]: Absolute temporary library path is too long.");
 
-	[[maybe_unused]] bool copy_successful = platform_file_copy(src_relative_path, dst_relative_path);
+	[[maybe_unused]] bool copy_successful = platform_path_copy_file(src_relative_path, dst_relative_path);
 	validate(copy_successful, "[PLATFORM]: Failed to copy library.");
 
 	self.handle = ::dlopen(dst_absolute_path, RTLD_LAZY);
@@ -1030,7 +1030,8 @@ void *
 platform_api_load(Platform_Api *self)
 {
 	char dst_absolute_path[PATH_MAX] = {};
-	_string_concat(self->filepath, ".tmp", dst_absolute_path);
+	I32 dst_absolute_path_length = ::snprintf(dst_absolute_path, sizeof(dst_absolute_path), "%s.tmp", self->filepath);
+	validate(dst_absolute_path_length > 0 && dst_absolute_path_length < (I32)sizeof(dst_absolute_path), "[PLATFORM][MACOS]: Absolute temporary library path is too long.");
 
 	struct stat file_stat = {};
 	I32 stat_result = ::stat(self->filepath, &file_stat);
@@ -1042,11 +1043,9 @@ platform_api_load(Platform_Api *self)
 
 	::dlclose(self->handle);
 
-	platform_file_delete(dst_absolute_path);
+	platform_path_delete_file(dst_absolute_path);
 
-	// platform_sleep(100);
-
-	bool copy_result = platform_file_copy(self->filepath, dst_absolute_path);
+	bool copy_result = platform_path_copy_file(self->filepath, dst_absolute_path);
 
 	self->handle = ::dlopen(dst_absolute_path, RTLD_LAZY);
 	validate(self->handle, "[PLATFORM]: Failed to load library.");
@@ -1327,13 +1326,14 @@ platform_semaphore_signal(Platform_Semaphore *self, U32 count)
 
 // TODO: Return early with error message if failed to create objects.
 Platform_Window
-platform_window_init(U32 width, U32 height, const char *title)
+platform_window_init(Platform_Window_Desc desc)
 {
+	validate(desc.width > 0 && desc.height > 0 && desc.title != nullptr, "[PLATFORM][MACOS]: Window description requires non-zero dimensions and a title.");
 	Platform_Window_Context *ctx = memory::allocate_zeroed<Platform_Window_Context>();
 
 	@autoreleasepool
 	{
-		NSRect rect = NSMakeRect(0, 0, width, height);
+		NSRect rect = NSMakeRect(0, 0, desc.width, desc.height);
 		NSWindow *window = [[NSWindow alloc] initWithContentRect:rect
 							styleMask:NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
 							backing:NSBackingStoreBuffered
@@ -1352,7 +1352,7 @@ platform_window_init(U32 width, U32 height, const char *title)
 		[window setLevel:NSNormalWindowLevel];
 		[window setContentView:content_view];
 		[window makeFirstResponder:content_view];
-		[window setTitle:@(title)];
+		[window setTitle:@(desc.title)];
 		[window setDelegate:window_delegate];
 		[window setAcceptsMouseMovedEvents:YES];
 		[window setRestorable:NO];
@@ -1365,10 +1365,10 @@ platform_window_init(U32 width, U32 height, const char *title)
 	}
 
 	Platform_Window self {
-		.handle = ctx,
-		.width  = width,
-		.height = height,
-		.metrics = _platform_macos_window_metrics(ctx, width, height),
+		.ctx = ctx,
+		.width  = desc.width,
+		.height = desc.height,
+		.metrics = _platform_macos_window_metrics(ctx, desc.width, desc.height),
 		.input  = {},
 		.focused = true,
 		.started = true,
@@ -1382,7 +1382,7 @@ platform_window_init(U32 width, U32 height, const char *title)
 void
 platform_window_deinit(Platform_Window *self)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	Platform_Window_Context *ctx = self->ctx;
 
 	@autoreleasepool
 	{
@@ -1398,7 +1398,7 @@ platform_window_deinit(Platform_Window *self)
 	if (ctx->text_input_text.capacity > 0)
 		string_deinit(ctx->text_input_text);
 	memory::deallocate(ctx);
-	self->handle = nullptr;
+	self->ctx = nullptr;
 	self->metrics = {};
 	self->presentation = {};
 	self->close_requested = true;
@@ -1411,7 +1411,7 @@ platform_window_deinit(Platform_Window *self)
 bool
 platform_window_poll(Platform_Window *self)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	Platform_Window_Context *ctx = self->ctx;
 	bool surface_changed = self->surface_changed;
 	self->surface_changed = false;
 	self->low_memory = false;
@@ -1529,7 +1529,7 @@ platform_window_poll(Platform_Window *self)
 Platform_Window_Native_Handles
 platform_window_get_native_handles(Platform_Window *self)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	Platform_Window_Context *ctx = self->ctx;
 	return Platform_Window_Native_Handles {
 		.window = ctx->window,
 		.context = ctx->content_view
@@ -1539,7 +1539,7 @@ platform_window_get_native_handles(Platform_Window *self)
 void
 platform_window_set_title(Platform_Window *self, const char *title)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	Platform_Window_Context *ctx = self->ctx;
 
 	[ctx->window setTitle:@(title)];
 }
@@ -1547,7 +1547,7 @@ platform_window_set_title(Platform_Window *self, const char *title)
 void
 platform_window_close(Platform_Window *self)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	Platform_Window_Context *ctx = self->ctx;
 
 	self->close_requested = true;
 	self->surface_valid = false;
@@ -1557,7 +1557,7 @@ platform_window_close(Platform_Window *self)
 void
 platform_window_presentation_set(Platform_Window &window, const Platform_Window_Presentation_Desc &desc)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	Platform_Window_Context *ctx = window.ctx;
 	bool fullscreen = (desc.flags & (PLATFORM_WINDOW_PRESENTATION_FLAG_FULLSCREEN | PLATFORM_WINDOW_PRESENTATION_FLAG_IMMERSIVE)) != 0;
 	_platform_macos_window_fullscreen_set(ctx, fullscreen);
 	_platform_macos_window_edge_to_edge_set(ctx, (desc.flags & PLATFORM_WINDOW_PRESENTATION_FLAG_EDGE_TO_EDGE) != 0);
@@ -1569,7 +1569,7 @@ platform_window_presentation_set(Platform_Window &window, const Platform_Window_
 void
 platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	Platform_Window_Context *ctx = window.ctx;
 	Platform_Text_Input_Desc text_input_desc = desc;
 	window.text_input = text_input_desc;
 	window.text_input.text = {};
@@ -1612,83 +1612,152 @@ platform_set_current_directory()
 	::strcpy(current_executable_directory, module_path_absolute);
 }
 
-bool
-platform_file_exists(const char *filepath)
-{
-	struct stat file_stat = {};
-	return ::stat(filepath, &file_stat) == 0;
-}
-
 U64
-platform_file_size(const char *filepath)
+platform_path_get_file_size(const String &path)
 {
 	struct stat file_stat = {};
-	if (::stat(filepath, &file_stat) == 0)
+	if (::stat(path.data, &file_stat) == 0)
 		return file_stat.st_size;
 	return 0;
 }
 
-String
-platform_file_read(const String &file_path, memory::Allocator *allocator)
+inline static Platform_File_Handle
+_platform_macos_file_handle_from_fd(I32 fd)
 {
-	String content = string_init(allocator);
+	return (Platform_File_Handle)(intptr_t)(fd + 1);
+}
 
-	I32 file_handle = ::open(file_path.data, O_RDONLY, S_IRWXU);
-	if (file_handle == -1)
-		return content;
+inline static I32
+_platform_macos_file_handle_to_fd(Platform_File_Handle handle)
+{
+	return (I32)((intptr_t)handle - 1);
+}
 
-	U64 file_size = platform_file_size(file_path.data);
-	if (file_size == 0)
-		return content;
+inline static I64
+_platform_macos_file_read(I32 fd, void *data, U64 size)
+{
+	char *cursor = (char *)data;
+	U64 bytes_read = 0;
+	while (bytes_read < size)
+	{
+		U64 bytes_to_read = u64_min(size - bytes_read, (U64)SSIZE_MAX);
+		I64 result = ::read(fd, cursor + bytes_read, (size_t)bytes_to_read);
+		if (result == 0)
+			break;
 
-	string_resize(content, file_size);
+		if (result < 0)
+		{
+			if (errno == EINTR)
+				continue;
+			return -1;
+		}
 
-	I64 bytes_read = ::read(file_handle, content.data, content.count);
-	validate(::close(file_handle) == 0, "[PLATFORM]: Failed to close file handle.");
-	if (bytes_read == -1)
-		return content;
+		bytes_read += (U64)result;
+	}
+	return (I64)bytes_read;
+}
 
-	return content;
+inline static I64
+_platform_macos_file_write(I32 fd, const void *data, U64 size)
+{
+	const char *cursor = (const char *)data;
+	U64 bytes_written = 0;
+	while (bytes_written < size)
+	{
+		U64 bytes_to_write = u64_min(size - bytes_written, (U64)SSIZE_MAX);
+		I64 result = ::write(fd, cursor + bytes_written, (size_t)bytes_to_write);
+		if (result == 0)
+			break;
+
+		if (result < 0)
+		{
+			if (errno == EINTR)
+				continue;
+			return -1;
+		}
+
+		bytes_written += (U64)result;
+	}
+	return (I64)bytes_written;
+}
+
+Platform_File_Handle
+platform_file_open(const String &path, Platform_File_Mode mode)
+{
+	I32 flags = 0;
+	switch (mode)
+	{
+		case PLATFORM_FILE_MODE_READ:       flags = O_RDONLY;                      break;
+		case PLATFORM_FILE_MODE_WRITE:      flags = O_WRONLY | O_CREAT | O_TRUNC;  break;
+		case PLATFORM_FILE_MODE_READ_WRITE: flags = O_RDWR   | O_CREAT;            break;
+		case PLATFORM_FILE_MODE_APPEND:     flags = O_WRONLY | O_CREAT | O_APPEND; break;
+	}
+
+	I32 fd = -1;
+	if (mode == PLATFORM_FILE_MODE_READ)
+		fd = ::open(path.data, flags);
+	else
+		fd = ::open(path.data, flags, S_IRWXU);
+	return fd == -1 ? PLATFORM_FILE_HANDLE_INVALID : _platform_macos_file_handle_from_fd(fd);
+}
+
+void
+platform_file_close(Platform_File_Handle handle)
+{
+	validate(!handle || ::close(_platform_macos_file_handle_to_fd(handle)) == 0, "[PLATFORM][MACOS]: Failed to close file handle.");
 }
 
 U64
-platform_file_read(const char *filepath, Memory_Block block)
+platform_file_read(Platform_File_Handle handle, void *data, U64 size)
 {
-	I32 file_handle = ::open(filepath, O_RDONLY, S_IRWXU);
-	if (file_handle == -1)
-		return 0;
-
-	I64 bytes_read = ::read(file_handle, block.data, block.size);
-	[[maybe_unused]] I32 close_result = ::close(file_handle);
-	validate(close_result == 0, "[PLATFORM]: Failed to close file handle.");
-	if (bytes_read == -1)
-		return 0;
-	return bytes_read;
+	I64 bytes_read = _platform_macos_file_read(_platform_macos_file_handle_to_fd(handle), data, size);
+	return bytes_read < 0 ? 0 : (U64)bytes_read;
 }
 
 U64
-platform_file_write(const char *filepath, Memory_Block block)
+platform_file_write(Platform_File_Handle handle, const void *data, U64 size)
 {
-	I32 file_handle = ::open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
-	if (file_handle == -1)
-		return 0;
-
-	I64 bytes_written = ::write(file_handle, block.data, block.size);
-	[[maybe_unused]] I32 close_result = ::close(file_handle);
-	validate(close_result == 0, "[PLATFORM]: Failed to close file handle.");
-	if (bytes_written == -1)
-		return 0;
-	return bytes_written;
+	I64 bytes_written = _platform_macos_file_write(_platform_macos_file_handle_to_fd(handle), data, size);
+	return bytes_written < 0 ? 0 : (U64)bytes_written;
 }
 
 bool
-platform_file_copy(const char *from, const char *to)
+platform_file_seek(Platform_File_Handle handle, I64 offset, Platform_File_Seek_Origin origin)
 {
-	I32 src_file = ::open(from, O_RDONLY);
+	I32 whence = SEEK_SET;
+	switch (origin)
+	{
+		case PLATFORM_FILE_SEEK_ORIGIN_BEGIN:   whence = SEEK_SET; break;
+		case PLATFORM_FILE_SEEK_ORIGIN_CURRENT: whence = SEEK_CUR; break;
+		case PLATFORM_FILE_SEEK_ORIGIN_END:     whence = SEEK_END; break;
+	}
+	return ::lseek(_platform_macos_file_handle_to_fd(handle), (off_t)offset, whence) != (off_t)-1;
+}
+
+U64
+platform_file_tell(Platform_File_Handle handle)
+{
+	off_t offset = ::lseek(_platform_macos_file_handle_to_fd(handle), 0, SEEK_CUR);
+	return offset == (off_t)-1 ? 0 : (U64)offset;
+}
+
+U64
+platform_file_size(Platform_File_Handle handle)
+{
+	struct stat st = {};
+	if (::fstat(_platform_macos_file_handle_to_fd(handle), &st) != 0)
+		return 0;
+	return (U64)st.st_size;
+}
+
+bool
+platform_path_copy_file(const String &from, const String &to)
+{
+	I32 src_file = ::open(from.data, O_RDONLY);
 	if (src_file < 0)
 		return false;
 
-	I32 dst_file = ::open(to, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+	I32 dst_file = ::open(to.data, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 	if (dst_file < 0)
 	{
 		::close(src_file);
@@ -1719,14 +1788,15 @@ platform_file_copy(const char *from, const char *to)
 }
 
 bool
-platform_file_delete(const char *filepath)
+platform_path_delete_file(const String &path)
 {
-	return ::unlink(filepath) == 0;
+	return ::unlink(path.data) == 0;
 }
 
 String
-platform_file_dialog_open(const char *filters, memory::Allocator *allocator)
+platform_file_dialog_open(Platform_Window &window, const char *filters, memory::Allocator *allocator)
 {
+	validate(window.ctx != nullptr && window.ctx->window != nil, "[PLATFORM][MACOS]: File dialog requires an initialized platform window.");
 	@autoreleasepool
 	{
 		NSApplication *application = [NSApplication sharedApplication];
@@ -1749,9 +1819,12 @@ platform_file_dialog_open(const char *filters, memory::Allocator *allocator)
 	return string_init(allocator);
 }
 
-String
-platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
+bool
+platform_file_dialog_save(Platform_Window &window, const String &suggested_name, Slice<const U8> data, const char *filters)
 {
+	validate(window.ctx != nullptr && window.ctx->window != nil, "[PLATFORM][MACOS]: File save dialog requires an initialized platform window.");
+	validate(data.data != nullptr || data.count == 0, "[PLATFORM][MACOS]: File save data is invalid.");
+
 	@autoreleasepool
 	{
 		NSApplication *application = [NSApplication sharedApplication];
@@ -1761,20 +1834,41 @@ platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
 		NSSavePanel *save_panel = [NSSavePanel savePanel];
 		save_panel.canCreateDirectories = true;
 		save_panel.allowedContentTypes  = [UTType typesWithTag:@(filters) tagClass:UTTagClassFilenameExtension conformingToType:nil];
+		if (suggested_name.count > 0)
+		{
+			NSString *suggested_name_string = [NSString stringWithUTF8String:suggested_name.data];
+			if (suggested_name_string)
+				save_panel.nameFieldStringValue = suggested_name_string;
+		}
 
 		if ([save_panel runModal] == NSModalResponseOK)
 		{
 			NSURL *url = [save_panel URL];
-			return string_from([url.path UTF8String], allocator);
+			String destination_path = string_literal([url.path UTF8String]);
+			Platform_File_Handle file = platform_file_open(destination_path, PLATFORM_FILE_MODE_WRITE);
+			if (file == PLATFORM_FILE_HANDLE_INVALID)
+				return false;
+			DEFER(platform_file_close(file));
+
+			U64 bytes_written = 0;
+			while (bytes_written < data.count)
+			{
+				U64 write_size = platform_file_write(file, data.data + bytes_written, data.count - bytes_written);
+				if (write_size == 0)
+					return false;
+				bytes_written += write_size;
+			}
+			return true;
 		}
 	}
 
-	return string_init(allocator);
+	return false;
 }
 
 String
-platform_directory_dialog_open(memory::Allocator *allocator)
+platform_directory_dialog_open(Platform_Window &window, memory::Allocator *allocator)
 {
+	validate(window.ctx != nullptr && window.ctx->window != nil, "[PLATFORM][MACOS]: Directory dialog requires an initialized platform window.");
 	@autoreleasepool
 	{
 		NSApplication *application = [NSApplication sharedApplication];
@@ -1831,57 +1925,61 @@ platform_window_clipboard_query_media_types(Platform_Window &, memory::Allocator
 	return media_types;
 }
 
-Platform_Clipboard_Item
-platform_window_clipboard_item_read(Platform_Window &, const String &media_type, memory::Allocator *allocator)
+bool
+platform_window_clipboard_item_read(Platform_Window &, const String &media_type, Array<U8> &data)
 {
-	Platform_Clipboard_Item result {
-		.media_type = string_init(allocator),
-		.data = array_init<U8>(allocator)
-	};
+	validate(data.allocator != nullptr, "[PLATFORM][MACOS]: Clipboard read requires initialized output data.");
+	array_clear(data);
 
 	@autoreleasepool
 	{
 		NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
 		NSString *type = _platform_macos_clipboard_type_from_media_type(media_type);
 		if (type == nil)
-			return result;
+			return false;
 
 		if (media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 || media_type == "text/plain")
 		{
 			NSString *text = [pasteboard stringForType:type];
 			if (text == nil)
-				return result;
+				return false;
 
 			const char *text_data = [text UTF8String];
-			string_deinit(result.media_type);
-			result.media_type = string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator);
-			array_resize(result.data, ::strlen(text_data));
-			::memcpy(result.data.data, text_data, result.data.count);
-			return result;
+			if (text_data == nullptr)
+				return false;
+			array_resize(data, ::strlen(text_data));
+			if (data.count > 0)
+				::memcpy(data.data, text_data, data.count);
+			return true;
 		}
 
-		NSData *data = [pasteboard dataForType:type];
-		if (data == nil)
-			return result;
+		NSData *clipboard_data = [pasteboard dataForType:type];
+		if (clipboard_data == nil)
+			return false;
 
-		string_deinit(result.media_type);
-		result.media_type = string_copy(media_type, allocator);
-		array_resize(result.data, [data length]);
-		::memcpy(result.data.data, [data bytes], result.data.count);
+		array_resize(data, [clipboard_data length]);
+		if (data.count > 0)
+			::memcpy(data.data, [clipboard_data bytes], data.count);
 	}
 
-	return result;
+	return true;
 }
 
 bool
-platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard_Item *items, U32 item_count)
+platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard_Item_Desc *items, U32 item_count)
 {
 	if (items == nullptr || item_count == 0)
 		return false;
+	for (U32 i = 0; i < item_count; ++i)
+		if (items[i].media_type.count == 0 || (items[i].data.count > 0 && items[i].data.data == nullptr))
+			return false;
 
 	@autoreleasepool
 	{
 		NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+		for (U32 i = 0; i < item_count; ++i)
+			if (_platform_macos_clipboard_type_from_media_type(items[i].media_type) == nil)
+				return false;
 		[pasteboard clearContents];
 
 		for (U32 i = 0; i < item_count; ++i)
@@ -1919,21 +2017,6 @@ platform_query_microseconds()
 	[[maybe_unused]] I32 result = clock_gettime(CLOCK_MONOTONIC, &time);
 	validate(result == 0, "[PLATFORM]: Failed to query clock.");
 	return time.tv_sec * 1000000 + time.tv_nsec * 0.001;
-}
-
-void
-platform_sleep_set_period(U32)
-{
-
-}
-
-void
-platform_sleep(U32 milliseconds)
-{
-	struct timespec ts;
-	ts.tv_sec = milliseconds / 1000;
-	ts.tv_nsec = (milliseconds % 1000) * 1000 * 1000;
-	::nanosleep(&ts, 0);
 }
 
 U32

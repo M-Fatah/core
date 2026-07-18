@@ -80,7 +80,15 @@ void read_file_task(void *data)
 	scheduler_worker_block_ahead(task->scheduler);
 	DEFER(scheduler_worker_block_clear(task->scheduler));
 
-	task->bytes_read = platform_file_read(task->path, task->buffer);
+	Platform_File_Handle file = platform_file_open(task->path, PLATFORM_FILE_MODE_READ);
+	if (file == PLATFORM_FILE_HANDLE_INVALID)
+	{
+		task->bytes_read = 0;
+		return;
+	}
+	DEFER(platform_file_close(file));
+
+	task->bytes_read = platform_file_read(file, task->buffer.data, task->buffer.size);
 }
 ```
 

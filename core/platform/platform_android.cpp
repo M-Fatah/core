@@ -43,7 +43,7 @@ struct Platform_Thread
 	bool joined;
 };
 
-struct Platform_Context
+struct Platform_Window_Context
 {
 	ANativeActivity *activity;
 	AAssetManager *asset_manager;
@@ -110,6 +110,7 @@ struct Platform_Context
 	bool surface_changed;
 	bool content_rect_valid;
 	bool activity_recreation_pending;
+	bool native_connect_in_progress;
 	bool window_deinitialized;
 	bool window_deinit_in_progress;
 	bool file_dialog_waiting;
@@ -118,18 +119,18 @@ struct Platform_Context
 	bool text_input_active;
 };
 
-static Platform_Context *_platform_android_context = nullptr;
+static Platform_Window_Context *_platform_android_context = nullptr;
 
 inline static void
-_platform_android_context_try_deinit(Platform_Context *context, bool window_deinit_finished = false);
+_platform_android_context_try_deinit(Platform_Window_Context *context, bool window_deinit_finished = false);
 
 inline static void
-_platform_android_window_presentation_set(Platform_Context *context, const Platform_Window_Presentation_Desc &desc);
+_platform_android_window_presentation_set(Platform_Window_Context *context, const Platform_Window_Presentation_Desc &desc);
 
 inline static void
-_platform_android_text_input_set(Platform_Context *context, const Platform_Text_Input_Desc &desc);
+_platform_android_text_input_set(Platform_Window_Context *context, const Platform_Text_Input_Desc &desc);
 
-inline static Platform_Context *
+inline static Platform_Window_Context *
 _platform_android_context_get()
 {
 	validate(_platform_android_context != nullptr, "[PLATFORM][ANDROID]: Android context is not initialized.");
@@ -240,26 +241,26 @@ _platform_android_write(I32 fd, const void *data, U64 size)
 	return (I64)bytes_written;
 }
 
-inline static Platform_Context *
+inline static Platform_Window_Context *
 _platform_android_context_from_activity(ANativeActivity *activity)
 {
-	return activity ? (Platform_Context *)activity->instance : nullptr;
+	return activity ? (Platform_Window_Context *)activity->instance : nullptr;
 }
 
 inline static void
-_platform_android_context_lock(Platform_Context *context)
+_platform_android_context_lock(Platform_Window_Context *context)
 {
 	validate(::pthread_mutex_lock(&context->mutex) == 0, "[PLATFORM][ANDROID]: Failed to lock context mutex.");
 }
 
 inline static void
-_platform_android_context_unlock(Platform_Context *context)
+_platform_android_context_unlock(Platform_Window_Context *context)
 {
 	validate(::pthread_mutex_unlock(&context->mutex) == 0, "[PLATFORM][ANDROID]: Failed to unlock context mutex.");
 }
 
 inline static JNIEnv *
-_platform_android_jni_env(Platform_Context *context, bool *needs_detach)
+_platform_android_jni_env(Platform_Window_Context *context, bool *needs_detach)
 {
 	*needs_detach = false;
 	if (context->vm == nullptr)
@@ -281,7 +282,7 @@ _platform_android_jni_env(Platform_Context *context, bool *needs_detach)
 }
 
 inline static void
-_platform_android_jni_detach(Platform_Context *context, bool needs_detach)
+_platform_android_jni_detach(Platform_Window_Context *context, bool needs_detach)
 {
 	if (needs_detach && context->vm)
 		context->vm->DetachCurrentThread();
@@ -306,7 +307,7 @@ _platform_android_jni_get_method(JNIEnv *env, jclass klass, const char *name, co
 }
 
 inline static bool
-_platform_android_jni_bridge_init(Platform_Context *context, ANativeActivity *activity)
+_platform_android_jni_bridge_init(Platform_Window_Context *context, ANativeActivity *activity)
 {
 	JavaVM *vm = activity->vm;
 	JNIEnv *env = activity->env;
@@ -329,7 +330,7 @@ _platform_android_jni_bridge_init(Platform_Context *context, ANativeActivity *ac
 	DEFER(if (activity_class_global) env->DeleteGlobalRef(activity_class_global););
 
 	jmethodID file_dialog_open_method = _platform_android_jni_get_method(env, activity_class_global, "coreOpenFileDialog", "(JLjava/lang/String;)V");
-	jmethodID file_dialog_save_method = _platform_android_jni_get_method(env, activity_class_global, "coreSaveFileDialog", "(JLjava/lang/String;)V");
+	jmethodID file_dialog_save_method = _platform_android_jni_get_method(env, activity_class_global, "coreSaveFileDialog", "(JLjava/lang/String;[B)V");
 	jmethodID directory_dialog_open_method = _platform_android_jni_get_method(env, activity_class_global, "coreOpenDirectoryDialog", "(J)V");
 	jmethodID app_data_directory_method = _platform_android_jni_get_method(env, activity_class_global, "coreAppDataDirectory", "()Ljava/lang/String;");
 	jmethodID cache_directory_method = _platform_android_jni_get_method(env, activity_class_global, "coreCacheDirectory", "()Ljava/lang/String;");
@@ -417,7 +418,7 @@ _platform_android_jni_bridge_init(Platform_Context *context, ANativeActivity *ac
 }
 
 inline static void
-_platform_android_jni_bridge_deinit(Platform_Context *context)
+_platform_android_jni_bridge_deinit(Platform_Window_Context *context)
 {
 	jobject activity_object = nullptr;
 	jclass activity_class = nullptr;
@@ -464,7 +465,7 @@ _platform_android_jni_bridge_deinit(Platform_Context *context)
 }
 
 inline static jobject
-_platform_android_activity_ref_get(Platform_Context *context, JNIEnv *env, jmethodID *method, jmethodID *method_out)
+_platform_android_activity_ref_get(Platform_Window_Context *context, JNIEnv *env, jmethodID *method, jmethodID *method_out)
 {
 	*method_out = nullptr;
 	jobject activity_object = nullptr;
@@ -504,7 +505,7 @@ _platform_android_i32_clamp(I32 value, I32 min_value, I32 max_value)
 }
 
 inline static void
-_platform_android_metrics_update_locked(Platform_Context *context)
+_platform_android_metrics_update_locked(Platform_Window_Context *context)
 {
 	I32 width = (I32)context->width;
 	I32 height = (I32)context->height;
@@ -566,7 +567,7 @@ _platform_android_metrics_update_locked(Platform_Context *context)
 }
 
 inline static void
-_platform_android_window_lease_release_locked(Platform_Context *context)
+_platform_android_window_lease_release_locked(Platform_Window_Context *context)
 {
 	if (context->native_window_lease)
 	{
@@ -576,7 +577,7 @@ _platform_android_window_lease_release_locked(Platform_Context *context)
 }
 
 inline static void
-_platform_android_window_set_locked(Platform_Context *context, ANativeWindow *window)
+_platform_android_window_set_locked(Platform_Window_Context *context, ANativeWindow *window)
 {
 	if (context->native_window == window)
 		return;
@@ -602,7 +603,7 @@ _platform_android_window_set_locked(Platform_Context *context, ANativeWindow *wi
 }
 
 inline static void
-_platform_android_input_queue_attach_locked(Platform_Context *context)
+_platform_android_input_queue_attach_locked(Platform_Window_Context *context)
 {
 	if (context->input_queue == nullptr || context->looper == nullptr || context->input_queue_attached)
 		return;
@@ -612,7 +613,7 @@ _platform_android_input_queue_attach_locked(Platform_Context *context)
 }
 
 inline static void
-_platform_android_input_queue_detach_locked(Platform_Context *context)
+_platform_android_input_queue_detach_locked(Platform_Window_Context *context)
 {
 	if (context->input_queue == nullptr || !context->input_queue_attached)
 		return;
@@ -622,7 +623,7 @@ _platform_android_input_queue_detach_locked(Platform_Context *context)
 }
 
 inline static void
-_platform_android_file_dialog_cancel_locked(Platform_Context *context)
+_platform_android_file_dialog_cancel_locked(Platform_Window_Context *context)
 {
 	if (!context->file_dialog_waiting)
 		return;
@@ -650,7 +651,7 @@ _platform_android_text_input_events_reset(Array<Platform_Text_Input_Event> &even
 inline static void
 _platform_android_on_resume(ANativeActivity *activity)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -662,7 +663,7 @@ _platform_android_on_resume(ANativeActivity *activity)
 inline static void
 _platform_android_on_start(ANativeActivity *activity)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -674,7 +675,7 @@ _platform_android_on_start(ANativeActivity *activity)
 inline static void
 _platform_android_on_stop(ANativeActivity *activity)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -687,7 +688,7 @@ _platform_android_on_stop(ANativeActivity *activity)
 inline static void
 _platform_android_on_low_memory(ANativeActivity *activity)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -702,7 +703,7 @@ _platform_android_on_save_instance_state(ANativeActivity *activity, size_t *out_
 	if (out_size)
 		*out_size = 0;
 
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -715,7 +716,7 @@ _platform_android_on_save_instance_state(ANativeActivity *activity, size_t *out_
 inline static void
 _platform_android_on_pause(ANativeActivity *activity)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -727,7 +728,7 @@ _platform_android_on_pause(ANativeActivity *activity)
 inline static void
 _platform_android_on_destroy(ANativeActivity *activity)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -752,7 +753,7 @@ _platform_android_on_destroy(ANativeActivity *activity)
 inline static void
 _platform_android_on_window_focus_changed(ANativeActivity *activity, int has_focus)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -764,7 +765,7 @@ _platform_android_on_window_focus_changed(ANativeActivity *activity, int has_foc
 inline static void
 _platform_android_on_native_window_created(ANativeActivity *activity, ANativeWindow *window)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -776,7 +777,7 @@ _platform_android_on_native_window_created(ANativeActivity *activity, ANativeWin
 inline static void
 _platform_android_on_native_window_resized(ANativeActivity *activity, ANativeWindow *window)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -795,7 +796,7 @@ _platform_android_on_native_window_resized(ANativeActivity *activity, ANativeWin
 inline static void
 _platform_android_on_native_window_redraw_needed(ANativeActivity *activity, ANativeWindow *window)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -808,7 +809,7 @@ _platform_android_on_native_window_redraw_needed(ANativeActivity *activity, ANat
 inline static void
 _platform_android_on_native_window_destroyed(ANativeActivity *activity, ANativeWindow *window)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -821,7 +822,7 @@ _platform_android_on_native_window_destroyed(ANativeActivity *activity, ANativeW
 inline static void
 _platform_android_on_content_rect_changed(ANativeActivity *activity, const ARect *rect)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -846,7 +847,7 @@ _platform_android_on_content_rect_changed(ANativeActivity *activity, const ARect
 inline static void
 _platform_android_on_configuration_changed(ANativeActivity *activity)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -869,7 +870,7 @@ _platform_android_on_configuration_changed(ANativeActivity *activity)
 inline static void
 _platform_android_on_input_queue_created(ANativeActivity *activity, AInputQueue *queue)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -882,7 +883,7 @@ _platform_android_on_input_queue_created(ANativeActivity *activity, AInputQueue 
 inline static void
 _platform_android_on_input_queue_destroyed(ANativeActivity *activity, AInputQueue *queue)
 {
-	Platform_Context *context = _platform_android_context_from_activity(activity);
+	Platform_Window_Context *context = _platform_android_context_from_activity(activity);
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -1175,7 +1176,7 @@ _platform_android_handle_input_event(Platform_Window *window, AInputEvent *event
 
 		if (keycode == AKEYCODE_BACK && action == AKEY_EVENT_ACTION_UP)
 		{
-			Platform_Context *context = (Platform_Context *)window->handle;
+			Platform_Window_Context *context = window->ctx;
 			context->close_requested = true;
 		}
 
@@ -1205,7 +1206,7 @@ _platform_android_handle_input_event(Platform_Window *window, AInputEvent *event
 }
 
 inline static void
-_platform_android_process_input_queue(Platform_Context *context, Platform_Window *window)
+_platform_android_process_input_queue(Platform_Window_Context *context, Platform_Window *window)
 {
 	AInputEvent *event = nullptr;
 	while (::AInputQueue_getEvent(context->input_queue, &event) >= 0)
@@ -1264,108 +1265,46 @@ _platform_android_activity_callbacks_set(ANativeActivity *activity)
 	activity->callbacks->onLowMemory = _platform_android_on_low_memory;
 }
 
-inline static bool
-_platform_android_context_init(ANativeActivity *activity)
+inline static Platform_Window_Context *
+_platform_android_context_init()
 {
-	validate(activity != nullptr, "[PLATFORM][ANDROID]: NativeActivity is required.");
-	validate(activity->callbacks != nullptr, "[PLATFORM][ANDROID]: NativeActivity callbacks are required.");
-	if (activity == nullptr || activity->callbacks == nullptr)
-		return false;
-
-	if (_platform_android_context)
-	{
-		Platform_Context *context = _platform_android_context;
-		_platform_android_context_lock(context);
-		bool can_rebind = context->activity == nullptr && context->activity_recreation_pending && !context->window_deinitialized && !context->window_deinit_in_progress;
-		_platform_android_context_unlock(context);
-		validate(can_rebind, "[PLATFORM][ANDROID]: Android context is already initialized.");
-		if (!can_rebind)
-			return false;
-
-		bool bridge_initialized = _platform_android_jni_bridge_init(context, activity);
-		validate(bridge_initialized, "[PLATFORM][ANDROID]: Core generated Java bridge is required. Use core.android.CoreNativeActivity in the Android manifest.");
-		if (!bridge_initialized)
-		{
-			_platform_android_jni_bridge_deinit(context);
-			_platform_android_context_lock(context);
-			context->activity_recreation_pending = false;
-			context->close_requested = true;
-			_platform_android_context_unlock(context);
-			return false;
-		}
-
-		_platform_android_context_lock(context);
-		context->activity = activity;
-		context->asset_manager = activity->assetManager;
-		context->close_requested = false;
-		context->started = true;
-		context->paused = false;
-		context->focused = false;
-		context->surface_changed = true;
-		context->activity_recreation_pending = false;
-		activity->instance = context;
-		_platform_android_activity_callbacks_set(activity);
-		_platform_android_metrics_update_locked(context);
-		Platform_Window_Presentation_Desc presentation_desc = context->presentation;
-		Platform_Text_Input_Desc text_input_desc {
-			.x = context->text_input_x,
-			.y = context->text_input_y,
-			.width = context->text_input_width,
-			.height = context->text_input_height,
-			.flags = context->text_input_flags,
-			.action = context->text_input_action,
-			.text = string_copy(context->text_input_text, memory::temp_allocator()),
-			.selection_start = context->text_input_selection_start,
-			.selection_end = context->text_input_selection_end,
-			.composing_start = context->text_input_composing_start,
-			.composing_end = context->text_input_composing_end,
-			.enabled = context->text_input_active
-		};
-		_platform_android_context_unlock(context);
-		_platform_android_window_presentation_set(context, presentation_desc);
-		if (text_input_desc.enabled)
-			_platform_android_text_input_set(context, text_input_desc);
-		return false;
-	}
-
-	Platform_Context *context = memory::allocate_zeroed<Platform_Context>();
-	context->activity = activity;
-	context->asset_manager = activity->assetManager;
-	context->started = true;
+	Platform_Window_Context *context = memory::allocate_zeroed<Platform_Window_Context>();
+	context->paused = true;
 	context->text_input_events = array_init<Platform_Text_Input_Event>();
-	validate(::pthread_mutex_init(&context->mutex, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize context mutex.");
-	validate(::pthread_cond_init(&context->file_dialog_condition, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize file dialog condition.");
-	bool bridge_initialized = _platform_android_jni_bridge_init(context, activity);
-	validate(bridge_initialized, "[PLATFORM][ANDROID]: Core generated Java bridge is required. Use core.android.CoreNativeActivity in the Android manifest.");
-	if (!bridge_initialized)
+
+	I32 mutex_result = ::pthread_mutex_init(&context->mutex, nullptr);
+	validate(mutex_result == 0, "[PLATFORM][ANDROID]: Failed to initialize context mutex.");
+	if (mutex_result != 0)
 	{
 		array_deinit(context->text_input_events);
-		validate(::pthread_cond_destroy(&context->file_dialog_condition) == 0, "[PLATFORM][ANDROID]: Failed to destroy file dialog condition.");
-		validate(::pthread_mutex_destroy(&context->mutex) == 0, "[PLATFORM][ANDROID]: Failed to destroy context mutex.");
 		memory::deallocate(context);
-		return false;
+		return nullptr;
 	}
 
-	activity->instance = context;
-	_platform_android_activity_callbacks_set(activity);
+	I32 condition_result = ::pthread_cond_init(&context->file_dialog_condition, nullptr);
+	validate(condition_result == 0, "[PLATFORM][ANDROID]: Failed to initialize file dialog condition.");
+	if (condition_result != 0)
+	{
+		array_deinit(context->text_input_events);
+		validate(::pthread_mutex_destroy(&context->mutex) == 0, "[PLATFORM][ANDROID]: Failed to destroy context mutex.");
+		memory::deallocate(context);
+		return nullptr;
+	}
 
-	_platform_android_context = context;
-	return true;
+	return context;
 }
 
 inline static void
-_platform_android_context_try_deinit(Platform_Context *context, bool window_deinit_finished)
+_platform_android_context_try_deinit(Platform_Window_Context *context, bool window_deinit_finished)
 {
 	if (context == nullptr)
 		return;
-
-	validate(context == _platform_android_context, "[PLATFORM][ANDROID]: Android context mismatch during deinit.");
 
 	_platform_android_context_lock(context);
 	if (window_deinit_finished)
 		context->window_deinit_in_progress = false;
 
-	if (context->activity || !context->window_deinitialized || context->window_deinit_in_progress)
+	if (context->activity || !context->window_deinitialized || context->window_deinit_in_progress || context->native_connect_in_progress)
 	{
 		_platform_android_context_unlock(context);
 		return;
@@ -1375,7 +1314,8 @@ _platform_android_context_try_deinit(Platform_Context *context, bool window_dein
 	_platform_android_file_dialog_cancel_locked(context);
 	_platform_android_window_lease_release_locked(context);
 	_platform_android_window_set_locked(context, nullptr);
-	_platform_android_context = nullptr;
+	if (_platform_android_context == context)
+		_platform_android_context = nullptr;
 	_platform_android_context_unlock(context);
 
 	_platform_android_jni_bridge_deinit(context);
@@ -1388,17 +1328,123 @@ _platform_android_context_try_deinit(Platform_Context *context, bool window_dein
 	memory::deallocate(context);
 }
 
-extern "C" CORE_API bool
-platform_android_native_activity_on_create(void *native_activity, void *saved_state, U64 saved_state_size)
+extern "C" CORE_API PLATFORM_WINDOW_NATIVE_CONNECT_RESULT
+platform_window_native_connect(Platform_Window *self, void *context, void *native_window)
 {
-	unused(saved_state, saved_state_size);
-	return _platform_android_context_init((ANativeActivity *)native_activity);
+	ANativeActivity *activity = (ANativeActivity *)context;
+	bool valid =
+		self != nullptr &&
+		self->ctx != nullptr &&
+		activity != nullptr &&
+		activity->callbacks != nullptr;
+	validate(valid, "[PLATFORM][ANDROID]: Native connection requires an initialized Platform_Window and ANativeActivity.");
+	if (!valid)
+		return PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_FAILED;
+
+	Platform_Window_Context *ctx = self->ctx;
+	_platform_android_context_lock(ctx);
+	bool initial_connection =
+		_platform_android_context == nullptr &&
+		ctx->activity == nullptr &&
+		!ctx->window_deinitialized &&
+		!ctx->window_deinit_in_progress;
+	bool reconnection =
+		_platform_android_context == ctx &&
+		ctx->activity == nullptr &&
+		ctx->activity_recreation_pending &&
+		!ctx->window_deinitialized &&
+		!ctx->window_deinit_in_progress;
+	bool available = initial_connection || reconnection;
+	validate(available, "[PLATFORM][ANDROID]: Platform window cannot bind the supplied NativeActivity.");
+	if (available)
+		ctx->native_connect_in_progress = true;
+	_platform_android_context_unlock(ctx);
+	if (!available)
+		return PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_FAILED;
+
+	bool bridge_initialized = _platform_android_jni_bridge_init(ctx, activity);
+	validate(bridge_initialized, "[PLATFORM][ANDROID]: Core generated Java bridge is required. Use core.android.CoreNativeActivity in the Android manifest.");
+	if (!bridge_initialized)
+	{
+		if (reconnection)
+			_platform_android_jni_bridge_deinit(ctx);
+
+		_platform_android_context_lock(ctx);
+		ctx->native_connect_in_progress = false;
+		if (reconnection)
+		{
+			ctx->activity_recreation_pending = false;
+			ctx->close_requested = true;
+		}
+		_platform_android_context_unlock(ctx);
+		_platform_android_context_try_deinit(ctx);
+		return PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_FAILED;
+	}
+
+	Platform_Window_Presentation_Desc presentation_desc = {};
+	Platform_Text_Input_Desc text_input_desc = {};
+	_platform_android_context_lock(ctx);
+	bool can_bind =
+		!ctx->window_deinitialized &&
+		!ctx->window_deinit_in_progress &&
+		ctx->activity == nullptr &&
+		((initial_connection && _platform_android_context == nullptr) ||
+		 (reconnection && _platform_android_context == ctx && ctx->activity_recreation_pending));
+	if (can_bind)
+	{
+		if (initial_connection)
+			_platform_android_context = ctx;
+
+		ctx->activity = activity;
+		ctx->asset_manager = activity->assetManager;
+		ctx->close_requested = false;
+		ctx->started = false;
+		ctx->paused = true;
+		ctx->focused = false;
+		ctx->activity_recreation_pending = false;
+		activity->instance = ctx;
+		_platform_android_activity_callbacks_set(activity);
+		if (native_window)
+			_platform_android_window_set_locked(ctx, (ANativeWindow *)native_window);
+		_platform_android_metrics_update_locked(ctx);
+		presentation_desc = ctx->presentation;
+		text_input_desc = Platform_Text_Input_Desc {
+			.x = ctx->text_input_x,
+			.y = ctx->text_input_y,
+			.width = ctx->text_input_width,
+			.height = ctx->text_input_height,
+			.flags = ctx->text_input_flags,
+			.action = ctx->text_input_action,
+			.text = string_copy(ctx->text_input_text, memory::temp_allocator()),
+			.selection_start = ctx->text_input_selection_start,
+			.selection_end = ctx->text_input_selection_end,
+			.composing_start = ctx->text_input_composing_start,
+			.composing_end = ctx->text_input_composing_end,
+			.enabled = ctx->text_input_active
+		};
+	}
+	ctx->native_connect_in_progress = false;
+	_platform_android_context_unlock(ctx);
+
+	if (!can_bind)
+	{
+		_platform_android_jni_bridge_deinit(ctx);
+		_platform_android_context_try_deinit(ctx);
+		return PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_FAILED;
+	}
+
+	_platform_android_window_presentation_set(ctx, presentation_desc);
+	if (text_input_desc.enabled)
+		_platform_android_text_input_set(ctx, text_input_desc);
+	return reconnection
+		? PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_RECONNECTED
+		: PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_CONNECTED;
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_core_android_CoreNativeActivity_nativeActivityDestroying(JNIEnv *, jclass, jboolean changing_configurations, jboolean finishing)
 {
-	Platform_Context *context = _platform_android_context;
+	Platform_Window_Context *context = _platform_android_context;
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -1410,7 +1456,7 @@ Java_core_android_CoreNativeActivity_nativeActivityDestroying(JNIEnv *, jclass, 
 extern "C" JNIEXPORT void JNICALL
 Java_core_android_CoreNativeActivity_nativeMemoryPressure(JNIEnv *, jclass)
 {
-	Platform_Context *context = _platform_android_context;
+	Platform_Window_Context *context = _platform_android_context;
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -1427,7 +1473,7 @@ Java_core_android_CoreNativeActivity_nativeFileDialogResult(JNIEnv *env, jclass,
 		uri_chars = env->GetStringUTFChars(uri, nullptr);
 	bool result_accepted = accepted && uri_chars != nullptr;
 
-	Platform_Context *context = _platform_android_context;
+	Platform_Window_Context *context = _platform_android_context;
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -1462,7 +1508,7 @@ Java_core_android_CoreNativeActivity_nativeTextInputCommit(JNIEnv *env, jclass, 
 			.type = PLATFORM_TEXT_INPUT_EVENT_COMMIT,
 			.text = string_from(text_begin, text_begin + text_size)
 		};
-		Platform_Context *context = _platform_android_context;
+		Platform_Window_Context *context = _platform_android_context;
 		if (context)
 		{
 			_platform_android_context_lock(context);
@@ -1495,7 +1541,7 @@ Java_core_android_CoreNativeActivity_nativeTextInputCompose(JNIEnv *env, jclass,
 			.type = PLATFORM_TEXT_INPUT_EVENT_COMPOSE,
 			.text = string_from(text_begin, text_begin + text_size)
 		};
-		Platform_Context *context = _platform_android_context;
+		Platform_Window_Context *context = _platform_android_context;
 		if (context)
 		{
 			_platform_android_context_lock(context);
@@ -1519,7 +1565,7 @@ Java_core_android_CoreNativeActivity_nativeTextInputComposeEnd(JNIEnv *, jclass)
 	Platform_Text_Input_Event event {
 		.type = PLATFORM_TEXT_INPUT_EVENT_COMPOSE_END
 	};
-	Platform_Context *context = _platform_android_context;
+	Platform_Window_Context *context = _platform_android_context;
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -1537,7 +1583,7 @@ Java_core_android_CoreNativeActivity_nativeTextInputComposeRegion(JNIEnv *, jcla
 		.composing_start = (U32)start,
 		.composing_end = (U32)end
 	};
-	Platform_Context *context = _platform_android_context;
+	Platform_Window_Context *context = _platform_android_context;
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -1555,7 +1601,7 @@ Java_core_android_CoreNativeActivity_nativeTextInputDelete(JNIEnv *, jclass, jin
 		.delete_before = before,
 		.delete_after = after
 	};
-	Platform_Context *context = _platform_android_context;
+	Platform_Window_Context *context = _platform_android_context;
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -1573,7 +1619,7 @@ Java_core_android_CoreNativeActivity_nativeTextInputSelection(JNIEnv *, jclass, 
 		.selection_start = (U32)start,
 		.selection_end = (U32)end
 	};
-	Platform_Context *context = _platform_android_context;
+	Platform_Window_Context *context = _platform_android_context;
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -1593,7 +1639,7 @@ Java_core_android_CoreNativeActivity_nativeTextInputAction(JNIEnv *, jclass, jin
 		.type = PLATFORM_TEXT_INPUT_EVENT_ACTION,
 		.action = platform_action
 	};
-	Platform_Context *context = _platform_android_context;
+	Platform_Window_Context *context = _platform_android_context;
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -1604,7 +1650,7 @@ Java_core_android_CoreNativeActivity_nativeTextInputAction(JNIEnv *, jclass, jin
 }
 
 inline static String
-_platform_android_activity_string_method(Platform_Context *context, jmethodID *method, memory::Allocator *allocator)
+_platform_android_activity_string_method(Platform_Window_Context *context, jmethodID *method, memory::Allocator *allocator)
 {
 	String result = string_init(allocator);
 	if (context)
@@ -1645,7 +1691,7 @@ _platform_android_activity_string_method(Platform_Context *context, jmethodID *m
 inline static I32
 _platform_android_content_open_fd(const char *uri, const char *mode)
 {
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
@@ -1685,7 +1731,7 @@ _platform_android_content_open_fd(const char *uri, const char *mode)
 inline static I64
 _platform_android_content_size(const char *uri)
 {
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
@@ -1721,7 +1767,7 @@ _platform_android_content_size(const char *uri)
 inline static bool
 _platform_android_content_delete(const char *uri)
 {
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
@@ -1757,7 +1803,7 @@ _platform_android_content_delete(const char *uri)
 inline static bool
 _platform_android_content_is_directory(const char *uri)
 {
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
@@ -1794,7 +1840,7 @@ inline static String
 _platform_android_content_display_name(const char *uri, memory::Allocator *allocator)
 {
 	String result = string_init(allocator);
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
@@ -1843,7 +1889,7 @@ inline static Array<String>
 _platform_android_content_list_files_with_method(const char *uri, const String &extension_filter, jmethodID *method, memory::Allocator *allocator)
 {
 	Array<String> files = array_init<String>(allocator);
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
@@ -1907,14 +1953,14 @@ _platform_android_content_list_files_with_method(const char *uri, const String &
 inline static Array<String>
 _platform_android_content_list_files(const char *uri, const String &extension_filter, memory::Allocator *allocator)
 {
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	return _platform_android_content_list_files_with_method(uri, extension_filter, &context->content_list_files_method, allocator);
 }
 
 inline static Array<String>
 _platform_android_content_list_files_recursive(const char *uri, const String &extension_filter, memory::Allocator *allocator)
 {
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	return _platform_android_content_list_files_with_method(uri, extension_filter, &context->content_list_files_recursive_method, allocator);
 }
 
@@ -1922,7 +1968,7 @@ inline static String
 _platform_android_content_call_uri_string_method(const char *uri, const String &value, jmethodID *method, memory::Allocator *allocator)
 {
 	String result = string_init(allocator);
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
@@ -2001,17 +2047,16 @@ _platform_android_file_dialog_extension(char *extension, U64 extension_size, con
 }
 
 inline static String
-_platform_android_file_dialog_run(const char *filters, bool save, memory::Allocator *allocator)
+_platform_android_file_dialog_run(Platform_Window_Context *context, const char *filters, bool save_file, const String &suggested_name, memory::Allocator *allocator)
 {
 	String result = string_init(allocator);
 
-	Platform_Context *context = _platform_android_context_get();
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
 		return result;
 
-	jmethodID *method = save ? &context->file_dialog_save_method : &context->file_dialog_open_method;
+	jmethodID *method = save_file ? &context->file_dialog_save_method : &context->file_dialog_open_method;
 	jmethodID method_ref = nullptr;
 	jobject activity_object = _platform_android_activity_ref_get(context, env, method, &method_ref);
 	if (activity_object == nullptr)
@@ -2031,11 +2076,38 @@ _platform_android_file_dialog_run(const char *filters, bool save, memory::Alloca
 		return result;
 	}
 
+	jbyteArray suggested_name_array = nullptr;
+	if (save_file)
+	{
+		validate(suggested_name.count <= (U64)INT_MAX, "[PLATFORM][ANDROID]: Suggested save filename is too large for JNI.");
+		suggested_name_array = env->NewByteArray((jsize)suggested_name.count);
+		if (suggested_name_array == nullptr)
+		{
+			_platform_android_jni_clear_exception(env);
+			env->DeleteLocalRef(extension_string);
+			env->DeleteLocalRef(activity_object);
+			_platform_android_jni_detach(context, needs_detach);
+			return result;
+		}
+		if (suggested_name.count > 0)
+			env->SetByteArrayRegion(suggested_name_array, 0, (jsize)suggested_name.count, (const jbyte *)suggested_name.data);
+		if (_platform_android_jni_clear_exception(env))
+		{
+			env->DeleteLocalRef(suggested_name_array);
+			env->DeleteLocalRef(extension_string);
+			env->DeleteLocalRef(activity_object);
+			_platform_android_jni_detach(context, needs_detach);
+			return result;
+		}
+	}
+
 	U64 request_id = 0;
 	_platform_android_context_lock(context);
 	if (context->activity == nullptr || context->file_dialog_waiting)
 	{
 		_platform_android_context_unlock(context);
+		if (suggested_name_array)
+			env->DeleteLocalRef(suggested_name_array);
 		env->DeleteLocalRef(extension_string);
 		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
@@ -2054,8 +2126,13 @@ _platform_android_file_dialog_run(const char *filters, bool save, memory::Alloca
 	context->file_dialog_accepted = false;
 	_platform_android_context_unlock(context);
 
-	env->CallVoidMethod(activity_object, method_ref, (jlong)request_id, extension_string);
+	if (save_file)
+		env->CallVoidMethod(activity_object, method_ref, (jlong)request_id, extension_string, suggested_name_array);
+	else
+		env->CallVoidMethod(activity_object, method_ref, (jlong)request_id, extension_string);
 	bool call_failed = _platform_android_jni_clear_exception(env);
+	if (suggested_name_array)
+		env->DeleteLocalRef(suggested_name_array);
 	env->DeleteLocalRef(extension_string);
 	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
@@ -2099,11 +2176,10 @@ _platform_android_file_dialog_run(const char *filters, bool save, memory::Alloca
 }
 
 inline static String
-_platform_android_directory_dialog_run(memory::Allocator *allocator)
+_platform_android_directory_dialog_run(Platform_Window_Context *context, memory::Allocator *allocator)
 {
 	String result = string_init(allocator);
 
-	Platform_Context *context = _platform_android_context_get();
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
@@ -2214,7 +2290,7 @@ String
 platform_resource_read(const String &path, memory::Allocator *allocator)
 {
 	String content = string_init(allocator);
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	if (context->asset_manager == nullptr || path.count == 0)
 		return content;
 
@@ -2248,7 +2324,7 @@ Array<String>
 platform_resource_list_files(const String &directory, const String &extension_filter, memory::Allocator *allocator)
 {
 	Array<String> files = array_init<String>(allocator);
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	if (context->asset_manager == nullptr)
 		return files;
 
@@ -2272,7 +2348,16 @@ bool
 platform_path_is_valid(const String &path)
 {
 	if (_platform_android_is_content_uri(path.data))
-		return _platform_android_content_is_directory(path.data) || platform_file_exists(path.data);
+	{
+		if (_platform_android_content_is_directory(path.data))
+			return true;
+
+		Platform_File_Handle file = platform_file_open(path, PLATFORM_FILE_MODE_READ);
+		if (file == PLATFORM_FILE_HANDLE_INVALID)
+			return false;
+		platform_file_close(file);
+		return true;
+	}
 
 	struct stat path_stat = {};
 	return ::stat(path.data, &path_stat) == 0;
@@ -2282,7 +2367,7 @@ bool
 platform_path_is_file(const String &path)
 {
 	if (_platform_android_is_content_uri(path.data))
-		return !_platform_android_content_is_directory(path.data) && platform_file_exists(path.data);
+		return !_platform_android_content_is_directory(path.data) && platform_path_is_valid(path);
 
 	struct stat path_stat = {};
 	return ::stat(path.data, &path_stat) == 0 && S_ISREG(path_stat.st_mode);
@@ -2348,7 +2433,7 @@ String
 platform_path_get_temp_directory(memory::Allocator *allocator)
 {
 	String result = string_init(allocator);
-	Platform_Context *context = _platform_android_context;
+	Platform_Window_Context *context = _platform_android_context;
 	if (context)
 	{
 		string_deinit(result);
@@ -2372,7 +2457,7 @@ platform_path_get_temp_directory(memory::Allocator *allocator)
 String
 platform_path_get_app_data_directory(memory::Allocator *allocator)
 {
-	Platform_Context *context = _platform_android_context;
+	Platform_Window_Context *context = _platform_android_context;
 	String result = context ? _platform_android_activity_string_method(context, &context->app_data_directory_method, allocator) : string_init(allocator);
 	if (result.count == 0)
 	{
@@ -2402,7 +2487,7 @@ String
 platform_path_get_cache_directory(memory::Allocator *allocator)
 {
 	String result = string_init(allocator);
-	Platform_Context *context = _platform_android_context;
+	Platform_Window_Context *context = _platform_android_context;
 	if (context)
 	{
 		string_deinit(result);
@@ -2489,13 +2574,18 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 		return string_init(allocator);
 	DEFER(platform_file_close(file));
 
-	return _platform_android_file_read_handle(file, platform_file_size(path.data), allocator);
+	return _platform_android_file_read_handle(file, platform_path_get_file_size(path), allocator);
 }
 
 U64
 platform_path_write_file(const String &path, Memory_Block block)
 {
-	return platform_file_write(path.data, block);
+	Platform_File_Handle file = platform_file_open(path, PLATFORM_FILE_MODE_WRITE);
+	if (file == PLATFORM_FILE_HANDLE_INVALID)
+		return 0;
+	DEFER(platform_file_close(file));
+
+	return platform_file_write(file, block.data, block.size);
 }
 
 inline static String
@@ -2609,7 +2699,7 @@ platform_path_create_file(const String &directory, const String &name, memory::A
 {
 	if (_platform_android_is_content_uri(directory.data))
 	{
-		Platform_Context *context = _platform_android_context_get();
+		Platform_Window_Context *context = _platform_android_context_get();
 		return _platform_android_content_call_uri_string_method(directory.data, name, &context->content_create_file_method, allocator);
 	}
 
@@ -2632,7 +2722,7 @@ platform_path_create_directory(const String &directory, const String &name, memo
 {
 	if (_platform_android_is_content_uri(directory.data))
 	{
-		Platform_Context *context = _platform_android_context_get();
+		Platform_Window_Context *context = _platform_android_context_get();
 		return _platform_android_content_call_uri_string_method(directory.data, name, &context->content_create_directory_method, allocator);
 	}
 
@@ -2653,7 +2743,7 @@ platform_path_rename(const String &path, const String &name, memory::Allocator *
 {
 	if (_platform_android_is_content_uri(path.data))
 	{
-		Platform_Context *context = _platform_android_context_get();
+		Platform_Window_Context *context = _platform_android_context_get();
 		return _platform_android_content_call_uri_string_method(path.data, name, &context->content_rename_method, allocator);
 	}
 
@@ -2677,7 +2767,7 @@ platform_path_move(const String &path, const String &directory, memory::Allocato
 	bool directory_is_content = _platform_android_is_content_uri(directory.data);
 	if (path_is_content && directory_is_content)
 	{
-		Platform_Context *context = _platform_android_context_get();
+		Platform_Window_Context *context = _platform_android_context_get();
 		return _platform_android_content_call_uri_string_method(path.data, directory, &context->content_move_method, allocator);
 	}
 
@@ -2689,11 +2779,11 @@ platform_path_move(const String &path, const String &directory, memory::Allocato
 	if (!path_is_content && !directory_is_content && ::rename(path.data, result.data) == 0)
 		return result;
 
-	if (platform_path_is_file(path) && platform_file_copy(path.data, result.data) && platform_file_delete(path.data))
+	if (platform_path_is_file(path) && platform_path_copy_file(path, result) && platform_path_delete_file(path))
 		return result;
 
 	if (platform_path_is_file(result))
-		platform_file_delete(result.data);
+		platform_path_delete_file(result);
 	string_deinit(result);
 	return string_init(allocator);
 }
@@ -2994,37 +3084,29 @@ platform_semaphore_signal(Platform_Semaphore *self, U32 count)
 }
 
 Platform_Window
-platform_window_init(U32, U32, const char *)
+platform_window_init(Platform_Window_Desc)
 {
-	Platform_Context *context = _platform_android_context_get();
-
-	_platform_android_context_lock(context);
-	DEFER(_platform_android_context_unlock(context););
-
-	U32 width = context->native_window ? (U32)::ANativeWindow_getWidth(context->native_window) : context->width;
-	U32 height = context->native_window ? (U32)::ANativeWindow_getHeight(context->native_window) : context->height;
-	context->width = width;
-	context->height = height;
-	_platform_android_metrics_update_locked(context);
+	Platform_Window_Context *context = _platform_android_context_init();
+	if (context == nullptr)
+		return Platform_Window {};
 
 	Platform_Window self {
-		.handle = context,
-		.width = width,
-		.height = height,
-		.metrics = context->metrics,
-		.presentation = context->presentation,
+		.ctx = context,
+		.width = 0,
+		.height = 0,
+		.metrics = {},
+		.presentation = {},
 		.input = {},
 		.text_input = {},
-		.close_requested = context->close_requested,
-		.focused = context->focused,
-		.started = context->started,
-		.paused = context->paused,
+		.close_requested = false,
+		.focused = false,
+		.started = false,
+		.paused = true,
 		.low_memory = false,
 		.save_state_requested = false,
-		.surface_valid = context->native_window != nullptr,
-		.surface_changed = context->native_window != nullptr
+		.surface_valid = false,
+		.surface_changed = false
 	};
-	self.text_input.enabled = context->text_input_active;
 	self.input.text_input_events = array_init<Platform_Text_Input_Event>(memory::heap_allocator());
 	return self;
 }
@@ -3032,7 +3114,10 @@ platform_window_init(U32, U32, const char *)
 void
 platform_window_deinit(Platform_Window *self)
 {
-	Platform_Context *context = (Platform_Context *)self->handle;
+	if (self == nullptr)
+		return;
+
+	Platform_Window_Context *context = self->ctx;
 	ANativeActivity *activity = nullptr;
 	if (context)
 	{
@@ -3052,21 +3137,26 @@ platform_window_deinit(Platform_Window *self)
 		_platform_android_context_unlock(context);
 	}
 
-	self->handle = nullptr;
+	self->ctx = nullptr;
 	self->width = 0;
 	self->height = 0;
 	self->metrics = {};
 	self->presentation = {};
-	_platform_android_text_input_events_reset(self->input.text_input_events);
-	array_deinit(self->input.text_input_events);
+	if (self->input.text_input_events.allocator != nullptr)
+	{
+		_platform_android_text_input_events_reset(self->input.text_input_events);
+		array_deinit(self->input.text_input_events);
+	}
 	self->input = {};
 	self->text_input = {};
 	self->close_requested = true;
+	self->focused = false;
 	self->started = false;
+	self->paused = true;
 	self->low_memory = false;
 	self->save_state_requested = false;
 	self->surface_valid = false;
-	self->surface_changed = true;
+	self->surface_changed = false;
 
 	if (activity)
 		::ANativeActivity_finish(activity);
@@ -3077,7 +3167,7 @@ platform_window_deinit(Platform_Window *self)
 bool
 platform_window_poll(Platform_Window *self)
 {
-	Platform_Context *context = (Platform_Context *)self->handle;
+	Platform_Window_Context *context = self->ctx;
 	if (context == nullptr)
 		return false;
 
@@ -3186,7 +3276,7 @@ platform_window_poll(Platform_Window *self)
 Platform_Window_Native_Handles
 platform_window_get_native_handles(Platform_Window *self)
 {
-	Platform_Context *context = (Platform_Context *)self->handle;
+	Platform_Window_Context *context = self->ctx;
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -3214,7 +3304,7 @@ platform_window_set_title(Platform_Window *, const char *)
 void
 platform_window_close(Platform_Window *self)
 {
-	Platform_Context *context = (Platform_Context *)self->handle;
+	Platform_Window_Context *context = self->ctx;
 	if (context == nullptr)
 		return;
 
@@ -3232,7 +3322,7 @@ platform_window_close(Platform_Window *self)
 }
 
 inline static void
-_platform_android_window_presentation_set(Platform_Context *context, const Platform_Window_Presentation_Desc &desc)
+_platform_android_window_presentation_set(Platform_Window_Context *context, const Platform_Window_Presentation_Desc &desc)
 {
 	if (context == nullptr)
 		return;
@@ -3259,7 +3349,7 @@ _platform_android_window_presentation_set(Platform_Context *context, const Platf
 void
 platform_window_presentation_set(Platform_Window &window, const Platform_Window_Presentation_Desc &desc)
 {
-	Platform_Context *context = (Platform_Context *)window.handle;
+	Platform_Window_Context *context = window.ctx;
 	if (context)
 	{
 		_platform_android_context_lock(context);
@@ -3272,7 +3362,7 @@ platform_window_presentation_set(Platform_Window &window, const Platform_Window_
 }
 
 inline static void
-_platform_android_text_input_set(Platform_Context *context, const Platform_Text_Input_Desc &desc)
+_platform_android_text_input_set(Platform_Window_Context *context, const Platform_Text_Input_Desc &desc)
 {
 	if (context == nullptr)
 		return;
@@ -3320,7 +3410,7 @@ _platform_android_text_input_set(Platform_Context *context, const Platform_Text_
 void
 platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc)
 {
-	Platform_Context *context = (Platform_Context *)window.handle;
+	Platform_Window_Context *context = window.ctx;
 	if (context == nullptr)
 		return;
 
@@ -3379,63 +3469,19 @@ platform_set_current_directory()
 		platform_path_set_current_working_directory(executable_directory);
 }
 
-bool
-platform_file_exists(const char *filepath)
-{
-	if (_platform_android_is_content_uri(filepath))
-	{
-		Platform_File_Handle file = platform_file_open(filepath, PLATFORM_FILE_MODE_READ);
-		if (file == PLATFORM_FILE_HANDLE_INVALID)
-			return false;
-		platform_file_close(file);
-		return true;
-	}
-
-	struct stat file_stat = {};
-	return ::stat(filepath, &file_stat) == 0;
-}
-
 U64
-platform_file_size(const char *filepath)
+platform_path_get_file_size(const String &path)
 {
-	if (_platform_android_is_content_uri(filepath))
+	if (_platform_android_is_content_uri(path.data))
 	{
-		I64 size = _platform_android_content_size(filepath);
+		I64 size = _platform_android_content_size(path.data);
 		return size > 0 ? (U64)size : 0;
 	}
 
 	struct stat file_stat = {};
-	if (::stat(filepath, &file_stat) == 0)
+	if (::stat(path.data, &file_stat) == 0)
 		return file_stat.st_size;
 	return 0;
-}
-
-String
-platform_file_read(const String &file_path, memory::Allocator *allocator)
-{
-	return platform_path_read_file(file_path, allocator);
-}
-
-U64
-platform_file_read(const char *filepath, Memory_Block block)
-{
-	Platform_File_Handle file = platform_file_open(filepath, PLATFORM_FILE_MODE_READ);
-	if (file == PLATFORM_FILE_HANDLE_INVALID)
-		return 0;
-	DEFER(platform_file_close(file));
-
-	return platform_file_read(file, block.data, block.size);
-}
-
-U64
-platform_file_write(const char *filepath, Memory_Block block)
-{
-	Platform_File_Handle file = platform_file_open(filepath, PLATFORM_FILE_MODE_WRITE);
-	if (file == PLATFORM_FILE_HANDLE_INVALID)
-		return 0;
-	DEFER(platform_file_close(file));
-
-	return platform_file_write(file, block.data, block.size);
 }
 
 Platform_File_Handle
@@ -3523,7 +3569,7 @@ platform_file_size(Platform_File_Handle handle)
 }
 
 bool
-platform_file_copy(const char *from, const char *to)
+platform_path_copy_file(const String &from, const String &to)
 {
 	Platform_File_Handle src_file = platform_file_open(from, PLATFORM_FILE_MODE_READ);
 	if (src_file == PLATFORM_FILE_HANDLE_INVALID)
@@ -3551,43 +3597,60 @@ platform_file_copy(const char *from, const char *to)
 }
 
 bool
-platform_file_delete(const char *filepath)
+platform_path_delete_file(const String &path)
 {
-	if (_platform_android_is_content_uri(filepath))
-		return _platform_android_content_delete(filepath);
+	if (_platform_android_is_content_uri(path.data))
+		return _platform_android_content_delete(path.data);
 
-	return ::unlink(filepath) == 0;
+	return ::unlink(path.data) == 0;
 }
 
 String
-platform_file_dialog_open(const char *filters, memory::Allocator *allocator)
+platform_file_dialog_open(Platform_Window &window, const char *filters, memory::Allocator *allocator)
 {
-	return _platform_android_file_dialog_run(filters, false, allocator);
+	validate(window.ctx != nullptr, "[PLATFORM][ANDROID]: File dialog requires an initialized platform window.");
+	return _platform_android_file_dialog_run(window.ctx, filters, false, {}, allocator);
+}
+
+bool
+platform_file_dialog_save(Platform_Window &window, const String &suggested_name, Slice<const U8> data, const char *filters)
+{
+	validate(window.ctx != nullptr, "[PLATFORM][ANDROID]: File save dialog requires an initialized platform window.");
+	validate(data.data != nullptr || data.count == 0, "[PLATFORM][ANDROID]: File save data is invalid.");
+
+	String destination_path = _platform_android_file_dialog_run(window.ctx, filters, true, suggested_name, memory::temp_allocator());
+	if (destination_path.count == 0)
+		return false;
+	DEFER(string_deinit(destination_path));
+
+	Platform_File_Handle file = platform_file_open(destination_path, PLATFORM_FILE_MODE_WRITE);
+	if (file == PLATFORM_FILE_HANDLE_INVALID)
+		return false;
+	DEFER(platform_file_close(file));
+
+	U64 bytes_written = 0;
+	while (bytes_written < data.count)
+	{
+		U64 write_size = platform_file_write(file, data.data + bytes_written, data.count - bytes_written);
+		if (write_size == 0)
+			return false;
+		bytes_written += write_size;
+	}
+	return true;
 }
 
 String
-platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
+platform_directory_dialog_open(Platform_Window &window, memory::Allocator *allocator)
 {
-	return _platform_android_file_dialog_run(filters, true, allocator);
-}
-
-String
-platform_directory_dialog_open(memory::Allocator *allocator)
-{
-	return _platform_android_directory_dialog_run(allocator);
-}
-
-inline static bool
-_platform_android_clipboard_media_type_is_text(const String &media_type)
-{
-	return media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 || media_type == "text/plain";
+	validate(window.ctx != nullptr, "[PLATFORM][ANDROID]: Directory dialog requires an initialized platform window.");
+	return _platform_android_directory_dialog_run(window.ctx, allocator);
 }
 
 Array<String>
 platform_window_clipboard_query_media_types(Platform_Window &, memory::Allocator *allocator)
 {
 	Array<String> media_types = array_init<String>(allocator);
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
@@ -3632,26 +3695,24 @@ platform_window_clipboard_query_media_types(Platform_Window &, memory::Allocator
 	return media_types;
 }
 
-Platform_Clipboard_Item
-platform_window_clipboard_item_read(Platform_Window &, const String &media_type, memory::Allocator *allocator)
+bool
+platform_window_clipboard_item_read(Platform_Window &, const String &media_type, Array<U8> &data)
 {
-	Platform_Clipboard_Item result {
-		.media_type = string_init(allocator),
-		.data = array_init<U8>(allocator)
-	};
+	validate(data.allocator != nullptr, "[PLATFORM][ANDROID]: Clipboard read requires initialized output data.");
+	array_clear(data);
 
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	bool needs_detach = false;
 	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
 	if (env == nullptr)
-		return result;
+		return false;
 
 	jmethodID method = nullptr;
 	jobject activity_object = _platform_android_activity_ref_get(context, env, &context->clipboard_read_item_method, &method);
 	if (activity_object == nullptr)
 	{
 		_platform_android_jni_detach(context, needs_detach);
-		return result;
+		return false;
 	}
 
 	jstring media_type_string = env->NewStringUTF(media_type.data ? media_type.data : "");
@@ -3660,7 +3721,7 @@ platform_window_clipboard_item_read(Platform_Window &, const String &media_type,
 		_platform_android_jni_clear_exception(env);
 		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
-		return result;
+		return false;
 	}
 
 	jbyteArray data_array = (jbyteArray)env->CallObjectMethod(activity_object, method, media_type_string);
@@ -3669,25 +3730,26 @@ platform_window_clipboard_item_read(Platform_Window &, const String &media_type,
 	{
 		env->DeleteLocalRef(activity_object);
 		_platform_android_jni_detach(context, needs_detach);
-		return result;
+		return false;
 	}
 
 	jsize data_count = env->GetArrayLength(data_array);
-	string_deinit(result.media_type);
-	result.media_type = _platform_android_clipboard_media_type_is_text(media_type) ? string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator) : string_copy(media_type, allocator);
-	array_resize(result.data, (U64)data_count);
+	array_resize(data, (U64)data_count);
 	if (data_count > 0)
-		env->GetByteArrayRegion(data_array, 0, data_count, (jbyte *)result.data.data);
+		env->GetByteArrayRegion(data_array, 0, data_count, (jbyte *)data.data);
+	bool result = !_platform_android_jni_clear_exception(env);
 	env->DeleteLocalRef(data_array);
 	env->DeleteLocalRef(activity_object);
 	_platform_android_jni_detach(context, needs_detach);
+	if (!result)
+		array_clear(data);
 	return result;
 }
 
 bool
-platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard_Item *items, U32 item_count)
+platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard_Item_Desc *items, U32 item_count)
 {
-	Platform_Context *context = _platform_android_context_get();
+	Platform_Window_Context *context = _platform_android_context_get();
 	if (items == nullptr || item_count == 0 || item_count > (U32)INT_MAX)
 		return false;
 
@@ -3731,7 +3793,7 @@ platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard
 	bool arrays_valid = true;
 	for (U32 i = 0; i < item_count; ++i)
 	{
-		if (items[i].media_type.count == 0 || items[i].data.count > (U64)INT_MAX)
+		if (items[i].media_type.count == 0 || items[i].data.count > (U64)INT_MAX || (items[i].data.count > 0 && items[i].data.data == nullptr))
 		{
 			arrays_valid = false;
 			break;
@@ -3793,21 +3855,6 @@ platform_query_microseconds()
 	[[maybe_unused]] I32 result = ::clock_gettime(CLOCK_MONOTONIC, &time);
 	validate(result == 0, "[PLATFORM][ANDROID]: Failed to query clock.");
 	return (U64)time.tv_sec * 1000000 + (U64)time.tv_nsec / 1000;
-}
-
-void
-platform_sleep_set_period(U32)
-{
-
-}
-
-void
-platform_sleep(U32 milliseconds)
-{
-	struct timespec ts = {};
-	ts.tv_sec = milliseconds / 1000;
-	ts.tv_nsec = (milliseconds % 1000) * 1000 * 1000;
-	::nanosleep(&ts, nullptr);
 }
 
 #if DEBUG

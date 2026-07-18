@@ -3,19 +3,11 @@
 #include "core/export.h"
 #include "core/defines.h"
 #include "core/memory/allocator.h"
+#include "core/containers/slice.h"
 #include "core/containers/string.h"
 
-CORE_API String
-platform_file_read(const String &file_path, memory::Allocator *allocator = memory::heap_allocator());
-
-inline static String
-platform_file_read(const char *file_path, memory::Allocator *allocator = memory::heap_allocator())
-{
-	return platform_file_read(string_literal(file_path), allocator);
-}
-
 // ============================================================
-// Handle-based file I/O (used by File_Stream)
+// File I/O
 // ============================================================
 
 typedef void *Platform_File_Handle;
@@ -36,6 +28,11 @@ enum Platform_File_Seek_Origin
 	PLATFORM_FILE_SEEK_ORIGIN_END,
 };
 
+/**
+ * @brief Opens a file handle.
+ * On iOS, path may be an opaque core-document token returned by a Core document dialog.
+ * @return an owned handle that must be closed with platform_file_close, or PLATFORM_FILE_HANDLE_INVALID on failure.
+ */
 CORE_API Platform_File_Handle
 platform_file_open(const String &path, Platform_File_Mode mode);
 
@@ -63,6 +60,15 @@ platform_file_tell(Platform_File_Handle handle);
 CORE_API U64
 platform_file_size(Platform_File_Handle handle);
 
+// ============================================================
+// Path Utilities
+// ============================================================
+
+// Strings returned by path functions use the supplied allocator and are caller-owned.
+// Arrays of strings require deinitializing each string and then the array.
+// On iOS, ordinary path arguments may also be opaque core-document tokens returned by Core.
+// Listings and mutations of an opaque directory return opaque child/result tokens, not filesystem paths.
+// Process working-directory APIs continue to require filesystem paths.
 CORE_API bool
 platform_path_is_valid(const String &path);
 
@@ -90,7 +96,15 @@ platform_path_is_directory(const char *path)
 	return platform_path_is_directory(string_literal(path));
 }
 
-// TODO: Rename to get_full_path?
+CORE_API U64
+platform_path_get_file_size(const String &path);
+
+inline static U64
+platform_path_get_file_size(const char *path)
+{
+	return platform_path_get_file_size(string_literal(path));
+}
+
 CORE_API String
 platform_path_get_absolute(const String &path, memory::Allocator *allocator = memory::heap_allocator());
 
@@ -121,15 +135,6 @@ platform_path_get_app_data_directory(memory::Allocator *allocator = memory::heap
 CORE_API String
 platform_path_get_cache_directory(memory::Allocator *allocator = memory::heap_allocator());
 
-CORE_API String
-platform_environment_variable_get(const String &name, memory::Allocator *allocator = memory::heap_allocator());
-
-inline static String
-platform_environment_variable_get(const char *name, memory::Allocator *allocator = memory::heap_allocator())
-{
-	return platform_environment_variable_get(string_literal(name), allocator);
-}
-
 CORE_API void
 platform_path_set_current_working_directory(const String &path);
 
@@ -138,6 +143,12 @@ platform_path_set_current_working_directory(const char *path)
 {
 	platform_path_set_current_working_directory(string_literal(path));
 }
+
+/**
+ * @brief Sets the current working directory to the process directory.
+ */
+CORE_API void
+platform_set_current_directory();
 
 CORE_API String
 platform_path_get_executable_path(memory::Allocator *allocator = memory::heap_allocator());
@@ -154,6 +165,7 @@ platform_path_get_file_name(const char *path, memory::Allocator *allocator = mem
 	return platform_path_get_file_name(string_literal(path), allocator);
 }
 
+/** On iOS, path may be an opaque core-document token returned by a Core document dialog. */
 CORE_API String
 platform_path_read_file(const String &path, memory::Allocator *allocator = memory::heap_allocator());
 
@@ -163,8 +175,15 @@ platform_path_read_file(const char *path, memory::Allocator *allocator = memory:
 	return platform_path_read_file(string_literal(path), allocator);
 }
 
+/** On iOS, path may be an opaque core-document token returned by a Core document dialog. */
 CORE_API U64
 platform_path_write_file(const String &path, Memory_Block block);
+
+inline static U64
+platform_path_write_file(const char *path, Memory_Block block)
+{
+	return platform_path_write_file(string_literal(path), block);
+}
 
 inline static U64
 platform_path_write_file(const String &path, const String &content)
@@ -188,6 +207,36 @@ inline static U64
 platform_path_write_file(const char *path, const char *content)
 {
 	return platform_path_write_file(string_literal(path), string_literal(content));
+}
+
+CORE_API bool
+platform_path_copy_file(const String &from, const String &to);
+
+inline static bool
+platform_path_copy_file(const String &from, const char *to)
+{
+	return platform_path_copy_file(from, string_literal(to));
+}
+
+inline static bool
+platform_path_copy_file(const char *from, const String &to)
+{
+	return platform_path_copy_file(string_literal(from), to);
+}
+
+inline static bool
+platform_path_copy_file(const char *from, const char *to)
+{
+	return platform_path_copy_file(string_literal(from), string_literal(to));
+}
+
+CORE_API bool
+platform_path_delete_file(const String &path);
+
+inline static bool
+platform_path_delete_file(const char *path)
+{
+	return platform_path_delete_file(string_literal(path));
 }
 
 CORE_API Array<String>
@@ -316,6 +365,28 @@ platform_path_move(const char *path, const char *directory, memory::Allocator *a
 	return platform_path_move(string_literal(path), string_literal(directory), allocator);
 }
 
+// ============================================================
+// Environment
+// ============================================================
+
+/**
+ * @return a caller-owned string using the supplied allocator, or an empty string when the variable does not exist.
+ */
+CORE_API String
+platform_environment_variable_get(const String &name, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_environment_variable_get(const char *name, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_environment_variable_get(string_literal(name), allocator);
+}
+
+// ============================================================
+// Resources
+// ============================================================
+
+// Returned resource strings and arrays use the supplied allocator and are caller-owned.
+// Arrays of strings require deinitializing each string and then the array.
 CORE_API String
 platform_resource_read(const String &path, memory::Allocator *allocator = memory::heap_allocator());
 
@@ -346,9 +417,9 @@ platform_resource_list_files(const char *directory, const char *extension_filter
 	return platform_resource_list_files(string_literal(directory), string_literal(extension_filter), allocator);
 }
 
-#define SECOND_TO_MILLISECOND      1000.0f
-#define MILLISOCEND_TO_SECOND      0.001f
-#define MICROSECOND_TO_MILLISECOND 0.001f
+// ============================================================
+// Hot-Reload API
+// ============================================================
 
 typedef enum PLATFORM_API_STATE
 {
@@ -366,6 +437,31 @@ typedef struct Platform_Api
 	void *api;
 	I64 last_write_time;
 } Platform_Api;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @brief Initializes an owned hot-reload API instance.
+ * Release it with platform_api_deinit.
+ */
+CORE_API Platform_Api
+platform_api_init(const char *filepath);
+
+CORE_API void
+platform_api_deinit(Platform_Api *self);
+
+CORE_API void *
+platform_api_load(Platform_Api *self);
+
+#ifdef __cplusplus
+}
+#endif
+
+// ============================================================
+// Input
+// ============================================================
 
 typedef enum PLATFORM_KEY
 {
@@ -561,6 +657,10 @@ typedef struct Platform_Input
 	Array<Platform_Text_Input_Event> text_input_events;
 } Platform_Input;
 
+// ============================================================
+// Window
+// ============================================================
+
 typedef enum Platform_Window_Orientation
 {
 	PLATFORM_WINDOW_ORIENTATION_UNKNOWN,
@@ -612,15 +712,26 @@ typedef struct Platform_Window_Presentation_Desc
 	Platform_Window_Orientation_Policy orientation_policy;
 } Platform_Window_Presentation_Desc;
 
+/**
+ * @brief Initial window size and title request.
+ * The title is borrowed for the duration of platform_window_init.
+ * Android and iOS accept the same descriptor but derive their native size and displayed title from the platform host.
+ */
+typedef struct Platform_Window_Desc
+{
+	U32 width;
+	U32 height;
+	const char *title;
+} Platform_Window_Desc;
+
 typedef struct Platform_Window
 {
-	void *handle; // TODO: Rename to context.
+	struct Platform_Window_Context *ctx;
 	U32 width, height;
 	Platform_Window_Metrics metrics;
 	Platform_Window_Presentation_Desc presentation;
 	Platform_Input input;
 	Platform_Text_Input_Desc text_input;
-	U16 text_input_pending_surrogate;
 	bool close_requested; // Window should stop running.
 	bool focused;         // Window is the active input target when the platform can report it.
 	bool started;         // Window/app is in the started/visible lifecycle; true on desktop.
@@ -637,33 +748,144 @@ typedef struct Platform_Window_Native_Handles
 	void *context;
 } Platform_Window_Native_Handles;
 
+#if defined(PLATFORM_ANDROID) || defined(PLATFORM_IOS)
+/**
+ * @brief Result of binding native mobile host objects to a Platform_Window.
+ */
+enum PLATFORM_WINDOW_NATIVE_CONNECT_RESULT
+{
+	PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_FAILED,
+	PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_CONNECTED,
+	PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_RECONNECTED
+};
+
+/**
+ * @brief Binds native mobile host objects to an initialized Platform_Window.
+ * Android passes ANativeActivity as context and an optional ANativeWindow.
+ * iOS passes UIWindowScene as context and its UIWindow without a root view controller as native_window;
+ * Core installs and manages the root view controller and view while connected.
+ * iOS connection, presentation, polling, and deinitialization must run on the main thread.
+ * Core borrows the native objects until disconnection or platform_window_deinit.
+ */
+extern "C" CORE_API PLATFORM_WINDOW_NATIVE_CONNECT_RESULT
+platform_window_native_connect(Platform_Window *window, void *context, void *native_window);
+#endif
+
+/**
+ * @return an owned window that must be released with platform_window_deinit.
+ */
+CORE_API Platform_Window
+platform_window_init(Platform_Window_Desc desc);
+
+CORE_API void
+platform_window_deinit(Platform_Window *self);
+
+/**
+ * @brief Poll events from the supplied platform window.
+ * @param self a pointer to the platform window to poll.
+ * Updates Platform_Window input, size, close, focus, lifecycle, memory pressure, state-save, and surface fields.
+ * @return 'false' when window is closed.
+ */
+CORE_API bool
+platform_window_poll(Platform_Window *self);
+
+/**
+ * @brief Gets native handles for the supplied platform window.
+ * Returned handles are borrowed and should not be cached across frames.
+ */
+CORE_API Platform_Window_Native_Handles
+platform_window_get_native_handles(Platform_Window *self);
+
+CORE_API void
+platform_window_set_title(Platform_Window *self, const char *title);
+
+CORE_API void
+platform_window_close(Platform_Window *self);
+
+CORE_API void
+platform_window_presentation_set(Platform_Window &window, const Platform_Window_Presentation_Desc &desc);
+
+CORE_API void
+platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc);
+
+// ============================================================
+// Dialogs
+// ============================================================
+
+/**
+ * @brief Opens a file dialog.
+ * @param window the platform window presenting the dialog.
+ * @param filters a pair of null-terminated strings, that specify what to filter in the file dialog; for example, if you want to filter by models you can use "Models (*.obj)\0*.obj\0".
+ * @return the caller-owned selected path, or an empty string on cancel, failure, or unsupported platforms.
+ * On Android, this may be a content URI usable with Core file APIs. On iOS, this is a document token usable with Core file APIs.
+ * On iOS, call this synchronous API from a non-main engine thread so UIKit remains available to present the picker.
+ */
+CORE_API String
+platform_file_dialog_open(Platform_Window &window, const char *filters, memory::Allocator *allocator = memory::heap_allocator());
+
+/**
+ * @brief Saves data to a destination selected by the user.
+ * @param window the platform window presenting the dialog.
+ * @param suggested_name the editable filename initially shown in the dialog.
+ * @param data bytes borrowed until the synchronous call returns.
+ * @param filters a pair of null-terminated strings, that specify what to filter in the file dialog; for example, if you want to filter by models you can use "Models (*.obj)\0*.obj\0".
+ * @return true when the complete data was saved, or false on cancel or failure.
+ * On iOS, call this synchronous API from a non-main engine thread so UIKit remains available to present the picker.
+ */
+CORE_API bool
+platform_file_dialog_save(Platform_Window &window, const String &suggested_name, Slice<const U8> data, const char *filters);
+
+inline static bool
+platform_file_dialog_save(Platform_Window &window, const char *suggested_name, Slice<const U8> data, const char *filters)
+{
+	return platform_file_dialog_save(window, string_literal(suggested_name), data, filters);
+}
+
+/**
+ * @brief Opens a directory dialog.
+ * @param window the platform window presenting the dialog.
+ * @return the caller-owned selected directory path, or an empty string on cancel, failure, or unsupported platforms.
+ * On Android, this may be a tree content URI usable with Core file APIs. On iOS, this is a directory document token usable with Core file APIs.
+ * On iOS, call this synchronous API from a non-main engine thread so UIKit remains available to present the picker.
+ */
+CORE_API String
+platform_directory_dialog_open(Platform_Window &window, memory::Allocator *allocator = memory::heap_allocator());
+
+// ============================================================
+// Clipboard
+// ============================================================
+
 #define PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8 "text/plain;charset=utf-8"
 #define PLATFORM_CLIPBOARD_MEDIA_TYPE_IMAGE_PNG "image/png"
 #define PLATFORM_CLIPBOARD_MEDIA_TYPE_BINARY "application/octet-stream"
 
-typedef struct Platform_Clipboard_Item
+typedef struct Platform_Clipboard_Item_Desc
 {
 	String media_type;
-	Array<U8> data;
-} Platform_Clipboard_Item;
+	Slice<const U8> data;
+} Platform_Clipboard_Item_Desc;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/**
+ * @return a caller-owned array whose strings and storage use the supplied allocator.
+ */
+CORE_API Array<String>
+platform_window_clipboard_query_media_types(Platform_Window &window, memory::Allocator *allocator = memory::heap_allocator());
 
-CORE_API Platform_Api
-platform_api_init(const char *filepath);
+/**
+ * @brief Replaces caller-owned data with the requested clipboard bytes.
+ */
+CORE_API bool
+platform_window_clipboard_item_read(Platform_Window &window, const String &media_type, Array<U8> &data);
 
-CORE_API void
-platform_api_deinit(Platform_Api *self);
+/**
+ * The item descriptors, media types, and data are borrowed until the synchronous call returns.
+ */
+CORE_API bool
+platform_window_clipboard_item_write(Platform_Window &window, const Platform_Clipboard_Item_Desc *items, U32 item_count);
 
-CORE_API void *
-platform_api_load(Platform_Api *self);
-
-#ifdef __cplusplus
-}
-#endif
-
+// ============================================================
+// Virtual Memory
+// ============================================================
 
 CORE_API U64
 platform_virtual_memory_get_page_size();
@@ -671,6 +893,9 @@ platform_virtual_memory_get_page_size();
 CORE_API U64
 platform_virtual_memory_page_align(U64 size);
 
+/**
+ * @return an owned reservation that must be released with platform_virtual_memory_release.
+ */
 CORE_API Memory_Block
 platform_virtual_memory_reserve(U64 size);
 
@@ -683,10 +908,16 @@ platform_virtual_memory_decommit(Memory_Block block);
 CORE_API void
 platform_virtual_memory_release(Memory_Block block);
 
+// ============================================================
+// System Information
+// ============================================================
 
 CORE_API U32
 platform_get_logical_processor_count();
 
+// ============================================================
+// Threads
+// ============================================================
 
 struct Platform_Thread;
 
@@ -699,6 +930,10 @@ struct Platform_Thread_Desc
 	const char *name;
 };
 
+/**
+ * @return an owned thread that must be released with platform_thread_deinit, which joins it if needed.
+ * The optional name is copied during initialization; data remains caller-owned.
+ */
 CORE_API Platform_Thread *
 platform_thread_init(Platform_Thread_Desc desc);
 
@@ -720,7 +955,11 @@ destroy(Platform_Thread *self)
 	platform_thread_deinit(self);
 }
 
+// ============================================================
+// Synchronization
+// ============================================================
 
+// Synchronization init functions return owned objects released by their matching deinit or destroy function.
 struct Platform_Mutex;
 
 CORE_API Platform_Mutex *
@@ -784,110 +1023,16 @@ destroy(Platform_Semaphore *self)
 	platform_semaphore_deinit(self);
 }
 
-CORE_API Platform_Window
-platform_window_init(U32 width, U32 height, const char *title);
-
-CORE_API void
-platform_window_deinit(Platform_Window *self);
-
-/**
- * @brief Poll events from the supplied platform window.
- * @param self a pointer to the platform window to poll.
- * Updates Platform_Window input, size, close, focus, lifecycle, memory pressure, state-save, and surface fields.
- * @return 'false' when window is closed.
- */
-CORE_API bool
-platform_window_poll(Platform_Window *self);
-
-/**
- * @brief Gets native handles for the supplied platform window.
- * Returned handles are borrowed and should not be cached across frames.
- */
-CORE_API Platform_Window_Native_Handles
-platform_window_get_native_handles(Platform_Window *self);
-
-CORE_API void
-platform_window_set_title(Platform_Window *self, const char *title);
-
-CORE_API void
-platform_window_close(Platform_Window *self);
-
-CORE_API void
-platform_window_presentation_set(Platform_Window &window, const Platform_Window_Presentation_Desc &desc);
-
-CORE_API void
-platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc);
-
-/**
- * @brief Sets current working directory to process directory.
- */
-CORE_API void
-platform_set_current_directory();
-
-CORE_API bool
-platform_file_exists(const char *filepath);
-
-CORE_API U64
-platform_file_size(const char *filepath);
-
-CORE_API U64
-platform_file_read(const char *filepath, Memory_Block block);
-
-CORE_API U64
-platform_file_write(const char *filepath, Memory_Block block);
-
-CORE_API bool
-platform_file_copy(const char *from, const char *to);
-
-CORE_API bool
-platform_file_delete(const char *filepath);
-
-/**
- * @brief Opens a file dialog.
- * @param filters a pair of null-terminated strings, that specify what to filter in the file dialog; for example, if you want to filter by models you can use "Models (*.obj)\0*.obj\0".
- * @return the selected path, or empty string on cancel, failure, or unsupported platforms.
- * On Android, this may be a content URI usable with Core file APIs.
- */
-CORE_API String
-platform_file_dialog_open(const char *filters, memory::Allocator *allocator = memory::heap_allocator());
-
-/**
- * @brief Opens a file dialog for saving.
- * @param filters a pair of null-terminated strings, that specify what to filter in the file dialog; for example, if you want to filter by models you can use "Models (*.obj)\0*.obj\0".
- * @return the selected path, or empty string on cancel, failure, or unsupported platforms.
- * On Android, this may be a content URI usable with Core file APIs.
- */
-CORE_API String
-platform_file_dialog_save(const char *filters, memory::Allocator *allocator = memory::heap_allocator());
-
-/**
- * @brief Opens a directory dialog.
- * @return the selected directory path, or empty string on cancel, failure, or unsupported platforms.
- * On Android, this may be a tree content URI usable with Core file APIs.
- */
-CORE_API String
-platform_directory_dialog_open(memory::Allocator *allocator = memory::heap_allocator());
-
-CORE_API Array<String>
-platform_window_clipboard_query_media_types(Platform_Window &window, memory::Allocator *allocator = memory::heap_allocator());
-
-CORE_API Platform_Clipboard_Item
-platform_window_clipboard_item_read(Platform_Window &window, const String &media_type, memory::Allocator *allocator = memory::heap_allocator());
-
-CORE_API bool
-platform_window_clipboard_item_write(Platform_Window &window, const Platform_Clipboard_Item *items, U32 item_count);
+// ============================================================
+// Timing
+// ============================================================
 
 CORE_API U64
 platform_query_microseconds(void);
 
-CORE_API void
-platform_sleep_set_period(U32 period);
-
-CORE_API void
-platform_sleep(U32 milliseconds);
-
-CORE_API U32
-platform_callstack_capture(void **callstack, U32 frame_count);
+// ============================================================
+// Callstacks
+// ============================================================
 
 #define PLATFORM_CALLSTACK_SYMBOL_LENGTH 256
 #define PLATFORM_CALLSTACK_FILE_LENGTH   512
@@ -902,14 +1047,8 @@ typedef struct Platform_Callstack_Frame
 	bool line_found;
 } Platform_Callstack_Frame;
 
+CORE_API U32
+platform_callstack_capture(void **callstack, U32 frame_count);
+
 CORE_API void
 platform_callstack_resolve(void **callstack, Platform_Callstack_Frame *frames, U32 frame_count);
-
-#ifdef __cplusplus
-inline static void
-platform_clipboard_item_deinit(Platform_Clipboard_Item &item)
-{
-	string_deinit(item.media_type);
-	array_deinit(item.data);
-}
-#endif

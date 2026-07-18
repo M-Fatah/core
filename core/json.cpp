@@ -518,8 +518,10 @@ json_value_from_string(const char *json_string, memory::Allocator *allocator)
 Result<JSON_Value>
 json_value_from_file(const char *filepath, memory::Allocator *allocator)
 {
-	auto file_size = platform_file_size(filepath);
-	if (file_size == 0)
+	String file_data = platform_path_read_file(filepath, allocator);
+	DEFER(string_deinit(file_data));
+
+	if (file_data.count == 0)
 	{
 		return Error{
 			"[JSON]: Could not read file '{}'.",
@@ -527,21 +529,7 @@ json_value_from_file(const char *filepath, memory::Allocator *allocator)
 		};
 	}
 
-	Memory_Block file_data = memory::allocate(allocator, file_size, alignof(U8));
-	DEFER(memory::deallocate(allocator, file_data));
-
-	auto bytes_read = platform_file_read(filepath, file_data);
-	if (bytes_read != file_size)
-	{
-		return Error{
-			"[JSON]: Could not fully read file '{}' contents, file size '{}' but amount read is '{}'.",
-			filepath,
-			file_size,
-			bytes_read
-		};
-	}
-
-	return json_value_from_string((char *)file_data.data, allocator);
+	return json_value_from_string(file_data.data, allocator);
 }
 
 JSON_Value
@@ -675,7 +663,7 @@ json_value_to_file(const JSON_Value &self, const char *filepath)
 	if (error)
 		return error;
 
-	auto file_size = platform_file_write(filepath, Memory_Block{(void *)json_string.data, json_string.count});
+	auto file_size = platform_path_write_file(filepath, Memory_Block{(void *)json_string.data, json_string.count});
 	if (file_size != json_string.count)
 		return Error{"[JSON]: Could not write file '{}'.", filepath};
 	return {};

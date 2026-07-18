@@ -41,6 +41,51 @@ jobs:
       - name: Running tests
         run: build/bin/${{matrix.build-variant}}/unittest
 
+  ios:
+    runs-on: macos-15
+    strategy:
+      fail-fast: true
+      matrix:
+        build-variant: [Debug, Release]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Selecting iOS Simulator
+        shell: bash
+        run: |
+            set -euo pipefail
+            device_id="$(xcrun simctl list devices available -j | jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid // empty')"
+            if [ -z "$device_id" ]; then
+              echo "::error::No available iPhone simulator was found."
+              exit 1
+            fi
+            echo "CORE_IOS_SIMULATOR_ID=$device_id" >> "$GITHUB_ENV"
+            device_state="$(xcrun simctl list devices -j | jq -r --arg id "$device_id" '[.devices[] | .[] | select(.udid == $id)][0].state')"
+            if [ "$device_state" != "Booted" ]; then
+              xcrun simctl boot "$device_id"
+            fi
+            xcrun simctl bootstatus "$device_id" -b
+
+      - name: Configuring iOS tests
+        run: >-
+            cmake -S . -B build-ios -G Xcode
+            -DCMAKE_SYSTEM_NAME=iOS
+            -DCMAKE_OSX_SYSROOT=iphonesimulator
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
+            -DCORE_BUILD_STATIC=ON
+            -DCORE_BUILD_UNITTEST=ON
+            -DCORE_BUILD_UNITY=ON
+
+      - name: Running iOS tests
+        run: >-
+            xcodebuild
+            -project build-ios/core.xcodeproj
+            -scheme unittest
+            -configuration ${{matrix.build-variant}}
+            -destination "platform=iOS Simulator,id=$CORE_IOS_SIMULATOR_ID"
+            -parallel-testing-enabled NO
+            test
+
   android:
     runs-on: ubuntu-latest
     strategy:
@@ -75,7 +120,7 @@ jobs:
             smoke_dir="$RUNNER_TEMP/core_android_link_smoke_${{matrix.build-variant}}"
             mkdir -p "$smoke_dir/src"
             cat > "$smoke_dir/CMakeLists.txt" <<'CMAKE'
-            cmake_minimum_required(VERSION 3.25)
+            cmake_minimum_required(VERSION 3.29)
 
             project(core_android_link_smoke CXX)
 
@@ -84,7 +129,6 @@ jobs:
             set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 
             set(CORE_BUILD_STATIC ON CACHE BOOL "" FORCE)
-            set(CORE_BUILD_TEST OFF CACHE BOOL "" FORCE)
             set(CORE_BUILD_UNITTEST OFF CACHE BOOL "" FORCE)
             set(CORE_INSTALL OFF CACHE BOOL "" FORCE)
 
@@ -96,19 +140,21 @@ jobs:
             target_link_libraries(core_android_link_smoke PRIVATE core)
             CMAKE
             cat > "$smoke_dir/src/android_link_smoke.cpp" <<'CPP'
-            #include <core/defines.h>
             #include <core/platform/platform.h>
 
             #include <android/native_activity.h>
             #include <stddef.h>
 
-            extern "C" bool
-            platform_android_native_activity_on_create(void *native_activity, void *saved_state, U64 saved_state_size);
+            inline static Platform_Window window = {};
 
             extern "C" __attribute__((visibility("default"))) void
             ANativeActivity_onCreate(ANativeActivity *activity, void *saved_state, size_t saved_state_size)
             {
-                platform_android_native_activity_on_create(activity, saved_state, (U64)saved_state_size);
+                (void)saved_state;
+                (void)saved_state_size;
+                if (window.ctx == nullptr)
+                    window = platform_window_init(Platform_Window_Desc {});
+                platform_window_native_connect(&window, activity, nullptr);
             }
             CPP
 
@@ -121,7 +167,6 @@ jobs:
               -DANDROID_ABI=arm64-v8a \
               -DANDROID_PLATFORM=android-26 \
               -DCORE_BUILD_STATIC=ON \
-              -DCORE_BUILD_TEST=OFF \
               -DCORE_BUILD_UNITTEST=OFF \
               -DCORE_INSTALL=OFF \
               -DCMAKE_BUILD_TYPE=${{matrix.build-variant}}

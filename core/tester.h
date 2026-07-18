@@ -6,18 +6,18 @@
 #include "core/containers/array.h"
 
 #define TESTER_TEST(name) _TESTER_TEST_IMPL(name, __COUNTER__)
-#define _TESTER_TEST_IMPL(name, id)                                                                                                                \
-	static void CONCATENATE(tester_test_function_, id)();                                                                                          \
-	static U64 CONCATENATE(registrar_, id) = tester_add_test(tester(), Tester_Test{name, CONCATENATE(tester_test_function_, id)});                 \
+#define _TESTER_TEST_IMPL(name, id)                                                                                                    \
+	static void CONCATENATE(tester_test_function_, id)();                                                                              \
+	static U64 CONCATENATE(registrar_, id) = tester_add_test(tester(), Tester_Test{name, CONCATENATE(tester_test_function_, id)});     \
 	static void CONCATENATE(tester_test_function_, id)()
 
 // Variadic so callers can pass expressions containing braced initializers (whose
 // top-level commas would otherwise be consumed by the preprocessor as argument
 // separators).
-#define TESTER_CHECK(...)                                                                                                                     \
-	do                                                                                                                                         \
-	{                                                                                                                                          \
-		array_push((__VA_ARGS__) ? tester()->passed_checks : tester()->failed_checks, Tester_Check{#__VA_ARGS__, __FILE__, __LINE__});         \
+#define TESTER_CHECK(...)                                                                                                              \
+	do                                                                                                                                 \
+	{                                                                                                                                  \
+		array_push((__VA_ARGS__) ? tester()->passed_checks : tester()->failed_checks, Tester_Check{#__VA_ARGS__, __FILE__, __LINE__}); \
 	} while (false)
 
 struct Tester_Check
