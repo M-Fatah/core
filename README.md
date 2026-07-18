@@ -14,7 +14,7 @@ The library favors explicit ownership, visible allocations, plain structs, free 
 - Explicit lifetimes: owned resources use visible init/deinit pairs.
 - No exceptions: failures are returned or validated at the boundary where they matter.
 - C-like C++: plain data, free functions, and simple translation units.
-- Platform-first: Windows, Linux, macOS, and Android backends live inside Core without third-party runtime dependencies.
+- Platform-first: Windows, Linux, macOS, iOS, and Android backends live inside Core and use native platform APIs and system libraries.
 
 ## Modules
 
@@ -72,12 +72,12 @@ log_info("loaded {} vertices, view matrix:\n{}", vertices.count, view);
 | Windows | Win32 |
 | Linux | X11/XCB, xdg-desktop-portal dialogs |
 | macOS | Cocoa |
-| iOS | UIKit (validation pending) |
+| iOS | UIKit |
 | Android | NDK NativeActivity |
 
 Android support is NDK-only: no GameActivity, AndroidX, Jetpack, Gradle dependency, or `android_native_app_glue`. Core generates tiny Java `NativeActivity` and clipboard provider classes for Android framework features such as app/cache directories, window presentation, file dialogs, document URIs, clipboard, and soft keyboard input.
 
-iOS validation is in progress. Core provides the non-UI backend plus a per-scene UIKit application host, native surface handles, display metrics, presentation policy, touch, mouse/trackpad, physical-keyboard, software-keyboard text input, clipboard data, self-contained document-token file and path operations, open-file and directory document pickers, and raw-byte save export. The XCTest bundle also includes a consumer-owned Metal rendering smoke test.
+iOS support provides per-scene UIKit integration, native surface handles, display metrics, presentation policy, touch, mouse/trackpad, physical-keyboard and software-keyboard input, clipboard data, self-contained document-token file and path operations, system document pickers, and raw-byte save export. CI builds and runs the UIKit-hosted XCTest bundle on an iPhone simulator in Debug and Release, including the Core test suite and a consumer-owned Metal rendering smoke test. Physical-device validation and signing remain the consuming application's responsibility.
 
 ## Prerequisites
 

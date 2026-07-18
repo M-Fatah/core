@@ -2,7 +2,7 @@
 
 **Header:** `core/platform/platform.h`
 
-Cross-platform file I/O, path utilities, native dialogs, windows, and low-level platform primitives. Implementations are provided for Windows, Linux, macOS, Android, and iOS.
+Cross-platform file I/O, path utilities, native dialogs, windows, and low-level platform primitives. Implementations are provided for Windows, Linux, macOS, iOS, and Android.
 
 ---
 
@@ -13,10 +13,10 @@ Cross-platform file I/O, path utilities, native dialogs, windows, and low-level 
 | Windows | Supported | `platform_win32.cpp` |
 | Linux | Supported | `platform_linux.cpp` |
 | macOS | Supported | `platform_macos.mm` |
+| iOS | Supported | `platform_ios.mm` |
 | Android | Supported | `platform_android.cpp` |
-| iOS | Validation pending | UIKit, document providers, and consumer-owned Metal surfaces |
 
-A platform is supported only when its backend builds, links, and passes its platform validation. The iOS backend covers ordinary non-UI platform services, except runtime API hot reload, which iOS does not support. It also provides explicit per-scene UIKit window ownership, lifecycle and input integration, clipboard transport, document-token file and path operations, system document pickers, raw-byte save export, and borrowed native handles for consumer-owned Metal rendering. Simulator CI and physical-device validation must pass before iOS is marked supported.
+A platform is supported only when its backend builds, links, and passes its platform validation.
 
 ---
 
@@ -177,7 +177,7 @@ Missing environment variables return an empty `String`.
 
 ## iOS
 
-The root build provides an iOS-only `unittest_ios_host` application bundle and a `unittest` XCTest bundle. The host owns the `UIApplicationMain` entrypoint, configures `UIWindowScene` instances, packages a known resource into its main bundle, and verifies scene lifecycle state through the existing Core tester. The CI workflow runs the XCTest scheme against an available iPhone simulator in Debug and Release.
+The root build provides an iOS-only `unittest_ios_host` application bundle and a `unittest` XCTest bundle. The host owns the `UIApplicationMain` entrypoint, configures `UIWindowScene` instances and their empty `UIWindow`, and packages a known resource into its main bundle. The XCTest bundle is the only binary in the process that links Core: it initializes a `Platform_Window`, binds it to the host window, runs the Core and iOS integration tests, and deinitializes it after the suite. The CI workflow runs this scheme against an available iPhone simulator in Debug and Release.
 
 ```bash
 cmake -S . -B build-ios -G Xcode \
@@ -192,7 +192,7 @@ cmake --build build-ios --target unittest --config Debug
 
 iOS requires iOS 13.0 or newer for the scene lifecycle and `CORE_BUILD_STATIC=ON`; the Core target validates explicitly configured deployment targets and the static-library requirement beside library creation. Select the generated `unittest_ios_host` scheme and an iOS Simulator destination in Xcode to run the bundle. A device build uses `-DCMAKE_OSX_SYSROOT=iphoneos` and requires the host application and test bundle to be signed through the consuming Xcode project.
 
-Each `UIWindowSceneDelegate` owns one `Platform_Window`. The delegate creates the Core window with the generic `platform_window_init`, creates an empty `UIWindow` for its scene, then binds both objects with `platform_window_native_connect` from `core/platform/platform.h`. Core installs and manages the root view controller and view so generic presentation and later input policy do not depend on host-specific overrides. A fresh iOS scene returns `PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_CONNECTED`.
+In an application, each `UIWindowSceneDelegate` owns one `Platform_Window`. The delegate creates the Core window with the generic `platform_window_init`, creates an empty `UIWindow` for its scene, then binds both objects with `platform_window_native_connect` from `core/platform/platform.h`. Core installs and manages the root view controller and view so generic presentation and later input policy do not depend on host-specific overrides. A fresh iOS scene returns `PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_CONNECTED`.
 
 Core registers scene-specific UIKit lifecycle observers during that handoff and reports active, inactive, foreground, background, and disconnect transitions through `platform_window_poll`. UIKit retains ownership of the scene and window. The window retains Core's root view controller and view until Core removes them during scene disconnect or `platform_window_deinit`.
 
@@ -231,7 +231,7 @@ iOS text entry uses a dedicated `UITextInput` responder owned by Core's root vie
 
 iOS document references use the versioned, self-contained `core-document://v1/<bookmark>` token format. The payload is canonical unpadded Base64URL bookmark data, so tokens require no process-global URL registry and can be persisted as ordinary strings. Tokens remain opaque to applications. File I/O and path operations resolve these tokens and coordinate access through the document provider. Whole-file and path operations release security access before returning; an open handle retains access until `platform_file_close`. The open-file and directory pickers produce the same token format. The save picker returns only completion status because it owns the complete export operation.
 
-Before treating an iOS release as supported, validate on a provisioned physical device: portrait and landscape safe areas, background/foreground restoration, touch and connected hardware input, multi-stage Unicode composition, clipboard privacy prompts, iCloud document access, stale bookmarks, and unavailable or offline document providers. Provider cancellation and failure must leave caller-owned data unchanged and release every security-scoped access.
+Before shipping an iOS app on physical devices, validate portrait and landscape safe areas, background/foreground restoration, touch and connected hardware input, multi-stage Unicode composition, clipboard privacy prompts, iCloud document access, stale bookmarks, and unavailable or offline document providers. Provider cancellation and failure must leave caller-owned data unchanged and release every security-scoped access.
 
 The binding remains explicit and per scene. Core does not keep a global current-scene registry, `Platform_Window_Desc` does not contain UIKit context, and the scene delegate owns generic `platform_window_deinit` cleanup.
 
@@ -406,7 +406,7 @@ app_main(Platform_Window *window)
 }
 ```
 
-`Platform_Window_Desc` supplies the initial desktop window size and title. Android keeps the same construction API, but its actual size comes from the current `ANativeWindow` and its displayed app title comes from the Activity manifest; Core does not override either value from the descriptor.
+`Platform_Window_Desc` supplies the initial desktop window size and title. Android and iOS keep the same construction API but derive native size from their connected host objects. Android gets its displayed app title from the Activity manifest; iOS does not apply the descriptor title to its `UIWindow`.
 
 `platform_window_get_native_handles` returns `ANativeWindow *` as `window` and `ANativeActivity *` as `context` on Android.
 Returned handles are borrowed. On Android, Core keeps the returned `ANativeWindow *` valid until the next `platform_window_poll` or `platform_window_deinit`; do not cache it across frames.
@@ -427,11 +427,11 @@ platform_window_presentation_set(window, presentation);
 ```
 
 `Platform_Window::presentation` stores the requested state. `Platform_Window::metrics.safe_area` stores the observed area that should stay unobstructed by system UI. On Android, fullscreen, immersive, keep-screen-on, edge-to-edge/cutout behavior, and orientation policy are applied through Core's generated `CoreNativeActivity` bridge. On iOS, Core's root view controller applies the corresponding UIKit presentation preferences and scene orientation request. On desktop, fullscreen maps to the native fullscreen path, keep-screen-on maps to the platform display-inhibit API, and orientation policy is stored but has no OS window meaning.
-`Platform_Window::started` tracks Android Activity start/stop visibility and remains true on desktop platforms.
-`Platform_Window::paused` is driven by Android Activity pause/resume and remains false on desktop platforms.
-`Platform_Window::low_memory` is a one-poll platform memory-pressure signal. On Android it is driven by `onLowMemory` and memory-pressure `onTrimMemory` levels; on desktop it remains false.
-`Platform_Window::save_state_requested` is a one-poll platform request to persist app-owned state. On Android it is driven by `onSaveInstanceState`; Core returns no Android saved-state blob.
-Android windows use the normal `platform_window_init` entry point before `platform_window_native_connect`, matching iOS host setup.
+`Platform_Window::started` tracks Android Activity start/stop visibility and iOS scene foreground/background state; it remains true on desktop platforms.
+`Platform_Window::paused` tracks Android Activity pause/resume and whether an iOS scene is inactive or in the background; it remains false on desktop platforms.
+`Platform_Window::low_memory` is a one-poll platform memory-pressure signal. Android drives it from `onLowMemory` and memory-pressure `onTrimMemory` levels; it remains false on desktop and iOS.
+`Platform_Window::save_state_requested` is a one-poll request to persist app-owned state. Android drives it from `onSaveInstanceState`; it remains false on desktop and iOS, and Core returns no Android saved-state blob.
+Android windows use the normal `platform_window_init` entry point before `platform_window_native_connect`, matching the iOS application setup described above.
 
 Android soft keyboard input uses Core's generated `CoreNativeActivity` bridge. The bridge creates the Android `InputConnection` endpoint internally; app code only enables a text-input session through Core and consumes text-input events from `platform_window_poll`.
 
@@ -545,7 +545,7 @@ platform_window_clipboard_item_write(window, &item, 1);
 
 Clipboard APIs take a `Platform_Window &` because Linux/X11 clipboard ownership is window-based: Core owns the `CLIPBOARD` selection through that window, keeps copied items alive, answers `SelectionRequest` events from `platform_window_poll`, and clears ownership on `SelectionClear`. Wayland should be handled separately through its data-device protocol once Core has a Wayland backend.
 
-Clipboard reads use a caller-owned initialized `Array<U8>`, reuse its capacity, and clear it on failure. A successful read may contain zero bytes. Clipboard item descriptions passed to `platform_window_clipboard_item_write` are non-owning and Core copies their contents before returning. Clipboard items use standard media type strings such as `text/plain;charset=utf-8`, `image/png`, and `application/octet-stream`. Core transports bytes; the caller owns interpretation, encoding, decoding, and validation. Windows, Linux/X11, macOS, Android, and iOS support exact media-type byte items. iOS stores all descriptors from one write as representations of one system pasteboard item. Its media-type query only inspects representation types, but an item read may cause the system paste notification or permission UI when iOS cannot infer user intent. On Android, non-text clipboard writes are backed by Core's generated `CoreClipboardProvider`, so the app manifest must include the provider entry shown above.
+Clipboard reads use a caller-owned initialized `Array<U8>`, reuse its capacity, and clear it on failure. A successful read may contain zero bytes. Clipboard item descriptions passed to `platform_window_clipboard_item_write` are non-owning and Core copies their contents before returning. Clipboard items use standard media type strings such as `text/plain;charset=utf-8`, `image/png`, and `application/octet-stream`. Core transports bytes; the caller owns interpretation, encoding, decoding, and validation. Windows, Linux/X11, macOS, iOS, and Android support exact media-type byte items. iOS stores all descriptors from one write as representations of one system pasteboard item. Its media-type query only inspects representation types, but an item read may cause the system paste notification or permission UI when iOS cannot infer user intent. On Android, non-text clipboard writes are backed by Core's generated `CoreClipboardProvider`, so the app manifest must include the provider entry shown above.
 
 ---
 
