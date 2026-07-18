@@ -34,8 +34,8 @@ if(IOS)
         ios/unittest_ios_host.mm
         ${IOS_RESOURCE_FILES}
     )
+    # Core is loaded by the XCTest bundle only, avoiding duplicate Objective-C classes in the host process.
     target_link_libraries(unittest_ios_host PRIVATE
-        ${LIBS}
         "-framework UIKit"
     )
     set_target_properties(unittest_ios_host

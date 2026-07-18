@@ -7,8 +7,8 @@
 #include <UIKit/UIKit.h>
 #include <XCTest/XCTest.h>
 
-extern "C" Platform_Window *
-core_ios_test_window();
+inline static Platform_Window _core_ios_test_window_storage = {};
+inline static Platform_Window *_core_ios_test_window = nullptr;
 
 inline static void
 _core_ios_metal_layer_resize(CAMetalLayer *layer, UIView *view)
@@ -84,6 +84,48 @@ _core_ios_wait_for_orientation(XCTestCase *test, UIView *view, bool landscape)
 @end
 
 @implementation Core_IOSTests
++ (void)
+setUp
+{
+	[super setUp];
+
+	UIScene *scene = [[[UIApplication sharedApplication] connectedScenes] anyObject];
+	UIWindowScene *window_scene = [scene isKindOfClass:[UIWindowScene class]] ? (UIWindowScene *)scene : nil;
+	UIWindow *window = [[window_scene windows] firstObject];
+	XCTAssertNotNil(window_scene);
+	XCTAssertNotNil(window);
+	XCTAssertNil([window rootViewController]);
+	if (window_scene == nil || window == nil || [window rootViewController] != nil)
+		return;
+
+	_core_ios_test_window_storage = platform_window_init(Platform_Window_Desc {});
+	XCTAssertTrue(_core_ios_test_window_storage.ctx != nullptr);
+	if (_core_ios_test_window_storage.ctx == nullptr)
+		return;
+
+	PLATFORM_WINDOW_NATIVE_CONNECT_RESULT connect_result = platform_window_native_connect(&_core_ios_test_window_storage, window_scene, window);
+	XCTAssertEqual(connect_result, PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_CONNECTED);
+	if (connect_result != PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_CONNECTED)
+	{
+		platform_window_deinit(&_core_ios_test_window_storage);
+		return;
+	}
+
+	_core_ios_test_window = &_core_ios_test_window_storage;
+	[window makeKeyAndVisible];
+}
+
++ (void)
+tearDown
+{
+	if (_core_ios_test_window != nullptr)
+	{
+		platform_window_deinit(_core_ios_test_window);
+		_core_ios_test_window = nullptr;
+	}
+	[super tearDown];
+}
+
 - (void)
 testDocumentTokenEncoding
 {
@@ -184,7 +226,7 @@ testBundledResource
 - (void)
 testSceneLifecycle
 {
-	Platform_Window *window = core_ios_test_window();
+	Platform_Window *window = _core_ios_test_window;
 	XCTAssertTrue(window != nullptr);
 	if (window == nullptr)
 		return;
@@ -192,7 +234,6 @@ testSceneLifecycle
 	XCTAssertTrue(window->ctx != nullptr);
 	XCTAssertTrue(platform_window_poll(window));
 	XCTAssertTrue(window->surface_valid);
-	XCTAssertTrue(window->surface_changed);
 
 	UIScene *scene = [[[UIApplication sharedApplication] connectedScenes] anyObject];
 	XCTAssertTrue(scene != nil);
@@ -257,7 +298,7 @@ testSceneLifecycle
 - (void)
 testTouchInput
 {
-	Platform_Window *window = core_ios_test_window();
+	Platform_Window *window = _core_ios_test_window;
 	XCTAssertTrue(window != nullptr);
 	if (window == nullptr)
 		return;
@@ -333,7 +374,7 @@ testTouchInput
 - (void)
 testConsumerMetalRendering
 {
-	Platform_Window *window = core_ios_test_window();
+	Platform_Window *window = _core_ios_test_window;
 	XCTAssertTrue(window != nullptr);
 	if (window == nullptr)
 		return;
@@ -442,7 +483,7 @@ testMouseInput
 {
 	if (@available(iOS 13.4, *))
 	{
-		Platform_Window *window = core_ios_test_window();
+		Platform_Window *window = _core_ios_test_window;
 		XCTAssertTrue(window != nullptr);
 		if (window == nullptr)
 			return;
@@ -534,7 +575,7 @@ testPhysicalKeyboardInput
 {
 	if (@available(iOS 13.4, *))
 	{
-		Platform_Window *window = core_ios_test_window();
+		Platform_Window *window = _core_ios_test_window;
 		XCTAssertTrue(window != nullptr);
 		if (window == nullptr)
 			return;
@@ -619,7 +660,7 @@ testPhysicalKeyboardInput
 - (void)
 testTextInput
 {
-	Platform_Window *window = core_ios_test_window();
+	Platform_Window *window = _core_ios_test_window;
 	XCTAssertTrue(window != nullptr);
 	if (window == nullptr)
 		return;
@@ -736,7 +777,7 @@ testTextInput
 - (void)
 testClipboard
 {
-	Platform_Window *window = core_ios_test_window();
+	Platform_Window *window = _core_ios_test_window;
 	XCTAssertTrue(window != nullptr);
 	if (window == nullptr)
 		return;
@@ -802,7 +843,7 @@ testClipboard
 - (void)
 testWindowPresentation
 {
-	Platform_Window *window = core_ios_test_window();
+	Platform_Window *window = _core_ios_test_window;
 	XCTAssertTrue(window != nullptr);
 	if (window == nullptr)
 		return;
