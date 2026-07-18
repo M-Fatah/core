@@ -145,6 +145,7 @@ elseif(IOS)
         platform/platform_ios.mm
     )
     list(APPEND LIBS
+        "-framework CoreGraphics"
         "-framework Foundation"
         "-framework MobileCoreServices"
         "-framework UIKit"
