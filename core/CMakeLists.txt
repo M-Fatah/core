@@ -81,6 +81,9 @@ set(LIBS
     core-options
 )
 
+set(COMPILE_OPTIONS
+)
+
 set(TARGET_PROPERTIES
     UNITY_BUILD_BATCH_SIZE 8
     UNITY_BUILD ${CORE_BUILD_UNITY}
@@ -112,12 +115,40 @@ elseif(LINUX)
         dl
         pthread
     )
-elseif(APPLE)
-    add_library(core-platform-macos OBJECT platform/platform_macos.mm)
-    target_link_libraries(core-platform-macos PRIVATE ${LIBS} "-framework Cocoa" "-framework IOKit" "-framework UniformTypeIdentifiers")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    enable_language(OBJCXX)
 
+    # The macOS backend implements Core's C++ API and exposes no Objective-C API to annotate.
+    list(APPEND COMPILE_OPTIONS
+        $<$<COMPILE_LANGUAGE:OBJCXX>:-Wno-nullability-completeness>
+    )
+    list(APPEND SOURCE_FILES
+        platform/platform_macos.mm
+    )
     list(APPEND LIBS
-        core-platform-macos
+        "-framework Cocoa"
+        "-framework IOKit"
+        "-framework UniformTypeIdentifiers"
+    )
+elseif(IOS)
+    if(NOT CORE_BUILD_STATIC)
+        message(FATAL_ERROR "iOS builds require CORE_BUILD_STATIC=ON.")
+    endif()
+
+    if(CMAKE_OSX_DEPLOYMENT_TARGET AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 13.0)
+        message(FATAL_ERROR "iOS scene lifecycle support requires iOS 13.0 or newer.")
+    endif()
+
+    enable_language(OBJCXX)
+
+    list(APPEND SOURCE_FILES
+        platform/platform_ios.mm
+    )
+    list(APPEND LIBS
+        "-framework CoreGraphics"
+        "-framework Foundation"
+        "-framework MobileCoreServices"
+        "-framework UIKit"
     )
 elseif(ANDROID)
     list(APPEND SOURCE_FILES
@@ -886,14 +917,15 @@ elseif(ANDROID)
         |        });
         |    }
         |
-        |    public void coreSaveFileDialog(final long requestId, final String extension) {
+        |    public void coreSaveFileDialog(final long requestId, final String extension, final byte[] suggestedNameUtf8) {
+        |        final String suggestedName = suggestedNameUtf8 != null ? new String(suggestedNameUtf8, StandardCharsets.UTF_8) : "";
         |        runOnUiThread(new Runnable() {
         |            @Override
         |            public void run() {
         |                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         |                intent.addCategory(Intent.CATEGORY_OPENABLE);
         |                intent.setType(coreMimeType(extension));
-        |                intent.putExtra(Intent.EXTRA_TITLE, coreDefaultName(extension));
+        |                intent.putExtra(Intent.EXTRA_TITLE, suggestedName.length() > 0 ? suggestedName : coreDefaultName(extension));
         |                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         |
         |                coreFileDialogRequest = requestId;
@@ -1533,13 +1565,20 @@ else()
 endif()
 
 target_link_libraries(core PUBLIC ${LIBS})
+target_compile_options(core PRIVATE ${COMPILE_OPTIONS})
 set_target_properties(core
     PROPERTIES ${TARGET_PROPERTIES}
 )
 
+set(CORE_GENERATED_INCLUDE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY "${CORE_GENERATED_INCLUDE_DIRECTORY}/core")
+target_include_directories(core BEFORE PUBLIC
+    "$<BUILD_INTERFACE:${CORE_GENERATED_INCLUDE_DIRECTORY}>"
+)
+
 include(GenerateExportHeader)
 generate_export_header(core
-    EXPORT_FILE_NAME "${CMAKE_CURRENT_SOURCE_DIR}/export.h"
+    EXPORT_FILE_NAME "${CORE_GENERATED_INCLUDE_DIRECTORY}/core/export.h"
     INCLUDE_GUARD_NAME "CORE_API_H"
     EXPORT_MACRO_NAME "CORE_API"
     NO_EXPORT_MACRO_NAME "CORE_NO_API"

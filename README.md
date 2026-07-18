@@ -14,7 +14,7 @@ The library favors explicit ownership, visible allocations, plain structs, free 
 - Explicit lifetimes: owned resources use visible init/deinit pairs.
 - No exceptions: failures are returned or validated at the boundary where they matter.
 - C-like C++: plain data, free functions, and simple translation units.
-- Platform-first: Windows, Linux, macOS, and Android backends live inside Core without third-party runtime dependencies.
+- Platform-first: Windows, Linux, macOS, iOS, and Android backends live inside Core and use native platform APIs and system libraries.
 
 ## Modules
 
@@ -72,17 +72,21 @@ log_info("loaded {} vertices, view matrix:\n{}", vertices.count, view);
 | Windows | Win32 |
 | Linux | X11/XCB, xdg-desktop-portal dialogs |
 | macOS | Cocoa |
+| iOS | UIKit |
 | Android | NDK NativeActivity |
 
 Android support is NDK-only: no GameActivity, AndroidX, Jetpack, Gradle dependency, or `android_native_app_glue`. Core generates tiny Java `NativeActivity` and clipboard provider classes for Android framework features such as app/cache directories, window presentation, file dialogs, document URIs, clipboard, and soft keyboard input.
+
+iOS support provides per-scene UIKit integration, native surface handles, display metrics, presentation policy, touch, mouse/trackpad, physical-keyboard and software-keyboard input, clipboard data, self-contained document-token file and path operations, system document pickers, and raw-byte save export. CI builds and runs the UIKit-hosted XCTest bundle on an iPhone simulator in Debug and Release, including the Core test suite and a consumer-owned Metal rendering smoke test. Physical-device validation and signing remain the consuming application's responsibility.
 
 ## Prerequisites
 
 | Platform | Requirements |
 |---|---|
-| Windows | CMake 3.25+ |
-| Linux | CMake 3.25+, pkg-config, X11/XCB and D-Bus development packages |
-| macOS | CMake 3.25+, Xcode Command Line Tools |
+| Windows | CMake 3.29+ |
+| Linux | CMake 3.29+, pkg-config, X11/XCB and D-Bus development packages |
+| macOS | CMake 3.29+, Xcode Command Line Tools |
+| iOS | CMake 3.29+, Xcode, iOS 13+ |
 | Android | Android SDK, Android NDK, SDK Build Tools, Platform Tools, Ninja |
 
 Linux packages:
@@ -123,6 +127,23 @@ Run unit tests:
 build\bin\Debug\unittest.exe
 ```
 
+### iOS
+
+Generate an Xcode project and build the UIKit-hosted XCTest bundle for the simulator:
+
+```bash
+cmake -S . -B build-ios -G Xcode \
+  -DCMAKE_SYSTEM_NAME=iOS \
+  -DCMAKE_OSX_SYSROOT=iphonesimulator \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
+  -DCORE_BUILD_STATIC=ON \
+  -DCORE_BUILD_UNITTEST=ON
+
+cmake --build build-ios --target unittest --config Debug
+```
+
+Like Android, iOS configuration explicitly enables the static Core build. The `unittest` target builds `CoreUnitTestHost.app` and its `CoreUnitTests.xctest` bundle. The CI workflow selects an available iPhone simulator and runs the generated `unittest_ios_host` scheme in Debug and Release. Local validation can run the same scheme from Xcode or `xcodebuild`; physical-device validation and signing remain the consuming application's responsibility.
+
 ### Android
 
 Android uses the NDK toolchain and writes final artifacts to the same output folder shape as desktop:
@@ -139,7 +160,6 @@ cmake -B build -G Ninja `
   -DANDROID_ABI=arm64-v8a `
   -DANDROID_PLATFORM=android-26 `
   -DCORE_BUILD_STATIC=ON `
-  -DCORE_BUILD_TEST=OFF `
   -DCORE_BUILD_UNITTEST=OFF `
   -DCORE_INSTALL=OFF `
   -DCMAKE_BUILD_TYPE=Debug
@@ -151,7 +171,6 @@ An Android app repo should link Core into its own NativeActivity shared library.
 
 ```cmake
 set(CORE_BUILD_STATIC ON CACHE BOOL "" FORCE)
-set(CORE_BUILD_TEST OFF CACHE BOOL "" FORCE)
 set(CORE_BUILD_UNITTEST OFF CACHE BOOL "" FORCE)
 set(CORE_INSTALL OFF CACHE BOOL "" FORCE)
 
@@ -166,14 +185,13 @@ target_link_libraries(my_android_app PRIVATE core)
 get_target_property(CORE_ANDROID_JAVA_SOURCE_DIR core CORE_ANDROID_JAVA_SOURCE_DIR)
 ```
 
-The app owns `ANativeActivity_onCreate`, the manifest, APK packaging, Java compilation, signing, install, and launch steps. The Core NativeActivity handoff returns whether the app should start a new app thread, which prevents duplicate threads when Android recreates an Activity for configuration changes. See [`docs/platform.md`](docs/platform.md) for the minimal entrypoint and packaging recipe.
+The app owns `ANativeActivity_onCreate`, the manifest, APK packaging, Java compilation, signing, install, and launch steps. Android and iOS use the same host order: initialize a `Platform_Window`, bind native objects with `platform_window_native_connect`, then start the app loop only for a new connection. Android reconnections preserve the existing app thread when an Activity is recreated. See [`docs/platform.md`](docs/platform.md) for the minimal entrypoint and packaging recipe.
 
 ## CMake Options
 
 | Option | Default | Description |
 |---|---|---|
-| `CORE_BUILD_UNITTEST` | ON for root desktop builds, OFF on Android | Build unit tests |
-| `CORE_BUILD_TEST` | ON for root desktop builds, OFF on Android | Build sample test executable |
+| `CORE_BUILD_UNITTEST` | ON for root builds | Build unit tests |
 | `CORE_INSTALL` | ON for root builds | Enable install target |
 | `CORE_BUILD_UNITY` | OFF | Enable unity build |
 | `CORE_BUILD_STATIC` | OFF | Build Core as a static library |

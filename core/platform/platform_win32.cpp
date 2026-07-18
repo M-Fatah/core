@@ -11,17 +11,7 @@
 #include <DbgHelp.h>
 #include <ShlObj.h>
 #include <math.h>
-
-// TODO: Remove from here.
-inline static void
-_string_concat(const char *a, const char *b, char *result)
-{
-	while (*a != '\0')
-		*result++ = *a++;
-
-	while (*b != '\0')
-		*result++ = *b++;
-}
+#include <stdio.h>
 
 inline static Platform_Window_Orientation
 _platform_win32_window_orientation(U32 width, U32 height)
@@ -82,7 +72,7 @@ _platform_win32_text_input_events_reset(Platform_Input &input)
 }
 
 inline static void
-_platform_win32_text_input_push_utf16(Platform_Window &window, wchar_t character)
+_platform_win32_text_input_push_utf16(Platform_Window &window, U16 &pending_surrogate, wchar_t character)
 {
 	if (!window.text_input.enabled)
 		return;
@@ -92,27 +82,27 @@ _platform_win32_text_input_push_utf16(Platform_Window &window, wchar_t character
 	if (character == L'\r')
 	{
 		text_wide[0] = L'\n';
-		window.text_input_pending_surrogate = 0;
+		pending_surrogate = 0;
 	}
 	else if (character >= 0xd800 && character <= 0xdbff)
 	{
-		window.text_input_pending_surrogate = (U16)character;
+		pending_surrogate = (U16)character;
 		return;
 	}
 	else if (character >= 0xdc00 && character <= 0xdfff)
 	{
-		if (window.text_input_pending_surrogate == 0)
+		if (pending_surrogate == 0)
 			return;
 
-		text_wide[0] = (wchar_t)window.text_input_pending_surrogate;
+		text_wide[0] = (wchar_t)pending_surrogate;
 		text_wide[1] = character;
 		text_wide_count = 2;
-		window.text_input_pending_surrogate = 0;
+		pending_surrogate = 0;
 	}
 	else
 	{
 		text_wide[0] = character;
-		window.text_input_pending_surrogate = 0;
+		pending_surrogate = 0;
 	}
 
 	I32 utf8_count = ::WideCharToMultiByte(CP_UTF8, 0, text_wide, text_wide_count, nullptr, 0, nullptr, nullptr);
@@ -436,16 +426,20 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 	HANDLE file_handle = ::CreateFileA(path.data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	if (file_handle == INVALID_HANDLE_VALUE)
 		return content;
+	DEFER(validate(::CloseHandle(file_handle), "[PLATFORM][WINDOWS]: Failed to close file handle."));
 
-	U64 file_size = platform_file_size(path.data);
+	U64 file_size = platform_path_get_file_size(path);
 	if (file_size == 0)
 		return content;
 
 	string_resize(content, file_size);
 
 	DWORD bytes_read = 0;
-	::ReadFile(file_handle, content.data, (U32)content.count, &bytes_read, 0);
-	validate(::CloseHandle(file_handle), "[PLATFORM][WINDOWS]: Failed to close file handle.");
+	if (!::ReadFile(file_handle, content.data, (U32)content.count, &bytes_read, 0))
+	{
+		string_deinit(content);
+		return content;
+	}
 	validate(content.count == bytes_read);
 
 	return content;
@@ -758,11 +752,13 @@ platform_api_init(const char *filepath)
 {
 	Platform_Api self = {};
 
-	char path[128] = {};
-	_string_concat(filepath, ".dll", path);
+	char path[sizeof(self.filepath)] = {};
+	I32 path_length = ::snprintf(path, sizeof(path), "%s.dll", filepath);
+	validate(path_length > 0 && path_length < (I32)sizeof(path), "[PLATFORM][WIN32]: Library path is too long.");
 
-	char path_tmp[128] = {};
-	_string_concat(path, ".tmp", path_tmp);
+	char path_tmp[sizeof(self.filepath)] = {};
+	I32 path_tmp_length = ::snprintf(path_tmp, sizeof(path_tmp), "%s.tmp", path);
+	validate(path_tmp_length > 0 && path_tmp_length < (I32)sizeof(path_tmp), "[PLATFORM][WIN32]: Temporary library path is too long.");
 
 	bool result = ::CopyFileA(path, path_tmp, false);
 	validate(result, "[PLATFORM]: Failed to copy library.");
@@ -802,8 +798,9 @@ platform_api_deinit(Platform_Api *self)
 void *
 platform_api_load(Platform_Api *self)
 {
-	char path[128] = {};
-	_string_concat(self->filepath, ".dll", path);
+	char path[sizeof(self->filepath)] = {};
+	I32 path_length = ::snprintf(path, sizeof(path), "%s.dll", self->filepath);
+	validate(path_length > 0 && path_length < (I32)sizeof(path), "[PLATFORM][WIN32]: Library path is too long.");
 
 	WIN32_FILE_ATTRIBUTE_DATA data = {};
 	bool result = ::GetFileAttributesExA(path, GetFileExInfoStandard, &data);
@@ -815,8 +812,9 @@ platform_api_load(Platform_Api *self)
 	result = ::FreeLibrary((HMODULE)self->handle);
 	validate(result, "[PLATFORM]: Failed to free library.");
 
-	char path_tmp[128] = {};
-	_string_concat(path, ".tmp", path_tmp);
+	char path_tmp[sizeof(self->filepath)] = {};
+	I32 path_tmp_length = ::snprintf(path_tmp, sizeof(path_tmp), "%s.tmp", path);
+	validate(path_tmp_length > 0 && path_tmp_length < (I32)sizeof(path_tmp), "[PLATFORM][WIN32]: Temporary library path is too long.");
 
 	bool copy_result = ::CopyFileA(path, path_tmp, false);
 
@@ -922,9 +920,37 @@ struct Platform_Window_Context
 	WINDOWPLACEMENT windowed_placement;
 	DWORD windowed_style;
 	DWORD windowed_ex_style;
+	U16 text_input_pending_surrogate;
+	U32 timer_resolution_period;
+	bool timer_resolution_active;
 	bool fullscreen;
 	bool keep_screen_on;
 };
+
+inline static void
+_platform_win32_timer_resolution_set(Platform_Window_Context *ctx, bool active)
+{
+	if (ctx->timer_resolution_active == active || ctx->timer_resolution_period == 0)
+		return;
+
+	MMRESULT result = active
+		? ::timeBeginPeriod(ctx->timer_resolution_period)
+		: ::timeEndPeriod(ctx->timer_resolution_period);
+	validate(result == TIMERR_NOERROR, active
+		? "[PLATFORM][WINDOWS]: Failed to request timer resolution."
+		: "[PLATFORM][WINDOWS]: Failed to release timer resolution.");
+	if (result == TIMERR_NOERROR)
+		ctx->timer_resolution_active = active;
+}
+
+inline static void
+_platform_win32_timer_resolution_update(Platform_Window_Context *ctx)
+{
+	bool active = ::GetForegroundWindow() == ctx->window &&
+		::IsWindowVisible(ctx->window) &&
+		!::IsIconic(ctx->window);
+	_platform_win32_timer_resolution_set(ctx, active);
+}
 
 static DWORD
 _platform_thread_main_routine(void *thread)
@@ -1160,9 +1186,9 @@ _platform_win32_window_fullscreen_set(Platform_Window_Context *ctx, bool enabled
 }
 
 Platform_Window
-platform_window_init(U32 width, U32 height, const char *title)
+platform_window_init(Platform_Window_Desc desc)
 {
-	validate(width > 0 && height > 0, "[PLATFORM]: Windows cannot have zero width or height.");
+	validate(desc.width > 0 && desc.height > 0 && desc.title != nullptr, "[PLATFORM][WINDOWS]: Window description requires non-zero dimensions and a title.");
 
 	Platform_Window self = {};
 	Platform_Window_Context *ctx = memory::allocate_zeroed<Platform_Window_Context>();
@@ -1180,19 +1206,26 @@ platform_window_init(U32 width, U32 height, const char *title)
 	ctx->window = CreateWindowExA(
 		0,
 		wc.lpszClassName,
-		title,
+		desc.title,
 		WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-		CW_USEDEFAULT, CW_USEDEFAULT, width, height,
+		CW_USEDEFAULT, CW_USEDEFAULT, desc.width, desc.height,
 		nullptr,
 		nullptr,
 		nullptr,
 		nullptr);
 	validate(ctx->window, "[PLATFORM]: Failed to create window.");
 
-	self.handle = ctx;
-	self.width  = width;
-	self.height = height;
-	self.metrics = _platform_win32_window_metrics(ctx->window, width, height);
+	TIMECAPS timer_capabilities = {};
+	MMRESULT timer_capabilities_result = ::timeGetDevCaps(&timer_capabilities, sizeof(timer_capabilities));
+	validate(timer_capabilities_result == TIMERR_NOERROR, "[PLATFORM][WINDOWS]: Failed to query timer capabilities.");
+	if (timer_capabilities_result == TIMERR_NOERROR)
+		ctx->timer_resolution_period = timer_capabilities.wPeriodMin;
+	_platform_win32_timer_resolution_update(ctx);
+
+	self.ctx = ctx;
+	self.width  = desc.width;
+	self.height = desc.height;
+	self.metrics = _platform_win32_window_metrics(ctx->window, desc.width, desc.height);
 	self.focused = true;
 	self.started = true;
 	self.surface_valid = true;
@@ -1205,15 +1238,16 @@ platform_window_init(U32 width, U32 height, const char *title)
 void
 platform_window_deinit(Platform_Window *self)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	Platform_Window_Context *ctx = self->ctx;
 	_platform_win32_window_keep_screen_on_set(ctx, false);
 	_platform_win32_window_fullscreen_set(ctx, false);
+	_platform_win32_timer_resolution_set(ctx, false);
 
 	bool res = false;
 	res = DestroyWindow(ctx->window);
 	validate(res, "[PLATFORM]: Failed to destroy window.");
 	memory::deallocate(ctx);
-	self->handle = nullptr;
+	self->ctx = nullptr;
 	self->metrics = {};
 	self->presentation = {};
 	self->close_requested = true;
@@ -1226,7 +1260,7 @@ platform_window_deinit(Platform_Window *self)
 bool
 platform_window_poll(Platform_Window *self)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	Platform_Window_Context *ctx = self->ctx;
 	bool surface_changed = self->surface_changed;
 	self->surface_changed = false;
 	self->low_memory = false;
@@ -1253,6 +1287,7 @@ platform_window_poll(Platform_Window *self)
 			{
 				self->close_requested = true;
 				self->surface_valid = false;
+				_platform_win32_timer_resolution_set(ctx, false);
 				return false;
 			}
 			case WM_LBUTTONDOWN:
@@ -1315,7 +1350,7 @@ platform_window_poll(Platform_Window *self)
 			case WM_CHAR:
 			{
 				if (msg.wParam >= 0x20 || msg.wParam == L'\r' || msg.wParam == L'\t')
-					_platform_win32_text_input_push_utf16(*self, (wchar_t)msg.wParam);
+					_platform_win32_text_input_push_utf16(*self, ctx->text_input_pending_surrogate, (wchar_t)msg.wParam);
 				break;
 			}
 		}
@@ -1354,13 +1389,14 @@ platform_window_poll(Platform_Window *self)
 	self->paused = false;
 	self->surface_valid = !self->close_requested && self->width > 0 && self->height > 0;
 	self->surface_changed = surface_changed;
+	_platform_win32_timer_resolution_update(ctx);
 	return !self->close_requested;
 }
 
 Platform_Window_Native_Handles
 platform_window_get_native_handles(Platform_Window *self)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	Platform_Window_Context *ctx = self->ctx;
 	return Platform_Window_Native_Handles {
 		.window = ctx->window,
 		.context = nullptr
@@ -1370,23 +1406,24 @@ platform_window_get_native_handles(Platform_Window *self)
 void
 platform_window_set_title(Platform_Window *self, const char *title)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	Platform_Window_Context *ctx = self->ctx;
 	SetWindowText(ctx->window, title);
 }
 
 void
 platform_window_close(Platform_Window *self)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)self->handle;
+	Platform_Window_Context *ctx = self->ctx;
 	self->close_requested = true;
 	self->surface_valid = false;
+	_platform_win32_timer_resolution_set(ctx, false);
 	PostMessageW(ctx->window, WM_QUIT, 0, 0);
 }
 
 void
 platform_window_presentation_set(Platform_Window &window, const Platform_Window_Presentation_Desc &desc)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	Platform_Window_Context *ctx = window.ctx;
 	bool fullscreen = (desc.flags & (PLATFORM_WINDOW_PRESENTATION_FLAG_FULLSCREEN | PLATFORM_WINDOW_PRESENTATION_FLAG_IMMERSIVE)) != 0;
 	_platform_win32_window_fullscreen_set(ctx, fullscreen);
 	_platform_win32_window_keep_screen_on_set(ctx, (desc.flags & PLATFORM_WINDOW_PRESENTATION_FLAG_KEEP_SCREEN_ON) != 0);
@@ -1397,13 +1434,13 @@ platform_window_presentation_set(Platform_Window &window, const Platform_Window_
 void
 platform_window_text_input_set(Platform_Window &window, const Platform_Text_Input_Desc &desc)
 {
-	Platform_Window_Context *ctx = (Platform_Window_Context *)window.handle;
+	Platform_Window_Context *ctx = window.ctx;
 	window.text_input = desc;
 	window.text_input.text = {};
 	if (desc.enabled)
 		::SetFocus(ctx->window);
 	else
-		window.text_input_pending_surrogate = 0;
+		ctx->text_input_pending_surrogate = 0;
 }
 
 void
@@ -1425,18 +1462,11 @@ platform_set_current_directory()
 	validate(result, "[PLATFORM]: Failed to set current directory.");
 }
 
-bool
-platform_file_exists(const char *filepath)
-{
-	DWORD attributes = ::GetFileAttributes(filepath);
-	return attributes != INVALID_FILE_ATTRIBUTES;
-}
-
 U64
-platform_file_size(const char *filepath)
+platform_path_get_file_size(const String &path)
 {
 	WIN32_FILE_ATTRIBUTE_DATA data = {};
-	if (::GetFileAttributesExA(filepath, GetFileExInfoStandard, &data) == false)
+	if (::GetFileAttributesExA(path.data, GetFileExInfoStandard, &data) == false)
 		return 0;
 
 	LARGE_INTEGER size;
@@ -1445,79 +1475,27 @@ platform_file_size(const char *filepath)
 	return size.QuadPart;
 }
 
-U64
-platform_file_read(const char *filepath, Memory_Block block)
+bool
+platform_path_copy_file(const String &from, const String &to)
 {
-	HANDLE file_handle = CreateFileA(filepath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-	if (file_handle == INVALID_HANDLE_VALUE)
-		return 0;
-
-	// TODO(M-Fatah): Handle reading files that are bigger than 4GB size.
-	DWORD bytes_read = 0;
-	ReadFile(file_handle, block.data, (U32)block.size, &bytes_read, 0);
-	CloseHandle(file_handle);
-
-	return (U64)bytes_read;
-}
-
-String
-platform_file_read(const String &file_path, memory::Allocator *allocator)
-{
-	String content = string_init(allocator);
-
-	HANDLE file_handle = ::CreateFileA(file_path.data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-	if (file_handle == INVALID_HANDLE_VALUE)
-		return content;
-
-	U64 file_size = platform_file_size(file_path.data);
-	if (file_size == 0)
-		return content;
-
-	string_resize(content, file_size);
-
-	DWORD bytes_read = 0;
-	::ReadFile(file_handle, content.data, (U32)content.count, &bytes_read, 0);
-	validate(::CloseHandle(file_handle), "[PLATFORM][WINDOWS]: Failed to close file handle.");
-
-	validate(content.count == bytes_read);
-
-	return content;
-}
-
-U64
-platform_file_write(const char *filepath, Memory_Block block)
-{
-	HANDLE file_handle = CreateFileA(filepath, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
-	if (file_handle == INVALID_HANDLE_VALUE)
-		return 0;
-
-	// TODO(M-Fatah): Properly handle large files (files with size over 4GB as a single file).
-	DWORD bytes_written = 0;
-	WriteFile(file_handle, block.data, (DWORD)block.size, &bytes_written, 0);
-	CloseHandle(file_handle);
-
-	return (U64)bytes_written;
+	return CopyFileA(from.data, to.data, false);
 }
 
 bool
-platform_file_copy(const char *from, const char *to)
+platform_path_delete_file(const String &path)
 {
-	return CopyFileA(from, to, false);
-}
-
-bool
-platform_file_delete(const char *filepath)
-{
-	return DeleteFileA(filepath);
+	return DeleteFileA(path.data);
 }
 
 String
-platform_file_dialog_open(const char *filters, memory::Allocator *allocator)
+platform_file_dialog_open(Platform_Window &window, const char *filters, memory::Allocator *allocator)
 {
+	validate(window.ctx != nullptr, "[PLATFORM][WINDOWS]: File dialog requires an initialized platform window.");
 	char path[4096] = {};
 
 	OPENFILENAME ofn = {};
 	ofn.lStructSize     = sizeof(ofn);
+	ofn.hwndOwner       = window.ctx->window;
 	ofn.lpstrFile       = path;
 	ofn.nMaxFile        = sizeof(path);
 	ofn.lpstrFilter     = filters;
@@ -1533,13 +1511,22 @@ platform_file_dialog_open(const char *filters, memory::Allocator *allocator)
 	return string_init(allocator);
 }
 
-String
-platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
+bool
+platform_file_dialog_save(Platform_Window &window, const String &suggested_name, Slice<const U8> data, const char *filters)
 {
+	validate(window.ctx != nullptr, "[PLATFORM][WINDOWS]: File save dialog requires an initialized platform window.");
+	validate(data.data != nullptr || data.count == 0, "[PLATFORM][WINDOWS]: File save data is invalid.");
+
 	char path[4096] = {};
+	if (suggested_name.count < sizeof(path))
+	{
+		for (U64 i = 0; i < suggested_name.count; ++i)
+			path[i] = suggested_name[i];
+	}
 
 	OPENFILENAME ofn = {};
 	ofn.lStructSize     = sizeof(ofn);
+	ofn.hwndOwner       = window.ctx->window;
 	ofn.lpstrFile       = path;
 	ofn.nMaxFile        = sizeof(path);
 	ofn.lpstrFilter     = filters;
@@ -1549,16 +1536,30 @@ platform_file_dialog_save(const char *filters, memory::Allocator *allocator)
 	ofn.lpstrInitialDir = NULL;
 	ofn.Flags           = OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
 
-	// TODO: Ensure that we write extension, if the user forgets to do so.
-	if (GetSaveFileName(&ofn) == TRUE)
-		return string_from(path, allocator);
+	if (GetSaveFileName(&ofn) != TRUE)
+		return false;
 
-	return string_init(allocator);
+	Platform_File_Handle file = platform_file_open(path, PLATFORM_FILE_MODE_WRITE);
+	if (file == PLATFORM_FILE_HANDLE_INVALID)
+		return false;
+	DEFER(platform_file_close(file));
+
+	U64 bytes_written = 0;
+	while (bytes_written < data.count)
+	{
+		U64 bytes_to_write = u64_min(data.count - bytes_written, (U64)U32_MAX);
+		U64 write_size = platform_file_write(file, data.data + bytes_written, bytes_to_write);
+		if (write_size == 0)
+			return false;
+		bytes_written += write_size;
+	}
+	return true;
 }
 
 String
-platform_directory_dialog_open(memory::Allocator *allocator)
+platform_directory_dialog_open(Platform_Window &window, memory::Allocator *allocator)
 {
+	validate(window.ctx != nullptr, "[PLATFORM][WINDOWS]: Directory dialog requires an initialized platform window.");
 	char path[4096] = {};
 	HRESULT com_result = ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 	bool com_initialized = SUCCEEDED(com_result);
@@ -1568,6 +1569,7 @@ platform_directory_dialog_open(memory::Allocator *allocator)
 	});
 
 	BROWSEINFOA browse_info = {};
+	browse_info.hwndOwner = window.ctx->window;
 	browse_info.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
 
 	LPITEMIDLIST item_list = SHBrowseForFolderA(&browse_info);
@@ -1645,57 +1647,57 @@ platform_window_clipboard_query_media_types(Platform_Window &, memory::Allocator
 	return media_types;
 }
 
-Platform_Clipboard_Item
-platform_window_clipboard_item_read(Platform_Window &, const String &media_type, memory::Allocator *allocator)
+bool
+platform_window_clipboard_item_read(Platform_Window &, const String &media_type, Array<U8> &data)
 {
-	Platform_Clipboard_Item result {
-		.media_type = string_init(allocator),
-		.data = array_init<U8>(allocator)
-	};
+	validate(data.allocator != nullptr, "[PLATFORM][WIN32]: Clipboard read requires initialized output data.");
+	array_clear(data);
 
 	if (!::OpenClipboard(nullptr))
-		return result;
+		return false;
 	DEFER(::CloseClipboard(););
 
 	UINT format = _platform_win32_clipboard_format_from_media_type(media_type);
 	if (format == 0 || !::IsClipboardFormatAvailable(format))
-		return result;
+		return false;
 
 	HANDLE clipboard_data = ::GetClipboardData(format);
 	if (clipboard_data == nullptr)
-		return result;
+		return false;
 
 	if (format == CF_UNICODETEXT)
 	{
 		wchar_t *text_wide = (wchar_t *)::GlobalLock(clipboard_data);
 		if (text_wide == nullptr)
-			return result;
+			return false;
 		DEFER(::GlobalUnlock(clipboard_data););
 
 		I32 utf8_count_with_null = ::WideCharToMultiByte(CP_UTF8, 0, text_wide, -1, nullptr, 0, nullptr, nullptr);
 		if (utf8_count_with_null <= 0)
-			return result;
+			return false;
 
-		string_deinit(result.media_type);
-		result.media_type = string_from(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8, allocator);
-		array_resize(result.data, (U64)utf8_count_with_null - 1);
-		::WideCharToMultiByte(CP_UTF8, 0, text_wide, -1, (char *)result.data.data, utf8_count_with_null, nullptr, nullptr);
-		return result;
+		array_resize(data, (U64)utf8_count_with_null);
+		if (::WideCharToMultiByte(CP_UTF8, 0, text_wide, -1, (char *)data.data, utf8_count_with_null, nullptr, nullptr) != utf8_count_with_null)
+		{
+			array_clear(data);
+			return false;
+		}
+		--data.count;
+		return true;
 	}
 
-	void *data = ::GlobalLock(clipboard_data);
-	if (data == nullptr)
-		return result;
+	U64 data_size = (U64)::GlobalSize(clipboard_data);
+	if (data_size == 0)
+		return true;
+
+	void *clipboard_bytes = ::GlobalLock(clipboard_data);
+	if (clipboard_bytes == nullptr)
+		return false;
 	DEFER(::GlobalUnlock(clipboard_data););
 
-	U64 data_size = (U64)::GlobalSize(clipboard_data);
-	string_deinit(result.media_type);
-	result.media_type = _platform_win32_clipboard_media_type_from_format(format, allocator);
-	if (result.media_type.count == 0)
-		result.media_type = string_copy(media_type, allocator);
-	array_resize(result.data, data_size);
-	::memcpy(result.data.data, data, data_size);
-	return result;
+	array_resize(data, data_size);
+	::memcpy(data.data, clipboard_bytes, data_size);
+	return true;
 }
 
 struct Platform_Win32_Clipboard_Data
@@ -1705,8 +1707,10 @@ struct Platform_Win32_Clipboard_Data
 };
 
 inline static HGLOBAL
-_platform_win32_clipboard_data_from_text(const Array<U8> &text)
+_platform_win32_clipboard_data_from_text(const Slice<const U8> &text)
 {
+	if (text.count > I32_MAX)
+		return nullptr;
 	const char *text_data = text.data ? (const char *)text.data : "";
 	I32 text_count = text.data ? (I32)text.count : 0;
 	I32 wide_count = ::MultiByteToWideChar(CP_UTF8, 0, text_data, text_count, nullptr, 0);
@@ -1730,11 +1734,13 @@ _platform_win32_clipboard_data_from_text(const Array<U8> &text)
 }
 
 inline static HGLOBAL
-_platform_win32_clipboard_data_from_bytes(const Array<U8> &data)
+_platform_win32_clipboard_data_from_bytes(const Slice<const U8> &data)
 {
 	HGLOBAL clipboard_data = ::GlobalAlloc(GMEM_MOVEABLE, data.count);
 	if (clipboard_data == nullptr)
 		return nullptr;
+	if (data.count == 0)
+		return clipboard_data;
 
 	void *clipboard_bytes = ::GlobalLock(clipboard_data);
 	if (clipboard_bytes == nullptr)
@@ -1743,14 +1749,13 @@ _platform_win32_clipboard_data_from_bytes(const Array<U8> &data)
 		return nullptr;
 	}
 
-	if (data.count > 0)
-		::memcpy(clipboard_bytes, data.data, data.count);
+	::memcpy(clipboard_bytes, data.data, data.count);
 	::GlobalUnlock(clipboard_data);
 	return clipboard_data;
 }
 
 bool
-platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard_Item *items, U32 item_count)
+platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard_Item_Desc *items, U32 item_count)
 {
 	if (items == nullptr || item_count == 0)
 		return false;
@@ -1765,6 +1770,9 @@ platform_window_clipboard_item_write(Platform_Window &, const Platform_Clipboard
 
 	for (U32 i = 0; i < item_count; ++i)
 	{
+		if (items[i].media_type.count == 0 || (items[i].data.count > 0 && items[i].data.data == nullptr))
+			return false;
+
 		UINT format = _platform_win32_clipboard_format_from_media_type(items[i].media_type);
 		if (format == 0)
 			return false;
@@ -1803,19 +1811,6 @@ platform_query_microseconds()
 	validate(QueryPerformanceCounter(&ticks) != false, "[PLATFORM]: Failed to query performance counter.");
 	return ticks.QuadPart * 1000000 / frequency.QuadPart;
 }
-
-void
-platform_sleep_set_period(U32 period)
-{
-	validate(timeBeginPeriod(period) == TIMERR_NOERROR, "[PLATFORM]: Failed to set time begin period.");
-}
-
-void
-platform_sleep(U32 milliseconds)
-{
-	Sleep(milliseconds);
-}
-
 
 inline static void
 _platform_callstack_copy_string(char *dst, U64 dst_size, const char *src)

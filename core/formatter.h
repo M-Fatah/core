@@ -562,7 +562,9 @@ parse_format_field(const String &fmt, U32 &i)
 	if (i + 1 < fmt.count && fmt[i + 1] >= '0' && fmt[i + 1] <= '9')
 	{
 		char *end = nullptr;
-		field.index = ::strtoul(&fmt[i + 1], &end, 10);
+		U64 index = ::strtoull(&fmt[i + 1], &end, 10);
+		validate(index <= U32_MAX, "[FORMAT]: Replacement field index exceeds U32 range.");
+		field.index = index <= U32_MAX ? (U32)index : U32_MAX;
 		field.has_index = true;
 		I64 length = end - &fmt[i + 1];
 		i += (U32)length + 1;
@@ -608,7 +610,9 @@ parse_format_field(const String &fmt, U32 &i)
 		if (i < fmt.count && fmt[i] >= '0' && fmt[i] <= '9')
 		{
 			char *end = nullptr;
-			field.options.width = ::strtoul(&fmt[i], &end, 10);
+			U64 width = ::strtoull(&fmt[i], &end, 10);
+			validate(width <= U32_MAX, "[FORMAT]: Field width exceeds U32 range.");
+			field.options.width = width <= U32_MAX ? (U32)width : U32_MAX;
 			I64 length = end - &fmt[i];
 			i += (U32)length;
 		}
