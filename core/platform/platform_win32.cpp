@@ -922,9 +922,35 @@ struct Platform_Window_Context
 	DWORD windowed_ex_style;
 	U16 text_input_pending_surrogate;
 	U32 timer_resolution_period;
+	bool timer_resolution_active;
 	bool fullscreen;
 	bool keep_screen_on;
 };
+
+inline static void
+_platform_win32_timer_resolution_set(Platform_Window_Context *ctx, bool active)
+{
+	if (ctx->timer_resolution_active == active || ctx->timer_resolution_period == 0)
+		return;
+
+	MMRESULT result = active
+		? ::timeBeginPeriod(ctx->timer_resolution_period)
+		: ::timeEndPeriod(ctx->timer_resolution_period);
+	validate(result == TIMERR_NOERROR, active
+		? "[PLATFORM][WINDOWS]: Failed to request timer resolution."
+		: "[PLATFORM][WINDOWS]: Failed to release timer resolution.");
+	if (result == TIMERR_NOERROR)
+		ctx->timer_resolution_active = active;
+}
+
+inline static void
+_platform_win32_timer_resolution_update(Platform_Window_Context *ctx)
+{
+	bool active = ::GetForegroundWindow() == ctx->window &&
+		::IsWindowVisible(ctx->window) &&
+		!::IsIconic(ctx->window);
+	_platform_win32_timer_resolution_set(ctx, active);
+}
 
 static DWORD
 _platform_thread_main_routine(void *thread)
@@ -1190,9 +1216,11 @@ platform_window_init(Platform_Window_Desc desc)
 	validate(ctx->window, "[PLATFORM]: Failed to create window.");
 
 	TIMECAPS timer_capabilities = {};
-	validate(::timeGetDevCaps(&timer_capabilities, sizeof(timer_capabilities)) == TIMERR_NOERROR, "[PLATFORM][WINDOWS]: Failed to query timer capabilities.");
-	ctx->timer_resolution_period = timer_capabilities.wPeriodMin;
-	validate(::timeBeginPeriod(ctx->timer_resolution_period) == TIMERR_NOERROR, "[PLATFORM][WINDOWS]: Failed to request timer resolution.");
+	MMRESULT timer_capabilities_result = ::timeGetDevCaps(&timer_capabilities, sizeof(timer_capabilities));
+	validate(timer_capabilities_result == TIMERR_NOERROR, "[PLATFORM][WINDOWS]: Failed to query timer capabilities.");
+	if (timer_capabilities_result == TIMERR_NOERROR)
+		ctx->timer_resolution_period = timer_capabilities.wPeriodMin;
+	_platform_win32_timer_resolution_update(ctx);
 
 	self.ctx = ctx;
 	self.width  = desc.width;
@@ -1213,11 +1241,11 @@ platform_window_deinit(Platform_Window *self)
 	Platform_Window_Context *ctx = self->ctx;
 	_platform_win32_window_keep_screen_on_set(ctx, false);
 	_platform_win32_window_fullscreen_set(ctx, false);
+	_platform_win32_timer_resolution_set(ctx, false);
 
 	bool res = false;
 	res = DestroyWindow(ctx->window);
 	validate(res, "[PLATFORM]: Failed to destroy window.");
-	validate(::timeEndPeriod(ctx->timer_resolution_period) == TIMERR_NOERROR, "[PLATFORM][WINDOWS]: Failed to release timer resolution.");
 	memory::deallocate(ctx);
 	self->ctx = nullptr;
 	self->metrics = {};
@@ -1259,6 +1287,7 @@ platform_window_poll(Platform_Window *self)
 			{
 				self->close_requested = true;
 				self->surface_valid = false;
+				_platform_win32_timer_resolution_set(ctx, false);
 				return false;
 			}
 			case WM_LBUTTONDOWN:
@@ -1360,6 +1389,7 @@ platform_window_poll(Platform_Window *self)
 	self->paused = false;
 	self->surface_valid = !self->close_requested && self->width > 0 && self->height > 0;
 	self->surface_changed = surface_changed;
+	_platform_win32_timer_resolution_update(ctx);
 	return !self->close_requested;
 }
 
@@ -1386,6 +1416,7 @@ platform_window_close(Platform_Window *self)
 	Platform_Window_Context *ctx = self->ctx;
 	self->close_requested = true;
 	self->surface_valid = false;
+	_platform_win32_timer_resolution_set(ctx, false);
 	PostMessageW(ctx->window, WM_QUIT, 0, 0);
 }
 

@@ -81,6 +81,9 @@ set(LIBS
     core-options
 )
 
+set(COMPILE_OPTIONS
+)
+
 set(TARGET_PROPERTIES
     UNITY_BUILD_BATCH_SIZE 8
     UNITY_BUILD ${CORE_BUILD_UNITY}
@@ -115,6 +118,10 @@ elseif(LINUX)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     enable_language(OBJCXX)
 
+    # The macOS backend implements Core's C++ API and exposes no Objective-C API to annotate.
+    list(APPEND COMPILE_OPTIONS
+        $<$<COMPILE_LANGUAGE:OBJCXX>:-Wno-nullability-completeness>
+    )
     list(APPEND SOURCE_FILES
         platform/platform_macos.mm
     )
@@ -1557,6 +1564,7 @@ else()
 endif()
 
 target_link_libraries(core PUBLIC ${LIBS})
+target_compile_options(core PRIVATE ${COMPILE_OPTIONS})
 set_target_properties(core
     PROPERTIES ${TARGET_PROPERTIES}
 )

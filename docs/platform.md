@@ -2,7 +2,7 @@
 
 **Header:** `core/platform/platform.h`
 
-Cross-platform file I/O, path utilities, native dialogs, windows, and low-level platform primitives. Implementations provided for Windows, Linux, macOS, and Android.
+Cross-platform file I/O, path utilities, native dialogs, windows, and low-level platform primitives. Implementations are provided for Windows, Linux, macOS, Android, and iOS.
 
 ---
 
@@ -14,9 +14,9 @@ Cross-platform file I/O, path utilities, native dialogs, windows, and low-level 
 | Linux | Supported | `platform_linux.cpp` |
 | macOS | Supported | `platform_macos.mm` |
 | Android | Supported | `platform_android.cpp` |
-| iOS | In progress | Non-UI backend, UIKit host, lifecycle, surface handles, metrics, presentation, touch, mouse/trackpad, physical-keyboard, text input, and clipboard complete |
+| iOS | Validation pending | UIKit, document providers, and consumer-owned Metal surfaces |
 
-A platform is supported only when its backend builds, links, and passes its platform validation. The iOS backend now covers ordinary non-UI platform services, except runtime API hot reload, which iOS does not support. The repository provides a UIKit application host and XCTest bundle with explicit per-scene `Platform_Window` ownership, lifecycle binding, native surface handles, display metrics, presentation policy, touch input, mouse/trackpad input, physical-keyboard input, software-keyboard text input, and clipboard data. Dialogs remain incomplete, so iOS must still be built as a static library and must not be treated as supported.
+A platform is supported only when its backend builds, links, and passes its platform validation. The iOS backend covers ordinary non-UI platform services, except runtime API hot reload, which iOS does not support. It also provides explicit per-scene UIKit window ownership, lifecycle and input integration, clipboard transport, document-token file and path operations, system document pickers, raw-byte save export, and borrowed native handles for consumer-owned Metal rendering. Simulator CI and physical-device validation must pass before iOS is marked supported.
 
 ---
 
@@ -82,6 +82,7 @@ platform_thread_join(thread);
 platform_thread_deinit(thread);
 
 platform_thread_set_current_name("Main");
+platform_thread_sleep(16);
 ```
 
 `Platform_Thread_Desc::name` is optional. Core copies the name during `platform_thread_init`, so the descriptor string does not need to outlive the call. Thread names are for debuggers, profilers, and platform tools; they do not affect scheduling.
@@ -176,7 +177,7 @@ Missing environment variables return an empty `String`.
 
 ## iOS
 
-The root build provides an iOS-only `unittest_ios_host` application bundle and a `unittest` XCTest bundle. The host owns the `UIApplicationMain` entrypoint, configures `UIWindowScene` instances, packages a known resource into its main bundle, and verifies scene lifecycle state through the existing Core tester.
+The root build provides an iOS-only `unittest_ios_host` application bundle and a `unittest` XCTest bundle. The host owns the `UIApplicationMain` entrypoint, configures `UIWindowScene` instances, packages a known resource into its main bundle, and verifies scene lifecycle state through the existing Core tester. The CI workflow runs the XCTest scheme against an available iPhone simulator in Debug and Release.
 
 ```bash
 cmake -S . -B build-ios -G Xcode \
@@ -189,7 +190,7 @@ cmake -S . -B build-ios -G Xcode \
 cmake --build build-ios --target unittest --config Debug
 ```
 
-iOS requires iOS 13.0 or newer for the scene lifecycle and `CORE_BUILD_STATIC=ON`; the Core target validates explicitly configured deployment targets and the static-library requirement beside library creation. Select the generated `unittest` scheme and an iOS Simulator destination in Xcode to run the bundle.
+iOS requires iOS 13.0 or newer for the scene lifecycle and `CORE_BUILD_STATIC=ON`; the Core target validates explicitly configured deployment targets and the static-library requirement beside library creation. Select the generated `unittest_ios_host` scheme and an iOS Simulator destination in Xcode to run the bundle. A device build uses `-DCMAKE_OSX_SYSROOT=iphoneos` and requires the host application and test bundle to be signed through the consuming Xcode project.
 
 Each `UIWindowSceneDelegate` owns one `Platform_Window`. The delegate creates the Core window with the generic `platform_window_init`, creates an empty `UIWindow` for its scene, then binds both objects with `platform_window_native_connect` from `core/platform/platform.h`. Core installs and manages the root view controller and view so generic presentation and later input policy do not depend on host-specific overrides. A fresh iOS scene returns `PLATFORM_WINDOW_NATIVE_CONNECT_RESULT_CONNECTED`.
 
@@ -198,6 +199,25 @@ Core registers scene-specific UIKit lifecycle observers during that handoff and 
 On iOS, connection, presentation updates, polling, and deinitialization run on the main thread because UIKit window state is main-thread state. Window dimensions, content rects, and safe-area insets use UIKit points. `metrics.density_scale` converts those values to device pixels, DPI uses the mobile logical 160-DPI baseline, and `surface_changed` reports changes to bounds, safe area, density, orientation, or surface validity.
 
 `platform_window_get_native_handles` returns the connected `UIWindow *` as `window` and its root `UIView *` as `context`. Both are borrowed UIKit objects and must not be cached across scene disconnect, window deinitialization, or frames.
+
+The consumer owns its rendering objects. A Metal consumer can attach its own layer to the borrowed view without adding rendering ownership to Core:
+
+```objective-c++
+Platform_Window_Native_Handles native = platform_window_get_native_handles(&window);
+UIView *view = (UIView *)native.context;
+CGRect bounds = [view bounds];
+CGFloat scale = [[[view window] screen] scale];
+
+CAMetalLayer *metal_layer = [[CAMetalLayer alloc] init];
+[metal_layer setDevice:MTLCreateSystemDefaultDevice()];
+[metal_layer setPixelFormat:MTLPixelFormatBGRA8Unorm];
+[metal_layer setContentsScale:scale];
+[metal_layer setFrame:bounds];
+[metal_layer setDrawableSize:CGSizeMake(bounds.size.width * scale, bounds.size.height * scale)];
+[[view layer] addSublayer:metal_layer];
+```
+
+Re-query the native handles after every `platform_window_poll`, update the owned layer's frame and drawable size when `surface_changed` is set, and stop requesting drawables while the application is paused or `surface_valid` is false. Remove and release the layer before the Core window disconnects or is deinitialized.
 
 `platform_window_presentation_set` maps fullscreen to status-bar hiding, immersive mode to requested status-bar and Home-indicator hiding plus deferred system-edge gestures, and edge-to-edge mode to extended root-view layout. Keep-screen-on coordinates UIKit's application-wide idle timer across connected Core windows and restores its prior value after the final request is removed. Orientation policy is constrained by the app's `UISupportedInterfaceOrientations`; iOS 16 or newer receives an explicit scene-geometry request, while iOS 13 through 15 use UIKit's supported-orientation rotation path.
 
@@ -210,6 +230,8 @@ On iOS 13.4 or newer, Core's root view also observes raw physical-keyboard press
 iOS text entry uses a dedicated `UITextInput` responder owned by Core's root view. It converts the app-owned UTF-8 snapshot and byte ranges to UIKit's UTF-16 positions, exposes surrounding text to the active input method, reports marked text as composition events, and maps commit, deletion, selection, and Return-key actions back to `Platform_Text_Input_Event`. Disabling text input dismisses the software keyboard and restores the root view as the physical-key responder.
 
 iOS document references use the versioned, self-contained `core-document://v1/<bookmark>` token format. The payload is canonical unpadded Base64URL bookmark data, so tokens require no process-global URL registry and can be persisted as ordinary strings. Tokens remain opaque to applications. File I/O and path operations resolve these tokens and coordinate access through the document provider. Whole-file and path operations release security access before returning; an open handle retains access until `platform_file_close`. The open-file and directory pickers produce the same token format. The save picker returns only completion status because it owns the complete export operation.
+
+Before treating an iOS release as supported, validate on a provisioned physical device: portrait and landscape safe areas, background/foreground restoration, touch and connected hardware input, multi-stage Unicode composition, clipboard privacy prompts, iCloud document access, stale bookmarks, and unavailable or offline document providers. Provider cancellation and failure must leave caller-owned data unchanged and release every security-scoped access.
 
 The binding remains explicit and per scene. Core does not keep a global current-scene registry, `Platform_Window_Desc` does not contain UIKit context, and the scene delegate owns generic `platform_window_deinit` cleanup.
 

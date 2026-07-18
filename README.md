@@ -72,12 +72,12 @@ log_info("loaded {} vertices, view matrix:\n{}", vertices.count, view);
 | Windows | Win32 |
 | Linux | X11/XCB, xdg-desktop-portal dialogs |
 | macOS | Cocoa |
-| iOS | UIKit (in progress) |
+| iOS | UIKit (validation pending) |
 | Android | NDK NativeActivity |
 
 Android support is NDK-only: no GameActivity, AndroidX, Jetpack, Gradle dependency, or `android_native_app_glue`. Core generates tiny Java `NativeActivity` and clipboard provider classes for Android framework features such as app/cache directories, window presentation, file dialogs, document URIs, clipboard, and soft keyboard input.
 
-iOS support is in progress. Core currently provides the non-UI backend plus a per-scene UIKit application host, native surface handles, display metrics, presentation policy, touch, mouse/trackpad, physical-keyboard, software-keyboard text input, clipboard data, self-contained document-token file and path operations, open-file and directory document pickers, and raw-byte save export, plus an XCTest bundle for validation.
+iOS validation is in progress. Core provides the non-UI backend plus a per-scene UIKit application host, native surface handles, display metrics, presentation policy, touch, mouse/trackpad, physical-keyboard, software-keyboard text input, clipboard data, self-contained document-token file and path operations, open-file and directory document pickers, and raw-byte save export. The XCTest bundle also includes a consumer-owned Metal rendering smoke test.
 
 ## Prerequisites
 
@@ -142,7 +142,7 @@ cmake -S . -B build-ios -G Xcode \
 cmake --build build-ios --target unittest --config Debug
 ```
 
-Like Android, iOS configuration explicitly enables the supported static Core build. The `unittest` target builds `CoreUnitTestHost.app` and its `CoreUnitTests.xctest` bundle. Run the `unittest` scheme against a selected simulator from Xcode; automated simulator validation is still pending.
+Like Android, iOS configuration explicitly enables the static Core build. The `unittest` target builds `CoreUnitTestHost.app` and its `CoreUnitTests.xctest` bundle. The CI workflow selects an available iPhone simulator and runs the generated `unittest_ios_host` scheme in Debug and Release. Local validation can run the same scheme from Xcode or `xcodebuild`; physical-device validation and signing remain the consuming application's responsibility.
 
 ### Android
 
