@@ -77,7 +77,7 @@ log_info("loaded {} vertices, view matrix:\n{}", vertices.count, view);
 
 Android support is NDK-only: no GameActivity, AndroidX, Jetpack, Gradle dependency, or `android_native_app_glue`. Core generates tiny Java `NativeActivity` and clipboard provider classes for Android framework features such as app/cache directories, window presentation, file dialogs, document URIs, clipboard, and soft keyboard input.
 
-iOS support provides per-scene UIKit integration, native surface handles, display metrics, presentation policy, touch, mouse/trackpad, physical-keyboard and software-keyboard input, clipboard data, self-contained document-token file and path operations, system document pickers, and raw-byte save export. CI builds and runs the UIKit-hosted XCTest bundle on an iPhone simulator in Debug and Release, including the Core test suite and a consumer-owned Metal rendering smoke test. Physical-device validation and signing remain the consuming application's responsibility.
+iOS support provides per-scene UIKit integration, native surface handles, display metrics, presentation policy, lifecycle memory-pressure and save-state signals, touch, mouse/trackpad, physical-keyboard and software-keyboard input, clipboard data, self-contained document-token file and path operations, system document pickers, and raw-byte save export. CI builds and runs the UIKit-hosted XCTest bundle on an iPhone simulator in Debug and Release, including the Core test suite and a consumer-owned Metal rendering smoke test. Physical-device validation and signing remain the consuming application's responsibility.
 
 ## Prerequisites
 
