@@ -30,14 +30,15 @@
 	#error "[PLATFORM][IOS]: platform_ios.mm requires PLATFORM_IOS=1."
 #endif
 
-enum PLATFORM_IOS_SCENE_OBSERVER
+enum PLATFORM_IOS_NOTIFICATION_OBSERVER
 {
-	PLATFORM_IOS_SCENE_OBSERVER_WILL_ENTER_FOREGROUND,
-	PLATFORM_IOS_SCENE_OBSERVER_DID_ENTER_BACKGROUND,
-	PLATFORM_IOS_SCENE_OBSERVER_DID_BECOME_ACTIVE,
-	PLATFORM_IOS_SCENE_OBSERVER_WILL_RESIGN_ACTIVE,
-	PLATFORM_IOS_SCENE_OBSERVER_DID_DISCONNECT,
-	PLATFORM_IOS_SCENE_OBSERVER_COUNT
+	PLATFORM_IOS_NOTIFICATION_OBSERVER_WILL_ENTER_FOREGROUND,
+	PLATFORM_IOS_NOTIFICATION_OBSERVER_DID_ENTER_BACKGROUND,
+	PLATFORM_IOS_NOTIFICATION_OBSERVER_DID_BECOME_ACTIVE,
+	PLATFORM_IOS_NOTIFICATION_OBSERVER_WILL_RESIGN_ACTIVE,
+	PLATFORM_IOS_NOTIFICATION_OBSERVER_DID_DISCONNECT,
+	PLATFORM_IOS_NOTIFICATION_OBSERVER_MEMORY_WARNING,
+	PLATFORM_IOS_NOTIFICATION_OBSERVER_COUNT
 };
 
 enum PLATFORM_IOS_FILE_DIALOG_MODE
@@ -188,7 +189,7 @@ struct Platform_Window_Context
 	UIWindow *window;
 	Platform_IOS_View_Controller *view_controller;
 	Platform_IOS_View *view;
-	id scene_observers[PLATFORM_IOS_SCENE_OBSERVER_COUNT];
+	id notification_observers[PLATFORM_IOS_NOTIFICATION_OBSERVER_COUNT];
 	Platform_Key_State keys[PLATFORM_KEY_COUNT];
 	Platform_IOS_Touch touches[PLATFORM_TOUCH_MAX_COUNT];
 	Platform_IOS_Mouse mouse;
@@ -200,6 +201,8 @@ struct Platform_Window_Context
 	bool started;
 	bool paused;
 	bool focused;
+	bool low_memory;
+	bool save_state_requested;
 	bool surface_changed;
 	bool keep_screen_on;
 };
@@ -1786,7 +1789,13 @@ _platform_ios_window_metrics(UIView *view, UIWindowScene *scene, U32 width, U32 
 }
 
 inline static void
-_platform_ios_scene_lifecycle_notification(Platform_Window_Context *context, NSNotification *notification, bool started, bool paused, bool focused)
+_platform_ios_scene_lifecycle_notification(
+	Platform_Window_Context *context,
+	NSNotification *notification,
+	bool started,
+	bool paused,
+	bool focused,
+	bool save_state_requested)
 {
 	UIWindowScene *scene = [[notification object] isKindOfClass:[UIWindowScene class]] ? (UIWindowScene *)[notification object] : nil;
 	if (scene == nil)
@@ -1801,6 +1810,19 @@ _platform_ios_scene_lifecycle_notification(Platform_Window_Context *context, NSN
 	context->started = started;
 	context->paused = paused;
 	context->focused = focused;
+	context->save_state_requested |= save_state_requested;
+}
+
+inline static void
+_platform_ios_memory_warning_notification(Platform_Window_Context *context)
+{
+	validate(::pthread_mutex_lock(&context->mutex) == 0, "[PLATFORM][IOS]: Failed to lock window context.");
+	DEFER(validate(::pthread_mutex_unlock(&context->mutex) == 0, "[PLATFORM][IOS]: Failed to unlock window context."));
+
+	if (!context->connected || context->close_requested)
+		return;
+
+	context->low_memory = true;
 }
 
 inline static void
@@ -1848,48 +1870,75 @@ _platform_ios_scene_disconnect_notification(Platform_Window_Context *context, NS
 }
 
 inline static void
-_platform_ios_scene_observers_deinit(Platform_Window_Context *context)
+_platform_ios_notification_observers_deinit(Platform_Window_Context *context)
 {
 	NSNotificationCenter *notification_center = [NSNotificationCenter defaultCenter];
-	for (U32 i = 0; i < PLATFORM_IOS_SCENE_OBSERVER_COUNT; ++i)
+	for (U32 i = 0; i < PLATFORM_IOS_NOTIFICATION_OBSERVER_COUNT; ++i)
 	{
-		id observer = context->scene_observers[i];
+		id observer = context->notification_observers[i];
 		if (observer == nil)
 			continue;
 
 		[notification_center removeObserver:observer];
 		[observer release];
-		context->scene_observers[i] = nil;
+		context->notification_observers[i] = nil;
 	}
 }
 
 inline static bool
-_platform_ios_scene_observer_add(Platform_Window_Context *context, PLATFORM_IOS_SCENE_OBSERVER index, NSString *name, UIWindowScene *scene, bool disconnect, bool started, bool paused, bool focused)
+_platform_ios_scene_notification_observer_add(
+	Platform_Window_Context *context,
+	PLATFORM_IOS_NOTIFICATION_OBSERVER index,
+	NSString *name,
+	UIWindowScene *scene,
+	bool disconnect,
+	bool started,
+	bool paused,
+	bool focused,
+	bool save_state_requested)
 {
 	id observer = [[NSNotificationCenter defaultCenter] addObserverForName:name object:scene queue:nil usingBlock:^(NSNotification *notification) {
 		if (disconnect)
 			_platform_ios_scene_disconnect_notification(context, notification);
 		else
-			_platform_ios_scene_lifecycle_notification(context, notification, started, paused, focused);
+			_platform_ios_scene_lifecycle_notification(context, notification, started, paused, focused, save_state_requested);
 	}];
 	if (observer == nil)
 		return false;
 
-	context->scene_observers[index] = [observer retain];
+	context->notification_observers[index] = [observer retain];
 	return true;
 }
 
 inline static bool
-_platform_ios_scene_observers_init(Platform_Window_Context *context, UIWindowScene *scene)
+_platform_ios_memory_warning_observer_add(Platform_Window_Context *context)
+{
+	id observer = [[NSNotificationCenter defaultCenter]
+		addObserverForName:UIApplicationDidReceiveMemoryWarningNotification
+		object:nil
+		queue:nil
+		usingBlock:^(NSNotification *) {
+			_platform_ios_memory_warning_notification(context);
+		}];
+	if (observer == nil)
+		return false;
+
+	context->notification_observers[PLATFORM_IOS_NOTIFICATION_OBSERVER_MEMORY_WARNING] = [observer retain];
+	return true;
+}
+
+inline static bool
+_platform_ios_notification_observers_init(Platform_Window_Context *context, UIWindowScene *scene)
 {
 	bool initialized =
-		_platform_ios_scene_observer_add(context, PLATFORM_IOS_SCENE_OBSERVER_WILL_ENTER_FOREGROUND, UISceneWillEnterForegroundNotification, scene, false, true, true, false) &&
-		_platform_ios_scene_observer_add(context, PLATFORM_IOS_SCENE_OBSERVER_DID_ENTER_BACKGROUND, UISceneDidEnterBackgroundNotification, scene, false, false, true, false) &&
-		_platform_ios_scene_observer_add(context, PLATFORM_IOS_SCENE_OBSERVER_DID_BECOME_ACTIVE, UISceneDidActivateNotification, scene, false, true, false, true) &&
-		_platform_ios_scene_observer_add(context, PLATFORM_IOS_SCENE_OBSERVER_WILL_RESIGN_ACTIVE, UISceneWillDeactivateNotification, scene, false, true, true, false) &&
-		_platform_ios_scene_observer_add(context, PLATFORM_IOS_SCENE_OBSERVER_DID_DISCONNECT, UISceneDidDisconnectNotification, scene, true, false, true, false);
+		_platform_ios_scene_notification_observer_add(context, PLATFORM_IOS_NOTIFICATION_OBSERVER_WILL_ENTER_FOREGROUND, UISceneWillEnterForegroundNotification, scene, false, true, true, false, false) &&
+		_platform_ios_scene_notification_observer_add(context, PLATFORM_IOS_NOTIFICATION_OBSERVER_DID_ENTER_BACKGROUND, UISceneDidEnterBackgroundNotification, scene, false, false, true, false, true) &&
+		_platform_ios_scene_notification_observer_add(context, PLATFORM_IOS_NOTIFICATION_OBSERVER_DID_BECOME_ACTIVE, UISceneDidActivateNotification, scene, false, true, false, true, false) &&
+		_platform_ios_scene_notification_observer_add(context, PLATFORM_IOS_NOTIFICATION_OBSERVER_WILL_RESIGN_ACTIVE, UISceneWillDeactivateNotification, scene, false, true, true, false, false) &&
+		_platform_ios_scene_notification_observer_add(context, PLATFORM_IOS_NOTIFICATION_OBSERVER_DID_DISCONNECT, UISceneDidDisconnectNotification, scene, true, false, true, false, false) &&
+		_platform_ios_memory_warning_observer_add(context);
 	if (!initialized)
-		_platform_ios_scene_observers_deinit(context);
+		_platform_ios_notification_observers_deinit(context);
 	return initialized;
 }
 
@@ -4162,7 +4211,7 @@ platform_window_deinit(Platform_Window *self)
 	Platform_Window_Context *context = self->ctx;
 	if (context != nullptr)
 	{
-		_platform_ios_scene_observers_deinit(context);
+		_platform_ios_notification_observers_deinit(context);
 		platform_window_close(self);
 
 		validate(::pthread_mutex_lock(&context->mutex) == 0, "[PLATFORM][IOS]: Failed to lock window context.");
@@ -4241,7 +4290,11 @@ platform_window_poll(Platform_Window *self)
 	bool focused = context->focused;
 	bool started = context->started;
 	bool paused = context->paused;
+	bool low_memory = context->low_memory;
+	bool save_state_requested = context->save_state_requested;
 	bool surface_changed = context->surface_changed;
+	context->low_memory = false;
+	context->save_state_requested = false;
 	context->surface_changed = false;
 	for (I32 i = 0; i < PLATFORM_KEY_COUNT; ++i)
 	{
@@ -4313,8 +4366,8 @@ platform_window_poll(Platform_Window *self)
 	self->focused = focused;
 	self->started = started;
 	self->paused = paused;
-	self->low_memory = false;
-	self->save_state_requested = false;
+	self->low_memory = low_memory;
+	self->save_state_requested = save_state_requested;
 	self->surface_valid = surface_valid;
 	self->surface_changed = surface_changed;
 	return !close_requested;
@@ -4550,6 +4603,8 @@ platform_window_native_connect(Platform_Window *self, void *context, void *nativ
 	ctx->view = view;
 	ctx->connected = true;
 	ctx->close_requested = false;
+	ctx->low_memory = false;
+	ctx->save_state_requested = false;
 	ctx->surface_changed = true;
 	ctx->keep_screen_on = (self->presentation.flags & PLATFORM_WINDOW_PRESENTATION_FLAG_KEEP_SCREEN_ON) != 0;
 	_platform_ios_scene_activation_set_locked(ctx, [window_scene activationState]);
@@ -4558,7 +4613,7 @@ platform_window_native_connect(Platform_Window *self, void *context, void *nativ
 	bool focused = ctx->focused;
 	validate(::pthread_mutex_unlock(&ctx->mutex) == 0, "[PLATFORM][IOS]: Failed to unlock window context.");
 
-	bool observers_initialized = _platform_ios_scene_observers_init(ctx, window_scene);
+	bool observers_initialized = _platform_ios_notification_observers_init(ctx, window_scene);
 	validate(observers_initialized, "[PLATFORM][IOS]: Failed to observe UIWindowScene lifecycle.");
 	if (!observers_initialized)
 	{
@@ -4572,6 +4627,8 @@ platform_window_native_connect(Platform_Window *self, void *context, void *nativ
 		ctx->started = false;
 		ctx->paused = true;
 		ctx->focused = false;
+		ctx->low_memory = false;
+		ctx->save_state_requested = false;
 		ctx->surface_changed = false;
 		ctx->keep_screen_on = false;
 		validate(::pthread_mutex_unlock(&ctx->mutex) == 0, "[PLATFORM][IOS]: Failed to unlock window context.");
@@ -4591,6 +4648,8 @@ platform_window_native_connect(Platform_Window *self, void *context, void *nativ
 	self->started = started;
 	self->paused = paused;
 	self->focused = focused;
+	self->low_memory = false;
+	self->save_state_requested = false;
 	CGRect bounds = [view bounds];
 	self->width = bounds.size.width > 0.0 ? (U32)bounds.size.width : 0;
 	self->height = bounds.size.height > 0.0 ? (U32)bounds.size.height : 0;

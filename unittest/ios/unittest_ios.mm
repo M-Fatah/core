@@ -296,6 +296,57 @@ testSceneLifecycle
 }
 
 - (void)
+testMemoryPressureAndSaveState
+{
+	Platform_Window *window = _core_ios_test_window;
+	XCTAssertTrue(window != nullptr);
+	if (window == nullptr)
+		return;
+
+	XCTAssertTrue(platform_window_poll(window));
+	XCTAssertFalse(window->low_memory);
+	XCTAssertFalse(window->save_state_requested);
+
+	NSNotificationCenter *notification_center = [NSNotificationCenter defaultCenter];
+	[notification_center
+		postNotificationName:UIApplicationDidReceiveMemoryWarningNotification
+		object:[UIApplication sharedApplication]];
+	XCTAssertTrue(platform_window_poll(window));
+	XCTAssertTrue(window->low_memory);
+	XCTAssertFalse(window->save_state_requested);
+
+	XCTAssertTrue(platform_window_poll(window));
+	XCTAssertFalse(window->low_memory);
+	XCTAssertFalse(window->save_state_requested);
+
+	UIScene *scene = [[[UIApplication sharedApplication] connectedScenes] anyObject];
+	XCTAssertTrue(scene != nil);
+	if (scene == nil)
+		return;
+
+	[notification_center postNotificationName:UISceneDidEnterBackgroundNotification object:scene];
+	XCTAssertTrue(platform_window_poll(window));
+	XCTAssertFalse(window->low_memory);
+	XCTAssertTrue(window->save_state_requested);
+	XCTAssertFalse(window->started);
+	XCTAssertTrue(window->paused);
+	XCTAssertFalse(window->focused);
+
+	XCTAssertTrue(platform_window_poll(window));
+	XCTAssertFalse(window->low_memory);
+	XCTAssertFalse(window->save_state_requested);
+
+	[notification_center postNotificationName:UISceneWillEnterForegroundNotification object:scene];
+	[notification_center postNotificationName:UISceneDidActivateNotification object:scene];
+	XCTAssertTrue(platform_window_poll(window));
+	XCTAssertTrue(window->started);
+	XCTAssertFalse(window->paused);
+	XCTAssertTrue(window->focused);
+	XCTAssertFalse(window->low_memory);
+	XCTAssertFalse(window->save_state_requested);
+}
+
+- (void)
 testTouchInput
 {
 	Platform_Window *window = _core_ios_test_window;
