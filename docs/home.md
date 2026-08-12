@@ -17,6 +17,7 @@
 | [Compiler](compiler.md) | `core/compiler/compiler.h` | Compiler-specific inline primitives |
 | [Result & Error](result.md) | `core/result.h` | Error-returning pattern without exceptions |
 | [Hash](hash.md) | `core/hash.h` | FNV-32 and type-generic `hash()` overloads |
+| [UUID](uuid.md) | `core/uuid.h` | OS-backed UUID v4 generation, parsing, formatting, and hashing |
 | [Command Line](command_line.md) | `core/command_line.h` | Descriptor-driven command-line parsing |
 | [Reflect](reflect.md) | `core/reflect.h` | Compile-time type reflection: kinds, names, fields, enums |
 | [Serialization](serialization.md) | `core/serialization/` | Binary and JSON serializers |

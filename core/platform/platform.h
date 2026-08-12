@@ -909,6 +909,13 @@ CORE_API void
 platform_virtual_memory_release(Memory_Block block);
 
 // ============================================================
+// Secure Random
+// ============================================================
+
+CORE_API bool
+platform_cryptography_random_bytes(Memory_Block block);
+
+// ============================================================
 // System Information
 // ============================================================
 
