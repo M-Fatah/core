@@ -2896,6 +2896,36 @@ platform_virtual_memory_release(Memory_Block block)
 	validate(result == 0, "[PLATFORM][ANDROID]: Failed to release virtual memory.");
 }
 
+bool
+platform_cryptography_random_bytes(Memory_Block block)
+{
+	if (block.size == 0)
+		return true;
+
+	validate(block.data != nullptr, "[PLATFORM][ANDROID]: Cryptographic random-byte destination cannot be null.");
+
+	I32 file = ::open("/dev/urandom", O_RDONLY | O_CLOEXEC);
+	if (file < 0)
+		return false;
+	DEFER(::close(file));
+
+	U8 *data = (U8 *)block.data;
+	U64 offset = 0;
+	while (offset < block.size)
+	{
+		I64 size = (I64)::read(file, data + offset, block.size - offset);
+		if (size > 0)
+		{
+			offset += (U64)size;
+			continue;
+		}
+		if (size < 0 && errno == EINTR)
+			continue;
+		return false;
+	}
+	return true;
+}
+
 U32
 platform_get_logical_processor_count()
 {

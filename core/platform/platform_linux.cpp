@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <execinfo.h>
 #include <sys/mman.h>
+#include <sys/random.h>
 #include <sys/stat.h>
 #include <sys/select.h>
 #include <X11/Xlib-xcb.h>
@@ -804,6 +805,31 @@ platform_virtual_memory_release(Memory_Block block)
 
 	[[maybe_unused]] I32 result = ::munmap(block.data, block.size);
 	validate(result == 0, "[PLATFORM][LINUX]: Failed to release virtual memory.");
+}
+
+bool
+platform_cryptography_random_bytes(Memory_Block block)
+{
+	if (block.size == 0)
+		return true;
+
+	validate(block.data != nullptr, "[PLATFORM][LINUX]: Cryptographic random-byte destination cannot be null.");
+
+	U8 *data = (U8 *)block.data;
+	U64 offset = 0;
+	while (offset < block.size)
+	{
+		I64 size = (I64)::getrandom(data + offset, block.size - offset, 0);
+		if (size > 0)
+		{
+			offset += (U64)size;
+			continue;
+		}
+		if (size < 0 && errno == EINTR)
+			continue;
+		return false;
+	}
+	return true;
 }
 
 U32

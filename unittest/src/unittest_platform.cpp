@@ -33,6 +33,22 @@ TESTER_TEST("[PLATFORM] virtual memory")
 	platform_virtual_memory_release(block);
 }
 
+TESTER_TEST("[PLATFORM] secure random")
+{
+	U8 first[32] = {};
+	U8 second[32] = {};
+
+	TESTER_CHECK(platform_cryptography_random_bytes(Memory_Block{first, sizeof(first)}));
+	TESTER_CHECK(platform_cryptography_random_bytes(Memory_Block{second, sizeof(second)}));
+
+	bool different = false;
+	for (U32 i = 0; i < count_of(first); ++i)
+		different = different || first[i] != second[i];
+	TESTER_CHECK(different);
+
+	TESTER_CHECK(platform_cryptography_random_bytes(Memory_Block{}));
+}
+
 TESTER_TEST("[PLATFORM] callstack")
 {
 	constexpr U32 CALLSTACK_FRAME_COUNT = 16;

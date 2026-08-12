@@ -24,6 +24,7 @@
 #include <dispatch/dispatch.h>
 #include <Foundation/Foundation.h>
 #include <MobileCoreServices/MobileCoreServices.h>
+#include <Security/SecRandom.h>
 #include <UIKit/UIKit.h>
 
 #if !defined(PLATFORM_IOS) || PLATFORM_IOS != 1
@@ -3965,6 +3966,16 @@ platform_virtual_memory_release(Memory_Block block)
 
 	I32 result = ::munmap(block.data, (size_t)block.size);
 	validate(result == 0, "[PLATFORM][IOS]: Failed to release virtual memory.");
+}
+
+bool
+platform_cryptography_random_bytes(Memory_Block block)
+{
+	if (block.size == 0)
+		return true;
+
+	validate(block.data != nullptr, "[PLATFORM][IOS]: Cryptographic random-byte destination cannot be null.");
+	return ::SecRandomCopyBytes(kSecRandomDefault, (size_t)block.size, (U8 *)block.data) == errSecSuccess;
 }
 
 U32

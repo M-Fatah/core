@@ -8,6 +8,7 @@
 
 #define NOMINMAX
 #include <Windows.h>
+#include <bcrypt.h>
 #include <DbgHelp.h>
 #include <ShlObj.h>
 #include <math.h>
@@ -895,6 +896,28 @@ platform_virtual_memory_release(Memory_Block block)
 
 	[[maybe_unused]] bool result = ::VirtualFree(block.data, 0, MEM_RELEASE);
 	validate(result, "[PLATFORM][WINDOWS]: Failed to release virtual memory.");
+}
+
+bool
+platform_cryptography_random_bytes(Memory_Block block)
+{
+	if (block.size == 0)
+		return true;
+
+	validate(block.data != nullptr, "[PLATFORM][WINDOWS]: Cryptographic random-byte destination cannot be null.");
+
+	U8 *data = (U8 *)block.data;
+	U64 offset = 0;
+	while (offset < block.size)
+	{
+		U64 remaining = block.size - offset;
+		ULONG size = remaining > U32_MAX ? U32_MAX : (ULONG)remaining;
+		NTSTATUS status = ::BCryptGenRandom(nullptr, data + offset, size, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+		if (!BCRYPT_SUCCESS(status))
+			return false;
+		offset += size;
+	}
+	return true;
 }
 
 U32

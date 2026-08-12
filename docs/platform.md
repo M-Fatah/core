@@ -69,6 +69,19 @@ iOS virtual-memory reservations are committed as read/write, non-executable memo
 
 ---
 
+## Secure Random
+
+`platform_cryptography_random_bytes` fills a caller-owned memory block with cryptographically secure bytes from the operating system. It returns `true` only when the entire block was filled. Empty blocks succeed.
+
+```cpp
+U8 bytes[32];
+bool generated = platform_cryptography_random_bytes(Memory_Block{bytes, sizeof(bytes)});
+```
+
+UUID version 4 generation uses this platform primitive.
+
+---
+
 ## Threads
 
 ```cpp

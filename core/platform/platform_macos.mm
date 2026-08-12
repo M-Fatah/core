@@ -26,6 +26,7 @@
 #include <IOKit/pwr_mgt/IOPMLib.h>
 #include <mach-o/dyld.h>
 #include <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#include <Security/SecRandom.h>
 #include <dirent.h>
 
 static char current_executable_directory[PATH_MAX] = {};
@@ -1126,6 +1127,16 @@ platform_virtual_memory_release(Memory_Block block)
 
 	[[maybe_unused]] I32 result = ::munmap(block.data, block.size);
 	validate(result == 0, "[PLATFORM][MACOS]: Failed to release virtual memory.");
+}
+
+bool
+platform_cryptography_random_bytes(Memory_Block block)
+{
+	if (block.size == 0)
+		return true;
+
+	validate(block.data != nullptr, "[PLATFORM][MACOS]: Cryptographic random-byte destination cannot be null.");
+	return ::SecRandomCopyBytes(kSecRandomDefault, (size_t)block.size, (U8 *)block.data) == errSecSuccess;
 }
 
 U32

@@ -15,6 +15,7 @@ set(HEADER_FILES
     scheduler.h
     source_location.h
     tester.h
+    uuid.h
     compiler/compiler_clang.h
     compiler/compiler_gcc.h
     compiler/compiler_msvc.h
@@ -71,6 +72,7 @@ set(SOURCE_FILES
     json.cpp
     scheduler.cpp
     tester.cpp
+    uuid.cpp
     memory/heap_allocator.cpp
     memory/arena_allocator.cpp
     memory/pool_allocator.cpp
@@ -98,6 +100,7 @@ if(WIN32)
         winmm.lib
         shell32.lib
         ole32.lib
+        bcrypt.lib
         dbghelp
     )
 elseif(LINUX)
@@ -128,6 +131,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     list(APPEND LIBS
         "-framework Cocoa"
         "-framework IOKit"
+        "-framework Security"
         "-framework UniformTypeIdentifiers"
     )
 elseif(IOS)
@@ -148,6 +152,7 @@ elseif(IOS)
         "-framework CoreGraphics"
         "-framework Foundation"
         "-framework MobileCoreServices"
+        "-framework Security"
         "-framework UIKit"
     )
 elseif(ANDROID)
