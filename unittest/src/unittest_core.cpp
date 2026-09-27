@@ -1522,6 +1522,52 @@ TESTER_TEST("[CORE]: Arena_Allocator")
 	TESTER_CHECK(after_large_clear.data == large.data);
 }
 
+TESTER_TEST("[CORE]: Arena_Allocator_Page_Growth")
+{
+	//
+	// Cross several page boundaries within one node, then reuse its committed
+	// pages after resetting a mark and clearing the arena.
+	//
+	U64 page_size = platform_virtual_memory_get_page_size();
+	memory::Arena_Allocator *arena = memory::arena_allocator_init(page_size * 8);
+	DEFER(memory::arena_allocator_deinit(arena));
+	Memory_Block base = memory::arena_allocator_allocate(arena, 16, 1);
+	((U8 *)base.data)[0] = 42;
+	memory::Arena_Allocator_Mark mark = memory::arena_allocator_mark(arena);
+	U64 size = page_size * 4 + 31;
+	bool contiguous = true;
+	for (U64 i = 0; i < size; ++i)
+	{
+		Memory_Block byte = memory::arena_allocator_allocate(arena, 1, 1);
+		contiguous = contiguous && byte.data == (U8 *)base.data + 16 + i;
+		*(U8 *)byte.data = (U8)i;
+	}
+	TESTER_CHECK(contiguous);
+	TESTER_CHECK(memory::arena_allocator_mark(arena).head == mark.head);
+	TESTER_CHECK(memory::arena_allocator_get_used(arena) == 16 + size);
+	bool matches = true;
+	for (U64 i = 0; i < size; ++i)
+		matches = matches && ((U8 *)base.data)[16 + i] == (U8)i;
+	TESTER_CHECK(matches);
+
+	memory::arena_allocator_reset_to_mark(arena, mark);
+	Memory_Block reused = memory::arena_allocator_allocate(arena, size, 1);
+	TESTER_CHECK(reused.data == (U8 *)base.data + 16);
+	TESTER_CHECK(((U8 *)base.data)[0] == 42);
+	((U8 *)reused.data)[size - 1] = 99;
+	TESTER_CHECK(((U8 *)reused.data)[size - 1] == 99);
+
+	memory::arena_allocator_clear(arena);
+	Memory_Block after_clear = memory::arena_allocator_allocate(arena, page_size * 6, 1);
+	TESTER_CHECK(after_clear.data == base.data);
+	((U8 *)after_clear.data)[page_size * 6 - 1] = 123;
+	TESTER_CHECK(((U8 *)after_clear.data)[page_size * 6 - 1] == 123);
+	Memory_Block aligned = memory::arena_allocator_allocate(arena, 64, 64);
+	TESTER_CHECK((U64)aligned.data % 64 == 0);
+	((U8 *)aligned.data)[63] = 255;
+	TESTER_CHECK(((U8 *)aligned.data)[63] == 255);
+}
+
 TESTER_TEST("[CORE]: Arena_Allocator_Clear_Growth")
 {
 	U64 page_size = platform_virtual_memory_get_page_size();
