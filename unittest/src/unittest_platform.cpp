@@ -303,8 +303,11 @@ TESTER_TEST("[PLATFORM] path utilities")
 	TESTER_CHECK(absolute_path.data[absolute_path.count] == '\0');
 
 	String missing_name = format("core missing output {}.tmp", platform_query_microseconds(), memory::temp_allocator());
-	String missing_path = format("{}/{}", absolute_path, missing_name, memory::temp_allocator());
+	String missing_path = string_copy(working_directory, memory::temp_allocator());
 	string_replace(missing_path, '\\', '/');
+	if (missing_path[missing_path.count - 1] != '/')
+		string_append(missing_path, '/');
+	string_append(missing_path, missing_name);
 	TESTER_CHECK(!platform_path_is_valid(missing_path));
 
 	String resolved_missing_path = platform_path_get_absolute(missing_path, memory::temp_allocator());
