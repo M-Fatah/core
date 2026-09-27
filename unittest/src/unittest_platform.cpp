@@ -302,6 +302,24 @@ TESTER_TEST("[PLATFORM] path utilities")
 	TESTER_CHECK(absolute_path.count == string_literal(absolute_path.data).count);
 	TESTER_CHECK(absolute_path.data[absolute_path.count] == '\0');
 
+	String missing_name = format("core missing output {}.tmp", platform_query_microseconds(), memory::temp_allocator());
+	String missing_path = string_copy(working_directory, memory::temp_allocator());
+	string_replace(missing_path, '\\', '/');
+	if (missing_path[missing_path.count - 1] != '/')
+		string_append(missing_path, '/');
+	string_append(missing_path, missing_name);
+	TESTER_CHECK(!platform_path_is_valid(missing_path));
+
+	String resolved_missing_path = platform_path_get_absolute(missing_path, memory::temp_allocator());
+	string_replace(resolved_missing_path, '\\', '/');
+	TESTER_CHECK(resolved_missing_path == missing_path);
+	TESTER_CHECK(resolved_missing_path.data[resolved_missing_path.count] == '\0');
+
+	String resolved_relative_path = platform_path_get_absolute(missing_name, memory::temp_allocator());
+	string_replace(resolved_relative_path, '\\', '/');
+	TESTER_CHECK(resolved_relative_path == missing_path);
+	TESTER_CHECK(resolved_relative_path.data[resolved_relative_path.count] == '\0');
+
 	TESTER_CHECK(platform_path_get_file_name("folder\\sub/file.txt", memory::temp_allocator()) == "file.txt");
 	TESTER_CHECK(platform_path_get_file_name("file.txt", memory::temp_allocator()) == "file.txt");
 	TESTER_CHECK(platform_path_get_file_name("folder/", memory::temp_allocator()).count == 0);

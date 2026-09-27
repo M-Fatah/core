@@ -573,6 +573,9 @@ platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 	if(::realpath(path.data, buffer))
 		return string_from(buffer, allocator);
 
+	if (path.count > 0 && path[0] == '/')
+		return string_copy(path, allocator);
+
 	String full_path = platform_path_get_current_working_directory(allocator);
 	if (full_path.count > 0 && full_path[full_path.count - 1] != '/')
 		string_append(full_path, '/');

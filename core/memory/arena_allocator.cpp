@@ -13,6 +13,7 @@ namespace memory
 	{
 		U64 capacity;
 		U64 used;
+		U64 committed;
 		Arena_Allocator_Node *next;
 	};
 
@@ -43,9 +44,10 @@ namespace memory
 		}
 
 		Arena_Allocator_Node *node = (Arena_Allocator_Node *)block.data;
-		node->capacity = block.size - sizeof(Arena_Allocator_Node);
-		node->used     = 0;
-		node->next     = nullptr;
+		node->capacity  = block.size - sizeof(Arena_Allocator_Node);
+		node->used      = 0;
+		node->committed = header_block.size;
+		node->next      = nullptr;
 		return node;
 	}
 
@@ -72,12 +74,18 @@ namespace memory
 	inline static void
 	_arena_allocator_node_commit_to_used(Arena_Allocator_Node *node, U64 used)
 	{
+		U64 required = sizeof(Arena_Allocator_Node) + used;
+		if (required <= node->committed)
+			return;
+
+		U64 committed = platform_virtual_memory_page_align(required);
 		Memory_Block block = Memory_Block {
-			.data = node,
-			.size = platform_virtual_memory_page_align(sizeof(Arena_Allocator_Node) + used)
+			.data = (U8 *)node + node->committed,
+			.size = committed - node->committed
 		};
 		if (!platform_virtual_memory_commit(block))
 			log_fatal("[ARENA_ALLOCATOR]: Could not commit arena node memory.");
+		node->committed = committed;
 	}
 
 	Arena_Allocator::Arena_Allocator(U64 initial_capacity)

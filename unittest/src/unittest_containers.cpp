@@ -336,6 +336,30 @@ TESTER_TEST("[CONTAINERS]: String")
 			TESTER_CHECK(s2[i] == s1[i]);
 	}
 
+	// ("reserve")
+	{
+		String s = string_from("abc");
+		DEFER(string_deinit(s));
+
+		string_reserve(s, 2);
+		TESTER_CHECK(s == "abc");
+		TESTER_CHECK(s.count == 3);
+		TESTER_CHECK(s.capacity >= 6);
+		TESTER_CHECK(s.data[s.count] == '\0');
+
+		char *data = s.data;
+		U64 capacity = s.capacity;
+		string_reserve(s, 2);
+		TESTER_CHECK(s.data == data);
+		TESTER_CHECK(s.capacity == capacity);
+
+		string_append(s, 'd', 2);
+		TESTER_CHECK(s == "abcdd");
+		TESTER_CHECK(s.data == data);
+		TESTER_CHECK(s.capacity == capacity);
+		TESTER_CHECK(s.data[s.count] == '\0');
+	}
+
 	// ("append")
 	{
 		auto s1 = "Hello, ";
@@ -348,7 +372,7 @@ TESTER_TEST("[CONTAINERS]: String")
 		string_append(s, s3);
 
 		TESTER_CHECK(s.count == 13);
-		TESTER_CHECK(s.capacity == 14);
+		TESTER_CHECK(s.capacity >= 14);
 
 		auto expected = "Hello, World!";
 		for (U64 i = 0; i < s.count; ++i)
@@ -357,6 +381,66 @@ TESTER_TEST("[CONTAINERS]: String")
 
 		string_deinit(s);
 		string_deinit(s3);
+	}
+
+	//
+	// Repeated small appends keep copying and allocation proportional to the
+	// final string size. Exercise both heap and arena-backed strings, and keep
+	// embedded zero bytes distinct from the trailing terminator.
+	//
+	{
+		memory::Arena_Allocator_Mark mark = memory::temp_allocator_mark();
+		DEFER(memory::temp_allocator_reset_to_mark(mark));
+		memory::Allocator *allocators[] = {memory::heap_allocator(), memory::temp_allocator()};
+		for (memory::Allocator *allocator : allocators)
+		{
+			String s = string_init(allocator);
+			DEFER(string_deinit(s));
+			const char bytes[] = {'a', '\0', 'b', 'c'};
+			String chunk = string_from(bytes, bytes + sizeof(bytes), allocator);
+			DEFER(string_deinit(chunk));
+			U64 allocated = s.capacity;
+			for (U64 i = 0; i < 4096; ++i)
+			{
+				U64 capacity = s.capacity;
+				string_append(s, chunk);
+				if (s.capacity != capacity)
+					allocated += s.capacity;
+			}
+			TESTER_CHECK(s.count == 4096 * sizeof(bytes));
+			TESTER_CHECK(s.capacity > s.count);
+			TESTER_CHECK(s.data[s.count] == '\0');
+			TESTER_CHECK(allocated < s.count * 6);
+			bool matches = true;
+			for (U64 i = 0; i < s.count; ++i)
+				matches = matches && s[i] == bytes[i % sizeof(bytes)];
+			TESTER_CHECK(matches);
+		}
+	}
+
+	//
+	// Repeated-character appends also reserve room for the terminator when
+	// the character count exactly fills the old capacity.
+	//
+	{
+		String s = string_with_capacity(3);
+		DEFER(string_deinit(s));
+		U64 allocated = s.capacity;
+		for (U64 i = 0; i < 4096; ++i)
+		{
+			U64 capacity = s.capacity;
+			string_append(s, 'x', 3);
+			if (s.capacity != capacity)
+				allocated += s.capacity;
+		}
+		TESTER_CHECK(s.count == 4096 * 3);
+		TESTER_CHECK(s.capacity > s.count);
+		TESTER_CHECK(s.data[s.count] == '\0');
+		TESTER_CHECK(allocated < s.count * 6);
+		bool matches = true;
+		for (char c : s)
+			matches = matches && c == 'x';
+		TESTER_CHECK(matches);
 	}
 
 	// ("to lower/ to upper")
