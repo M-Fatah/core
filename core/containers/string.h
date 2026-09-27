@@ -4,6 +4,7 @@
 #include "core/validate.h"
 #include "core/defer.h"
 #include "core/hash.h"
+#include "core/math/u64.h"
 #include "core/memory/allocator.h"
 #include "core/memory/arena_allocator.h"
 #include "core/containers/array.h"
@@ -93,7 +94,11 @@ string_deinit(String &self)
 inline static void
 string_reserve(String& self, U64 added_capacity)
 {
-	array_reserve(self, added_capacity);
+	if (self.count + added_capacity < self.capacity)
+		return;
+
+	array_reserve(self, u64_max(added_capacity + 1, self.capacity > 1 ? self.capacity / 2 : 8));
+	self.data[self.count] = '\0';
 }
 
 inline static void
@@ -125,6 +130,7 @@ string_append(String &self, char c, I32 count)
 	if (count == 0)
 		return;
 
+	string_reserve(self, count);
 	array_push(self, c, count);
 	self.data[self.count] = '\0';
 }
