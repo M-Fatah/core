@@ -1787,8 +1787,8 @@ platform_stdout_write(const void *data, U64 size)
 		return 0;
 
 	sigset_t blocked;
-	::sigemptyset(&blocked);
-	::sigaddset(&blocked, SIGPIPE);
+	sigemptyset(&blocked);
+	sigaddset(&blocked, SIGPIPE);
 	sigset_t previous;
 	if (::pthread_sigmask(SIG_BLOCK, &blocked, &previous) != 0)
 		return U64_MAX;
@@ -1797,7 +1797,7 @@ platform_stdout_write(const void *data, U64 size)
 
 	sigset_t pending;
 	validate(::sigpending(&pending) == 0);
-	bool had_sigpipe = ::sigismember(&pending, SIGPIPE) == 1;
+	bool had_sigpipe = sigismember(&pending, SIGPIPE) == 1;
 	I64 count;
 	do
 	{
@@ -1807,7 +1807,7 @@ platform_stdout_write(const void *data, U64 size)
 	if (count < 0 && errno == EPIPE && !had_sigpipe)
 	{
 		validate(::sigpending(&pending) == 0);
-		if (::sigismember(&pending, SIGPIPE) == 1)
+		if (sigismember(&pending, SIGPIPE) == 1)
 		{
 			I32 signal;
 			validate(::sigwait(&blocked, &signal) == 0);
