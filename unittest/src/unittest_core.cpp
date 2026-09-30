@@ -2,6 +2,7 @@
 #include <core/atomic.h>
 #include <core/command_line.h>
 #include <core/json.h>
+#include <core/math/f64.h>
 #include <core/base64.h>
 #include <core/log.h>
 #include <core/result.h>
@@ -11,6 +12,8 @@
 #include <core/memory/pool_allocator.h>
 #include <core/memory/arena_allocator.h>
 #include <core/platform/platform.h>
+
+#include <errno.h>
 
 TESTER_TEST("[CORE]: Command Line")
 {
@@ -2018,6 +2021,499 @@ TESTER_TEST("[CORE]: JSON String Serialization")
 		TESTER_CHECK(output == expected);
 		TESTER_CHECK(output.data[output.count] == '\0');
 	}
+}
+
+struct JSON_Test_Allocator : memory::Allocator
+{
+	U64 bytes;
+
+	Memory_Block
+	allocate(U64 size, U64 alignment) override
+	{
+		Memory_Block block = memory::allocate(size, alignment);
+		bytes += block.size;
+		return block;
+	}
+
+	void
+	deallocate(Memory_Block block) override
+	{
+		validate(bytes >= block.size);
+		bytes -= block.size;
+		memory::deallocate(block);
+	}
+};
+
+TESTER_TEST("[CORE]: JSON Strict Input")
+{
+	const char *invalid[] = {
+		"", " ", "n", "nul", "nullx", "tru", "True", "falsex",
+		"+1", "01", "-01", "-", ".1", "1.", "1e", "1e+", "1e-", "1.e1",
+		"0x10", "nan", "NaN", "inf", "Infinity", "-inf", "1e309", "-1e309",
+		"// comment", "/* comment */null", "null//comment", "\vnull", "null\f",
+		"null true", "{} []", "[", "[1", "[1,]", "[,1]", "[1 2]",
+		"{", "{x:1}", "{\"x\" 1}", "{\"x\":}", "{\"x\":1,}", "{\"x\":1 \"y\":2}",
+		"\"", "\"\\", "\"\\q\"", "\"\\u\"", "\"\\u000\"", "\"\\u00x0\"", "\"\n\"",
+		"\"\\ud800\"", "\"\\ud800\\u0000\"", "\"\\ud800\\ud800\"", "\"\\udc00\"",
+		"\"\x80\"", "\"\xc0\x80\"", "\"\xc2\"", "\"\xe0\x80\x80\"", "\"\xe2\x82\"",
+		"\"\xed\xa0\x80\"", "\"\xf0\x80\x80\x80\"", "\"\xf4\x90\x80\x80\"", "\"\xf5\x80\x80\x80\"",
+		"[\"owned\",{\"key\":[\"nested\"]},]", "{\"owned\":[\"nested\"],\"pending\":}",
+		"{\"owned\":[\"nested\"]} trailing"
+	};
+	JSON_Test_Allocator allocator = {};
+	for (const char *input : invalid)
+	{
+		auto [value, error] = json_value_from_string(input, &allocator);
+		TESTER_CHECK(error == true);
+		TESTER_CHECK(value.kind == JSON_VALUE_KIND_INVALID);
+		json_value_deinit(value);
+		TESTER_CHECK(allocator.bytes == 0);
+	}
+	const char *complete = R"({"key":["owned",true,false,null,-12.5e+2,{"text":"\uD83D\uDE00\\"}]})";
+	U64 count = slice_from(complete).count;
+	for (U64 length = 0; length < count; ++length)
+	{
+		Memory_Block buffer = memory::allocate(length, alignof(char));
+		DEFER(memory::deallocate(buffer));
+		if (length)
+			::memcpy(buffer.data, complete, length);
+		auto [value, error] = json_value_from_string(Slice<const char>((const char *)buffer.data, length), &allocator);
+		TESTER_CHECK(error == true);
+		json_value_deinit(value);
+		TESTER_CHECK(allocator.bytes == 0);
+	}
+	const char null_in_string[] = {'"', 'a', '\0', 'b', '"'};
+	const char null_after_value[] = {'n', 'u', 'l', 'l', '\0', 't', 'r', 'u', 'e'};
+	Slice<const char> embedded_nulls[] = {
+		Slice<const char>(null_in_string, sizeof(null_in_string)),
+		Slice<const char>(null_after_value, sizeof(null_after_value))
+	};
+	for (auto input : embedded_nulls)
+	{
+		String text = string_init();
+		DEFER(string_deinit(text));
+		string_append(text, input);
+		auto [value, error] = json_value_from_string(text, &allocator);
+		TESTER_CHECK(error == true);
+		json_value_deinit(value);
+		TESTER_CHECK(allocator.bytes == 0);
+	}
+	const char bounded[] = {'t', 'r', 'u', 'e', 'x'};
+	auto [value, error] = json_value_from_string(Slice<const char>(bounded, 4), &allocator);
+	DEFER(json_value_deinit(value));
+	TESTER_CHECK(error == false);
+	TESTER_CHECK(value.kind == JSON_VALUE_KIND_BOOL && value.as_bool);
+	auto [empty_value, empty_error] = json_value_from_string(nullptr, &allocator);
+	TESTER_CHECK(empty_error == true);
+	TESTER_CHECK(empty_value.kind == JSON_VALUE_KIND_INVALID);
+}
+
+TESTER_TEST("[CORE]: JSON Unicode")
+{
+	const char decoded[] = "\"\\/\b\f\n\r\t\0\x7f\xc2\x80\xdf\xbf\xe0\xa0\x80\xef\xbf\xbf\xf0\x90\x80\x80\xf4\x8f\xbf\xbf";
+	const char *input = R"("\"\\\/\b\f\n\r\t\u0000\u007f\u0080\u07ff\u0800\uFFFF\uD800\uDC00\udbff\udfff")";
+	auto [value, error] = json_value_from_string(input);
+	DEFER(json_value_deinit(value));
+	TESTER_CHECK(error == false);
+	if (error)
+		return;
+	TESTER_CHECK(value.kind == JSON_VALUE_KIND_STRING);
+	TESTER_CHECK(value.as_string.count == sizeof(decoded) - 1);
+	TESTER_CHECK(::memcmp(value.as_string.data, decoded, sizeof(decoded) - 1) == 0);
+	auto [encoded, encode_error] = json_value_to_string(value);
+	DEFER(string_deinit(encoded));
+	TESTER_CHECK(encode_error == false);
+	auto [copy, copy_error] = json_value_from_string(encoded);
+	DEFER(json_value_deinit(copy));
+	TESTER_CHECK(copy_error == false);
+	if (!copy_error)
+		TESTER_CHECK(copy.as_string == value.as_string);
+
+	JSON_Test_Allocator allocator = {};
+	{
+		auto [object, object_error] = json_value_from_string(R"({"x\u0000y":"first","\u0078\u0000y":["last"]})", &allocator);
+		DEFER(json_value_deinit(object));
+		TESTER_CHECK(object_error == false);
+		if (object_error)
+			return;
+		TESTER_CHECK(object.as_object.count == 1);
+		const char name[] = {'x', '\0', 'y'};
+		String key = string_from(name, name + sizeof(name));
+		DEFER(string_deinit(key));
+		JSON_Value member = json_value_object_find(object, key);
+		TESTER_CHECK(member.kind == JSON_VALUE_KIND_ARRAY);
+		TESTER_CHECK(member.as_array[0].as_string == "last");
+	}
+	TESTER_CHECK(allocator.bytes == 0);
+}
+
+TESTER_TEST("[CORE]: JSON Numbers And Root Values")
+{
+	F64 numbers[] = {0.0, -0.0, 0.1, 1.2345678901234567, -2147483648.0, 2147483647.0,
+		9007199254740991.0, 1.0e20, 1.0e-20, DBL_MIN, DBL_MAX, -DBL_MAX, 0x1p-1074};
+	for (F64 number : numbers)
+	{
+		JSON_Value value = json_value_init_as_number(number);
+		auto [encoded, encode_error] = json_value_to_string(value);
+		DEFER(string_deinit(encoded));
+		TESTER_CHECK(encode_error == false);
+		auto [decoded, decode_error] = json_value_from_string(encoded);
+		DEFER(json_value_deinit(decoded));
+		TESTER_CHECK(decode_error == false);
+		TESTER_CHECK(decoded.kind == JSON_VALUE_KIND_NUMBER);
+		if (!decode_error)
+			TESTER_CHECK(::memcmp(&decoded.as_number, &number, sizeof(number)) == 0);
+	}
+	const char *roots[] = {"null", "true", "false", "\"text\"", "[]", "{}", " [1, true, null] \r\n\t"};
+	for (const char *input : roots)
+	{
+		auto [value, error] = json_value_from_string(input);
+		DEFER(json_value_deinit(value));
+		TESTER_CHECK(error == false);
+		auto [encoded, encode_error] = json_value_to_string(value);
+		DEFER(string_deinit(encoded));
+		TESTER_CHECK(encode_error == false);
+		auto [decoded, decode_error] = json_value_from_string(encoded);
+		DEFER(json_value_deinit(decoded));
+		TESTER_CHECK(decode_error == false);
+		TESTER_CHECK(decoded.kind == value.kind);
+	}
+	errno = ERANGE;
+	auto [value, error] = json_value_from_string("1.25e+2");
+	TESTER_CHECK(error == false);
+	TESTER_CHECK(value.as_number == 125.0);
+	String long_number = string_from("0.");
+	DEFER(string_deinit(long_number));
+	string_append(long_number, '0', 200);
+	string_append(long_number, '1');
+	auto [small, small_error] = json_value_from_string(long_number);
+	TESTER_CHECK(small_error == false);
+	TESTER_CHECK(small.as_number == 1e-201);
+	auto [underflow, underflow_error] = json_value_from_string("1e-9999");
+	TESTER_CHECK(underflow_error == false);
+	TESTER_CHECK(underflow.as_number == 0.0);
+}
+
+TESTER_TEST("[CORE]: JSON Ownership")
+{
+	JSON_Test_Allocator allocator = {};
+	{
+		JSON_Value object = json_value_init_as_object(&allocator);
+		DEFER(json_value_deinit(object));
+		JSON_Value first = json_value_init_as_string(&allocator);
+		string_append(first.as_string, "first allocation");
+		json_value_object_insert(object, "name", first);
+		JSON_Value second = json_value_init_as_array(&allocator);
+		array_push(second.as_array, json_value_init_as_bool(true));
+		json_value_object_insert(object, "name", second);
+		auto *entry = hash_table_find(object.as_object, string_literal("name"));
+		TESTER_CHECK(object.as_object.count == 1);
+		TESTER_CHECK(entry->key.allocator == &allocator);
+		TESTER_CHECK(entry->value.kind == JSON_VALUE_KIND_ARRAY);
+	}
+	TESTER_CHECK(allocator.bytes == 0);
+
+	F64 invalid_numbers[] = {F64_INFINITY, F64_NEGATIVE_INFINITY, F64_NAN};
+	for (F64 number : invalid_numbers)
+	{
+		JSON_Value value = json_value_init_as_number(number);
+		auto [encoded, error] = json_value_to_string(value, &allocator);
+		TESTER_CHECK(error == true);
+		TESTER_CHECK(encoded.data == nullptr);
+		TESTER_CHECK(allocator.bytes == 0);
+	}
+	{
+		JSON_Value array = json_value_init_as_array(&allocator);
+		DEFER(json_value_deinit(array));
+		array_push(array.as_array, JSON_Value{});
+		U64 bytes = allocator.bytes;
+		auto [encoded, error] = json_value_to_string(array, &allocator);
+		TESTER_CHECK(error == true);
+		TESTER_CHECK(encoded.data == nullptr);
+		TESTER_CHECK(allocator.bytes == bytes);
+	}
+	TESTER_CHECK(allocator.bytes == 0);
+	{
+		JSON_Value value = json_value_init_as_string(&allocator);
+		DEFER(json_value_deinit(value));
+		string_append(value.as_string, "\xc0\x80");
+		U64 bytes = allocator.bytes;
+		auto [encoded, error] = json_value_to_string(value, &allocator);
+		TESTER_CHECK(error == true);
+		TESTER_CHECK(encoded.data == nullptr);
+		TESTER_CHECK(allocator.bytes == bytes);
+		JSON_Value object = json_value_init_as_object(&allocator);
+		DEFER(json_value_deinit(object));
+		json_value_object_insert(object, value.as_string, json_value_init_as_bool(true));
+		auto [object_encoded, object_error] = json_value_to_string(object, &allocator);
+		TESTER_CHECK(object_error == true);
+		TESTER_CHECK(object_encoded.data == nullptr);
+	}
+	TESTER_CHECK(allocator.bytes == 0);
+}
+
+TESTER_TEST("[CORE]: JSON Scratch Storage")
+{
+	memory::Arena_Allocator_Mark mark = memory::temp_allocator_mark();
+	DEFER(memory::temp_allocator_reset_to_mark(mark));
+
+	String number = string_from("0.");
+	DEFER(string_deinit(number));
+	string_append(number, '0', 200);
+	string_append(number, '1');
+	memory::Arena_Allocator_Mark before = memory::temp_allocator_mark();
+	auto [scalar, scalar_error] = json_value_from_string(number, memory::temp_allocator());
+	TESTER_CHECK(scalar_error == false);
+	TESTER_CHECK(scalar.as_number == 1e-201);
+	TESTER_CHECK(memory::temp_allocator_mark().arena_used == before.arena_used);
+
+	const char *input = R"({"items":[{"name":"source"},[],{}],"replace":[1],"replace":{"ok":true}})";
+	auto [value, error] = json_value_from_string(input, memory::temp_allocator());
+	DEFER(json_value_deinit(value));
+	TESTER_CHECK(error == false);
+	JSON_Value copy = json_value_copy(value, memory::temp_allocator());
+	DEFER(json_value_deinit(copy));
+	auto [output, output_error] = json_value_to_string(copy, memory::temp_allocator());
+	TESTER_CHECK(output_error == false);
+	auto [expected, expected_error] = json_value_to_string(value);
+	DEFER(string_deinit(expected));
+	TESTER_CHECK(expected_error == false);
+
+	Memory_Block reused = memory::allocate(memory::temp_allocator(), 16 * 1024, alignof(U64));
+	::memset(reused.data, 0, reused.size);
+	TESTER_CHECK(output == expected);
+	JSON_Value items = json_value_object_find(copy, "items");
+	TESTER_CHECK(items.as_array.count == 3);
+	TESTER_CHECK(json_value_object_find(items.as_array[0], "name").as_string == "source");
+	TESTER_CHECK(json_value_object_find(json_value_object_find(copy, "replace"), "ok").as_bool);
+
+	JSON_Test_Allocator allocator = {};
+	{
+		memory::Arena_Allocator_Mark scope = memory::temp_allocator_mark();
+		DEFER(memory::temp_allocator_reset_to_mark(scope));
+		String filepath = platform_path_get_temp_directory(memory::temp_allocator());
+		string_append(filepath, "test.core-json-scratch.json");
+		DEFER(platform_path_delete_file(filepath));
+		before = memory::temp_allocator_mark();
+		Error write_error = json_value_to_file(value, filepath);
+		TESTER_CHECK(write_error == false);
+		TESTER_CHECK(memory::temp_allocator_mark().arena_used == before.arena_used);
+		auto [loaded, load_error] = json_value_from_file(filepath, memory::temp_allocator());
+		DEFER(json_value_deinit(loaded));
+		TESTER_CHECK(load_error == false);
+		JSON_Value loaded_items = json_value_object_find(loaded, "items");
+		TESTER_CHECK(json_value_object_find(loaded_items.as_array[0], "name").as_string == "source");
+
+		TESTER_CHECK(platform_path_write_file(filepath, number) == number.count);
+		before = memory::temp_allocator_mark();
+		auto [loaded_scalar, load_scalar_error] = json_value_from_file(filepath, &allocator);
+		TESTER_CHECK(load_scalar_error == false);
+		TESTER_CHECK(loaded_scalar.as_number == 1e-201);
+		TESTER_CHECK(allocator.bytes == 0);
+		TESTER_CHECK(memory::temp_allocator_mark().arena_used == before.arena_used);
+	}
+
+	before = memory::temp_allocator_mark();
+	auto [invalid, invalid_error] = json_value_from_string("{\"items\":[1,", &allocator);
+	TESTER_CHECK(invalid_error == true);
+	TESTER_CHECK(invalid.kind == JSON_VALUE_KIND_INVALID);
+	TESTER_CHECK(allocator.bytes == 0);
+	TESTER_CHECK(memory::temp_allocator_mark().arena_used == before.arena_used);
+}
+
+TESTER_TEST("[CORE]: JSON Deep Values")
+{
+	constexpr U64 DEPTH = 20000;
+	String input = string_init();
+	DEFER(string_deinit(input));
+	for (U64 i = 0; i < DEPTH; ++i)
+		string_append(input, i % 2 == 0 ? "[" : "{\"child\":");
+
+	string_append(input, "\"leaf\"");
+	for (U64 i = DEPTH; i > 0; --i)
+		string_append(input, i % 2 == 0 ? '}' : ']');
+
+	JSON_Test_Allocator allocator = {};
+	JSON_Test_Allocator copy_allocator = {};
+	{
+		JSON_Value copy = {};
+		DEFER(json_value_deinit(copy));
+		{
+			auto [value, error] = json_value_from_string(input, &allocator);
+			DEFER(json_value_deinit(value));
+			TESTER_CHECK(error == false);
+			copy = json_value_copy(value, &copy_allocator);
+			TESTER_CHECK(copy.as_array.data != value.as_array.data);
+		}
+
+		TESTER_CHECK(allocator.bytes == 0);
+		const JSON_Value *value = &copy;
+		for (U64 i = 0; i < DEPTH; ++i)
+		{
+			if (i % 2 == 0)
+			{
+				TESTER_CHECK(value->kind == JSON_VALUE_KIND_ARRAY);
+				TESTER_CHECK(value->as_array.count == 1);
+				TESTER_CHECK(value->as_array.allocator == &copy_allocator);
+				value = &value->as_array[0];
+			}
+			else
+			{
+				TESTER_CHECK(value->kind == JSON_VALUE_KIND_OBJECT);
+				TESTER_CHECK(value->as_object.count == 1);
+				TESTER_CHECK(value->as_object.slots.allocator == &copy_allocator);
+				TESTER_CHECK(value->as_object.entries.allocator == &copy_allocator);
+				const auto &entry = value->as_object.entries[0];
+				TESTER_CHECK(entry.key == "child");
+				TESTER_CHECK(entry.key.allocator == &copy_allocator);
+				TESTER_CHECK(hash_table_find(value->as_object, entry.key)->value.kind == JSON_VALUE_KIND_ARRAY || i == DEPTH - 1);
+				value = &entry.value;
+			}
+		}
+
+		TESTER_CHECK(value->kind == JSON_VALUE_KIND_STRING);
+		TESTER_CHECK(value->as_string == "leaf");
+		TESTER_CHECK(value->as_string.allocator == &copy_allocator);
+	}
+
+	TESTER_CHECK(copy_allocator.bytes == 0);
+	{
+		String duplicate = string_from("{\"same\":");
+		DEFER(string_deinit(duplicate));
+		string_append(duplicate, input);
+		string_append(duplicate, ",\"same\":true}");
+		auto [value, error] = json_value_from_string(duplicate, &allocator);
+		DEFER(json_value_deinit(value));
+		TESTER_CHECK(error == false);
+		TESTER_CHECK(value.as_object.count == 1);
+		TESTER_CHECK(json_value_object_find(value, "same").as_bool == true);
+	}
+
+	TESTER_CHECK(allocator.bytes == 0);
+	string_resize(input, input.count - 1);
+	auto [truncated, truncated_error] = json_value_from_string(input, &allocator);
+	TESTER_CHECK(truncated_error == true);
+	TESTER_CHECK(truncated.kind == JSON_VALUE_KIND_INVALID);
+	TESTER_CHECK(allocator.bytes == 0);
+	string_clear(input);
+	for (U64 i = 0; i < DEPTH; ++i)
+		string_append(input, i % 2 == 0 ? "[" : "{\"child\":");
+
+	auto [unfinished, unfinished_error] = json_value_from_string(input, &allocator);
+	TESTER_CHECK(unfinished_error == true);
+	TESTER_CHECK(unfinished.kind == JSON_VALUE_KIND_INVALID);
+	TESTER_CHECK(allocator.bytes == 0);
+}
+
+TESTER_TEST("[CORE]: JSON Deep Output")
+{
+	constexpr U64 DEPTH = 2048;
+	String input = string_init();
+	DEFER(string_deinit(input));
+	for (U64 i = 0; i < DEPTH; ++i)
+		string_append(input, i % 2 == 0 ? "[" : "{\"child\":");
+
+	string_append(input, "0");
+	for (U64 i = DEPTH; i > 0; --i)
+		string_append(input, i % 2 == 0 ? '}' : ']');
+
+	JSON_Test_Allocator allocator = {};
+	{
+		auto [value, error] = json_value_from_string(input, &allocator);
+		DEFER(json_value_deinit(value));
+		TESTER_CHECK(error == false);
+		{
+			auto [encoded, encode_error] = json_value_to_string(value, &allocator);
+			DEFER(string_deinit(encoded));
+			TESTER_CHECK(encode_error == false);
+			auto [decoded, decode_error] = json_value_from_string(encoded, &allocator);
+			DEFER(json_value_deinit(decoded));
+			TESTER_CHECK(decode_error == false);
+			const JSON_Value *leaf = &decoded;
+			for (U64 i = 0; i < DEPTH; ++i)
+				leaf = i % 2 == 0 ? &leaf->as_array[0] : &leaf->as_object.entries[0].value;
+
+			TESTER_CHECK(leaf->kind == JSON_VALUE_KIND_NUMBER);
+			TESTER_CHECK(leaf->as_number == 0.0);
+			auto [rewritten, rewrite_error] = json_value_to_string(decoded, &allocator);
+			DEFER(string_deinit(rewritten));
+			TESTER_CHECK(rewrite_error == false);
+			TESTER_CHECK(rewritten == encoded);
+		}
+
+		JSON_Value *leaf = &value;
+		for (U64 i = 0; i < DEPTH; ++i)
+			leaf = i % 2 == 0 ? &leaf->as_array[0] : &leaf->as_object.entries[0].value;
+
+		leaf->as_number = F64_INFINITY;
+		U64 bytes = allocator.bytes;
+		auto [failed, failure] = json_value_to_string(value, &allocator);
+		TESTER_CHECK(failure == true);
+		TESTER_CHECK(failed.data == nullptr);
+		TESTER_CHECK(allocator.bytes == bytes);
+	}
+
+	TESTER_CHECK(allocator.bytes == 0);
+}
+
+TESTER_TEST("[CORE]: JSON Container Growth")
+{
+	String input = string_from("{");
+	DEFER(string_deinit(input));
+	for (U64 i = 0; i < 32; ++i)
+	{
+		if (i > 0)
+			string_append(input, ',');
+
+		String key = format("\"{}\":[", i);
+		DEFER(string_deinit(key));
+		string_append(input, key);
+		for (U64 j = 0; j < 32; ++j)
+		{
+			if (j > 0)
+				string_append(input, ',');
+
+			string_append(input, "{\"leaf\":[\"value\",[],{}]}");
+		}
+
+		string_append(input, ']');
+	}
+
+	string_append(input, '}');
+	JSON_Test_Allocator allocator = {};
+	{
+		auto [value, error] = json_value_from_string(input, &allocator);
+		DEFER(json_value_deinit(value));
+		TESTER_CHECK(error == false);
+		JSON_Value copy = json_value_copy(value, &allocator);
+		DEFER(json_value_deinit(copy));
+		TESTER_CHECK(copy.as_object.count == 32);
+		for (U64 i = 0; i < 32; ++i)
+		{
+			String key = format("{}", i);
+			DEFER(string_deinit(key));
+			JSON_Value array = json_value_object_find(copy, key);
+			TESTER_CHECK(array.as_array.count == 32);
+			for (const JSON_Value &element : array.as_array)
+			{
+				JSON_Value leaf = json_value_object_find(element, "leaf");
+				TESTER_CHECK(leaf.as_array.count == 3);
+				TESTER_CHECK(leaf.as_array[0].as_string == "value");
+				TESTER_CHECK(leaf.as_array[1].as_array.count == 0);
+				TESTER_CHECK(leaf.as_array[2].as_object.count == 0);
+			}
+		}
+
+		auto [encoded, encode_error] = json_value_to_string(value, &allocator);
+		DEFER(string_deinit(encoded));
+		auto [copied, copy_error] = json_value_to_string(copy, &allocator);
+		DEFER(string_deinit(copied));
+		TESTER_CHECK(encode_error == false);
+		TESTER_CHECK(copy_error == false);
+		TESTER_CHECK(encoded == copied);
+	}
+
+	TESTER_CHECK(allocator.bytes == 0);
 }
 
 TESTER_TEST("Base64")

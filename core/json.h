@@ -54,16 +54,22 @@ CORE_API JSON_Value
 json_value_init_as_object(memory::Allocator *allocator = memory::heap_allocator());
 
 CORE_API Result<JSON_Value>
-json_value_from_string(const char *json_string, memory::Allocator *allocator = memory::heap_allocator());
+json_value_from_string(Slice<const char> json_string, memory::Allocator *allocator = memory::heap_allocator());
 
-CORE_API Result<JSON_Value>
-json_value_from_file(const char *filepath, memory::Allocator *allocator = memory::heap_allocator());
+inline static Result<JSON_Value>
+json_value_from_string(const char *json_string, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return json_value_from_string(slice_from(json_string), allocator);
+}
 
 inline static Result<JSON_Value>
 json_value_from_string(const String &json_string, memory::Allocator *allocator = memory::heap_allocator())
 {
-	return json_value_from_string(json_string.data, allocator);
+	return json_value_from_string(Slice<const char>(json_string.data, json_string.count), allocator);
 }
+
+CORE_API Result<JSON_Value>
+json_value_from_file(const char *filepath, memory::Allocator *allocator = memory::heap_allocator());
 
 inline static Result<JSON_Value>
 json_value_from_file(const String &filepath, memory::Allocator *allocator = memory::heap_allocator())
@@ -80,6 +86,12 @@ json_value_deinit(JSON_Value &self);
 CORE_API JSON_Value
 json_value_object_find(const JSON_Value &self, const String &name);
 
+inline static JSON_Value
+json_value_object_find(const JSON_Value &self, const char *name)
+{
+	return json_value_object_find(self, string_literal(name));
+}
+
 CORE_API void
 json_value_object_insert(JSON_Value &self, const String &name, const JSON_Value &value);
 
@@ -87,12 +99,6 @@ inline static void
 json_value_object_insert(JSON_Value &self, const char *name, const JSON_Value &value)
 {
 	json_value_object_insert(self, string_literal(name), value);
-}
-
-inline static JSON_Value
-json_value_object_find(const JSON_Value &self, const char *name)
-{
-	return json_value_object_find(self, string_literal(name));
 }
 
 CORE_API bool
