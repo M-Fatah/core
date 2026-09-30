@@ -27,6 +27,7 @@
 #include <X11/keysym.h>
 #include <X11/XKBlib.h>
 #include <pthread.h>
+#include <signal.h>
 #include <dirent.h>
 #include <dbus/dbus.h>
 
@@ -1708,6 +1709,58 @@ platform_file_size(Platform_File_Handle handle)
 	struct stat st = {};
 	::fstat((int)(intptr_t)handle, &st);
 	return (U64)st.st_size;
+}
+
+U64
+platform_stdin_read(void *data, U64 size)
+{
+	if (data == nullptr || size == 0)
+		return 0;
+
+	I64 count;
+	do
+	{
+		count = ::read(STDIN_FILENO, data, (size_t)u64_min(size, SSIZE_MAX));
+	} while (count < 0 && errno == EINTR);
+
+	return count < 0 ? U64_MAX : (U64)count;
+}
+
+U64
+platform_stdout_write(const void *data, U64 size)
+{
+	if (data == nullptr || size == 0)
+		return 0;
+
+	sigset_t blocked;
+	::sigemptyset(&blocked);
+	::sigaddset(&blocked, SIGPIPE);
+	sigset_t previous;
+	if (::pthread_sigmask(SIG_BLOCK, &blocked, &previous) != 0)
+		return U64_MAX;
+
+	DEFER(validate(::pthread_sigmask(SIG_SETMASK, &previous, nullptr) == 0));
+
+	sigset_t pending;
+	validate(::sigpending(&pending) == 0);
+	bool had_sigpipe = ::sigismember(&pending, SIGPIPE) == 1;
+	I64 count;
+	do
+	{
+		count = ::write(STDOUT_FILENO, data, (size_t)u64_min(size, SSIZE_MAX));
+	} while (count < 0 && errno == EINTR);
+
+	if (count < 0 && errno == EPIPE && !had_sigpipe)
+	{
+		validate(::sigpending(&pending) == 0);
+		if (::sigismember(&pending, SIGPIPE) == 1)
+		{
+			I32 signal;
+			validate(::sigwait(&blocked, &signal) == 0);
+		}
+	}
+
+	return count <= 0 ? U64_MAX : (U64)count;
 }
 
 bool

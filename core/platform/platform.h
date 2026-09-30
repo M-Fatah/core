@@ -60,6 +60,12 @@ platform_file_tell(Platform_File_Handle handle);
 CORE_API U64
 platform_file_size(Platform_File_Handle handle);
 
+CORE_API U64
+platform_stdin_read(void *data, U64 size);
+
+CORE_API U64
+platform_stdout_write(const void *data, U64 size);
+
 // ============================================================
 // Path Utilities
 // ============================================================

@@ -20,6 +20,14 @@ A platform is supported only when its backend builds, links, and passes its plat
 
 ---
 
+## Standard Input and Output
+
+`platform_stdin_read(void *data, U64 size)` and `platform_stdout_write(const void *data, U64 size)` transfer raw bytes through the process's standard streams. They use the existing OS handles without taking ownership or changing text/binary modes. Use blocking pipes or files and do not mix these operations with buffered C stdio on the same stream. Console input retains its platform terminal behavior.
+
+Both return a `U64`: the transferred byte count, or `U64_MAX` on failure. Null data or a zero size returns zero without touching the stream. With a valid buffer and nonzero size, a read returns zero at EOF, and a write either makes progress or returns `U64_MAX`. Check for this sentinel before using the byte count. Callers must handle short transfers; retry the remaining output bytes after a successful short write. Stop on failure, since some earlier output may already have been delivered.
+
+A read returns available pipe data without waiting to fill the supplied buffer. Calls retry interrupted POSIX system calls. A closed output pipe returns failure without changing the process-wide SIGPIPE handler; the POSIX implementation temporarily masks SIGPIPE on the calling thread, preserves pre-existing pending SIGPIPE, and restores the thread's mask. Output is not buffered by Core and needs no flush. Serialization between writers and cancellation of blocking I/O remain the caller's responsibility.
+
 ## File I/O
 
 ```cpp
