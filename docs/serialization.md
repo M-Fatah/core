@@ -48,6 +48,8 @@ serialize(reader, "position", player.position);
 
 **Header:** `core/serialization/json_serializer.h`
 
+The JSON value writer in `core/json.h` escapes quotation marks, backslashes, and control characters in string values and object member names. It uses each `String`'s byte count, preserves embedded nulls as escapes, and leaves UTF-8 bytes unchanged. Escape decoding in `json_value_from_string` remains a known limitation.
+
 ```cpp
 #include <core/serialization/json_serializer.h>
 

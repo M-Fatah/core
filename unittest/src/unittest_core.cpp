@@ -1966,6 +1966,60 @@ R"""({
 	}
 }
 
+TESTER_TEST("[CORE]: JSON String Serialization")
+{
+	const char controls[] =
+		"\x00\x01\x02\x03\x04\x05\x06\x07"
+		"\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f"
+		"\x10\x11\x12\x13\x14\x15\x16\x17"
+		"\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f";
+	struct
+	{
+		Slice<const char> input;
+		const char *expected;
+	} cases[] = {
+		{slice_from(""), R"("")"},
+		{slice_from("plain / text"), R"("plain / text")"},
+		{slice_from("\"\\\b\f\n\r\t"), R"("\"\\\b\f\n\r\t")"},
+		{slice_from("\\n"), R"("\\n")"},
+		{slice_from("ends\\"), R"("ends\\")"},
+		{slice_from("\xc3\xa9 \xe4\xb8\xad \xf0\x9f\x98\x80"), "\"\xc3\xa9 \xe4\xb8\xad \xf0\x9f\x98\x80\""},
+		{Slice<const char>(controls, sizeof(controls) - 1),
+			"\"\\u0000\\u0001\\u0002\\u0003\\u0004\\u0005\\u0006\\u0007"
+			"\\b\\t\\n\\u000b\\f\\r\\u000e\\u000f"
+			"\\u0010\\u0011\\u0012\\u0013\\u0014\\u0015\\u0016\\u0017"
+			"\\u0018\\u0019\\u001a\\u001b\\u001c\\u001d\\u001e\\u001f\""}
+	};
+	for (const auto &entry : cases)
+	{
+		JSON_Value root = json_value_init_as_object();
+		DEFER(json_value_deinit(root));
+		JSON_Value value = json_value_init_as_string();
+		string_append(value.as_string, entry.input);
+		JSON_Value object = json_value_init_as_object();
+		json_value_object_insert(object, value.as_string, value);
+		JSON_Value array = json_value_init_as_array();
+		array_push(array.as_array, json_value_copy(value));
+		array_push(array.as_array, object);
+		json_value_object_insert(root, "items", array);
+
+		String expected = string_from("{\n\t\"items\": [\n\t\t");
+		DEFER(string_deinit(expected));
+		string_append(expected, entry.expected);
+		string_append(expected, ",\n\t\t{\n\t\t\t");
+		string_append(expected, entry.expected);
+		string_append(expected, ": ");
+		string_append(expected, entry.expected);
+		string_append(expected, "\n\t\t}\n\t]\n}");
+
+		auto [output, error] = json_value_to_string(root);
+		DEFER(string_deinit(output));
+		TESTER_CHECK(error == false);
+		TESTER_CHECK(output == expected);
+		TESTER_CHECK(output.data[output.count] == '\0');
+	}
+}
+
 TESTER_TEST("Base64")
 {
 	// ("Encode")

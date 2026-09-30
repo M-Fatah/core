@@ -364,6 +364,69 @@ _json_parser_parse_value(JSON_Parser &self)
 }
 
 inline static void
+_json_value_string_to_string(const String &value, String &json_string)
+{
+	string_append(json_string, '"');
+	DEFER(string_append(json_string, '"'));
+	for (char c : value)
+	{
+		switch (c)
+		{
+			case '"':
+			{
+				string_append(json_string, "\\\"");
+				break;
+			}
+			case '\\':
+			{
+				string_append(json_string, "\\\\");
+				break;
+			}
+			case '\b':
+			{
+				string_append(json_string, "\\b");
+				break;
+			}
+			case '\f':
+			{
+				string_append(json_string, "\\f");
+				break;
+			}
+			case '\n':
+			{
+				string_append(json_string, "\\n");
+				break;
+			}
+			case '\r':
+			{
+				string_append(json_string, "\\r");
+				break;
+			}
+			case '\t':
+			{
+				string_append(json_string, "\\t");
+				break;
+			}
+			default:
+			{
+				constexpr char HEX[] = "0123456789abcdef";
+				if ((U8)c < 0x20)
+				{
+					const char ESCAPED[] = {'\\', 'u', '0', '0', HEX[(U8)c >> 4], HEX[(U8)c & 0xf]};
+					string_append(json_string, ESCAPED, sizeof(ESCAPED));
+					break;
+				}
+				else
+				{
+					string_append(json_string, c);
+					break;
+				}
+			}
+		}
+	}
+}
+
+inline static void
 _json_value_object_to_string(const JSON_Value &self, String &json_string, I32 indent_level);
 
 inline static void
@@ -392,7 +455,7 @@ _json_value_array_to_string(const JSON_Value &self, String &json_string, I32 ind
 				string_append(json_string, format("{}", value.as_number, memory::temp_allocator()));
 				break;
 			case JSON_VALUE_KIND_STRING:
-				string_append(json_string, format("\"{}\"", value.as_string.data, memory::temp_allocator()));
+				_json_value_string_to_string(value.as_string, json_string);
 				break;
 			case JSON_VALUE_KIND_ARRAY:
 				_json_value_array_to_string(value, json_string, indent_level + 1);
@@ -418,7 +481,8 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, I32 in
 			string_append(json_string, ",\n");
 
 		string_append(json_string, '\t', indent_level + 1);
-		string_append(json_string, format("\"{}\": ", key.data, memory::temp_allocator()));
+		_json_value_string_to_string(key, json_string);
+		string_append(json_string, ": ");
 		switch (value.kind)
 		{
 			case JSON_VALUE_KIND_INVALID:
@@ -433,7 +497,7 @@ _json_value_object_to_string(const JSON_Value &self, String &json_string, I32 in
 				string_append(json_string, format("{}", value.as_number, memory::temp_allocator()));
 				break;
 			case JSON_VALUE_KIND_STRING:
-				string_append(json_string, format("\"{}\"", value.as_string.data, memory::temp_allocator()));
+				_json_value_string_to_string(value.as_string, json_string);
 				break;
 			case JSON_VALUE_KIND_ARRAY:
 				_json_value_array_to_string(value, json_string, indent_level + 1);
