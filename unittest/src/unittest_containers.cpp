@@ -271,6 +271,38 @@ TESTER_TEST("[CONTAINERS]: Stack_Array")
 	}
 }
 
+TESTER_TEST("[CONTAINERS]: String Byte Ranges")
+{
+	{
+		String s = string_init();
+		DEFER(string_deinit(s));
+		string_append(s, nullptr, 0);
+		TESTER_CHECK(s.count == 0 && s.data[0] == '\0');
+		const char bytes[] = {'a', '\0', 'b', 'c'};
+		string_append(s, bytes, 3);
+		TESTER_CHECK(s.count == 3);
+		TESTER_CHECK(s[0] == 'a' && s[1] == '\0' && s[2] == 'b');
+		TESTER_CHECK(s.data[s.count] == '\0');
+	}
+
+	String source = string_from("abcd");
+	DEFER(string_deinit(source));
+	const U64 capacities[] = {5, 64};
+	for (U64 capacity : capacities)
+	{
+		String s = string_with_capacity(capacity);
+		DEFER(string_deinit(s));
+		string_append(s, "abcd");
+		string_append(s, source.data + 1, 3);
+		TESTER_CHECK(s == "abcdbcd");
+		TESTER_CHECK(s.data[s.count] == '\0');
+		string_append(s, source);
+		TESTER_CHECK(s == "abcdbcdabcd");
+		TESTER_CHECK(s.data[s.count] == '\0');
+		TESTER_CHECK(source == "abcd");
+	}
+}
+
 TESTER_TEST("[CONTAINERS]: String")
 {
 	// ("init")

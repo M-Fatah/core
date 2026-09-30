@@ -546,6 +546,48 @@ platform_file_size(Platform_File_Handle handle)
 	return (U64)size.QuadPart;
 }
 
+U64
+platform_stdin_read(void *data, U64 size)
+{
+	if (data == nullptr || size == 0)
+		return 0;
+
+	HANDLE input = ::GetStdHandle(STD_INPUT_HANDLE);
+	while (true)
+	{
+		DWORD count = 0;
+		if (::ReadFile(input, data, (DWORD)u64_min(size, U32_MAX), &count, nullptr))
+		{
+			if (count == 0 && ::GetFileType(input) == FILE_TYPE_PIPE)
+				continue;
+
+			return count;
+		}
+
+		DWORD error = ::GetLastError();
+		if (error == ERROR_MORE_DATA)
+			return count;
+
+		if (error == ERROR_BROKEN_PIPE || error == ERROR_HANDLE_EOF)
+			return 0;
+
+		return U64_MAX;
+	}
+}
+
+U64
+platform_stdout_write(const void *data, U64 size)
+{
+	if (data == nullptr || size == 0)
+		return 0;
+
+	DWORD count = 0;
+	if (!::WriteFile(::GetStdHandle(STD_OUTPUT_HANDLE), data, (DWORD)u64_min(size, U32_MAX), &count, nullptr) || count == 0)
+		return U64_MAX;
+
+	return count;
+}
+
 inline static bool
 _platform_win32_extension_matches(const String &file_name, const String &extension_filter)
 {
