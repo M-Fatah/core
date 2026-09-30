@@ -8,6 +8,7 @@
 #include "core/memory/allocator.h"
 #include "core/memory/arena_allocator.h"
 #include "core/containers/array.h"
+#include "core/containers/slice.h"
 
 using String = Array<char>;
 
@@ -136,12 +137,27 @@ string_append(String &self, char c, I32 count)
 }
 
 inline static void
+string_append(String &self, const char *data, U64 count)
+{
+	if (data == nullptr || count == 0)
+		return;
+
+	string_reserve(self, count);
+	::memcpy(self.data + self.count, data, count);
+	self.count += count;
+	self.data[self.count] = '\0';
+}
+
+inline static void
+string_append(String &self, Slice<const char> other)
+{
+	string_append(self, other.data, other.count);
+}
+
+inline static void
 string_append(String &self, const String &other)
 {
-	string_reserve(self, other.count);
-	for (auto c : other)
-		array_push(self, c);
-	self.data[self.count] = '\0';
+	string_append(self, other.data, other.count);
 }
 
 inline static void

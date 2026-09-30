@@ -175,6 +175,8 @@ print_to(stdout, "{}\n", s.data);   // "hello world"
 | `string_literal(c_string)` | Non-owning view (no allocation, no `_deinit`) |
 | `string_copy(str, allocator)` | Copy into a new allocation (byte-for-byte) |
 
+Use `string_append(s, data, count)` for a byte range, including embedded nulls or data without a terminator. The `string_append(s, slice)` overload accepts `Slice<const char>` and appends its full byte range. The count excludes the terminator maintained by the destination. Null data or a zero count is a no-op. The source must reference readable bytes outside the destination allocation and remain valid for the duration of the call.
+
 ### Common operations
 
 ```cpp
