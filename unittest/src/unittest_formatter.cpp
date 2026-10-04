@@ -686,6 +686,30 @@ TESTER_TEST("[CORE]: Formatter")
 	}
 }
 
+TESTER_TEST("[CORE]: Formatter Text Slices")
+{
+	auto mark = memory::temp_allocator_mark();
+	DEFER(memory::temp_allocator_reset_to_mark(mark));
+
+	const char data[] = {'a', 'b', 'c', '!'};
+	Slice<const char> text(data, 3);
+	TESTER_CHECK(format("{}", text, memory::temp_allocator()) == "abc");
+	TESTER_CHECK(format("{:>5}", text, memory::temp_allocator()) == "  abc");
+	TESTER_CHECK(format("{:<5}", text, memory::temp_allocator()) == "abc  ");
+	TESTER_CHECK(format("{:^5}", text, memory::temp_allocator()) == " abc ");
+	TESTER_CHECK(format("[{1}][{0}]", text, Slice<const char>{}, memory::temp_allocator()) == "[][abc]");
+	TESTER_CHECK(format("{:>3}", Slice<const char>{}, memory::temp_allocator()) == "   ");
+
+	const char binary[] = {'a', '\0', 'b'};
+	String result = format("{:>5}", slice_from(binary, sizeof(binary)), memory::temp_allocator());
+	TESTER_CHECK(result.count == 5);
+	TESTER_CHECK(result[0] == ' ' && result[1] == ' ' && result[2] == 'a' && result[3] == '\0' && result[4] == 'b');
+
+	Formatter formatter = formatter_init(memory::temp_allocator());
+	format(formatter, text);
+	TESTER_CHECK(formatter.buffer == "abc");
+}
+
 TESTER_TEST("[CORE]: to_string")
 {
 	String buffer = to_string(1, memory::temp_allocator());

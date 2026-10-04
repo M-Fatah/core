@@ -2,6 +2,7 @@
 
 #include <core/defines.h>
 #include "core/containers/array.h"
+#include "core/containers/slice.h"
 #include "core/containers/string.h"
 #include "core/containers/hash_table.h"
 #include "core/memory/arena_allocator.h"
@@ -106,7 +107,7 @@ formatter_clear(Formatter &self)
 }
 
 inline static void
-format_apply_width_alignment(Formatter &self, const String &content, const Format_Options &options)
+format_apply_width_alignment(Formatter &self, Slice<const char> content, const Format_Options &options)
 {
 	if (options.width == 0 || content.count >= options.width)
 	{
@@ -205,6 +206,12 @@ format_apply_width_alignment(Formatter &self, const String &content, const Forma
 			string_append(self.buffer, pad_char);
 		string_append(self.buffer, content);
 	}
+}
+
+inline static void
+format_apply_width_alignment(Formatter &self, const String &content, const Format_Options &options)
+{
+	format_apply_width_alignment(self, slice_from(content), options);
 }
 
 template <typename T>
@@ -475,17 +482,29 @@ format(Formatter &self, const char *data, const Format_Options &options)
 }
 
 inline static String
-format(Formatter &self, const String &data)
+format(Formatter &self, Slice<const char> data)
 {
 	string_append(self.buffer, data);
 	return self.buffer;
 }
 
 inline static String
-format(Formatter &self, const String &data, const Format_Options &options)
+format(Formatter &self, Slice<const char> data, const Format_Options &options)
 {
 	format_apply_width_alignment(self, data, options);
 	return self.buffer;
+}
+
+inline static String
+format(Formatter &self, const String &data)
+{
+	return format(self, slice_from(data));
+}
+
+inline static String
+format(Formatter &self, const String &data, const Format_Options &options)
+{
+	return format(self, slice_from(data), options);
 }
 
 template <typename T>

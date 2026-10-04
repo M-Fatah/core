@@ -17,6 +17,8 @@ String s = format("Hello, {}! You are {} years old.", name, age);
 DEFER(string_deinit(s));
 ```
 
+`Slice<const char>` arguments are formatted as text using their exact byte count, with the same width and alignment behavior as `String`. They do not need a null terminator; embedded nulls are preserved in the returned string.
+
 Pass an explicit allocator as the **last** argument:
 
 ```cpp
