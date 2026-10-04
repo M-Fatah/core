@@ -1,6 +1,7 @@
 #include "core/json.h"
 
 #include "core/defer.h"
+#include "core/formatter.h"
 #include "core/math/f64.h"
 #include "core/memory/arena_allocator.h"
 #include "core/platform/platform.h"
@@ -593,18 +594,26 @@ _json_value_to_string(const JSON_Value &self, String &json_string, JSON_Locale l
 				if (!f64_is_finite(value->as_number))
 					return Error{"[JSON]: Cannot serialize a non-finite number."};
 
-				char buffer[32];
-#if defined(PLATFORM_WINDOWS)
-				I32 count = ::_snprintf_s_l(buffer, sizeof(buffer), _TRUNCATE, "%.17g", locale, value->as_number);
-#elif defined(PLATFORM_MACOS) || defined(PLATFORM_IOS)
-				I32 count = ::snprintf_l(buffer, sizeof(buffer), locale, "%.17g", value->as_number);
-#else
-				locale_t previous_locale = ::uselocale(locale);
-				validate(previous_locale != nullptr);
-				DEFER(validate(::uselocale(previous_locale) != nullptr));
+				F64 number = value->as_number;
+				if (number >= (F64)I64_MIN && number < (F64)I64_MAX && number == (I64)number && (number != 0 || !::signbit(number)))
+				{
+					Formatter formatter = {.buffer = json_string};
+					json_string = format(formatter, (I64)number);
+					break;
+				}
 
-				I32 count = ::snprintf(buffer, sizeof(buffer), "%.17g", value->as_number);
-#endif
+				char buffer[32];
+				#if defined(PLATFORM_WINDOWS)
+					I32 count = ::_snprintf_s_l(buffer, sizeof(buffer), _TRUNCATE, "%.17g", locale, value->as_number);
+				#elif defined(PLATFORM_MACOS) || defined(PLATFORM_IOS)
+					I32 count = ::snprintf_l(buffer, sizeof(buffer), locale, "%.17g", value->as_number);
+				#else
+					locale_t previous_locale = ::uselocale(locale);
+					validate(previous_locale != nullptr);
+					DEFER(validate(::uselocale(previous_locale) != nullptr));
+
+					I32 count = ::snprintf(buffer, sizeof(buffer), "%.17g", value->as_number);
+				#endif
 
 				validate(count > 0 && count < (I32)sizeof(buffer));
 				string_append(json_string, buffer, (U64)count);

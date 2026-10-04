@@ -55,6 +55,18 @@ TESTER_TEST("[CORE]: Formatter")
 		buffer = format("{}/{}", -3, 3, memory::temp_allocator());
 		TESTER_CHECK(buffer == "-3/3");
 
+		buffer = format("{}/{}/{}/{}", (I8)I8_MIN, (I16)I16_MIN, I32_MIN, I64_MIN, memory::temp_allocator());
+		TESTER_CHECK(buffer == "-128/-32768/-2147483648/-9223372036854775808");
+
+		buffer = format("{}/{}", I64_MAX, U64_MAX, memory::temp_allocator());
+		TESTER_CHECK(buffer == "9223372036854775807/18446744073709551615");
+
+		buffer = format("{:x}/{:X}", I64_MIN, U64_MAX, memory::temp_allocator());
+		TESTER_CHECK(buffer == "-0x8000000000000000/0XFFFFFFFFFFFFFFFF");
+
+		buffer = format("{:022}", I64_MIN, memory::temp_allocator());
+		TESTER_CHECK(buffer == "-009223372036854775808");
+
 		buffer = format("{}", vec3{1, 2, 3}, memory::temp_allocator());
 		TESTER_CHECK(buffer == "{1, 2, 3}");
 

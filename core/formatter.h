@@ -223,17 +223,14 @@ format(Formatter &self, T data, U8 base = 10, bool uppercase = false)
 
 	bool is_negative = false;
 	if constexpr (std::is_signed_v<T>)
-	{
 		is_negative = (data < 0);
-		if (is_negative)
-			data = (T)(-data);
-	}
 
 	char temp[64] = {};
 	U64 count = 0;
 	do
 	{
-		temp[count++] = digits[(U64)(data % base)];
+		I32 digit = (I32)(data % base);
+		temp[count++] = digits[is_negative ? -digit : digit];
 		data = (T)(data / base);
 	} while (data != 0);
 
