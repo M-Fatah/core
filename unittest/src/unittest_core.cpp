@@ -2149,8 +2149,10 @@ TESTER_TEST("[CORE]: JSON Unicode")
 
 TESTER_TEST("[CORE]: JSON Numbers And Root Values")
 {
-	F64 numbers[] = {0.0, -0.0, 0.1, 1.2345678901234567, -2147483648.0, 2147483647.0,
-		9007199254740991.0, 1.0e20, 1.0e-20, DBL_MIN, DBL_MAX, -DBL_MAX, 0x1p-1074};
+	F64 numbers[] = {0.0, -0.0, 0.1, -0.1, 1.2345678901234567, -2147483648.0, 2147483647.0,
+		1.0, -1.0, 4294967295.0, 9007199254740991.0, -9007199254740991.0,
+		0x1p63, -0x1p63, 0x1p63 - 1024.0, -0x1p63 + 1024.0, 0x1p63 + 2048.0, -0x1p63 - 2048.0,
+		1.0e20, 1.0e-20, DBL_MIN, DBL_MAX, -DBL_MAX, 0x1p-1074};
 	for (F64 number : numbers)
 	{
 		JSON_Value value = json_value_init_as_number(number);
