@@ -60,11 +60,22 @@ platform_file_tell(Platform_File_Handle handle);
 CORE_API U64
 platform_file_size(Platform_File_Handle handle);
 
-CORE_API U64
-platform_stdin_read(void *data, U64 size);
+struct Platform_IO_Cancellation;
+
+CORE_API Platform_IO_Cancellation *
+platform_io_cancellation_init();
+
+CORE_API void
+platform_io_cancellation_deinit(Platform_IO_Cancellation *self);
+
+CORE_API void
+platform_io_cancel(Platform_IO_Cancellation *self);
 
 CORE_API U64
-platform_stdout_write(const void *data, U64 size);
+platform_stdin_read(void *data, U64 size, Platform_IO_Cancellation *cancellation = nullptr);
+
+CORE_API U64
+platform_stdout_write(const void *data, U64 size, Platform_IO_Cancellation *cancellation = nullptr);
 
 // ============================================================
 // Path Utilities
@@ -1003,6 +1014,9 @@ platform_condition_variable_deinit(Platform_Condition_Variable *self);
 
 CORE_API void
 platform_condition_variable_wait(Platform_Condition_Variable *self, Platform_Mutex *mutex);
+
+CORE_API bool
+platform_condition_variable_wait(Platform_Condition_Variable *self, Platform_Mutex *mutex, U32 milliseconds);
 
 CORE_API void
 platform_condition_variable_signal(Platform_Condition_Variable *self);
