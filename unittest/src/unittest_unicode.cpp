@@ -32,7 +32,7 @@ TESTER_TEST("[CORE]: UTF-8 Decode")
 	};
 	for (const Test_Case &entry : cases)
 	{
-		Utf8_Character character = utf8_decode(entry.text);
+		Unicode_Utf8_Character character = unicode_decode_utf8(entry.text);
 		TESTER_CHECK(character.code_point == entry.code_point);
 		TESTER_CHECK(character.byte_count == entry.byte_count);
 	}
@@ -74,5 +74,5 @@ TESTER_TEST("[CORE]: Unicode Column Width")
 		{0x110000, -1},
 	};
 	for (const Test_Case &entry : cases)
-		TESTER_CHECK(unicode_column_width(entry.code_point) == entry.width);
+		TESTER_CHECK(unicode_get_column_width(entry.code_point) == entry.width);
 }

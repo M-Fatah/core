@@ -193,15 +193,16 @@ _unicode_contains(Slice<const U32[2]> ranges, U32 code_point)
 	return false;
 }
 
-Utf8_Character
-utf8_decode(Slice<const char> text)
+// API.
+Unicode_Utf8_Character
+unicode_decode_utf8(Slice<const char> text)
 {
 	if (text.count == 0)
-		return Utf8_Character{};
+		return Unicode_Utf8_Character{};
 
 	U8 first = (U8)text[0];
 	if (first < 0x80)
-		return Utf8_Character{.code_point = first, .byte_count = 1};
+		return Unicode_Utf8_Character{.code_point = first, .byte_count = 1};
 
 	U32 count   = 0;
 	U32 value   = 0;
@@ -226,29 +227,29 @@ utf8_decode(Slice<const char> text)
 	}
 	else
 	{
-		return Utf8_Character{};
+		return Unicode_Utf8_Character{};
 	}
 
 	if (text.count < count)
-		return Utf8_Character{};
+		return Unicode_Utf8_Character{};
 
 	for (U32 i = 1; i < count; ++i)
 	{
 		U8 next = (U8)text[i];
 		if ((next & 0xc0) != 0x80)
-			return Utf8_Character{};
+			return Unicode_Utf8_Character{};
 
 		value = (value << 6) | (next & 0x3f);
 	}
 
 	if (value < minimum || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff))
-		return Utf8_Character{};
+		return Unicode_Utf8_Character{};
 
-	return Utf8_Character{.code_point = value, .byte_count = count};
+	return Unicode_Utf8_Character{.code_point = value, .byte_count = count};
 }
 
 I32
-unicode_column_width(U32 code_point)
+unicode_get_column_width(U32 code_point)
 {
 	if (code_point == 0)
 		return 0;
