@@ -259,6 +259,17 @@ platform_path_is_directory(const String &path)
 	return (attributes != INVALID_FILE_ATTRIBUTES && attributes & FILE_ATTRIBUTE_DIRECTORY);
 }
 
+bool
+platform_path_is_absolute(const String &path)
+{
+	if (path.count >= 2 && (path[0] == '/' || path[0] == '\\') && (path[1] == '/' || path[1] == '\\'))
+		return true;
+	if (path.count < 3)
+		return false;
+	char drive = string_to_lowercase(path[0]);
+	return drive >= 'a' && drive <= 'z' && path[1] == ':' && (path[2] == '/' || path[2] == '\\');
+}
+
 String
 platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 {
@@ -278,7 +289,7 @@ platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 String
 platform_path_get_directory(const String &path, memory::Allocator *allocator)
 {
-	if (!platform_path_is_valid(path))
+	if (path.count == 0)
 		return string_literal("");
 
 	String path_directory = string_copy(path, allocator);
@@ -288,8 +299,21 @@ platform_path_get_directory(const String &path, memory::Allocator *allocator)
 		return path_directory;
 
 	U64 path_directory_length = string_find_last_of(path_directory, '/');
-	if (path_directory_length != U64(-1))
-		string_resize(path_directory, path_directory_length);
+	if (path_directory_length == U64(-1) && path_directory.count >= 2 && path_directory[1] == ':')
+	{
+		string_resize(path_directory, 2);
+	}
+	else if (path_directory_length == U64(-1))
+	{
+		string_clear(path_directory);
+		string_append(path_directory, '.');
+	}
+	else
+	{
+		if (path_directory_length == 2 && path_directory[1] == ':')
+			++path_directory_length;
+		string_resize(path_directory, u64_max(1, path_directory_length));
+	}
 	return path_directory;
 }
 

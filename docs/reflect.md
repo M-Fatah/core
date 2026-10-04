@@ -17,6 +17,8 @@ const char *name = name_of<MyStruct>();   // "MyStruct"
 const char *name = name_of<MyStruct*>();  // "MyStruct*"
 ```
 
+Native `long` and `unsigned long` names use Core's integer names according to their width: `i64`/`u64` when 64-bit, and `i32`/`u32` when 32-bit. This also applies inside qualified and template types, independently of the compiler's native type spelling.
+
 ---
 
 ## Type Kinds

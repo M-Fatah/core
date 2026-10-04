@@ -146,6 +146,12 @@ String cache = platform_path_get_cache_directory();
 
 All functions accept both `String` and `const char *`.
 
+`platform_path_is_absolute` checks filesystem path syntax without allocating, accessing the filesystem, or requiring the path to exist. Windows accepts drive-letter paths with a root separator and UNC/device paths; `C:folder` and a single leading separator remain relative to process drive state. POSIX platforms require a leading `/`. Empty paths and opaque Android/iOS document identifiers return false. This query does not validate the rest of the path.
+
+`platform_path_get_absolute` also accepts paths that do not exist yet. On POSIX, it resolves existing components through `realpath`, removes repeated separators and `.` components, and collapses `..` without moving above the filesystem root. An existing symlink ancestor is resolved before processing following components. Missing or inaccessible components remain lexical; this is path normalization, not a check that the result exists or is accessible. Opaque Android content URIs and iOS document tokens retain their provider identity.
+
+`platform_path_get_directory` extracts the directory portion of a filesystem path even when the file or its parent directories do not exist yet. Existing directories are returned directly. Paths without a directory component use `.`, or their drive prefix on Windows. Root separators are preserved. This supports resolving sibling paths for new files before they are saved.
+
 `platform_path_get_app_data_directory` returns the platform's persistent app-data base directory with a trailing slash. `platform_path_get_cache_directory` returns the platform's cache-data base directory with a trailing slash. On desktop platforms these are user-level base directories, so apps should create their own product subdirectory inside them. On Android they are the package-private files and cache directories. On iOS they are the app's sandboxed `Library/Application Support` and `Library/Caches` directories; the temporary-directory API returns the sandboxed `tmp` directory.
 
 Path mutation APIs return the resulting path. Provider-backed results remain opaque: Android can return a new `content://` URI, while iOS returns a new `core-document://` token after create, rename, or move.

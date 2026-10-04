@@ -156,6 +156,9 @@ TESTER_TEST("[CORE]: Reflect")
 		auto const_u32_name = name_of<const U32>();
 		auto const_u64_name = name_of<const U64>();
 
+		auto const_long_name = name_of<const long>();
+		auto const_unsigned_long_name = name_of<const unsigned long>();
+
 		auto const_f32_name = name_of<const F32>();
 		auto const_f64_name = name_of<const F64>();
 
@@ -194,6 +197,9 @@ TESTER_TEST("[CORE]: Reflect")
 		TESTER_CHECK(string_literal(const_u16_name) == "const u16");
 		TESTER_CHECK(string_literal(const_u32_name) == "const u32");
 		TESTER_CHECK(string_literal(const_u64_name) == "const u64");
+
+		TESTER_CHECK(string_literal(const_long_name) == (sizeof(long) == sizeof(I64) ? "const i64" : "const i32"));
+		TESTER_CHECK(string_literal(const_unsigned_long_name) == (sizeof(unsigned long) == sizeof(U64) ? "const u64" : "const u32"));
 
 		TESTER_CHECK(string_literal(const_f32_name) == "const f32");
 		TESTER_CHECK(string_literal(const_f64_name) == "const f64");
@@ -255,6 +261,9 @@ TESTER_TEST("[CORE]: Reflect")
 		auto point_u32_name = name_of<Point<U32>>();
 		auto point_u64_name = name_of<Point<U64>>();
 
+		auto point_long_name = name_of<Point<long>>();
+		auto point_unsigned_long_name = name_of<Point<unsigned long>>();
+
 		auto point_f32_name = name_of<Point<F32>>();
 		auto point_f64_name = name_of<Point<F64>>();
 
@@ -285,6 +294,9 @@ TESTER_TEST("[CORE]: Reflect")
 		TESTER_CHECK(string_literal(point_u16_name) == "Point<u16>");
 		TESTER_CHECK(string_literal(point_u32_name) == "Point<u32>");
 		TESTER_CHECK(string_literal(point_u64_name) == "Point<u64>");
+
+		TESTER_CHECK(string_literal(point_long_name) == (sizeof(long) == sizeof(I64) ? "Point<i64>" : "Point<i32>"));
+		TESTER_CHECK(string_literal(point_unsigned_long_name) == (sizeof(unsigned long) == sizeof(U64) ? "Point<u64>" : "Point<u32>"));
 
 		TESTER_CHECK(string_literal(point_f32_name) == "Point<f32>");
 		TESTER_CHECK(string_literal(point_f64_name) == "Point<f64>");
