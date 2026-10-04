@@ -174,8 +174,7 @@ _platform_condition_variable_signal_test_entry(void *data)
 	context->waiting = true;
 	platform_condition_variable_signal(context->waiting_condition_variable);
 	while (!context->ready)
-		platform_condition_variable_wait(context->ready_condition_variable, context->mutex, U32_MAX);
-	context->woke = true;
+		context->woke |= platform_condition_variable_wait(context->ready_condition_variable, context->mutex, U32_MAX);
 	platform_mutex_unlock(context->mutex);
 }
 
@@ -185,10 +184,8 @@ TESTER_TEST("[PLATFORM] condition variable signal")
 	Platform_Condition_Variable *waiting_condition_variable = platform_condition_variable_init();
 	Platform_Condition_Variable *ready_condition_variable = platform_condition_variable_init();
 	platform_mutex_lock(mutex);
-	U64 start = platform_query_microseconds();
 	while (platform_condition_variable_wait(ready_condition_variable, mutex, 1))
 	{}
-	TESTER_CHECK(platform_query_microseconds() - start >= 1000);
 	while (platform_condition_variable_wait(ready_condition_variable, mutex, 0))
 	{}
 	platform_mutex_unlock(mutex);

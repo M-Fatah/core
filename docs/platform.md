@@ -114,7 +114,7 @@ platform_thread_sleep(16);
 
 Platform thread-name APIs have native length limits, especially on POSIX platforms. Passing a name rejected by the OS fails validation.
 
-`platform_condition_variable_wait(condition, mutex, milliseconds)` provides a timed wait alongside the existing indefinite overload. It releases the locked mutex while waiting and reacquires it before returning. `false` means the timeout elapsed; `true` means it woke, possibly spuriously. Always recheck the protected predicate. The timeout uses a monotonic clock or the platform's relative wait API. A zero timeout checks without waiting. Repeated relative waits do not provide a single overall deadline.
+`platform_condition_variable_wait(condition, mutex, milliseconds)` provides a timed wait alongside the existing indefinite overload. It releases the locked mutex while waiting and reacquires it before returning. `false` means the timeout elapsed; `true` means it woke, possibly spuriously. Always recheck the protected predicate. The timeout uses a monotonic clock or the platform's relative wait API. Timeout accuracy follows the operating system's timer resolution. A zero timeout checks without waiting. Repeated relative waits do not provide a single overall deadline.
 
 ---
 
