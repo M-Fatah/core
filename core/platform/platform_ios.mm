@@ -2717,6 +2717,12 @@ platform_path_get_file_size(const String &path)
 	return (U64)file_stat.st_size;
 }
 
+bool
+platform_path_is_absolute(const String &path)
+{
+	return path.count > 0 && path[0] == '/';
+}
+
 String
 platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 {
@@ -2725,24 +2731,38 @@ platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 	if (string_starts_with(path, PLATFORM_IOS_DOCUMENT_TOKEN_PREFIX))
 		return string_copy(path, allocator);
 
-	char absolute_path[PATH_MAX] = {};
-	if (::realpath(path.data, absolute_path) != nullptr)
-		return string_from(absolute_path, allocator);
+	char buffer[PATH_MAX] = {};
+	if (::realpath(path.data, buffer))
+		return string_from(buffer, allocator);
 
-	if (path[0] == '/')
+	String result = path.count > 0 && path[0] == '/' ? string_from("/", allocator) : platform_path_get_current_working_directory(allocator);
+	for (U64 i = 0; i < path.count;)
 	{
-		String result = string_copy(path, allocator);
-		string_replace(result, '\\', '/');
-		return result;
+		if (path[i] == '/')
+		{
+			++i;
+			continue;
+		}
+		U64 start = i;
+		while (i < path.count && path[i] != '/')
+			++i;
+		U64 count = i - start;
+		if (count == 1 && path[start] == '.')
+			continue;
+		if (count == 2 && path[start] == '.' && path[start + 1] == '.')
+		{
+			string_resize(result, u64_max(1, string_find_last_of(result, '/')));
+			continue;
+		}
+		if (result.count > 1)
+			string_append(result, '/');
+		string_append(result, &path[start], count);
+		if (::realpath(result.data, buffer))
+		{
+			string_clear(result);
+			string_append(result, buffer);
+		}
 	}
-
-	String result = platform_path_get_current_working_directory(allocator);
-	if (string_is_empty(result))
-		return result;
-	if (result[result.count - 1] != '/')
-		string_append(result, '/');
-	string_append(result, path);
-	string_replace(result, '\\', '/');
 	return result;
 }
 
@@ -2784,7 +2804,7 @@ platform_path_get_directory(const String &path, memory::Allocator *allocator)
 		return string_init(allocator);
 	}
 
-	if (!platform_path_is_valid(path))
+	if (path.count == 0)
 		return string_init(allocator);
 
 	if (platform_path_is_directory(path))

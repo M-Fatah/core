@@ -280,6 +280,33 @@ TESTER_TEST("[PLATFORM] condition variable broadcast")
 
 TESTER_TEST("[PLATFORM] path utilities")
 {
+	TESTER_CHECK(!platform_path_is_absolute(String{}));
+	TESTER_CHECK(!platform_path_is_absolute(""));
+	TESTER_CHECK(!platform_path_is_absolute("."));
+	TESTER_CHECK(!platform_path_is_absolute("../modules"));
+	TESTER_CHECK(!platform_path_is_absolute("modules/Math.mpl"));
+	TESTER_CHECK(!platform_path_is_absolute("content://provider/document"));
+	TESTER_CHECK(!platform_path_is_absolute("core-document://token"));
+	#if PLATFORM_WINDOWS
+		TESTER_CHECK(platform_path_is_absolute("C:/modules/Math.mpl"));
+		TESTER_CHECK(platform_path_is_absolute("c:\\modules\\Math.mpl"));
+		TESTER_CHECK(platform_path_is_absolute("//server/share/Math.mpl"));
+		TESTER_CHECK(platform_path_is_absolute("\\\\server\\share\\Math.mpl"));
+		TESTER_CHECK(platform_path_is_absolute("\\\\?\\C:\\modules\\Math.mpl"));
+		TESTER_CHECK(platform_path_is_absolute("\\\\.\\C:\\modules\\Math.mpl"));
+		TESTER_CHECK(!platform_path_is_absolute("C:"));
+		TESTER_CHECK(!platform_path_is_absolute("C:modules\\Math.mpl"));
+		TESTER_CHECK(!platform_path_is_absolute("/modules/Math.mpl"));
+		TESTER_CHECK(!platform_path_is_absolute("\\modules\\Math.mpl"));
+		TESTER_CHECK(!platform_path_is_absolute("1:/modules/Math.mpl"));
+	#else
+		TESTER_CHECK(platform_path_is_absolute("/"));
+		TESTER_CHECK(platform_path_is_absolute("/modules/Math.mpl"));
+		TESTER_CHECK(platform_path_is_absolute("//modules/Math.mpl"));
+		TESTER_CHECK(!platform_path_is_absolute("C:/modules/Math.mpl"));
+		TESTER_CHECK(!platform_path_is_absolute("\\modules\\Math.mpl"));
+	#endif
+
 	String executable_path = platform_path_get_executable_path(memory::temp_allocator());
 	TESTER_CHECK(executable_path.count > 0);
 	TESTER_CHECK(platform_path_is_file(executable_path));
@@ -319,6 +346,28 @@ TESTER_TEST("[PLATFORM] path utilities")
 	string_replace(resolved_relative_path, '\\', '/');
 	TESTER_CHECK(resolved_relative_path == missing_path);
 	TESTER_CHECK(resolved_relative_path.data[resolved_relative_path.count] == '\0');
+
+	String dotted_path = format("./unused/.././{}", missing_name, memory::temp_allocator());
+	String resolved_dotted_path = platform_path_get_absolute(dotted_path, memory::temp_allocator());
+	string_replace(resolved_dotted_path, '\\', '/');
+	TESTER_CHECK(resolved_dotted_path == missing_path);
+
+	String nested_path = format("{}/unused//.././file.mpl", missing_path, memory::temp_allocator());
+	String resolved_nested_path = platform_path_get_absolute(nested_path, memory::temp_allocator());
+	string_replace(resolved_nested_path, '\\', '/');
+	TESTER_CHECK(resolved_nested_path == format("{}/file.mpl", missing_path, memory::temp_allocator()));
+
+	TESTER_CHECK(platform_path_get_directory(missing_path, memory::temp_allocator()) == working_directory);
+	TESTER_CHECK(platform_path_get_directory(missing_name, memory::temp_allocator()) == ".");
+	TESTER_CHECK(platform_path_get_directory(format("/{}", missing_name, memory::temp_allocator()), memory::temp_allocator()) == "/");
+	#if PLATFORM_WINDOWS
+		TESTER_CHECK(platform_path_get_directory(format("C:/{}", missing_name, memory::temp_allocator()), memory::temp_allocator()) == "C:/");
+		TESTER_CHECK(platform_path_get_directory(format("C:{}", missing_name, memory::temp_allocator()), memory::temp_allocator()) == "C:");
+	#endif
+	TESTER_CHECK(platform_path_get_directory(format("{}/nested/file.mpl", missing_name, memory::temp_allocator()), memory::temp_allocator()) == format("{}/nested", missing_name, memory::temp_allocator()));
+	TESTER_CHECK(platform_path_get_directory(format("{}\\nested\\file.mpl", missing_name, memory::temp_allocator()), memory::temp_allocator()) == format("{}/nested", missing_name, memory::temp_allocator()));
+	TESTER_CHECK(platform_path_get_directory(working_directory, memory::temp_allocator()) == working_directory);
+	TESTER_CHECK(platform_path_get_directory(String{}, memory::temp_allocator()).count == 0);
 
 	TESTER_CHECK(platform_path_get_file_name("folder\\sub/file.txt", memory::temp_allocator()) == "file.txt");
 	TESTER_CHECK(platform_path_get_file_name("file.txt", memory::temp_allocator()) == "file.txt");

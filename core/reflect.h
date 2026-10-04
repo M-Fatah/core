@@ -181,10 +181,10 @@ _reflect_append_name(char *name, U64 &count, std::string_view type_name)
 			string_append(name, "i64", count);
 			type_name.remove_prefix(7);
 		}
-		else if (type_name.starts_with("long int"))
+		else if (type_name == "long" || type_name.starts_with("long int"))
 		{
-			string_append(name, "i64", count);
-			type_name.remove_prefix(8);
+			string_append(name, sizeof(long) == sizeof(I64) ? "i64" : "i32", count);
+			type_name.remove_prefix(type_name == "long" ? 4 : 8);
 		}
 		else if (type_name.starts_with("long long"))
 		{
@@ -216,10 +216,10 @@ _reflect_append_name(char *name, U64 &count, std::string_view type_name)
 			string_append(name, "u64", count);
 			type_name.remove_prefix(16);
 		}
-		else if (type_name.starts_with("long unsigned int"))
+		else if (type_name == "unsigned long" || type_name.starts_with("long unsigned int"))
 		{
-			string_append(name, "u64", count);
-			type_name.remove_prefix(17);
+			string_append(name, sizeof(unsigned long) == sizeof(U64) ? "u64" : "u32", count);
+			type_name.remove_prefix(type_name == "unsigned long" ? 13 : 17);
 		}
 		else if (type_name.starts_with("unsigned long long"))
 		{

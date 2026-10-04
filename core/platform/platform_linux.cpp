@@ -245,27 +245,54 @@ platform_path_is_directory(const String &path)
 	return ::stat(path.data, &path_stat) == 0 && S_ISDIR(path_stat.st_mode);
 }
 
+bool
+platform_path_is_absolute(const String &path)
+{
+	return path.count > 0 && path[0] == '/';
+}
+
 String
 platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 {
 	char buffer[PATH_MAX] = {};
-	if(::realpath(path.data, buffer))
+	if (::realpath(path.data, buffer))
 		return string_from(buffer, allocator);
 
-	if (path.count > 0 && path[0] == '/')
-		return string_copy(path, allocator);
-
-	String full_path = platform_path_get_current_working_directory(allocator);
-	if (full_path.count > 0 && full_path[full_path.count - 1] != '/')
-		string_append(full_path, '/');
-	string_append(full_path, path);
-	return full_path;
+	String result = path.count > 0 && path[0] == '/' ? string_from("/", allocator) : platform_path_get_current_working_directory(allocator);
+	for (U64 i = 0; i < path.count;)
+	{
+		if (path[i] == '/')
+		{
+			++i;
+			continue;
+		}
+		U64 start = i;
+		while (i < path.count && path[i] != '/')
+			++i;
+		U64 count = i - start;
+		if (count == 1 && path[start] == '.')
+			continue;
+		if (count == 2 && path[start] == '.' && path[start + 1] == '.')
+		{
+			string_resize(result, u64_max(1, string_find_last_of(result, '/')));
+			continue;
+		}
+		if (result.count > 1)
+			string_append(result, '/');
+		string_append(result, &path[start], count);
+		if (::realpath(result.data, buffer))
+		{
+			string_clear(result);
+			string_append(result, buffer);
+		}
+	}
+	return result;
 }
 
 String
 platform_path_get_directory(const String &path, memory::Allocator *allocator)
 {
-	if (!platform_path_is_valid(path))
+	if (path.count == 0)
 		return string_literal("");
 
 	String path_directory = string_copy(path, allocator);
@@ -275,8 +302,15 @@ platform_path_get_directory(const String &path, memory::Allocator *allocator)
 		return path_directory;
 
 	U64 path_directory_length = string_find_last_of(path_directory, '/');
-	if (path_directory_length != U64(-1))
-		string_resize(path_directory, path_directory_length);
+	if (path_directory_length == U64(-1))
+	{
+		string_clear(path_directory);
+		string_append(path_directory, '.');
+	}
+	else
+	{
+		string_resize(path_directory, u64_max(1, path_directory_length));
+	}
 	return path_directory;
 }
 

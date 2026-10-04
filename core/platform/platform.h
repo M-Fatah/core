@@ -111,6 +111,15 @@ platform_path_get_file_size(const char *path)
 	return platform_path_get_file_size(string_literal(path));
 }
 
+CORE_API bool
+platform_path_is_absolute(const String &path);
+
+inline static bool
+platform_path_is_absolute(const char *path)
+{
+	return platform_path_is_absolute(string_literal(path));
+}
+
 CORE_API String
 platform_path_get_absolute(const String &path, memory::Allocator *allocator = memory::heap_allocator());
 
