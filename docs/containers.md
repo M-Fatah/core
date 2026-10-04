@@ -177,6 +177,8 @@ print_to(stdout, "{}\n", s.data);   // "hello world"
 
 Use `string_append(s, data, count)` for a byte range, including embedded nulls or data without a terminator. The `string_append(s, slice)` overload accepts `Slice<const char>` and appends its full byte range. The count excludes the terminator maintained by the destination. Null data or a zero count is a no-op. The source must reference readable bytes outside the destination allocation and remain valid for the duration of the call.
 
+Use `string_replace(s, start, count, replacement)` to replace a byte range. A zero count inserts; an empty replacement deletes. Replacement accepts a `Slice<const char>`, a `String`, a C string, or a pointer followed by its byte count. It preserves embedded nulls and the destination terminator, reuses capacity, and moves only the suffix. The range must lie within the initialized destination, and nonempty replacement data must remain readable outside its allocation for the duration of the call.
+
 ### Common operations
 
 ```cpp

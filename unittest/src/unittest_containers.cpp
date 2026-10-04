@@ -303,6 +303,68 @@ TESTER_TEST("[CONTAINERS]: String Byte Ranges")
 	}
 }
 
+TESTER_TEST("[CONTAINERS]: String Range Replacement")
+{
+	struct Test_Case
+	{
+		const char *input;
+		U64 start;
+		U64 count;
+		const char *replacement;
+		const char *expected;
+	};
+
+	const Test_Case cases[] = {
+		{"", 0, 0, "", ""},
+		{"", 0, 0, "MPL", "MPL"},
+		{"abcd", 0, 0, "x", "xabcd"},
+		{"abcd", 4, 0, "xy", "abcdxy"},
+		{"abcd", 1, 2, "XYZ", "aXYZd"},
+		{"abcd", 1, 2, "x", "axd"},
+		{"abcd", 1, 2, "", "ad"},
+		{"abcd", 0, 4, "", ""},
+		{"abcd", 0, 4, "long replacement", "long replacement"},
+		{"abcd", 1, 2, "XY", "aXYd"},
+		{"abcd", 2, 2, "X", "abX"}
+	};
+
+	for (const Test_Case &entry : cases)
+	{
+		String input = string_literal(entry.input);
+		const U64 capacities[] = {input.count + 1, 64};
+		for (U64 capacity : capacities)
+		{
+			String s = string_with_capacity(capacity);
+			DEFER(string_deinit(s));
+			string_append(s, input);
+			char *data = s.data;
+
+			string_replace(s, entry.start, entry.count, entry.replacement);
+			TESTER_CHECK(s == entry.expected);
+			TESTER_CHECK(s.data[s.count] == '\0');
+			if (s.count < capacity)
+				TESTER_CHECK(s.data == data);
+		}
+	}
+
+	String s = string_from("abcd");
+	DEFER(string_deinit(s));
+	const char bytes[]    = {'x', '\0', 'y'};
+	const char expected[] = {'a', 'x', '\0', 'y', 'd'};
+	string_replace(s, 1, 2, bytes, sizeof(bytes));
+	TESTER_CHECK((Slice<const char>{s.data, s.count} == Slice<const char>{expected, sizeof(expected)}));
+	TESTER_CHECK(s.data[s.count] == '\0');
+
+	String suffix = string_literal("!");
+	string_replace(s, s.count, 0, suffix);
+	TESTER_CHECK(s.count == 6 && s[5] == '!' && s.data[6] == '\0');
+	string_replace(s, 0, s.count, Slice<const char>{bytes, sizeof(bytes)});
+	TESTER_CHECK((Slice<const char>{s.data, s.count} == Slice<const char>{bytes, sizeof(bytes)}));
+	TESTER_CHECK(s.data[s.count] == '\0');
+	string_replace(s, 0, s.count, nullptr, 0);
+	TESTER_CHECK(s.count == 0 && s.data[0] == '\0');
+}
+
 TESTER_TEST("[CONTAINERS]: String")
 {
 	// ("init")
