@@ -550,7 +550,7 @@ struct Platform_IO_Cancellation
 {
 	SRWLOCK mutex;
 	HANDLE thread;
-	HANDLE finished;
+	CONDITION_VARIABLE finished;
 	bool cancelled;
 };
 
@@ -559,8 +559,7 @@ platform_io_cancellation_init()
 {
 	Platform_IO_Cancellation *self = memory::allocate_zeroed<Platform_IO_Cancellation>();
 	::InitializeSRWLock(&self->mutex);
-	self->finished = ::CreateEventW(nullptr, true, true, nullptr);
-	validate(self->finished != nullptr);
+	::InitializeConditionVariable(&self->finished);
 	return self;
 }
 
@@ -568,27 +567,20 @@ void
 platform_io_cancellation_deinit(Platform_IO_Cancellation *self)
 {
 	validate(self->thread == nullptr);
-	validate(::CloseHandle(self->finished));
 	memory::deallocate(self);
 }
 
 void
 platform_io_cancel(Platform_IO_Cancellation *self)
 {
-	while (true)
+	::AcquireSRWLockExclusive(&self->mutex);
+	DEFER(::ReleaseSRWLockExclusive(&self->mutex));
+	self->cancelled = true;
+	while (self->thread != nullptr)
 	{
-		::AcquireSRWLockExclusive(&self->mutex);
-		self->cancelled = true;
-		bool active = self->thread != nullptr;
-		if (active)
-			validate(::CancelSynchronousIo(self->thread) || ::GetLastError() == ERROR_NOT_FOUND);
-		::ReleaseSRWLockExclusive(&self->mutex);
-		if (!active)
-			return;
-		DWORD result = ::WaitForSingleObject(self->finished, 1);
-		validate(result != WAIT_FAILED);
-		if (result == WAIT_OBJECT_0)
-			return;
+		validate(::CancelSynchronousIo(self->thread) || ::GetLastError() == ERROR_NOT_FOUND);
+		BOOL result = ::SleepConditionVariableSRW(&self->finished, &self->mutex, 1, 0);
+		validate(result || ::GetLastError() == ERROR_TIMEOUT);
 	}
 }
 
@@ -601,7 +593,6 @@ _platform_io_begin(Platform_IO_Cancellation *self)
 		return false;
 	validate(self->thread == nullptr);
 	validate(::DuplicateHandle(::GetCurrentProcess(), ::GetCurrentThread(), ::GetCurrentProcess(), &self->thread, 0, false, DUPLICATE_SAME_ACCESS));
-	validate(::ResetEvent(self->finished));
 	return true;
 }
 
@@ -611,7 +602,7 @@ _platform_io_end(Platform_IO_Cancellation *self)
 	::AcquireSRWLockExclusive(&self->mutex);
 	validate(::CloseHandle(self->thread));
 	self->thread = nullptr;
-	validate(::SetEvent(self->finished));
+	::WakeAllConditionVariable(&self->finished);
 	::ReleaseSRWLockExclusive(&self->mutex);
 }
 
