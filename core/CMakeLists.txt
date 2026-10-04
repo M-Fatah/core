@@ -15,6 +15,7 @@ set(HEADER_FILES
     scheduler.h
     source_location.h
     tester.h
+    unicode.h
     uuid.h
     compiler/compiler_clang.h
     compiler/compiler_gcc.h
@@ -72,6 +73,7 @@ set(SOURCE_FILES
     json.cpp
     scheduler.cpp
     tester.cpp
+    unicode.cpp
     uuid.cpp
     memory/heap_allocator.cpp
     memory/arena_allocator.cpp

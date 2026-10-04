@@ -9,6 +9,7 @@ set(SOURCE_FILES
     src/unittest_platform.cpp
     src/unittest_reflect.cpp
     src/unittest_serializer.cpp
+    src/unittest_unicode.cpp
     src/unittest_uuid.cpp
 )
 
