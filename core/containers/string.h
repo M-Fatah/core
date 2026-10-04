@@ -645,6 +645,40 @@ string_replace(String &self, char to_replace, char replacement)
 }
 
 inline static void
+string_replace(String &self, U64 start, U64 count, Slice<const char> replacement)
+{
+	validate(start <= self.count && count <= (self.count - start));
+
+	if (replacement.count > count)
+		string_reserve(self, replacement.count - count);
+
+	::memmove(self.data + start + replacement.count, self.data + start + count, self.count - start - count);
+	if (replacement.count > 0)
+		::memcpy(self.data + start, replacement.data, replacement.count);
+
+	self.count = self.count - count + replacement.count;
+	self.data[self.count] = '\0';
+}
+
+inline static void
+string_replace(String &self, U64 start, U64 count, const char *data, U64 data_count)
+{
+	string_replace(self, start, count, Slice<const char>{data, data_count});
+}
+
+inline static void
+string_replace(String &self, U64 start, U64 count, const String &replacement)
+{
+	string_replace(self, start, count, Slice<const char>{replacement.data, replacement.count});
+}
+
+inline static void
+string_replace(String &self, U64 start, U64 count, const char *replacement)
+{
+	string_replace(self, start, count, slice_from(replacement));
+}
+
+inline static void
 string_replace(String &self, const String &to_replace, const String &replacement)
 {
 	auto splits = string_split(self, to_replace, false, memory::temp_allocator());
