@@ -1,6 +1,7 @@
 #include "core/platform/platform.h"
 
 #include "core/validate.h"
+#include "core/atomic.h"
 #include "core/defer.h"
 #include "core/math/u64.h"
 #include "core/memory/allocator.h"
@@ -17,6 +18,7 @@
 #include <dlfcn.h>
 #include <dirent.h>
 #include <errno.h>
+#include <poll.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <pthread.h>
@@ -3072,7 +3074,11 @@ Platform_Condition_Variable *
 platform_condition_variable_init()
 {
 	Platform_Condition_Variable *self = memory::allocate_zeroed<Platform_Condition_Variable>();
-	validate(::pthread_cond_init(&self->handle, nullptr) == 0, "[PLATFORM][ANDROID]: Failed to initialize condition variable.");
+	pthread_condattr_t attributes;
+	validate(::pthread_condattr_init(&attributes) == 0);
+	DEFER(::pthread_condattr_destroy(&attributes));
+	validate(::pthread_condattr_setclock(&attributes, CLOCK_MONOTONIC) == 0);
+	validate(::pthread_cond_init(&self->handle, &attributes) == 0, "[PLATFORM][ANDROID]: Failed to initialize condition variable.");
 	return self;
 }
 
@@ -3087,6 +3093,20 @@ void
 platform_condition_variable_wait(Platform_Condition_Variable *self, Platform_Mutex *mutex)
 {
 	validate(::pthread_cond_wait(&self->handle, &mutex->handle) == 0, "[PLATFORM][ANDROID]: Failed to wait for condition variable.");
+}
+
+bool
+platform_condition_variable_wait(Platform_Condition_Variable *self, Platform_Mutex *mutex, U32 milliseconds)
+{
+	timespec deadline;
+	validate(::clock_gettime(CLOCK_MONOTONIC, &deadline) == 0);
+	deadline.tv_sec += milliseconds / 1000;
+	deadline.tv_nsec += (long)(milliseconds % 1000) * 1000000;
+	deadline.tv_sec += deadline.tv_nsec / 1000000000;
+	deadline.tv_nsec %= 1000000000;
+	I32 result = ::pthread_cond_timedwait(&self->handle, &mutex->handle, &deadline);
+	validate(result == 0 || result == ETIMEDOUT, "[PLATFORM][ANDROID]: Failed to wait for condition variable.");
+	return result == 0;
 }
 
 void
@@ -3636,8 +3656,80 @@ platform_file_size(Platform_File_Handle handle)
 	return (U64)st.st_size;
 }
 
+struct Platform_IO_Cancellation
+{
+	I32 descriptors[2];
+	Atomic<U32> cancelled;
+};
+
+Platform_IO_Cancellation *
+platform_io_cancellation_init()
+{
+	Platform_IO_Cancellation *self = memory::allocate_zeroed<Platform_IO_Cancellation>();
+	validate(::pipe(self->descriptors) == 0);
+	for (I32 descriptor : self->descriptors)
+	{
+		validate(::fcntl(descriptor, F_SETFD, FD_CLOEXEC) == 0);
+		validate(::fcntl(descriptor, F_SETFL, O_NONBLOCK) == 0);
+	}
+	return self;
+}
+
+void
+platform_io_cancellation_deinit(Platform_IO_Cancellation *self)
+{
+	::close(self->descriptors[0]);
+	::close(self->descriptors[1]);
+	memory::deallocate(self);
+}
+
+void
+platform_io_cancel(Platform_IO_Cancellation *self)
+{
+	if (atomic_exchange(self->cancelled, U32(1)) != 0)
+		return;
+	char signal = 1;
+	I64 count;
+	do
+	{
+		count = ::write(self->descriptors[1], &signal, 1);
+	} while (count < 0 && errno == EINTR);
+	validate(count == 1);
+}
+
+inline static I64
+_platform_io_transfer(I32 descriptor, void *data, U64 size, bool writing, Platform_IO_Cancellation *cancellation)
+{
+	I32 flags = ::fcntl(descriptor, F_GETFL);
+	if (flags < 0 || ::fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) < 0)
+		return -1;
+	DEFER({
+		I32 error = errno;
+		validate(::fcntl(descriptor, F_SETFL, flags) == 0);
+		errno = error;
+	});
+	while (atomic_load(cancellation->cancelled) == 0)
+	{
+		pollfd descriptors[] = {{descriptor, (short)(writing ? POLLOUT : POLLIN), 0}, {cancellation->descriptors[0], POLLIN, 0}};
+		I32 ready = ::poll(descriptors, 2, -1);
+		if (ready < 0)
+		{
+			if (errno == EINTR)
+				continue;
+			return -1;
+		}
+		if (descriptors[1].revents != 0)
+			break;
+		I64 count = writing ? ::write(descriptor, data, (size_t)u64_min(size, SSIZE_MAX)) : ::read(descriptor, data, (size_t)u64_min(size, SSIZE_MAX));
+		if (count >= 0 || (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK))
+			return count;
+	}
+	errno = ECANCELED;
+	return -1;
+}
+
 U64
-platform_stdin_read(void *data, U64 size)
+platform_stdin_read(void *data, U64 size, Platform_IO_Cancellation *cancellation)
 {
 	if (data == nullptr || size == 0)
 		return 0;
@@ -3645,14 +3737,14 @@ platform_stdin_read(void *data, U64 size)
 	I64 count;
 	do
 	{
-		count = ::read(STDIN_FILENO, data, (size_t)u64_min(size, SSIZE_MAX));
+		count = cancellation ? _platform_io_transfer(STDIN_FILENO, data, size, false, cancellation) : ::read(STDIN_FILENO, data, (size_t)u64_min(size, SSIZE_MAX));
 	} while (count < 0 && errno == EINTR);
 
 	return count < 0 ? U64_MAX : (U64)count;
 }
 
 U64
-platform_stdout_write(const void *data, U64 size)
+platform_stdout_write(const void *data, U64 size, Platform_IO_Cancellation *cancellation)
 {
 	if (data == nullptr || size == 0)
 		return 0;
@@ -3672,7 +3764,7 @@ platform_stdout_write(const void *data, U64 size)
 	I64 count;
 	do
 	{
-		count = ::write(STDOUT_FILENO, data, (size_t)u64_min(size, SSIZE_MAX));
+		count = cancellation ? _platform_io_transfer(STDOUT_FILENO, (void *)data, size, true, cancellation) : ::write(STDOUT_FILENO, data, (size_t)u64_min(size, SSIZE_MAX));
 	} while (count < 0 && errno == EINTR);
 
 	if (count < 0 && errno == EPIPE && !had_sigpipe)

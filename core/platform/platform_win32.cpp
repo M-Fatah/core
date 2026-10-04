@@ -570,11 +570,75 @@ platform_file_size(Platform_File_Handle handle)
 	return (U64)size.QuadPart;
 }
 
+struct Platform_IO_Cancellation
+{
+	SRWLOCK mutex;
+	HANDLE thread;
+	CONDITION_VARIABLE finished;
+	bool cancelled;
+};
+
+Platform_IO_Cancellation *
+platform_io_cancellation_init()
+{
+	Platform_IO_Cancellation *self = memory::allocate_zeroed<Platform_IO_Cancellation>();
+	::InitializeSRWLock(&self->mutex);
+	::InitializeConditionVariable(&self->finished);
+	return self;
+}
+
+void
+platform_io_cancellation_deinit(Platform_IO_Cancellation *self)
+{
+	validate(self->thread == nullptr);
+	memory::deallocate(self);
+}
+
+void
+platform_io_cancel(Platform_IO_Cancellation *self)
+{
+	::AcquireSRWLockExclusive(&self->mutex);
+	DEFER(::ReleaseSRWLockExclusive(&self->mutex));
+	self->cancelled = true;
+	while (self->thread != nullptr)
+	{
+		validate(::CancelSynchronousIo(self->thread) || ::GetLastError() == ERROR_NOT_FOUND);
+		BOOL result = ::SleepConditionVariableSRW(&self->finished, &self->mutex, 1, 0);
+		validate(result || ::GetLastError() == ERROR_TIMEOUT);
+	}
+}
+
+inline static bool
+_platform_io_begin(Platform_IO_Cancellation *self)
+{
+	::AcquireSRWLockExclusive(&self->mutex);
+	DEFER(::ReleaseSRWLockExclusive(&self->mutex));
+	if (self->cancelled)
+		return false;
+	validate(self->thread == nullptr);
+	validate(::DuplicateHandle(::GetCurrentProcess(), ::GetCurrentThread(), ::GetCurrentProcess(), &self->thread, 0, false, DUPLICATE_SAME_ACCESS));
+	return true;
+}
+
+inline static void
+_platform_io_end(Platform_IO_Cancellation *self)
+{
+	::AcquireSRWLockExclusive(&self->mutex);
+	validate(::CloseHandle(self->thread));
+	self->thread = nullptr;
+	::WakeAllConditionVariable(&self->finished);
+	::ReleaseSRWLockExclusive(&self->mutex);
+}
+
 U64
-platform_stdin_read(void *data, U64 size)
+platform_stdin_read(void *data, U64 size, Platform_IO_Cancellation *cancellation)
 {
 	if (data == nullptr || size == 0)
 		return 0;
+
+	if (cancellation && !_platform_io_begin(cancellation))
+		return U64_MAX;
+	DEFER(if (cancellation) _platform_io_end(cancellation));
 
 	HANDLE input = ::GetStdHandle(STD_INPUT_HANDLE);
 	while (true)
@@ -600,10 +664,14 @@ platform_stdin_read(void *data, U64 size)
 }
 
 U64
-platform_stdout_write(const void *data, U64 size)
+platform_stdout_write(const void *data, U64 size, Platform_IO_Cancellation *cancellation)
 {
 	if (data == nullptr || size == 0)
 		return 0;
+
+	if (cancellation && !_platform_io_begin(cancellation))
+		return U64_MAX;
+	DEFER(if (cancellation) _platform_io_end(cancellation));
 
 	DWORD count = 0;
 	if (!::WriteFile(::GetStdHandle(STD_OUTPUT_HANDLE), data, (DWORD)u64_min(size, U32_MAX), &count, nullptr) || count == 0)
@@ -1167,6 +1235,17 @@ platform_condition_variable_wait(Platform_Condition_Variable *self, Platform_Mut
 {
 	BOOL result = ::SleepConditionVariableSRW(&self->handle, &mutex->handle, INFINITE, 0);
 	validate(result, "[PLATFORM][WINDOWS]: Failed to wait for condition variable.");
+}
+
+bool
+platform_condition_variable_wait(Platform_Condition_Variable *self, Platform_Mutex *mutex, U32 milliseconds)
+{
+	DWORD timeout = milliseconds == INFINITE ? INFINITE - 1 : milliseconds;
+	BOOL result = ::SleepConditionVariableSRW(&self->handle, &mutex->handle, timeout, 0);
+	validate(result || ::GetLastError() == ERROR_TIMEOUT, "[PLATFORM][WINDOWS]: Failed to wait for condition variable.");
+	if (!result && milliseconds == INFINITE)
+		return platform_condition_variable_wait(self, mutex, 1);
+	return result;
 }
 
 void

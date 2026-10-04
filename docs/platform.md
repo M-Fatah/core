@@ -22,11 +22,15 @@ A platform is supported only when its backend builds, links, and passes its plat
 
 ## Standard Input and Output
 
-`platform_stdin_read(void *data, U64 size)` and `platform_stdout_write(const void *data, U64 size)` transfer raw bytes through the process's standard streams. They use the existing OS handles without taking ownership or changing text/binary modes. Use blocking pipes or files and do not mix these operations with buffered C stdio on the same stream. Console input retains its platform terminal behavior.
+`platform_stdin_read(void *data, U64 size, Platform_IO_Cancellation *cancellation = nullptr)` and `platform_stdout_write(const void *data, U64 size, Platform_IO_Cancellation *cancellation = nullptr)` transfer raw bytes through the process's standard streams. They use the existing OS handles without taking ownership or changing text/binary modes. Use blocking pipes or files and do not mix these operations with buffered C stdio on the same stream. Console input retains its platform terminal behavior.
 
 Both return a `U64`: the transferred byte count, or `U64_MAX` on failure. Null data or a zero size returns zero without touching the stream. With a valid buffer and nonzero size, a read returns zero at EOF, and a write either makes progress or returns `U64_MAX`. Check for this sentinel before using the byte count. Callers must handle short transfers; retry the remaining output bytes after a successful short write. Stop on failure, since some earlier output may already have been delivered.
 
-A read returns available pipe data without waiting to fill the supplied buffer. Calls retry interrupted POSIX system calls. A closed output pipe returns failure without changing the process-wide SIGPIPE handler; the POSIX implementation temporarily masks SIGPIPE on the calling thread, preserves pre-existing pending SIGPIPE, and restores the thread's mask. Output is not buffered by Core and needs no flush. Serialization between writers and cancellation of blocking I/O remain the caller's responsibility.
+A read returns available pipe data without waiting to fill the supplied buffer. Calls retry interrupted POSIX system calls. A closed output pipe returns failure without changing the process-wide SIGPIPE handler; the POSIX implementation temporarily masks SIGPIPE on the calling thread, preserves pre-existing pending SIGPIPE, and restores the thread's mask. Output is not buffered by Core and needs no flush. Serialization between writers remains the caller's responsibility.
+
+Create an optional cancellation token with `platform_io_cancellation_init()`. Another thread can call `platform_io_cancel(token)` to interrupt a pending transfer; cancellation is sticky, and later nonempty transfers using that token fail with `U64_MAX`. An operation racing cancellation may finish successfully first. Null-buffer and zero-size calls remain no-ops. The token owns its cancellation resources, not the standard-stream handle. Use one active operation per token, wait for all users to finish, and then call `platform_io_cancellation_deinit(token)`. Repeated cancellation is allowed; tokens are not reset or reused for a new session.
+
+Cancellation requires exclusive use of that standard stream for the duration of the transfer, including through duplicated descriptors or buffered I/O. POSIX temporarily enables nonblocking mode, waits for either stream readiness or a cancellation pipe, and restores the original flags. Windows cancels the registered synchronous operation and waits for it to finish; it retries cancellation across the race between registering the thread and entering the OS call. Pipe reads/writes are interruptible. Cancellation of regular-file/device operations still depends on the operating system; do not assume a hard real-time deadline for those devices. Cancellation can follow a partial write, so failure does not imply that no bytes reached the consumer.
 
 ## File I/O
 
@@ -109,6 +113,8 @@ platform_thread_sleep(16);
 `Platform_Thread_Desc::name` is optional. Core copies the name during `platform_thread_init`, so the descriptor string does not need to outlive the call. Thread names are for debuggers, profilers, and platform tools; they do not affect scheduling.
 
 Platform thread-name APIs have native length limits, especially on POSIX platforms. Passing a name rejected by the OS fails validation.
+
+`platform_condition_variable_wait(condition, mutex, milliseconds)` provides a timed wait alongside the existing indefinite overload. It releases the locked mutex while waiting and reacquires it before returning. `false` means the timeout elapsed; `true` means it woke, possibly spuriously. Always recheck the protected predicate. The timeout uses a monotonic clock or the platform's relative wait API. Timeout accuracy follows the operating system's timer resolution. A zero timeout checks without waiting. Repeated relative waits do not provide a single overall deadline.
 
 ---
 
