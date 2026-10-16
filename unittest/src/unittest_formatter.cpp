@@ -41,6 +41,41 @@ TESTER_TEST("[CORE]: Formatter")
 		TESTER_CHECK(formatter.buffer == "1234567891011");
 	}
 
+	// ("floating-point boundaries")
+	{
+		TESTER_CHECK(format("{}", F32_NAN, memory::temp_allocator()) == "nan");
+		TESTER_CHECK(format("{}", F64_NAN, memory::temp_allocator()) == "nan");
+		TESTER_CHECK(format("{}", -F64_NAN, memory::temp_allocator()) == "nan");
+		TESTER_CHECK(format("{}/{}", F32_INFINITY, F32_NEGATIVE_INFINITY, memory::temp_allocator()) == "inf/-inf");
+		TESTER_CHECK(format("{}/{}", F64_INFINITY, F64_NEGATIVE_INFINITY, memory::temp_allocator()) == "inf/-inf");
+		TESTER_CHECK(format("{:>6}", F64_NAN, memory::temp_allocator()) == "   nan");
+		TESTER_CHECK(format("{:<6}", F64_INFINITY, memory::temp_allocator()) == "inf   ");
+		TESTER_CHECK(format("{:^6}", F64_NEGATIVE_INFINITY, memory::temp_allocator()) == " -inf ");
+		TESTER_CHECK(format("{:08}", F64_NEGATIVE_INFINITY, memory::temp_allocator()) == "-0000inf");
+		TESTER_CHECK(format("{}", 18446744073709549568.0, memory::temp_allocator()) == "18446744073709549568");
+		TESTER_CHECK(format("{}", 18446744073709551616.0, memory::temp_allocator()) == "18446744073709551616");
+		TESTER_CHECK(format("{}", 18446744073709555712.0, memory::temp_allocator()) == "18446744073709555712");
+		TESTER_CHECK(format("{}", -18446744073709551616.0, memory::temp_allocator()) == "-18446744073709551616");
+		TESTER_CHECK(format("{}", 1e20, memory::temp_allocator()) == "100000000000000000000");
+		TESTER_CHECK(format("{:>24}", 1e20, memory::temp_allocator()) == "   100000000000000000000");
+		TESTER_CHECK(format("{}", F32_MAX, memory::temp_allocator()) == "340282346638528859811704183484516925440");
+		TESTER_CHECK(format("{}", F64_MAX, memory::temp_allocator()) ==
+			"179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368");
+
+		Formatter formatter = formatter_init(memory::temp_allocator());
+		format(formatter, "prefix:");
+		format(formatter, 1e20, 3, false);
+		TESTER_CHECK(formatter.buffer == "prefix:100000000000000000000.000");
+
+		formatter_clear(formatter);
+		format(formatter, 1e20, 0);
+		TESTER_CHECK(formatter.buffer == "100000000000000000000");
+
+		formatter_clear(formatter);
+		format(formatter, F64_NAN, 3, false);
+		TESTER_CHECK(formatter.buffer == "nan");
+	}
+
 	// ("Helpers")
 	{
 		String buffer = format("{}/{}/{}/{}/{}/{}", "Hello", 'A', true, 1.5f, 3, vec3{4, 5, 6}, memory::temp_allocator());
