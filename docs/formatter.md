@@ -53,6 +53,8 @@ format("{010d}", 42);       // zero-padded: "0000000042"
 
 ### Precision (floats)
 
+NaN prints as `nan` regardless of its sign or payload. Infinities print as `inf` and `-inf`. These spellings ignore precision and use the normal width and alignment rules. Finite values retain fixed-point output, including integer parts larger than `U64_MAX`.
+
 ```cpp
 format("{.2}", 3.14159f);   // "3.14"
 format("{.4}", 3.14159f);   // "3.1416"

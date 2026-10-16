@@ -27,6 +27,7 @@
 #include "core/math/u32x4.h"
 #include "core/math/quaternion.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 /*
@@ -337,23 +338,52 @@ requires (std::is_floating_point_v<T>)
 inline static String
 format(Formatter &self, T data, U32 precision = 6, bool remove_trailing_zeros = true)
 {
+	if (data != data)
+	{
+		string_append(self.buffer, "nan");
+		return self.buffer;
+	}
+
+	if (data == F64_INFINITY)
+	{
+		string_append(self.buffer, "inf");
+		return self.buffer;
+	}
+
+	if (data == F64_NEGATIVE_INFINITY)
+	{
+		string_append(self.buffer, "-inf");
+		return self.buffer;
+	}
+
 	if (data < 0)
 	{
 		string_append(self.buffer, '-');
 		data = -data;
 	}
 
-	U64 integer = (U64)data;
-	F64 fraction = data - integer;
-	format(self, (U64)integer);
+	long double integer = ::truncl((long double)data);
+	F64 fraction = (F64)((long double)data - integer);
+	if (integer < 18446744073709551616.0L)
+	{
+		format(self, (U64)integer);
+	}
+	else
+	{
+		// Zero precision prints the integer without a locale-dependent decimal separator.
+		char buffer[sizeof(T) <= sizeof(F64) ? DBL_MAX_10_EXP + 2 : LDBL_MAX_10_EXP + 2];
+		I32 count = ::snprintf(buffer, sizeof(buffer), "%.0Lf", integer);
+		validate(count > 0 && (U64)count < sizeof(buffer), "[FORMATTER]: Floating-point integer conversion failed.");
+		string_append(self.buffer, buffer, (U64)count);
+	}
 	string_append(self.buffer, '.');
 
 	for (U64 i = 0; i < precision; ++i)
 	{
 		fraction *= 10;
-		integer = (U64)fraction;
-		format(self, integer);
-		fraction = fraction - integer;
+		U64 digit = (U64)fraction;
+		format(self, digit);
+		fraction = fraction - digit;
 	}
 
 	if (remove_trailing_zeros)
