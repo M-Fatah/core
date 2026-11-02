@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/defines.h"
+#include "core/hash.h"
 #include "core/validate.h"
 #include "core/containers/array.h"
 #include "core/containers/stack_array.h"
@@ -9,55 +10,55 @@
 #include <initializer_list>
 
 template <typename T>
-struct Slice
+struct View
 {
 	T *data;
 	U64 count;
 
-	Slice()
+	View()
 	{
-		Slice &self = *this;
+		View &self = *this;
 		self.data = nullptr;
 		self.count = 0;
 	}
 
-	Slice(T &value)
+	View(T &value)
 	{
-		Slice &self = *this;
+		View &self = *this;
 		self.data = &value;
 		self.count = 1;
 	}
 
-	Slice(T *data, U64 count)
+	View(T *data, U64 count)
 	{
-		Slice &self = *this;
+		View &self = *this;
 		self.data = data;
 		self.count = count;
 	}
 
 	template <U64 N>
 	requires (!is_same_v<T, const char>)
-	Slice(T (&array)[N])
+	View(T (&array)[N])
 	{
-		Slice &self = *this;
+		View &self = *this;
 		self.data = array;
 		self.count = N;
 	}
 
 	template <typename R>
 	requires (is_same_v<T, const R>)
-	Slice(std::initializer_list<R> values)
+	View(std::initializer_list<R> values)
 	{
-		Slice &self = *this;
+		View &self = *this;
 		self.data = values.begin();
 		self.count = (U64)values.size();
 	}
 
 	template <typename R>
 	requires (is_same_v<T, R> || is_same_v<T, const R>)
-	Slice(Slice<R> other)
+	View(View<R> other)
 	{
-		Slice &self = *this;
+		View &self = *this;
 		self.data = other.data;
 		self.count = other.count;
 	}
@@ -65,22 +66,22 @@ struct Slice
 	inline T &
 	operator[](U64 index)
 	{
-		validate(index < count, "[SLICE]: Access out of range.");
+		validate(index < count, "[VIEW]: Access out of range.");
 		return data[index];
 	}
 
 	inline const T &
 	operator[](U64 index) const
 	{
-		validate(index < count, "[SLICE]: Access out of range.");
+		validate(index < count, "[VIEW]: Access out of range.");
 		return data[index];
 	}
 
 	inline bool
-	operator==(const Slice &other) const
+	operator==(const View &other) const
 	requires (is_same_v<T, const char>)
 	{
-		const Slice &self = *this;
+		const View &self = *this;
 		if (self.count != other.count)
 			return false;
 
@@ -91,10 +92,10 @@ struct Slice
 	}
 
 	inline bool
-	operator!=(const Slice &other) const
+	operator!=(const View &other) const
 	requires (is_same_v<T, const char>)
 	{
-		const Slice &self = *this;
+		const View &self = *this;
 		return !(self == other);
 	}
 
@@ -102,7 +103,7 @@ struct Slice
 	operator==(const char *other) const
 	requires (is_same_v<T, const char>)
 	{
-		const Slice &self = *this;
+		const View &self = *this;
 		if (other == nullptr)
 			return self.count == 0;
 
@@ -116,165 +117,174 @@ struct Slice
 	operator!=(const char *other) const
 	requires (is_same_v<T, const char>)
 	{
-		const Slice &self = *this;
+		const View &self = *this;
 		return !(self == other);
 	}
 
 	friend inline bool
-	operator==(const char *self, const Slice &other)
+	operator==(const char *self, const View &other)
 	requires (is_same_v<T, const char>)
 	{
 		return other == self;
 	}
 
 	friend inline bool
-	operator!=(const char *self, const Slice &other)
+	operator!=(const char *self, const View &other)
 	requires (is_same_v<T, const char>)
 	{
 		return other != self;
 	}
 };
 
+using String_View = View<const char>;
+
 template <typename T>
 requires (!std::is_array_v<T>)
-inline static Slice<T>
-slice_from(T &value)
+inline static View<T>
+view_from(T &value)
 {
-	return Slice<T>(value);
+	return View<T>(value);
 }
 
 template <typename T>
-inline static Slice<T>
-slice_from(T *data, U64 count)
+inline static View<T>
+view_from(T *data, U64 count)
 {
-	return Slice<T>(data, count);
+	return View<T>(data, count);
 }
 
 template <typename T>
-inline static Slice<T>
-slice_from(T *begin, T *end)
+inline static View<T>
+view_from(T *begin, T *end)
 {
-	return Slice<T>(begin, (U64)(end - begin));
+	return View<T>(begin, (U64)(end - begin));
 }
 
 template <typename T, U64 N>
 requires (!is_same_v<T, const char>)
-inline static Slice<T>
-slice_from(T (&array)[N])
+inline static View<T>
+view_from(T (&array)[N])
 {
-	return Slice<T>(array, N);
+	return View<T>(array, N);
 }
 
 template <typename T>
-inline static Slice<const T>
-slice_from(std::initializer_list<T> values)
+inline static View<const T>
+view_from(std::initializer_list<T> values)
 {
-	return Slice<const T>(values.begin(), (U64)values.size());
+	return View<const T>(values.begin(), (U64)values.size());
 }
 
 template <typename T>
-inline static Slice<T>
-slice_from(Array<T> &array)
+inline static View<T>
+view_from(Array<T> &array)
 {
-	return Slice<T>(array.data, array.count);
+	return View<T>(array.data, array.count);
 }
 
 template <typename T>
-inline static Slice<const T>
-slice_from(const Array<T> &array)
+inline static View<const T>
+view_from(const Array<T> &array)
 {
-	return Slice<const T>(array.data, array.count);
+	return View<const T>(array.data, array.count);
 }
 
 template <typename T, U64 N>
-inline static Slice<T>
-slice_from(Stack_Array<T, N> &array)
+inline static View<T>
+view_from(Stack_Array<T, N> &array)
 {
-	return Slice<T>(array.data, array.count);
+	return View<T>(array.data, array.count);
 }
 
 template <typename T, U64 N>
-inline static Slice<const T>
-slice_from(const Stack_Array<T, N> &array)
+inline static View<const T>
+view_from(const Stack_Array<T, N> &array)
 {
-	return Slice<const T>(array.data, array.count);
+	return View<const T>(array.data, array.count);
 }
 
-inline static Slice<const char>
-slice_from(const char *string)
+inline static String_View
+view_from(const char *string)
 {
 	if (string == nullptr)
-		return Slice<const char>{};
+		return String_View{};
 
 	U64 count = 0;
 	while (string[count] != '\0')
 		++count;
-	return Slice<const char>(string, count);
+
+	return String_View(string, count);
 }
 
 template <typename T>
 inline static bool
-slice_is_empty(const Slice<T> &self)
+view_is_empty(const View<T> &self)
 {
 	return self.count == 0;
 }
 
 template <typename T>
 inline static T &
-slice_front(Slice<T> &self)
+view_front(View<T> &self)
 {
-	validate(self.count > 0, "[SLICE]: Count is 0.");
+	validate(self.count > 0, "[VIEW]: Count is 0.");
 	return self[0];
 }
 
 template <typename T>
 inline static const T &
-slice_front(const Slice<T> &self)
+view_front(const View<T> &self)
 {
-	validate(self.count > 0, "[SLICE]: Count is 0.");
+	validate(self.count > 0, "[VIEW]: Count is 0.");
 	return self[0];
 }
 
 template <typename T>
 inline static T &
-slice_back(Slice<T> &self)
+view_back(View<T> &self)
 {
-	validate(self.count > 0, "[SLICE]: Count is 0.");
+	validate(self.count > 0, "[VIEW]: Count is 0.");
 	return self[self.count - 1];
 }
 
 template <typename T>
 inline static const T &
-slice_back(const Slice<T> &self)
+view_back(const View<T> &self)
 {
-	validate(self.count > 0, "[SLICE]: Count is 0.");
+	validate(self.count > 0, "[VIEW]: Count is 0.");
 	return self[self.count - 1];
 }
 
 template <typename T>
 inline static T *
-begin(Slice<T> &self)
+begin(View<T> &self)
 {
 	return self.data;
 }
 
 template <typename T>
 inline static const T *
-begin(const Slice<T> &self)
+begin(const View<T> &self)
 {
 	return self.data;
 }
 
 template <typename T>
 inline static T *
-end(Slice<T> &self)
+end(View<T> &self)
 {
 	return self.data + self.count;
 }
 
 template <typename T>
 inline static const T *
-end(const Slice<T> &self)
+end(const View<T> &self)
 {
 	return self.data + self.count;
+}
+
+inline static U64
+hash(const String_View &self)
+{
+	return hash_fnv_x32(self.data, self.count);
 }

@@ -43,7 +43,7 @@ authorization of the copyright holder.
 */
 
 Unicode_Utf8_Character
-unicode_decode_utf8(Slice<const char> text)
+unicode_decode_utf8(String_View text)
 {
 	if (text.count == 0)
 		return Unicode_Utf8_Character{};
@@ -232,7 +232,7 @@ unicode_get_column_width(U32 code_point)
 			{0x1fadf, 0x1faea}, {0x1faef, 0x1faf8}, {0x20000, 0x2fffd}, {0x30000, 0x3fffd},
 		};
 
-		Slice<const U32[2]> ranges = column_width == 0 ? slice_from(UNICODE_ZERO_WIDTH) : slice_from(UNICODE_WIDE);
+		View<const U32[2]> ranges = column_width == 0 ? view_from(UNICODE_ZERO_WIDTH) : view_from(UNICODE_WIDE);
 		U64 start = 0;
 		U64 end   = ranges.count;
 		while (start < end)

@@ -43,8 +43,11 @@ arr[0] = 99;               // bounds-checked in Debug
 | `array_init_with_count<T>(n, allocator)` | Count == capacity, uninitialized |
 | `array_init_from(first, last, allocator)` | Copy from pointer range |
 | `array_init_from({1,2,3}, allocator)` | Copy from initializer list |
-| `array_copy(arr, allocator)` | Shallow copy (element-wise assignment) |
+| `array_from(view, allocator)` | Copy a borrowed range into an owned array; remove top-level const |
+| `array_copy(arr, allocator)` | Shallow copy of an array (element-wise assignment) |
 | `clone(arr, allocator)` | Deep copy (recursively clones class elements) |
+
+`array_from` copies exactly the view count. For `String_View`, it produces an `Array<char>` with no extra terminator; use the string APIs when terminated storage is required. `array_copy` takes an `Array`, not a view.
 
 ### Modification
 
@@ -101,51 +104,51 @@ Supports range-based `for` via `begin()` / `end()`.
 
 ---
 
-## Slice\<T\>
+## View\<T\>
 
-**Header:** `core/containers/slice.h`
+**Header:** `core/containers/view.h`
 
 A **non-owning view** over a contiguous sequence. Never allocates. No `_deinit`.
-Use `slice_from(...)` to make the borrowed lifetime explicit.
-Use `Slice<const char>` for borrowed text.
+Use `view_from(...)` to make the borrowed lifetime explicit.
+Use `String_View` (an alias for `View<const char>`) for borrowed text. A general view does not guarantee NUL termination; individual APIs such as string interning may provide that guarantee.
 
 ```cpp
-#include <core/containers/slice.h>
+#include <core/containers/view.h>
 
 Array<int> arr = array_init_from<int>({1, 2, 3, 4, 5});
 DEFER(array_deinit(arr));
 
-Slice<int>       view  = slice_from(arr);           // mutable view
-Slice<const int> cview = slice_from((const Array<int>&)arr); // read-only view
+View<int>       view  = view_from(arr);           // mutable view
+View<const int> cview = view_from((const Array<int>&)arr); // read-only view
 ```
 
 ### Construction
 
 | Function | Returns | Description |
 |---|---|---|
-| `slice_from(T *data, U64 count)` | `Slice<T>` | From pointer + count |
-| `slice_from(T *first, T *last)` | `Slice<T>` | From pointer pair |
-| `slice_from(T (&arr)[N])` | `Slice<T>` | From C array |
-| `slice_from({1,2,3})` | `Slice<const T>` | Read-only view of an initializer list |
-| `slice_from(Array<T> &)` | `Slice<T>` | Mutable view of Array |
-| `slice_from(const Array<T> &)` | `Slice<const T>` | Read-only view of Array |
-| `slice_from(Stack_Array<T,N> &)` | `Slice<T>` | Mutable view of Stack\_Array |
-| `slice_from(const Stack_Array<T,N> &)` | `Slice<const T>` | Read-only view of Stack\_Array |
-| `slice_from(const char *)` | `Slice<const char>` | View of a C string without the null terminator |
+| `view_from(T *data, U64 count)` | `View<T>` | From pointer + count |
+| `view_from(T *first, T *last)` | `View<T>` | From pointer pair |
+| `view_from(T (&arr)[N])` | `View<T>` | From C array |
+| `view_from({1,2,3})` | `View<const T>` | Read-only view of an initializer list |
+| `view_from(Array<T> &)` | `View<T>` | Mutable view of Array |
+| `view_from(const Array<T> &)` | `View<const T>` | Read-only view of Array |
+| `view_from(Stack_Array<T,N> &)` | `View<T>` | Mutable view of Stack\_Array |
+| `view_from(const Stack_Array<T,N> &)` | `View<const T>` | Read-only view of Stack\_Array |
+| `view_from(const char *)` | `String_View` | View of a C string without the null terminator |
 
 ### Functions
 
 | Function | Description |
 |---|---|
-| `slice_is_empty(slice)` | `count == 0` |
-| `slice_front(slice)` | Reference to first element |
-| `slice_back(slice)` | Reference to last element |
+| `view_is_empty(view)` | `count == 0` |
+| `view_front(view)` | Reference to first element |
+| `view_back(view)` | Reference to last element |
 
 Supports range-based `for` via `begin()` / `end()`.
 
-Initializer-list and temporary single-value slices are valid only for the current full expression. A function that stores a `Slice` must copy the data it cares about.
-Functions taking `Slice<const T>` can receive initializer lists directly, such as `process({a, b, c})`.
-`slice_from` from a string literal or C string stops at the first null terminator. Use `slice_from(data, count)` for raw character buffers.
+Initializer-list and temporary single-value views are valid only for the current full expression. A function that stores a `View` must copy the data it cares about.
+Functions taking `View<const T>` can receive initializer lists directly, such as `process({a, b, c})`.
+`view_from` from a string literal or C string stops at the first null terminator. Use `view_from(data, count)` for raw character buffers.
 
 ---
 
@@ -175,9 +178,9 @@ print_to(stdout, "{}\n", s.data);   // "hello world"
 | `string_literal(c_string)` | Non-owning view (no allocation, no `_deinit`) |
 | `string_copy(str, allocator)` | Copy into a new allocation (byte-for-byte) |
 
-Use `string_append(s, data, count)` for a byte range, including embedded nulls or data without a terminator. The `string_append(s, slice)` overload accepts `Slice<const char>` and appends its full byte range. The count excludes the terminator maintained by the destination. Null data or a zero count is a no-op. The source must reference readable bytes outside the destination allocation and remain valid for the duration of the call.
+Use `string_append(s, data, count)` for a byte range, including embedded nulls or data without a terminator. The `string_append(s, view)` overload accepts `String_View` and appends its full byte range. The count excludes the terminator maintained by the destination. Null data or a zero count is a no-op. The source must reference readable bytes outside the destination allocation and remain valid for the duration of the call.
 
-Use `string_replace(s, start, count, replacement)` to replace a byte range. A zero count inserts; an empty replacement deletes. Replacement accepts a `Slice<const char>`, a `String`, a C string, or a pointer followed by its byte count. It preserves embedded nulls and the destination terminator, reuses capacity, and moves only the suffix. The range must lie within the initialized destination, and nonempty replacement data must remain readable outside its allocation for the duration of the call.
+Use `string_replace(s, start, count, replacement)` to replace a byte range. A zero count inserts; an empty replacement deletes. Replacement accepts a `String_View`, a `String`, a C string, or a pointer followed by its byte count. It preserves embedded nulls and the destination terminator, reuses capacity, and moves only the suffix. The range must lie within the initialized destination, and nonempty replacement data must remain readable outside its allocation for the duration of the call.
 
 ### Common operations
 
@@ -301,25 +304,21 @@ hash_set_remove(set, 42);
 
 **Header:** `core/containers/string_interner.h`
 
-Deduplicates strings — equal strings are stored once and return the same `const char *` pointer. Pointer equality replaces string comparison.
+Interns a byte range once and returns a borrowed `String_View`. Equal byte ranges return the same `.data` pointer. The count preserves embedded NULs and excludes the additional NUL terminator stored at `data[count]`.
 
 ```cpp
-#include <core/containers/string_interner.h>
-
-String_Interner interner = string_interner_init(memory::heap_allocator());
+String_Interner interner = string_interner_init();
 DEFER(string_interner_deinit(interner));
 
-const char *a = string_interner_intern(interner, "hello");
-const char *b = string_interner_intern(interner, "hello");
-
-assert(a == b);  // same pointer
+String_View a = string_interner_intern(interner, "hello");
+String_View b = string_interner_intern(interner, String_View {"hello!", 5});
+assert(a.data == b.data);
+assert(a.count == 5 && a.data[5] == '\0');
 ```
 
-Also accepts a pointer range:
+Accepts `String_View`, `String`, C strings, pointer pairs, or pointer/count. Only the C-string overload scans for a terminator. A miss copies directly into interner-owned storage; hits and range overloads allocate no temporary copy. Empty input returns a stable non-null pointer to an empty terminated string.
 
-```cpp
-const char *s = string_interner_intern(interner, first, last);
-```
+Returned bytes remain valid across table growth until `string_interner_deinit`. The interner owns and frees them using its supplied allocator. Views do not own their bytes and must not be freed by callers. Concurrent mutation requires caller-owned synchronization.
 
 ---
 

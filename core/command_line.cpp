@@ -3,7 +3,7 @@
 #include "core/validate.h"
 
 inline static void
-_command_line_parse(char **arguments, I32 argument_count, Slice<const Command_Line_Option_Desc> option_descs, Array<Command_Line_Option> &options, Array<const char *> &positionals, Array<Command_Line_Error> &errors)
+_command_line_parse(char **arguments, I32 argument_count, View<const Command_Line_Option_Desc> option_descs, Array<Command_Line_Option> &options, Array<const char *> &positionals, Array<Command_Line_Error> &errors)
 {
 	if (argument_count == 0)
 		return;
@@ -14,14 +14,14 @@ _command_line_parse(char **arguments, I32 argument_count, Slice<const Command_Li
 		const char *value;
 	};
 
-	constexpr auto parse_option = [](Slice<const Command_Line_Option_Desc> option_descs, Slice<const char> argument) -> Parsed_Option {
+	constexpr auto parse_option = [](View<const Command_Line_Option_Desc> option_descs, String_View argument) -> Parsed_Option {
 		if (argument.data[1] == '-')
 		{
 			const char *option_name_end = argument.data + 2;
 			while (*option_name_end != '\0' && *option_name_end != '=')
 				++option_name_end;
 
-			Slice<const char> option_name = slice_from(argument.data + 2, option_name_end);
+			String_View option_name = view_from(argument.data + 2, option_name_end);
 			const char *value = *option_name_end == '=' ? option_name_end + 1 : nullptr;
 			for (const Command_Line_Option_Desc &option_desc : option_descs)
 				if (option_name == option_desc.name)
@@ -39,10 +39,10 @@ _command_line_parse(char **arguments, I32 argument_count, Slice<const Command_Li
 	};
 
 	constexpr auto push_option = [](Array<Command_Line_Option> &options, const char *option_name, const char *value) -> void {
-		Slice<const char> option_name_slice = slice_from(option_name);
+		String_View option_name_view = view_from(option_name);
 		for (Command_Line_Option &option : options)
 		{
-			if (option_name_slice == option.name)
+			if (option_name_view == option.name)
 			{
 				array_push(option.values, value);
 				return;
@@ -56,7 +56,7 @@ _command_line_parse(char **arguments, I32 argument_count, Slice<const Command_Li
 	for (U64 i = 0; i < option_descs.count; ++i)
 	{
 		const Command_Line_Option_Desc &option_desc = option_descs[i];
-		Slice<const char> name = slice_from(option_desc.name);
+		String_View name = view_from(option_desc.name);
 		validate(name.count > 0, "[COMMAND_LINE]: Option description name is invalid.");
 		validate(name[0] != '-', "[COMMAND_LINE]: Option description name cannot start with '-'.");
 		validate(option_desc.short_name != '-', "[COMMAND_LINE]: Option description short name cannot be '-'.");
@@ -75,21 +75,21 @@ _command_line_parse(char **arguments, I32 argument_count, Slice<const Command_Li
 	for (I32 i = 1; i < argument_count; ++i)
 	{
 		const char *argument = arguments[i];
-		Slice<const char> argument_slice = slice_from(argument);
+		String_View argument_view = view_from(argument);
 
-		if (options_enabled && argument_slice == "--")
+		if (options_enabled && argument_view == "--")
 		{
 			options_enabled = false;
 			continue;
 		}
 
-		if (options_enabled == false || argument_slice.count < 2 || argument_slice[0] != '-')
+		if (options_enabled == false || argument_view.count < 2 || argument_view[0] != '-')
 		{
 			array_push(positionals, argument);
 			continue;
 		}
 
-		auto [option_desc, value] = parse_option(option_descs, argument_slice);
+		auto [option_desc, value] = parse_option(option_descs, argument_view);
 		if (option_desc == nullptr)
 		{
 			array_push(errors, Command_Line_Error{.code = COMMAND_LINE_ERROR_UNKNOWN_OPTION, .argument = argument});
@@ -120,7 +120,7 @@ _command_line_parse(char **arguments, I32 argument_count, Slice<const Command_Li
 }
 
 Command_Line
-command_line_init(char **arguments, I32 argument_count, Slice<const Command_Line_Option_Desc> option_descs, memory::Allocator *allocator)
+command_line_init(char **arguments, I32 argument_count, View<const Command_Line_Option_Desc> option_descs, memory::Allocator *allocator)
 {
 	Array<Command_Line_Option> options = array_init<Command_Line_Option>(allocator);
 	Array<const char *> positionals    = array_init<const char *>(allocator);
@@ -157,12 +157,12 @@ command_line_has_option(const Command_Line &self, const char *option_name)
 	return command_line_get_option_values(self, option_name).count > 0;
 }
 
-Slice<const char *>
+View<const char *>
 command_line_get_option_values(const Command_Line &self, const char *option_name)
 {
-	Slice<const char> option_name_slice = slice_from(option_name);
+	String_View option_name_view = view_from(option_name);
 	for (const Command_Line_Option &option : self.options)
-		if (option_name_slice == option.name)
-			return slice_from(option.values.data, option.values.count);
-	return Slice<const char *>{};
+		if (option_name_view == option.name)
+			return view_from(option.values.data, option.values.count);
+	return View<const char *>{};
 }

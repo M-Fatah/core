@@ -3825,7 +3825,7 @@ platform_file_dialog_open(Platform_Window &window, const char *filters, memory::
 }
 
 bool
-platform_file_dialog_save(Platform_Window &window, const String &suggested_name, Slice<const U8> data, const char *filters)
+platform_file_dialog_save(Platform_Window &window, const String &suggested_name, View<const U8> data, const char *filters)
 {
 	validate(window.ctx != nullptr, "[PLATFORM][ANDROID]: File save dialog requires an initialized platform window.");
 	validate(data.data != nullptr || data.count == 0, "[PLATFORM][ANDROID]: File save data is invalid.");

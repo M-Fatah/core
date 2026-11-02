@@ -106,6 +106,9 @@ struct is_same<T, T>
 template <typename T, typename U>
 inline static constexpr bool is_same_v = is_same<T, U>::value;
 
+template <typename T>
+inline static constexpr bool is_trivially_copyable_v = __is_trivially_copyable(T);
+
 template <class T, template <class...> class Template>
 struct is_specialization : std::false_type {};
 

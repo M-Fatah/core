@@ -34,7 +34,7 @@ log_error(const char *fmt, TArgs &&...args)
 }
 
 template <typename ...TArgs>
-inline static void
+[[noreturn]] inline static void
 log_fatal(const char *fmt, TArgs &&...args)
 {
 	print_to(stderr, PRINT_COLOR_BG_RED, "[FATAL]: {}\n", format(fmt, std::forward<TArgs>(args)..., memory::temp_allocator()));

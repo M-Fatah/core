@@ -25,7 +25,7 @@ set(HEADER_FILES
     containers/hash_set.h
     containers/hash_table.h
     containers/ring_buffer.h
-    containers/slice.h
+    containers/view.h
     containers/stack_array.h
     containers/string_interner.h
     containers/string.h

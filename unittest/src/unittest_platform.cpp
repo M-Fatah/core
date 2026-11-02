@@ -562,7 +562,7 @@ TESTER_TEST("[PLATFORM] clipboard item description")
 	U8 source[] = {1, 2, 3};
 	Platform_Clipboard_Item_Desc item {
 		.media_type = string_literal(PLATFORM_CLIPBOARD_MEDIA_TYPE_BINARY),
-		.data = slice_from(source)
+		.data = view_from(source)
 	};
 	TESTER_CHECK(item.media_type == PLATFORM_CLIPBOARD_MEDIA_TYPE_BINARY);
 	TESTER_CHECK(item.media_type.allocator == nullptr);

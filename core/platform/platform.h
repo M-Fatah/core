@@ -3,7 +3,7 @@
 #include "core/export.h"
 #include "core/defines.h"
 #include "core/memory/allocator.h"
-#include "core/containers/slice.h"
+#include "core/containers/view.h"
 #include "core/containers/string.h"
 
 // ============================================================
@@ -859,10 +859,10 @@ platform_file_dialog_open(Platform_Window &window, const char *filters, memory::
  * On iOS, call this synchronous API from a non-main engine thread so UIKit remains available to present the picker.
  */
 CORE_API bool
-platform_file_dialog_save(Platform_Window &window, const String &suggested_name, Slice<const U8> data, const char *filters);
+platform_file_dialog_save(Platform_Window &window, const String &suggested_name, View<const U8> data, const char *filters);
 
 inline static bool
-platform_file_dialog_save(Platform_Window &window, const char *suggested_name, Slice<const U8> data, const char *filters)
+platform_file_dialog_save(Platform_Window &window, const char *suggested_name, View<const U8> data, const char *filters)
 {
 	return platform_file_dialog_save(window, string_literal(suggested_name), data, filters);
 }
@@ -888,7 +888,7 @@ platform_directory_dialog_open(Platform_Window &window, memory::Allocator *alloc
 typedef struct Platform_Clipboard_Item_Desc
 {
 	String media_type;
-	Slice<const U8> data;
+	View<const U8> data;
 } Platform_Clipboard_Item_Desc;
 
 /**

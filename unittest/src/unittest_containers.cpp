@@ -4,7 +4,7 @@
 #include <core/containers/hash_set.h>
 #include <core/containers/hash_table.h>
 #include <core/containers/ring_buffer.h>
-#include <core/containers/slice.h>
+#include <core/containers/view.h>
 #include <core/containers/stack_array.h>
 #include <core/containers/string.h>
 #include <core/containers/string_interner.h>
@@ -71,6 +71,78 @@ TESTER_TEST("[CONTAINERS]: Array")
 		TESTER_CHECK(array2.capacity == array1.capacity);
 		for (U64 i = 0; i < array2.count; ++i)
 			TESTER_CHECK(array2[i] == array1[i]);
+	}
+
+	// ("from view")
+	{
+		I32 values[] = {1, 2, 3};
+		auto array = array_from(view_from(values));
+		DEFER(array_deinit(array));
+
+		TESTER_CHECK(array.count == count_of(values));
+		TESTER_CHECK(array.capacity == count_of(values));
+		TESTER_CHECK(array.allocator == memory::heap_allocator());
+		TESTER_CHECK(array.data != values);
+		for (U64 i = 0; i < array.count; ++i)
+			TESTER_CHECK(array[i] == values[i]);
+		array[0] = 10;
+		TESTER_CHECK(values[0] == 1);
+	}
+
+	// ("from const view")
+	{
+		const I32 values[] = {1, 2, 3};
+		auto array = array_from(view_from(values));
+		DEFER(array_deinit(array));
+
+		TESTER_CHECK(array.count == count_of(values));
+		for (U64 i = 0; i < array.count; ++i)
+			TESTER_CHECK(array[i] == values[i]);
+		array[0] = 10;
+		TESTER_CHECK(values[0] == 1);
+	}
+
+	// ("from pointer view")
+	{
+		memory::Arena_Allocator_Mark mark = memory::temp_allocator_mark();
+		DEFER(memory::temp_allocator_reset_to_mark(mark));
+
+		const I32 values[] = {1, 2};
+		const I32 *const pointers[] = {&values[0], &values[1]};
+		Array<const I32 *> array = array_from(view_from(pointers), memory::temp_allocator());
+		DEFER(array_deinit(array));
+
+		TESTER_CHECK(array.count == count_of(pointers));
+		TESTER_CHECK(array.allocator == memory::temp_allocator());
+		TESTER_CHECK(array.data != pointers);
+		for (U64 i = 0; i < array.count; ++i)
+			TESTER_CHECK(array[i] == pointers[i]);
+		array[0] = &values[1];
+		TESTER_CHECK(pointers[0] == &values[0]);
+	}
+
+	// ("from string view")
+	{
+		const char bytes[] = {'a', '\0', 'b'};
+		String_View text = {bytes, count_of(bytes)};
+		Array<char> array = array_from(text);
+		DEFER(array_deinit(array));
+
+		TESTER_CHECK(array.count == count_of(bytes));
+		TESTER_CHECK(array.capacity == count_of(bytes));
+		TESTER_CHECK(array.data != bytes);
+		TESTER_CHECK(array[0] == 'a' && array[1] == '\0' && array[2] == 'b');
+		array[0] = 'c';
+		TESTER_CHECK(bytes[0] == 'a');
+	}
+
+	// ("from empty view")
+	{
+		auto array = array_from(View<const I32>());
+		DEFER(array_deinit(array));
+
+		TESTER_CHECK(array.count == 0);
+		TESTER_CHECK(array.capacity == 0);
 	}
 
 	// ("fill")
@@ -352,14 +424,14 @@ TESTER_TEST("[CONTAINERS]: String Range Replacement")
 	const char bytes[]    = {'x', '\0', 'y'};
 	const char expected[] = {'a', 'x', '\0', 'y', 'd'};
 	string_replace(s, 1, 2, bytes, sizeof(bytes));
-	TESTER_CHECK((Slice<const char>{s.data, s.count} == Slice<const char>{expected, sizeof(expected)}));
+	TESTER_CHECK((String_View{s.data, s.count} == String_View{expected, sizeof(expected)}));
 	TESTER_CHECK(s.data[s.count] == '\0');
 
 	String suffix = string_literal("!");
 	string_replace(s, s.count, 0, suffix);
 	TESTER_CHECK(s.count == 6 && s[5] == '!' && s.data[6] == '\0');
-	string_replace(s, 0, s.count, Slice<const char>{bytes, sizeof(bytes)});
-	TESTER_CHECK((Slice<const char>{s.data, s.count} == Slice<const char>{bytes, sizeof(bytes)}));
+	string_replace(s, 0, s.count, String_View{bytes, sizeof(bytes)});
+	TESTER_CHECK((String_View{s.data, s.count} == String_View{bytes, sizeof(bytes)}));
 	TESTER_CHECK(s.data[s.count] == '\0');
 	string_replace(s, 0, s.count, nullptr, 0);
 	TESTER_CHECK(s.count == 0 && s.data[0] == '\0');
@@ -1622,184 +1694,206 @@ TESTER_TEST("[CONTAINERS]: Hash_Set")
 
 TESTER_TEST("[CONTAINERS]: String Interner")
 {
-	String_Interner interner = string_interner_init(memory::temp_allocator());
+	memory::Arena_Allocator_Mark mark = memory::temp_allocator_mark();
+	DEFER(memory::temp_allocator_reset_to_mark(mark));
+
+	String_Interner interner = string_interner_init();
 	DEFER(string_interner_deinit(interner));
 
-	const char *s = string_interner_intern(interner, "STRING");
-	TESTER_CHECK(s != nullptr);
-	TESTER_CHECK(s == string_interner_intern(interner, "STRING"));
+	String_View text = string_interner_intern(interner, "STRING");
+	TESTER_CHECK(text == "STRING");
+	TESTER_CHECK(text.count == 6 && text.data[6] == '\0');
+	TESTER_CHECK(text.data == string_interner_intern(interner, "STRING").data);
+	TESTER_CHECK(text.data == string_interner_intern(interner, string_literal("STRING")).data);
+	TESTER_CHECK(text.data == string_interner_intern(interner, String_View {"STRING!", 6}).data);
 
-	const char *test_string = "This is a test STRING";
-	const char *begin = test_string + 15;
-	const char *end = begin + 6;
-	TESTER_CHECK(s == string_interner_intern(interner, begin, end));
+	const char *source = "This is a test STRING";
+	memory::Arena_Allocator_Mark before = memory::temp_allocator_mark();
+	TESTER_CHECK(text.data == string_interner_intern(interner, source + 15, source + 21).data);
+	TESTER_CHECK(text.data == string_interner_intern(interner, source + 15, U64(6)).data);
+	TESTER_CHECK(before.arena_used == memory::temp_allocator_mark().arena_used);
+
+	char bytes[] = {'a', '\0', 'b'};
+	String_View embedded = string_interner_intern(interner, view_from(bytes));
+	TESTER_CHECK(embedded.count == 3 && embedded.data[3] == '\0');
+	TESTER_CHECK(embedded == String_View(bytes, 3));
+	TESTER_CHECK(embedded.data == string_interner_intern(interner, bytes, U64(3)).data);
+	TESTER_CHECK(embedded.data != string_interner_intern(interner, bytes).data);
+	bytes[2] = 'c';
+	TESTER_CHECK(embedded.data[2] == 'b');
+	TESTER_CHECK(embedded.data != string_interner_intern(interner, view_from(bytes)).data);
+
+	String_View empty = string_interner_intern(interner, String_View {});
+	TESTER_CHECK(empty.count == 0 && empty.data != nullptr && empty.data[0] == '\0');
+	TESTER_CHECK(empty.data == string_interner_intern(interner, "").data);
+	TESTER_CHECK(empty.data == string_interner_intern(interner, String {}).data);
+
+	for (U64 i = 0; i < 256; ++i)
+		string_interner_intern(interner, format("{}", i, memory::temp_allocator()));
+	TESTER_CHECK(text.data == string_interner_intern(interner, "STRING").data);
+	TESTER_CHECK(embedded == String_View("a\0b", 3));
 }
 
-TESTER_TEST("[CONTAINERS]: Slice")
+TESTER_TEST("[CONTAINERS]: View")
 {
-	// ("slice_from pointer + count")
+	// ("view_from pointer + count")
 	{
 		I32 values[] = {10, 20, 30};
-		auto slice = slice_from(values, 3);
-		TESTER_CHECK(slice.data == values);
-		TESTER_CHECK(slice.count == 3);
+		auto view = view_from(values, 3);
+		TESTER_CHECK(view.data == values);
+		TESTER_CHECK(view.count == 3);
 	}
 
-	// ("slice_from two pointers")
+	// ("view_from two pointers")
 	{
 		I32 values[] = {1, 2, 3, 4, 5};
-		auto slice = slice_from(values, values + 5);
-		TESTER_CHECK(slice.data == values);
-		TESTER_CHECK(slice.count == 5);
+		auto view = view_from(values, values + 5);
+		TESTER_CHECK(view.data == values);
+		TESTER_CHECK(view.count == 5);
 	}
 
-	// ("slice_from C array")
+	// ("view_from C array")
 	{
 		I32 values[4] = {7, 8, 9, 10};
-		auto slice = slice_from(values);
-		TESTER_CHECK(slice.data == values);
-		TESTER_CHECK(slice.count == 4);
+		auto view = view_from(values);
+		TESTER_CHECK(view.data == values);
+		TESTER_CHECK(view.count == 4);
 
 		char chars[3] = {'a', 'b', 'c'};
-		auto char_slice = slice_from(chars);
-		TESTER_CHECK(char_slice.data == chars);
-		TESTER_CHECK(char_slice.count == 3);
-		char_slice[0] = 'x';
+		auto char_view = view_from(chars);
+		TESTER_CHECK(char_view.data == chars);
+		TESTER_CHECK(char_view.count == 3);
+		char_view[0] = 'x';
 		TESTER_CHECK(chars[0] == 'x');
 	}
 
 	// ("mutable to const")
 	{
 		I32 values[2] = {1, 2};
-		Slice<I32> mutable_slice = slice_from(values);
-		Slice<const I32> const_slice = mutable_slice;
-		TESTER_CHECK(const_slice.data == values);
-		TESTER_CHECK(const_slice.count == 2);
+		View<I32> mutable_view = view_from(values);
+		View<const I32> const_view = mutable_view;
+		TESTER_CHECK(const_view.data == values);
+		TESTER_CHECK(const_view.count == 2);
 	}
 
 	// ("single value")
 	{
 		I32 value = 42;
-		auto slice = slice_from(value);
-		TESTER_CHECK(slice.data == &value);
-		TESTER_CHECK(slice.count == 1);
-		slice[0] = 7;
+		auto view = view_from(value);
+		TESTER_CHECK(view.data == &value);
+		TESTER_CHECK(view.count == 1);
+		view[0] = 7;
 		TESTER_CHECK(value == 7);
 
-		constexpr auto check = [](Slice<const I32> slice) {
-			TESTER_CHECK(slice.count == 1);
-			TESTER_CHECK(slice[0] == 9);
+		constexpr auto check = [](View<const I32> view) {
+			TESTER_CHECK(view.count == 1);
+			TESTER_CHECK(view[0] == 9);
 		};
 		check((I32)9);
 	}
 
-	// ("slice_from Array")
+	// ("view_from Array")
 	{
 		auto array = array_init_from<I32>({1, 2, 3});
 		DEFER(array_deinit(array));
 
-		auto slice = slice_from(array);
-		TESTER_CHECK(slice.data == array.data);
-		TESTER_CHECK(slice.count == array.count);
+		auto view = view_from(array);
+		TESTER_CHECK(view.data == array.data);
+		TESTER_CHECK(view.count == array.count);
 	}
 
-	// ("slice_from Stack_Array")
+	// ("view_from Stack_Array")
 	{
 		Stack_Array<I32, 3> array{{1, 2, 3}};
-		auto slice = slice_from(array);
-		TESTER_CHECK(slice.data == array.data);
-		TESTER_CHECK(slice.count == 3);
+		auto view = view_from(array);
+		TESTER_CHECK(view.data == array.data);
+		TESTER_CHECK(view.count == 3);
 	}
 
-	// ("slice_from c-string")
+	// ("view_from c-string")
 	{
-		Slice<const char> slice = slice_from("hello");
-		TESTER_CHECK(slice.count == 5);
-		TESTER_CHECK(slice[0] == 'h');
-		TESTER_CHECK(slice[4] == 'o');
-
-		Slice<const char> view = slice_from("hello");
+		String_View view = view_from("hello");
 		TESTER_CHECK(view.count == 5);
 		TESTER_CHECK(view[0] == 'h');
 		TESTER_CHECK(view[4] == 'o');
 
 		const char *c_string = "world";
-		Slice<const char> c_string_view = slice_from(c_string);
+		String_View c_string_view = view_from(c_string);
 		TESTER_CHECK(c_string_view.count == 5);
 		TESTER_CHECK(c_string_view[0] == 'w');
 		TESTER_CHECK(c_string_view[4] == 'd');
 
 		const char *null_c_string = nullptr;
-		TESTER_CHECK(slice_is_empty(slice_from(null_c_string)));
-		TESTER_CHECK(slice_is_empty(slice_from(nullptr)));
+		TESTER_CHECK(view_is_empty(view_from(null_c_string)));
+		TESTER_CHECK(view_is_empty(view_from(nullptr)));
 	}
 
-	// ("character slice equality")
+	// ("character view equality")
 	{
-		TESTER_CHECK(slice_from("hello") == slice_from("hello"));
-		TESTER_CHECK(slice_from("hello") != slice_from("world"));
-		TESTER_CHECK(slice_from("hello") != slice_from("hell"));
-		TESTER_CHECK(slice_from("") == slice_from(""));
+		TESTER_CHECK(view_from("hello") == view_from("hello"));
+		TESTER_CHECK(view_from("hello") != view_from("world"));
+		TESTER_CHECK(view_from("hello") != view_from("hell"));
+		TESTER_CHECK(view_from("") == view_from(""));
 
 		const char *hello = "hello";
 		const char *world = "world";
-		TESTER_CHECK(slice_from("hello") == hello);
-		TESTER_CHECK(hello == slice_from("hello"));
-		TESTER_CHECK(slice_from("hello") != world);
-		TESTER_CHECK(world != slice_from("hello"));
-		TESTER_CHECK(slice_from("hello") != "hell");
-		TESTER_CHECK(slice_from("hello") != "hello!");
-		TESTER_CHECK("hell" != slice_from("hello"));
-		TESTER_CHECK("hello!" != slice_from("hello"));
-		TESTER_CHECK(slice_from("") == nullptr);
-		TESTER_CHECK(nullptr == slice_from(""));
+		TESTER_CHECK(view_from("hello") == hello);
+		TESTER_CHECK(hello == view_from("hello"));
+		TESTER_CHECK(view_from("hello") != world);
+		TESTER_CHECK(world != view_from("hello"));
+		TESTER_CHECK(view_from("hello") != "hell");
+		TESTER_CHECK(view_from("hello") != "hello!");
+		TESTER_CHECK("hell" != view_from("hello"));
+		TESTER_CHECK("hello!" != view_from("hello"));
+		TESTER_CHECK(view_from("") == nullptr);
+		TESTER_CHECK(nullptr == view_from(""));
 	}
 
 	// ("initializer list")
 	{
-		constexpr auto check = [](Slice<const I32> slice) {
-			TESTER_CHECK(slice.count == 4);
-			TESTER_CHECK(slice[0] == 1);
-			TESTER_CHECK(slice[3] == 4);
+		constexpr auto check = [](View<const I32> view) {
+			TESTER_CHECK(view.count == 4);
+			TESTER_CHECK(view[0] == 1);
+			TESTER_CHECK(view[3] == 4);
 		};
 
 		check({1, 2, 3, 4});
-		check(slice_from({1, 2, 3, 4}));
+		check(view_from({1, 2, 3, 4}));
 	}
 
 	// ("operator[]")
 	{
 		I32 values[] = {10, 20, 30};
-		auto slice = slice_from(values, 3);
-		TESTER_CHECK(slice[0] == 10);
-		TESTER_CHECK(slice[1] == 20);
-		TESTER_CHECK(slice[2] == 30);
+		auto view = view_from(values, 3);
+		TESTER_CHECK(view[0] == 10);
+		TESTER_CHECK(view[1] == 20);
+		TESTER_CHECK(view[2] == 30);
 	}
 
-	// ("mutation through slice")
+	// ("mutation through view")
 	{
 		I32 values[] = {1, 2, 3};
-		auto slice = slice_from(values, 3);
-		slice[0] = 99;
+		auto view = view_from(values, 3);
+		view[0] = 99;
 		TESTER_CHECK(values[0] == 99);
 	}
 
-	// ("slice_is_empty")
+	// ("view_is_empty")
 	{
 		I32 values[] = {1};
-		TESTER_CHECK(slice_is_empty(slice_from((I32 *)nullptr, (U64)0)) == true);
-		TESTER_CHECK(slice_is_empty(slice_from(values, 1)) == false);
+		TESTER_CHECK(view_is_empty(view_from((I32 *)nullptr, (U64)0)) == true);
+		TESTER_CHECK(view_is_empty(view_from(values, 1)) == false);
 	}
 
-	// ("slice_front / slice_back")
+	// ("view_front / view_back")
 	{
 		I32 values[] = {10, 20, 30};
-		auto slice = slice_from(values, 3);
-		TESTER_CHECK(slice_front(slice) == 10);
-		TESTER_CHECK(slice_back(slice) == 30);
+		auto view = view_from(values, 3);
+		TESTER_CHECK(view_front(view) == 10);
+		TESTER_CHECK(view_back(view) == 30);
 
-		slice_front(slice) = 99;
-		slice_back(slice) = 77;
+		view_front(view) = 99;
+		view_back(view) = 77;
 		TESTER_CHECK(values[0] == 99);
 		TESTER_CHECK(values[2] == 77);
 	}
@@ -1807,9 +1901,9 @@ TESTER_TEST("[CONTAINERS]: Slice")
 	// ("range-based for")
 	{
 		I32 values[] = {1, 2, 3, 4, 5};
-		auto slice = slice_from(values, 5);
+		auto view = view_from(values, 5);
 		I32 sum = 0;
-		for (I32 v : slice)
+		for (I32 v : view)
 			sum += v;
 		TESTER_CHECK(sum == 15);
 	}

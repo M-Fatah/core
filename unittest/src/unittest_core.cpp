@@ -53,41 +53,41 @@ TESTER_TEST("[CORE]: Command Line")
 		literal
 	};
 
-	Command_Line command_line = command_line_init(arguments, (I32)slice_from(arguments).count, option_descs);
+	Command_Line command_line = command_line_init(arguments, (I32)view_from(arguments).count, option_descs);
 	DEFER(command_line_deinit(command_line));
 
 	TESTER_CHECK(!command_line_has_errors(command_line));
-	TESTER_CHECK(slice_from(command_line.executable) == slice_from("compiler"));
+	TESTER_CHECK(view_from(command_line.executable) == view_from("compiler"));
 	TESTER_CHECK(command_line_has_option(command_line, "output"));
 	TESTER_CHECK(command_line_has_option(command_line, "verbose"));
 	TESTER_CHECK(!command_line_has_option(command_line, "help"));
 
 	TESTER_CHECK(command_line.options.count == 4);
 
-	Slice<const char *> output_values = command_line_get_option_values(command_line, "output");
+	View<const char *> output_values = command_line_get_option_values(command_line, "output");
 	TESTER_CHECK(output_values.count == 1);
-	TESTER_CHECK(slice_from(output_values[0]) == slice_from("game.exe"));
+	TESTER_CHECK(view_from(output_values[0]) == view_from("game.exe"));
 
-	Slice<const char *> thread_values = command_line_get_option_values(command_line, "threads");
+	View<const char *> thread_values = command_line_get_option_values(command_line, "threads");
 	TESTER_CHECK(thread_values.count == 1);
-	TESTER_CHECK(slice_from(thread_values[0]) == slice_from("8"));
+	TESTER_CHECK(view_from(thread_values[0]) == view_from("8"));
 
-	Slice<const char *> include_values = command_line_get_option_values(command_line, "include");
+	View<const char *> include_values = command_line_get_option_values(command_line, "include");
 	TESTER_CHECK(include_values.count == 2);
-	TESTER_CHECK(slice_from(include_values[0]) == slice_from("core"));
-	TESTER_CHECK(slice_from(include_values[1]) == slice_from("deps"));
+	TESTER_CHECK(view_from(include_values[0]) == view_from("core"));
+	TESTER_CHECK(view_from(include_values[1]) == view_from("deps"));
 
-	Slice<const char *> verbose_values = command_line_get_option_values(command_line, "verbose");
+	View<const char *> verbose_values = command_line_get_option_values(command_line, "verbose");
 	TESTER_CHECK(verbose_values.count == 2);
 	TESTER_CHECK(verbose_values[0] == nullptr);
 	TESTER_CHECK(verbose_values[1] == nullptr);
 	TESTER_CHECK(command_line_get_option_values(command_line, "help").count == 0);
 
-	Slice<const char *> positionals = slice_from(command_line.positionals);
+	View<const char *> positionals = view_from(command_line.positionals);
 	TESTER_CHECK(positionals.count == 3);
-	TESTER_CHECK(slice_from(positionals[0]) == slice_from("main.cpp"));
-	TESTER_CHECK(slice_from(positionals[1]) == slice_from("math.cpp"));
-	TESTER_CHECK(slice_from(positionals[2]) == slice_from("--literal"));
+	TESTER_CHECK(view_from(positionals[0]) == view_from("main.cpp"));
+	TESTER_CHECK(view_from(positionals[1]) == view_from("math.cpp"));
+	TESTER_CHECK(view_from(positionals[2]) == view_from("--literal"));
 }
 
 TESTER_TEST("[CORE]: Command Line Argc Argv")
@@ -99,13 +99,13 @@ TESTER_TEST("[CORE]: Command Line Argc Argv")
 	char help[] = "--help";
 	char *arguments[] = {executable, help};
 
-	Command_Line command_line = command_line_init(arguments, (I32)slice_from(arguments).count, option_descs);
+	Command_Line command_line = command_line_init(arguments, (I32)view_from(arguments).count, option_descs);
 	DEFER(command_line_deinit(command_line));
 
 	TESTER_CHECK(!command_line_has_errors(command_line));
-	TESTER_CHECK(slice_from(command_line.executable) == slice_from("tool"));
+	TESTER_CHECK(view_from(command_line.executable) == view_from("tool"));
 	TESTER_CHECK(command_line_has_option(command_line, "help"));
-	Slice<const char *> values = command_line_get_option_values(command_line, "help");
+	View<const char *> values = command_line_get_option_values(command_line, "help");
 	TESTER_CHECK(values.count == 1);
 	TESTER_CHECK(values[0] == nullptr);
 }
@@ -132,7 +132,7 @@ TESTER_TEST("[CORE]: Command Line Grammar")
 		literal
 	};
 
-	Command_Line command_line = command_line_init(arguments, (I32)slice_from(arguments).count, option_descs);
+	Command_Line command_line = command_line_init(arguments, (I32)view_from(arguments).count, option_descs);
 	DEFER(command_line_deinit(command_line));
 
 	TESTER_CHECK(!command_line_has_errors(command_line));
@@ -140,13 +140,13 @@ TESTER_TEST("[CORE]: Command Line Grammar")
 	TESTER_CHECK(!command_line_has_option(command_line, "verbose"));
 	TESTER_CHECK(!command_line_has_option(command_line, "help"));
 
-	Slice<const char *> output_values = command_line_get_option_values(command_line, "output");
+	View<const char *> output_values = command_line_get_option_values(command_line, "output");
 	TESTER_CHECK(output_values.count == 1);
-	TESTER_CHECK(slice_from(output_values[0]) == "--verbose");
+	TESTER_CHECK(view_from(output_values[0]) == "--verbose");
 
 	TESTER_CHECK(command_line.positionals.count == 2);
-	TESTER_CHECK(slice_from(command_line.positionals[0]) == "-");
-	TESTER_CHECK(slice_from(command_line.positionals[1]) == "--help");
+	TESTER_CHECK(view_from(command_line.positionals[0]) == "-");
+	TESTER_CHECK(view_from(command_line.positionals[1]) == "--help");
 }
 
 TESTER_TEST("[CORE]: Command Line Empty")
@@ -187,26 +187,26 @@ TESTER_TEST("[CORE]: Command Line Errors")
 		output
 	};
 
-	Command_Line command_line = command_line_init(arguments, (I32)slice_from(arguments).count, option_descs);
+	Command_Line command_line = command_line_init(arguments, (I32)view_from(arguments).count, option_descs);
 	DEFER(command_line_deinit(command_line));
 
 	TESTER_CHECK(command_line_has_errors(command_line));
-	Slice<const Command_Line_Error> errors = slice_from(command_line.errors);
+	View<const Command_Line_Error> errors = view_from(command_line.errors);
 	TESTER_CHECK(errors.count == 7);
 	TESTER_CHECK(errors[0].code == COMMAND_LINE_ERROR_UNKNOWN_OPTION);
-	TESTER_CHECK(slice_from(errors[0].argument) == slice_from("--unknown"));
+	TESTER_CHECK(view_from(errors[0].argument) == view_from("--unknown"));
 	TESTER_CHECK(errors[1].code == COMMAND_LINE_ERROR_UNKNOWN_OPTION);
-	TESTER_CHECK(slice_from(errors[1].argument) == slice_from("-x"));
+	TESTER_CHECK(view_from(errors[1].argument) == view_from("-x"));
 	TESTER_CHECK(errors[2].code == COMMAND_LINE_ERROR_UNEXPECTED_VALUE);
-	TESTER_CHECK(slice_from(errors[2].argument) == slice_from("--help=true"));
+	TESTER_CHECK(view_from(errors[2].argument) == view_from("--help=true"));
 	TESTER_CHECK(errors[3].code == COMMAND_LINE_ERROR_UNEXPECTED_VALUE);
-	TESTER_CHECK(slice_from(errors[3].argument) == slice_from("-htrue"));
+	TESTER_CHECK(view_from(errors[3].argument) == view_from("-htrue"));
 	TESTER_CHECK(errors[4].code == COMMAND_LINE_ERROR_MISSING_VALUE);
-	TESTER_CHECK(slice_from(errors[4].argument) == slice_from("--output="));
+	TESTER_CHECK(view_from(errors[4].argument) == view_from("--output="));
 	TESTER_CHECK(errors[5].code == COMMAND_LINE_ERROR_MISSING_VALUE);
-	TESTER_CHECK(slice_from(errors[5].argument) == slice_from("-o"));
+	TESTER_CHECK(view_from(errors[5].argument) == view_from("-o"));
 	TESTER_CHECK(errors[6].code == COMMAND_LINE_ERROR_MISSING_VALUE);
-	TESTER_CHECK(slice_from(errors[6].argument) == slice_from("--output"));
+	TESTER_CHECK(view_from(errors[6].argument) == view_from("--output"));
 }
 
 TESTER_TEST("[CORE]: Atomic")
@@ -617,7 +617,7 @@ TESTER_TEST("[CORE]: Scheduler Worker Blocking Replacement")
 		};
 	}
 
-	scheduler_submit(scheduler, slice_from(tasks), group);
+	scheduler_submit(scheduler, view_from(tasks), group);
 	scheduler_wait_group(scheduler, group);
 
 	platform_mutex_lock(mutex);
@@ -791,7 +791,7 @@ TESTER_TEST("[CORE]: Scheduler Stats")
 		};
 	}
 
-	scheduler_submit(queued_scheduler, slice_from(tasks), group);
+	scheduler_submit(queued_scheduler, view_from(tasks), group);
 
 	stats = scheduler_get_stats(queued_scheduler);
 	TESTER_CHECK(stats.active_replacement_worker_count == 0);
@@ -909,7 +909,7 @@ TESTER_TEST("[CORE]: Scheduler Submit Batch")
 		.initial_task_queue_capacity = 1
 	});
 
-	scheduler_submit(scheduler, slice_from(tasks));
+	scheduler_submit(scheduler, view_from(tasks));
 	scheduler_wait_all(scheduler);
 
 	platform_mutex_lock(mutex);
@@ -1274,7 +1274,7 @@ TESTER_TEST("[CORE]: Scheduler Steals From Blocked Worker")
 		};
 	}
 
-	scheduler_submit(scheduler, slice_from(tasks), group);
+	scheduler_submit(scheduler, view_from(tasks), group);
 	scheduler_wait_group(scheduler, group);
 
 	platform_mutex_lock(mutex);
@@ -1342,7 +1342,7 @@ TESTER_TEST("[CORE]: Scheduler Wait Group")
 			.data = &task_context
 		};
 	}
-	scheduler_submit(scheduler, slice_from(tasks), group);
+	scheduler_submit(scheduler, view_from(tasks), group);
 
 	scheduler_wait_group(scheduler, group);
 
@@ -1737,6 +1737,100 @@ TESTER_TEST("[CORE]: Memory_Block allocation")
 	memory::temp_allocator_clear();
 }
 
+TESTER_TEST("[CORE]: Memory copy")
+{
+	constexpr auto accepts_copy = []<typename T>() -> bool {
+		return requires (T *destination, const T *source, memory::Allocator *allocator) {
+			memory::copy<T>(destination, source, U64(1));
+			memory::copy<T>(allocator, source, U64(1));
+		};
+	};
+
+	struct Non_Trivial
+	{
+		~Non_Trivial() {}
+	};
+
+	struct alignas(64) Value
+	{
+		U64 numbers[8];
+	};
+
+	struct Tracking_Allocator final : memory::Allocator
+	{
+		U64 allocation_count;
+		U64 size;
+		U64 alignment;
+		bool fail;
+
+		Memory_Block
+		allocate(U64 requested_size, U64 requested_alignment) override
+		{
+			++allocation_count;
+			size = requested_size;
+			alignment = requested_alignment;
+			if (fail)
+				return Memory_Block {};
+			return memory::allocate(size, alignment);
+		}
+
+		void
+		deallocate(Memory_Block block) override
+		{
+			memory::deallocate(block);
+		}
+	};
+
+	static_assert(is_trivially_copyable_v<const U32>);
+	static_assert(accepts_copy.operator()<U8>());
+	static_assert(accepts_copy.operator()<U32>());
+	static_assert(accepts_copy.operator()<Value>());
+	static_assert(!accepts_copy.operator()<void>());
+	static_assert(!accepts_copy.operator()<const U32>());
+	static_assert(!accepts_copy.operator()<volatile U32>());
+	static_assert(!accepts_copy.operator()<Non_Trivial>());
+
+	U32 source[] = {10, 20};
+	U32 destination[] = {1, 2, 3, 4};
+	memory::copy(destination + 1, source, count_of(source));
+	TESTER_CHECK(destination[0] == 1 && destination[3] == 4);
+	TESTER_CHECK(destination[1] == 10 && destination[2] == 20);
+
+	const U8 bytes[] = {'a', 0, 'b'};
+	U8 copied_bytes[] = {1, 2, 3, 4};
+	memory::copy(copied_bytes, bytes, count_of(bytes));
+	TESTER_CHECK(copied_bytes[0] == 'a' && copied_bytes[1] == 0 && copied_bytes[2] == 'b');
+	TESTER_CHECK(copied_bytes[3] == 4);
+
+	const U32 *references[] = {&source[0], &source[1]};
+	const U32 *copied_references[2];
+	memory::copy(copied_references, references, count_of(references));
+	TESTER_CHECK(copied_references[0] == &source[0] && copied_references[1] == &source[1]);
+
+	const Value values[] = {
+		Value {.numbers = {10}},
+		Value {.numbers = {20}}
+	};
+	Tracking_Allocator allocator = {};
+	Value *copy = memory::copy(&allocator, values, count_of(values));
+	DEFER(memory::deallocate(&allocator, Memory_Block {copy, sizeof(values)}));
+	TESTER_CHECK(allocator.allocation_count == 1);
+	TESTER_CHECK(allocator.size == sizeof(values) && allocator.alignment == alignof(Value));
+	TESTER_CHECK((U64)copy % alignof(Value) == 0);
+	TESTER_CHECK(copy != values);
+	TESTER_CHECK(copy[0].numbers[0] == 10 && copy[1].numbers[0] == 20);
+	copy[0].numbers[0] = 30;
+	TESTER_CHECK(values[0].numbers[0] == 10);
+
+	memory::copy((U32 *)nullptr, (const U32 *)nullptr, 0);
+	TESTER_CHECK(memory::copy(&allocator, (const U32 *)nullptr, 0) == nullptr);
+	TESTER_CHECK(allocator.allocation_count == 1);
+
+	allocator.fail = true;
+	TESTER_CHECK(memory::copy(&allocator, source, count_of(source)) == nullptr);
+	TESTER_CHECK(allocator.allocation_count == 2);
+}
+
 TESTER_TEST("[CORE]: Temp_Allocator_Mark")
 {
 	memory::Allocator *temp = memory::temp_allocator();
@@ -1978,16 +2072,16 @@ TESTER_TEST("[CORE]: JSON String Serialization")
 		"\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f";
 	struct
 	{
-		Slice<const char> input;
+		String_View input;
 		const char *expected;
 	} cases[] = {
-		{slice_from(""), R"("")"},
-		{slice_from("plain / text"), R"("plain / text")"},
-		{slice_from("\"\\\b\f\n\r\t"), R"("\"\\\b\f\n\r\t")"},
-		{slice_from("\\n"), R"("\\n")"},
-		{slice_from("ends\\"), R"("ends\\")"},
-		{slice_from("\xc3\xa9 \xe4\xb8\xad \xf0\x9f\x98\x80"), "\"\xc3\xa9 \xe4\xb8\xad \xf0\x9f\x98\x80\""},
-		{Slice<const char>(controls, sizeof(controls) - 1),
+		{view_from(""), R"("")"},
+		{view_from("plain / text"), R"("plain / text")"},
+		{view_from("\"\\\b\f\n\r\t"), R"("\"\\\b\f\n\r\t")"},
+		{view_from("\\n"), R"("\\n")"},
+		{view_from("ends\\"), R"("ends\\")"},
+		{view_from("\xc3\xa9 \xe4\xb8\xad \xf0\x9f\x98\x80"), "\"\xc3\xa9 \xe4\xb8\xad \xf0\x9f\x98\x80\""},
+		{String_View(controls, sizeof(controls) - 1),
 			"\"\\u0000\\u0001\\u0002\\u0003\\u0004\\u0005\\u0006\\u0007"
 			"\\b\\t\\n\\u000b\\f\\r\\u000e\\u000f"
 			"\\u0010\\u0011\\u0012\\u0013\\u0014\\u0015\\u0016\\u0017"
@@ -2070,23 +2164,23 @@ TESTER_TEST("[CORE]: JSON Strict Input")
 		TESTER_CHECK(allocator.bytes == 0);
 	}
 	const char *complete = R"({"key":["owned",true,false,null,-12.5e+2,{"text":"\uD83D\uDE00\\"}]})";
-	U64 count = slice_from(complete).count;
+	U64 count = view_from(complete).count;
 	for (U64 length = 0; length < count; ++length)
 	{
 		Memory_Block buffer = memory::allocate(length, alignof(char));
 		DEFER(memory::deallocate(buffer));
 		if (length)
 			::memcpy(buffer.data, complete, length);
-		auto [value, error] = json_value_from_string(Slice<const char>((const char *)buffer.data, length), &allocator);
+		auto [value, error] = json_value_from_string(String_View((const char *)buffer.data, length), &allocator);
 		TESTER_CHECK(error == true);
 		json_value_deinit(value);
 		TESTER_CHECK(allocator.bytes == 0);
 	}
 	const char null_in_string[] = {'"', 'a', '\0', 'b', '"'};
 	const char null_after_value[] = {'n', 'u', 'l', 'l', '\0', 't', 'r', 'u', 'e'};
-	Slice<const char> embedded_nulls[] = {
-		Slice<const char>(null_in_string, sizeof(null_in_string)),
-		Slice<const char>(null_after_value, sizeof(null_after_value))
+	String_View embedded_nulls[] = {
+		String_View(null_in_string, sizeof(null_in_string)),
+		String_View(null_after_value, sizeof(null_after_value))
 	};
 	for (auto input : embedded_nulls)
 	{
@@ -2099,7 +2193,7 @@ TESTER_TEST("[CORE]: JSON Strict Input")
 		TESTER_CHECK(allocator.bytes == 0);
 	}
 	const char bounded[] = {'t', 'r', 'u', 'e', 'x'};
-	auto [value, error] = json_value_from_string(Slice<const char>(bounded, 4), &allocator);
+	auto [value, error] = json_value_from_string(String_View(bounded, 4), &allocator);
 	DEFER(json_value_deinit(value));
 	TESTER_CHECK(error == false);
 	TESTER_CHECK(value.kind == JSON_VALUE_KIND_BOOL && value.as_bool);

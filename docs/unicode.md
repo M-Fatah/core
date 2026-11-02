@@ -2,7 +2,7 @@
 
 `core/unicode.h` provides allocation-free UTF-8 decoding and per-code-point terminal column widths. It has no locale or platform dependency.
 
-`unicode_decode_utf8(Slice<const char>)` reads the first Unicode scalar from the provided byte range. Its `Unicode_Utf8_Character` result contains `code_point` and `byte_count`. A zero byte count indicates empty input or invalid UTF-8. A valid encoded null character returns code point zero and byte count one. The decoder rejects truncation, invalid continuation bytes, overlong sequences, surrogates, and values above U+10FFFF. It does not consume subsequent characters or replace invalid input; the caller chooses how to recover.
+`unicode_decode_utf8(String_View)` reads the first Unicode scalar from the provided byte range. Its `Unicode_Utf8_Character` result contains `code_point` and `byte_count`. A zero byte count indicates empty input or invalid UTF-8. A valid encoded null character returns code point zero and byte count one. The decoder rejects truncation, invalid continuation bytes, overlong sequences, surrogates, and values above U+10FFFF. It does not consume subsequent characters or replace invalid input; the caller chooses how to recover.
 
 `unicode_get_column_width(U32)` returns a conventional terminal cell width: zero for null, nonspacing/enclosing marks, format characters, and conjoining Hangul vowel/trailing jamo; two for East Asian Wide/Fullwidth characters; one for other Unicode scalars. Ambiguous-width characters use one column. Control characters other than null, line/paragraph separators, and invalid scalars return -1. Tabs require caller-defined expansion.
 

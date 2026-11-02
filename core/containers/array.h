@@ -9,6 +9,9 @@
 #include <initializer_list>
 
 template <typename T>
+struct View;
+
+template <typename T>
 struct Array
 {
 	memory::Allocator *allocator;
@@ -84,6 +87,23 @@ inline static Array<T>
 array_init_from(std::initializer_list<T> values, memory::Allocator *allocator = memory::heap_allocator())
 {
 	return array_init_from(values.begin(), values.end(), allocator);
+}
+
+template <typename T>
+inline static Array<T>
+array_from(View<const T> self, memory::Allocator *allocator = memory::heap_allocator())
+{
+	Array<T> copy = array_init_with_count<T>(self.count, allocator);
+	for (U64 i = 0; i < self.count; ++i)
+		copy[i] = self[i];
+	return copy;
+}
+
+template <typename T>
+inline static Array<T>
+array_from(View<T> self, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return array_from(View<const T>(self.data, self.count), allocator);
 }
 
 template <typename T>

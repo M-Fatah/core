@@ -212,7 +212,7 @@ testDocumentDialogExportsAndFilters
 	XCTAssertTrue(open_dialog != nullptr);
 	auto directory_dialog = &platform_directory_dialog_open;
 	XCTAssertTrue(directory_dialog != nullptr);
-	bool (*save_dialog)(Platform_Window &, const String &, Slice<const U8>, const char *) = &platform_file_dialog_save;
+	bool (*save_dialog)(Platform_Window &, const String &, View<const U8>, const char *) = &platform_file_dialog_save;
 	XCTAssertTrue(save_dialog != nullptr);
 }
 
@@ -839,15 +839,15 @@ testClipboard
 	Platform_Clipboard_Item_Desc items[] = {
 		{
 			.media_type = string_literal(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8),
-			.data = slice_from((const U8 *)text.data, text.count)
+			.data = view_from((const U8 *)text.data, text.count)
 		},
 		{
 			.media_type = string_literal(PLATFORM_CLIPBOARD_MEDIA_TYPE_BINARY),
-			.data = slice_from((const U8 *)binary, count_of(binary))
+			.data = view_from((const U8 *)binary, count_of(binary))
 		},
 		{
 			.media_type = string_literal("application/x-core-test"),
-			.data = slice_from((const U8 *)custom, count_of(custom))
+			.data = view_from((const U8 *)custom, count_of(custom))
 		}
 	};
 	XCTAssertFalse(platform_window_clipboard_item_write(*window, nullptr, 0));
