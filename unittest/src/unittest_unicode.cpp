@@ -5,7 +5,7 @@ TESTER_TEST("[CORE]: UTF-8 Decode")
 {
 	struct Test_Case
 	{
-		Slice<const char> text;
+		String_View text;
 		U32 code_point;
 		U32 byte_count;
 	};

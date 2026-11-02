@@ -26,7 +26,7 @@ constexpr char JSON_ESCAPE_VALUES[] = "\"\\/\b\f\n\r\t";
 struct JSON_Parser
 {
 	memory::Allocator *allocator;
-	Slice<const char> input;
+	String_View input;
 	U64 offset;
 	JSON_Locale locale;
 	Error error;
@@ -732,7 +732,7 @@ json_value_init_as_object(memory::Allocator *allocator)
 }
 
 Result<JSON_Value>
-json_value_from_string(Slice<const char> json_string, memory::Allocator *allocator)
+json_value_from_string(String_View json_string, memory::Allocator *allocator)
 {
 	if (json_string.data == nullptr || json_string.count == 0)
 		return {Error{"[JSON]: Provided JSON string is empty."}, JSON_Value{}};

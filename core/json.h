@@ -54,18 +54,18 @@ CORE_API JSON_Value
 json_value_init_as_object(memory::Allocator *allocator = memory::heap_allocator());
 
 CORE_API Result<JSON_Value>
-json_value_from_string(Slice<const char> json_string, memory::Allocator *allocator = memory::heap_allocator());
+json_value_from_string(String_View json_string, memory::Allocator *allocator = memory::heap_allocator());
 
 inline static Result<JSON_Value>
 json_value_from_string(const char *json_string, memory::Allocator *allocator = memory::heap_allocator())
 {
-	return json_value_from_string(slice_from(json_string), allocator);
+	return json_value_from_string(view_from(json_string), allocator);
 }
 
 inline static Result<JSON_Value>
 json_value_from_string(const String &json_string, memory::Allocator *allocator = memory::heap_allocator())
 {
-	return json_value_from_string(Slice<const char>(json_string.data, json_string.count), allocator);
+	return json_value_from_string(String_View(json_string.data, json_string.count), allocator);
 }
 
 CORE_API Result<JSON_Value>

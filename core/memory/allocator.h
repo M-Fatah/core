@@ -157,4 +157,31 @@ namespace memory
 		data->~T();
 		deallocate(allocator, data);
 	}
+
+	template <typename T>
+	requires (is_trivially_copyable_v<T> && !is_same_v<T, const T> && !is_same_v<T, volatile T>)
+	inline static void
+	copy(T *destination, const T *source, U64 count)
+	{
+		if (destination == nullptr || source == nullptr || count == 0)
+			return;
+
+		::memcpy(destination, source, sizeof(T) * count);
+	}
+
+	template <typename T>
+	requires (is_trivially_copyable_v<T> && !is_same_v<T, const T> && !is_same_v<T, volatile T>)
+	inline static T *
+	copy(Allocator *allocator, const T *source, U64 count)
+	{
+		if (source == nullptr || count == 0)
+			return nullptr;
+
+		T *destination = (T *)allocate(allocator, sizeof(T) * count, alignof(T)).data;
+		if (destination == nullptr)
+			return nullptr;
+
+		::memcpy(destination, source, sizeof(T) * count);
+		return destination;
+	}
 }

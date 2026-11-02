@@ -36,9 +36,45 @@ memory::deallocate(allocator, block);
 
 ---
 
+## Copying Elements
+
+Both `memory::copy` overloads count elements of `T`. They accept writable, trivially copyable element types, copy their representation without calling constructors, and do not duplicate pointed-to data or append a terminator. Core exposes `is_trivially_copyable_v<T>` in `core/defines.h`; const types can satisfy that trait, so these overloads separately reject const and volatile element types in their signatures.
+
+```cpp
+const U32 source[] = {10, 20, 30};
+U32 destination[3];
+memory::copy(destination, source, count_of(source));
+
+memory::Allocator *allocator = memory::heap_allocator();
+U32 *copied = memory::copy(allocator, source, count_of(source));
+DEFER(memory::deallocate(allocator, Memory_Block {copied, sizeof(source)}));
+```
+
+- `copy(T *destination, const T *source, U64 count)` writes into existing storage. Both ranges must contain at least `count` elements and must not overlap. Zero elements is a no-op and permits null pointers.
+- `copy(Allocator *allocator, const T *source, U64 count)` allocates `count * sizeof(T)` bytes with `alignof(T)` and copies the source. Zero elements returns `nullptr` without calling the allocator. If the allocator returns no storage, this overload returns `nullptr`; Core's heap and arena allocators terminate on allocation failure.
+
+The caller must supply a valid source range, and `count * sizeof(T)` must fit the allocation size type. Keep the count for deallocation: `memory::deallocate(T *)` describes only one object. Use `Memory_Block {data, count * sizeof(T)}` for multiple elements, or `array_from(view, allocator)` when an owned array is the appropriate result.
+
+For byte ranges, use `U8` pointers; an element then occupies one byte. Cast untyped addresses explicitly:
+
+```cpp
+memory::copy((U8 *)destination_address, (const U8 *)source_address, byte_count);
+```
+
+There is no `void *` overload. When migrating a byte-count call with wider element pointers, convert the count to elements or cast the pointers to `U8`. Passing `sizeof(source)` with `U32 *` pointers would request that many **U32 elements**.
+
+The string interner still allocates its extra character and writes the terminator explicitly:
+
+```cpp
+memory::copy(data, text.data, text.count);
+data[text.count] = '\0';
+```
+
+---
+
 ## Typed Helpers
 
-Typed helpers allocate one object only.
+`allocate<T>`, `allocate_zeroed<T>` and the constructor helpers allocate one object only.
 
 ```cpp
 MyStruct *value = memory::allocate<MyStruct>(allocator);
@@ -48,7 +84,7 @@ MyStruct *constructed = memory::allocate_and_call_constructor<MyStruct>(allocato
 memory::deallocate_and_call_destructor(allocator, constructed);
 ```
 
-There is no `allocate<T>(count)` API. Multi-element ownership stays explicit through `Memory_Block`.
+There is no `allocate<T>(count)` API. The allocating `copy` overload supports multiple elements; ownership still requires the full `Memory_Block` size when deallocating.
 
 ---
 

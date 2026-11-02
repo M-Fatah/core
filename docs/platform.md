@@ -527,7 +527,7 @@ if (path.count > 0)
 ```
 
 ```cpp
-Slice<const U8> scene_data = serialize_scene(scene);
+View<const U8> scene_data = serialize_scene(scene);
 bool saved = platform_file_dialog_save(
 	window,
 	"level.scene",
@@ -572,7 +572,7 @@ if (platform_window_clipboard_item_read(window, string_literal(PLATFORM_CLIPBOAR
 String text = string_literal("Copied from Core");
 Platform_Clipboard_Item_Desc item {
 	.media_type = string_literal(PLATFORM_CLIPBOARD_MEDIA_TYPE_TEXT_UTF8),
-	.data = slice_from((const U8 *)text.data, text.count)
+	.data = view_from((const U8 *)text.data, text.count)
 };
 
 platform_window_clipboard_item_write(window, &item, 1);

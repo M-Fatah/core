@@ -1680,7 +1680,7 @@ platform_file_dialog_open(Platform_Window &window, const char *filters, memory::
 }
 
 bool
-platform_file_dialog_save(Platform_Window &window, const String &suggested_name, Slice<const U8> data, const char *filters)
+platform_file_dialog_save(Platform_Window &window, const String &suggested_name, View<const U8> data, const char *filters)
 {
 	validate(window.ctx != nullptr, "[PLATFORM][WINDOWS]: File save dialog requires an initialized platform window.");
 	validate(data.data != nullptr || data.count == 0, "[PLATFORM][WINDOWS]: File save data is invalid.");
@@ -1875,7 +1875,7 @@ struct Platform_Win32_Clipboard_Data
 };
 
 inline static HGLOBAL
-_platform_win32_clipboard_data_from_text(const Slice<const U8> &text)
+_platform_win32_clipboard_data_from_text(const View<const U8> &text)
 {
 	if (text.count > I32_MAX)
 		return nullptr;
@@ -1902,7 +1902,7 @@ _platform_win32_clipboard_data_from_text(const Slice<const U8> &text)
 }
 
 inline static HGLOBAL
-_platform_win32_clipboard_data_from_bytes(const Slice<const U8> &data)
+_platform_win32_clipboard_data_from_bytes(const View<const U8> &data)
 {
 	HGLOBAL clipboard_data = ::GlobalAlloc(GMEM_MOVEABLE, data.count);
 	if (clipboard_data == nullptr)

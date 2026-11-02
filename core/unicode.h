@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/export.h"
-#include "core/containers/slice.h"
+#include "core/containers/view.h"
 
 struct Unicode_Utf8_Character
 {
@@ -10,7 +10,7 @@ struct Unicode_Utf8_Character
 };
 
 CORE_API Unicode_Utf8_Character
-unicode_decode_utf8(Slice<const char> text);
+unicode_decode_utf8(String_View text);
 
 CORE_API I32
 unicode_get_column_width(U32 code_point);

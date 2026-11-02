@@ -80,7 +80,7 @@ Repeated options are preserved:
 tool -Icore -Ideps -Igenerated
 ```
 
-`command_line_get_option_values()` returns every occurrence in argument order. Flags contribute a `nullptr` value, so the returned slice count also records how many times a flag was supplied.
+`command_line_get_option_values()` returns every occurrence in argument order. Flags contribute a `nullptr` value, so the returned view count also records how many times a flag was supplied.
 
 Positionals are arguments that are not parsed as options:
 
@@ -126,7 +126,7 @@ main(int argc, char **argv)
 		return 0;
 	}
 
-	Slice<const char *> output_values =
+	View<const char *> output_values =
 		command_line_get_option_values(command_line, "output");
 	if (output_values.count > 0)
 	{
@@ -156,7 +156,7 @@ main(int argc, char **argv)
 `command_line_has_errors()` returns `true` when any parse error was collected.
 
 ```cpp
-Slice<const Command_Line_Error> errors = slice_from(command_line.errors);
+View<const Command_Line_Error> errors = view_from(command_line.errors);
 ```
 
 Possible error codes:

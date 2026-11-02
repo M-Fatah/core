@@ -3841,7 +3841,7 @@ platform_file_dialog_open(Platform_Window &window, const char *filters, memory::
 }
 
 bool
-platform_file_dialog_save(Platform_Window &window, const String &suggested_name, Slice<const U8> data, const char *filters)
+platform_file_dialog_save(Platform_Window &window, const String &suggested_name, View<const U8> data, const char *filters)
 {
 	bool valid = window.ctx != nullptr && ![NSThread isMainThread];
 	validate(valid, "[PLATFORM][IOS]: File save dialog requires an initialized window and a non-main calling thread.");

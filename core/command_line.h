@@ -3,7 +3,7 @@
 #include "core/defines.h"
 #include "core/export.h"
 #include "core/containers/array.h"
-#include "core/containers/slice.h"
+#include "core/containers/view.h"
 #include "core/memory/allocator.h"
 
 struct Command_Line_Option_Desc
@@ -41,7 +41,7 @@ struct Command_Line
 };
 
 CORE_API Command_Line
-command_line_init(char **arguments, I32 argument_count, Slice<const Command_Line_Option_Desc> option_descs, memory::Allocator *allocator = memory::heap_allocator());
+command_line_init(char **arguments, I32 argument_count, View<const Command_Line_Option_Desc> option_descs, memory::Allocator *allocator = memory::heap_allocator());
 
 CORE_API void
 command_line_deinit(Command_Line &self);
@@ -52,5 +52,5 @@ command_line_has_errors(const Command_Line &self);
 CORE_API bool
 command_line_has_option(const Command_Line &self, const char *option_name);
 
-CORE_API Slice<const char *>
+CORE_API View<const char *>
 command_line_get_option_values(const Command_Line &self, const char *option_name);

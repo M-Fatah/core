@@ -8,7 +8,7 @@
 #include "core/memory/allocator.h"
 #include "core/memory/arena_allocator.h"
 #include "core/containers/array.h"
-#include "core/containers/slice.h"
+#include "core/containers/view.h"
 
 using String = Array<char>;
 
@@ -149,7 +149,7 @@ string_append(String &self, const char *data, U64 count)
 }
 
 inline static void
-string_append(String &self, Slice<const char> other)
+string_append(String &self, String_View other)
 {
 	string_append(self, other.data, other.count);
 }
@@ -645,7 +645,7 @@ string_replace(String &self, char to_replace, char replacement)
 }
 
 inline static void
-string_replace(String &self, U64 start, U64 count, Slice<const char> replacement)
+string_replace(String &self, U64 start, U64 count, String_View replacement)
 {
 	validate(start <= self.count && count <= (self.count - start));
 
@@ -663,19 +663,19 @@ string_replace(String &self, U64 start, U64 count, Slice<const char> replacement
 inline static void
 string_replace(String &self, U64 start, U64 count, const char *data, U64 data_count)
 {
-	string_replace(self, start, count, Slice<const char>{data, data_count});
+	string_replace(self, start, count, String_View{data, data_count});
 }
 
 inline static void
 string_replace(String &self, U64 start, U64 count, const String &replacement)
 {
-	string_replace(self, start, count, Slice<const char>{replacement.data, replacement.count});
+	string_replace(self, start, count, String_View{replacement.data, replacement.count});
 }
 
 inline static void
 string_replace(String &self, U64 start, U64 count, const char *replacement)
 {
-	string_replace(self, start, count, slice_from(replacement));
+	string_replace(self, start, count, view_from(replacement));
 }
 
 inline static void
