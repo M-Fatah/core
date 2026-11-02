@@ -178,6 +178,9 @@ namespace memory
 			return nullptr;
 
 		T *destination = (T *)allocate(allocator, sizeof(T) * count, alignof(T)).data;
+		if (destination == nullptr)
+			return nullptr;
+
 		::memcpy(destination, source, sizeof(T) * count);
 		return destination;
 	}
