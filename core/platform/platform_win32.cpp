@@ -526,7 +526,7 @@ U64
 platform_file_read(Platform_File_Handle handle, void *data, U64 size)
 {
 	DWORD bytes_read = 0;
-	::ReadFile((HANDLE)handle, data, (DWORD)size, &bytes_read, nullptr);
+	::ReadFile((HANDLE)handle, data, (DWORD)u64_min(size, U32_MAX), &bytes_read, nullptr);
 	return (U64)bytes_read;
 }
 
@@ -565,9 +565,11 @@ platform_file_tell(Platform_File_Handle handle)
 U64
 platform_file_size(Platform_File_Handle handle)
 {
-	LARGE_INTEGER size = {};
-	::GetFileSizeEx((HANDLE)handle, &size);
-	return (U64)size.QuadPart;
+	FILE_STANDARD_INFO info{};
+	if (::GetFileType((HANDLE)handle) != FILE_TYPE_DISK || !::GetFileInformationByHandleEx((HANDLE)handle, FileStandardInfo, &info, sizeof(info)) || info.Directory)
+		return U64_MAX;
+
+	return (U64)info.EndOfFile.QuadPart;
 }
 
 struct Platform_IO_Cancellation

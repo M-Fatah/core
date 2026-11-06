@@ -286,6 +286,20 @@ TESTER_TEST("[PLATFORM] condition variable broadcast")
 
 TESTER_TEST("[PLATFORM] path utilities")
 {
+	TESTER_CHECK(!platform_path_is_relative(String{}));
+	TESTER_CHECK(platform_path_is_relative("."));
+	TESTER_CHECK(platform_path_is_relative("../assets/font.bin"));
+	TESTER_CHECK(platform_path_is_relative("1:font.bin"));
+	TESTER_CHECK(!platform_path_is_relative("/assets/font.bin"));
+	TESTER_CHECK(!platform_path_is_relative("\\assets\\font.bin"));
+	TESTER_CHECK(!platform_path_is_relative("\\\\server\\share\\font.bin"));
+	TESTER_CHECK(!platform_path_is_relative("C:font.bin"));
+	TESTER_CHECK(!platform_path_is_relative("d:/assets/font.bin"));
+
+	const char bytes[] = {'a', 'b', '\0', 'c'};
+	TESTER_CHECK(platform_path_is_relative(view_from(bytes, 2)));
+	TESTER_CHECK(!platform_path_is_relative(view_from(bytes, 4)));
+
 	TESTER_CHECK(!platform_path_is_absolute(String{}));
 	TESTER_CHECK(!platform_path_is_absolute(""));
 	TESTER_CHECK(!platform_path_is_absolute("."));
@@ -480,8 +494,14 @@ TESTER_TEST("[PLATFORM] file handle")
 	platform_path_delete_file(filepath);
 	DEFER(platform_path_delete_file(filepath););
 
+	Platform_File_Handle directory = platform_file_open(temp_directory, PLATFORM_FILE_MODE_READ);
+	TESTER_CHECK(platform_file_size(directory) == U64_MAX);
+	if (directory != PLATFORM_FILE_HANDLE_INVALID)
+		platform_file_close(directory);
+
 	Platform_File_Handle file = platform_file_open(filepath, PLATFORM_FILE_MODE_READ);
 	TESTER_CHECK(file == PLATFORM_FILE_HANDLE_INVALID);
+	TESTER_CHECK(platform_file_size(file) == U64_MAX);
 	if (file != PLATFORM_FILE_HANDLE_INVALID)
 		platform_file_close(file);
 
