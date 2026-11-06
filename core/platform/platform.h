@@ -57,6 +57,7 @@ platform_file_seek(Platform_File_Handle handle, I64 offset, Platform_File_Seek_O
 CORE_API U64
 platform_file_tell(Platform_File_Handle handle);
 
+// Returns the size of a regular file, or U64_MAX if the handle cannot supply one.
 CORE_API U64
 platform_file_size(Platform_File_Handle handle);
 
@@ -129,6 +130,39 @@ inline static bool
 platform_path_is_absolute(const char *path)
 {
 	return platform_path_is_absolute(string_literal(path));
+}
+
+// A directory-relative spelling must work independently of the host's root and drive syntax.
+inline static bool
+platform_path_is_relative(String_View path)
+{
+	if (path.count == 0 || path[0] == '/' || path[0] == '\\')
+		return false;
+
+	if (path.count > 1 && path[1] == ':')
+	{
+		char drive = string_to_lowercase(path[0]);
+		if ('a' <= drive && drive <= 'z')
+			return false;
+	}
+
+	for (char c : path)
+		if (c == '\0')
+			return false;
+
+	return true;
+}
+
+inline static bool
+platform_path_is_relative(const String &path)
+{
+	return platform_path_is_relative(view_from(path));
+}
+
+inline static bool
+platform_path_is_relative(const char *path)
+{
+	return platform_path_is_relative(view_from(path));
 }
 
 CORE_API String

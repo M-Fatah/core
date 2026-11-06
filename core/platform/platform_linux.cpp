@@ -1714,27 +1714,32 @@ platform_file_open(const String &path, Platform_File_Mode mode)
 		case PLATFORM_FILE_MODE_APPEND:     flags = O_WRONLY | O_CREAT | O_APPEND; break;
 	}
 	int fd = ::open(path.data, flags, S_IRWXU);
-	return fd == -1 ? PLATFORM_FILE_HANDLE_INVALID : (Platform_File_Handle)(intptr_t)fd;
+	return fd == -1 ? PLATFORM_FILE_HANDLE_INVALID : (Platform_File_Handle)((intptr_t)fd + 1);
 }
 
 void
 platform_file_close(Platform_File_Handle handle)
 {
 	if (handle)
-		::close((int)(intptr_t)handle);
+		::close((int)((intptr_t)handle - 1));
 }
 
 U64
 platform_file_read(Platform_File_Handle handle, void *data, U64 size)
 {
-	ssize_t bytes_read = ::read((int)(intptr_t)handle, data, size);
+	ssize_t bytes_read;
+	do
+	{
+		bytes_read = ::read((int)((intptr_t)handle - 1), data, (size_t)u64_min(size, SSIZE_MAX));
+	} while (bytes_read < 0 && errno == EINTR);
+
 	return bytes_read < 0 ? 0 : (U64)bytes_read;
 }
 
 U64
 platform_file_write(Platform_File_Handle handle, const void *data, U64 size)
 {
-	ssize_t bytes_written = ::write((int)(intptr_t)handle, data, size);
+	ssize_t bytes_written = ::write((int)((intptr_t)handle - 1), data, size);
 	return bytes_written < 0 ? 0 : (U64)bytes_written;
 }
 
@@ -1748,20 +1753,22 @@ platform_file_seek(Platform_File_Handle handle, I64 offset, Platform_File_Seek_O
 		case PLATFORM_FILE_SEEK_ORIGIN_CURRENT: whence = SEEK_CUR; break;
 		case PLATFORM_FILE_SEEK_ORIGIN_END:     whence = SEEK_END; break;
 	}
-	return ::lseek((int)(intptr_t)handle, (off_t)offset, whence) != (off_t)-1;
+	return ::lseek((int)((intptr_t)handle - 1), (off_t)offset, whence) != (off_t)-1;
 }
 
 U64
 platform_file_tell(Platform_File_Handle handle)
 {
-	return (U64)::lseek((int)(intptr_t)handle, 0, SEEK_CUR);
+	return (U64)::lseek((int)((intptr_t)handle - 1), 0, SEEK_CUR);
 }
 
 U64
 platform_file_size(Platform_File_Handle handle)
 {
 	struct stat st = {};
-	::fstat((int)(intptr_t)handle, &st);
+	if (::fstat((int)((intptr_t)handle - 1), &st) != 0 || !S_ISREG(st.st_mode))
+		return U64_MAX;
+
 	return (U64)st.st_size;
 }
 

@@ -1805,8 +1805,9 @@ U64
 platform_file_size(Platform_File_Handle handle)
 {
 	struct stat st = {};
-	if (::fstat(_platform_macos_file_handle_to_fd(handle), &st) != 0)
-		return 0;
+	if (::fstat(_platform_macos_file_handle_to_fd(handle), &st) != 0 || !S_ISREG(st.st_mode))
+		return U64_MAX;
+
 	return (U64)st.st_size;
 }
 

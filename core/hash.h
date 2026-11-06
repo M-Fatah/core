@@ -33,8 +33,10 @@ template <typename T>
 inline static U64
 hash(T *key)
 {
+	//
 	// Mix upper address bits into the low bits used by power-of-two hash tables.
 	// Aligned arena allocations otherwise cluster in the same few buckets.
+	//
 	U64 value = U64(key);
 	value ^= value >> 30;
 	value *= 0xbf58476d1ce4e5b9ULL;

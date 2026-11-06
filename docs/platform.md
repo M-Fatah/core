@@ -58,7 +58,7 @@ if (file != PLATFORM_FILE_HANDLE_INVALID)
 U64 bytes_written = platform_path_write_file("copy.bin", block);
 ```
 
-`platform_path_read_file` owns its returned `String` through the requested allocator and preserves binary bytes, including embedded nulls. `platform_path_write_file` creates or truncates its destination and returns the number of bytes written. Handle-based reads and writes operate on caller-owned memory.
+`platform_path_read_file` owns its returned `String` through the requested allocator and preserves binary bytes, including embedded nulls. `platform_path_write_file` creates or truncates its destination and returns the number of bytes written. Handle-based reads and writes operate on caller-owned memory. `platform_file_size(handle)` returns the size of an open regular file in bytes, including zero for an empty file. It returns `U64_MAX` for an invalid handle, a non-regular file, or a failed query.
 
 On iOS, normal file I/O is subject to the application sandbox. Use paths under the app-data, cache, or temporary directories for writable files. Bundled resources remain separate and must be read through `platform_resource_read`.
 
@@ -153,6 +153,8 @@ String cache = platform_path_get_cache_directory();
 All functions accept both `String` and `const char *`.
 
 `platform_path_is_absolute` checks filesystem path syntax without allocating, accessing the filesystem, or requiring the path to exist. Windows accepts drive-letter paths with a root separator and UNC/device paths; `C:folder` and a single leading separator remain relative to process drive state. POSIX platforms require a leading `/`. Empty paths and opaque Android/iOS document identifiers return false. This query does not validate the rest of the path.
+
+`platform_path_is_relative` checks whether a nonempty filesystem path can be interpreted relative to a supplied directory on any host. A leading slash or backslash, an ASCII drive prefix such as `C:`, or an embedded NUL makes the result false. `.` and `..` components are allowed. The `String_View` overload uses the supplied byte count and accepts unterminated input.
 
 `platform_path_get_absolute` also accepts paths that do not exist yet. On POSIX, it resolves existing components through `realpath`, removes repeated separators and `.` components, and collapses `..` without moving above the filesystem root. An existing symlink ancestor is resolved before processing following components. Missing or inaccessible components remain lexical; this is path normalization, not a check that the result exists or is accessible. Opaque Android content URIs and iOS document tokens retain their provider identity.
 

@@ -2591,6 +2591,9 @@ platform_file_tell(Platform_File_Handle handle)
 U64
 platform_file_size(Platform_File_Handle handle)
 {
+	if (handle == PLATFORM_FILE_HANDLE_INVALID)
+		return U64_MAX;
+
 	Platform_IOS_File *file = (Platform_IOS_File *)handle;
 	__block struct stat file_stat = {};
 	__block I32 result = -1;
@@ -2611,8 +2614,9 @@ platform_file_size(Platform_File_Handle handle)
 			[coordinator release];
 		}
 	}
-	if (result != 0 || file_stat.st_size <= 0)
-		return 0;
+	if (result != 0 || !S_ISREG(file_stat.st_mode))
+		return U64_MAX;
+
 	return (U64)file_stat.st_size;
 }
 
@@ -3002,7 +3006,7 @@ platform_path_read_file(const String &path, memory::Allocator *allocator)
 	DEFER(platform_file_close(file));
 
 	U64 file_size = platform_file_size(file);
-	if (file_size == 0)
+	if (file_size == U64_MAX || file_size == 0)
 		return content;
 
 	string_resize(content, file_size);
