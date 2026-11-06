@@ -1,6 +1,7 @@
 #include <core/tester.h>
 #include <core/atomic.h>
 #include <core/command_line.h>
+#include <core/hash.h>
 #include <core/json.h>
 #include <core/math/f64.h>
 #include <core/base64.h>
@@ -14,6 +15,27 @@
 #include <core/platform/platform.h>
 
 #include <errno.h>
+
+TESTER_TEST("[CORE]: Pointer Hash")
+{
+	I32 values[] = {1, 2};
+	I32 *pointer = values;
+	const I32 *constant = values;
+	volatile I32 *changing = values;
+	U64 result = hash(pointer);
+
+	TESTER_CHECK(hash(pointer) == result);
+	TESTER_CHECK(hash(constant) == result);
+	TESTER_CHECK(hash<const I32>(constant) == result);
+	TESTER_CHECK(hash(changing) == result);
+	TESTER_CHECK(hash((void *)pointer) == result);
+	TESTER_CHECK(hash((const void *)pointer) == result);
+	TESTER_CHECK(hash(pointer + 1) != result);
+	TESTER_CHECK(hash((I32 *)nullptr) == hash((const I32 *)nullptr));
+
+	*pointer = 3;
+	TESTER_CHECK(hash(pointer) == result);
+}
 
 TESTER_TEST("[CORE]: Command Line")
 {

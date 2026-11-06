@@ -10,7 +10,9 @@ Generic hashing used by `Hash_Table` and `Hash_Set`.
 
 All primitive types are covered out of the box: `bool`, `char`, `i8`–`i64`, `u8`–`u64`, `f32`, `f64`, raw pointers.
 
-For strings (`String` / `const char *`) there are also overloads producing content-based hashes.
+The pointer overload hashes the address without reading the pointed-to data. It mixes the address bits so aligned allocations spread across power-of-two table buckets. Mutable and const pointers to the same address produce the same hash. The single `hash(T *)` overload deduces `T` as const for a const pointer; explicitly supplied type arguments must retain that const qualification. Pointer hashes depend on the process address and are not persistent identifiers.
+
+`String` and `String_View` have content-based hash overloads. Raw C string pointers use pointer hashing.
 
 ---
 

@@ -162,9 +162,29 @@ TESTER_TEST("[CONTAINERS]: Array")
 
 		TESTER_CHECK(array.data != nullptr);
 		TESTER_CHECK(array.capacity == 10);
+		I32 *data = array.data;
+		array_reserve(array, 10);
+		TESTER_CHECK(array.data == data);
+		TESTER_CHECK(array.capacity == 10);
+
 		array_reserve(array, 20);
 		TESTER_CHECK(array.data != nullptr);
 		TESTER_CHECK(array.capacity == 30);
+	}
+
+	{
+		Array<I32> array = array_init<I32>();
+		DEFER(array_deinit(array));
+
+		array_reserve(array, 1);
+		I32 *data = array.data;
+		array_push(array, 42);
+		TESTER_CHECK(array.data == data);
+		TESTER_CHECK(array.capacity == 1);
+		TESTER_CHECK(array.count == 1 && array[0] == 42);
+
+		array_push(array, 43);
+		TESTER_CHECK(array.count == 2 && array[0] == 42 && array[1] == 43);
 	}
 
 	// ("push/pop/last")
@@ -528,6 +548,20 @@ TESTER_TEST("[CONTAINERS]: String")
 
 	// ("append")
 	{
+		String s = string_with_capacity(2);
+		DEFER(string_deinit(s));
+
+		char *data = s.data;
+		string_append(s, 'a');
+		TESTER_CHECK(s.data == data);
+		TESTER_CHECK(s.capacity == 2 && s.count == 1);
+		TESTER_CHECK(s == "a" && s.data[s.count] == '\0');
+
+		string_append(s, 'b');
+		TESTER_CHECK(s.capacity > s.count && s.count == 2);
+		TESTER_CHECK(s == "ab" && s.data[s.count] == '\0');
+	}
+	{
 		auto s1 = "Hello, ";
 		auto s2 = "World";
 		auto s3 = string_from("!");
@@ -878,6 +912,51 @@ destroy(Foo &) {}
 
 TESTER_TEST("[CONTAINERS]: Hash_Table")
 {
+	// Regularly spaced arena pointers must not form long probe chains.
+	{
+		memory::Arena_Allocator_Mark mark = memory::temp_allocator_mark();
+		DEFER(memory::temp_allocator_reset_to_mark(mark));
+
+		const U64 count = 256;
+		const U64 strides[] = {16, 64, 4096};
+		const U8 *data = (const U8 *)memory::allocate(memory::temp_allocator(), count * 4096, 4096).data;
+		for (U64 stride : strides)
+		{
+			Hash_Table<const U8 *, U64> table = hash_table_init_with_capacity<const U8 *, U64>(count * 2, memory::temp_allocator());
+			for (U64 i = 0; i < count; ++i)
+				hash_table_insert(table, data + i * stride, i);
+
+			U64 probes = 0;
+			for (U64 i = 0; i < table.capacity; ++i)
+			{
+				const Hash_Table_Slot &slot = table.slots[i];
+				if (slot.flags == HASH_TABLE_SLOT_FLAGS_USED)
+					probes += ((i - slot.hash_value) & (table.capacity - 1)) + 1;
+			}
+			TESTER_CHECK(table.count == count);
+			TESTER_CHECK(probes < count * 8);
+
+			hash_table_reserve(table, table.capacity);
+			for (U64 i = 0; i < count; ++i)
+			{
+				const Hash_Table_Entry<const U8 * const, U64> *entry = hash_table_find(table, data + i * stride);
+				TESTER_CHECK(entry != nullptr && entry->value == i);
+			}
+
+			for (U64 i = 0; i < count; i += 2)
+				hash_table_remove(table, data + i * stride);
+			TESTER_CHECK(table.count == count / 2);
+			for (U64 i = 0; i < count; ++i)
+			{
+				const Hash_Table_Entry<const U8 * const, U64> *entry = hash_table_find(table, data + i * stride);
+				if (i % 2 == 0)
+					TESTER_CHECK(entry == nullptr);
+				else
+					TESTER_CHECK(entry != nullptr && entry->value == i);
+			}
+		}
+	}
+
 	// ("init")
 	{
 		{
