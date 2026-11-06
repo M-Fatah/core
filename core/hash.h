@@ -33,15 +33,16 @@ template <typename T>
 inline static U64
 hash(T *key)
 {
-	return U64(key);
-};
-
-template <typename T>
-inline static U64
-hash(const T *key)
-{
-	return U64(key);
-};
+	// Mix upper address bits into the low bits used by power-of-two hash tables.
+	// Aligned arena allocations otherwise cluster in the same few buckets.
+	U64 value = U64(key);
+	value ^= value >> 30;
+	value *= 0xbf58476d1ce4e5b9ULL;
+	value ^= value >> 27;
+	value *= 0x94d049bb133111ebULL;
+	value ^= value >> 31;
+	return value;
+}
 
 inline static U64
 hash(bool key)

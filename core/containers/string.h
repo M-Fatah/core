@@ -121,7 +121,8 @@ string_clear(String &self)
 inline static void
 string_append(String &self, char c)
 {
-	array_push(self, c);
+	string_reserve(self, 1);
+	self.data[self.count++] = c;
 	self.data[self.count] = '\0';
 }
 

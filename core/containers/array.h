@@ -129,7 +129,7 @@ template <typename T>
 inline static void
 array_reserve(Array<T> &self, U64 added_capacity)
 {
-	if (self.count + added_capacity < self.capacity)
+	if (added_capacity <= self.capacity - self.count)
 		return;
 
 	if (self.allocator == nullptr)
@@ -159,7 +159,7 @@ template <typename T, typename R>
 inline static void
 array_push(Array<T> &self, const R &value)
 {
-	if ((self.count + 1) >= self.capacity)
+	if (self.count == self.capacity)
 		array_reserve(self, self.capacity > 1 ? self.capacity / 2 : 8);
 	self[self.count++] = (T)value;
 }
