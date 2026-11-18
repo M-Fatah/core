@@ -32,6 +32,8 @@ Create an optional cancellation token with `platform_io_cancellation_init()`. An
 
 Cancellation requires exclusive use of that standard stream for the duration of the transfer, including through duplicated descriptors or buffered I/O. POSIX temporarily enables nonblocking mode, waits for either stream readiness or a cancellation pipe, and restores the original flags. Windows cancels the registered synchronous operation and waits for it to finish; it retries cancellation across the race between registering the thread and entering the OS call. Pipe reads/writes are interruptible. Cancellation of regular-file/device operations still depends on the operating system; do not assume a hard real-time deadline for those devices. Cancellation can follow a partial write, so failure does not imply that no bytes reached the consumer.
 
+The `platform_stream_supports_color(void *stream)` query takes a borrowed C output stream (`FILE *`), such as `stdout` or `stderr`, and reports whether it can display ANSI colors. Redirected files and pipes return false. Windows checks the console's virtual terminal processing mode. On POSIX, the stream must be a terminal and `TERM` must differ from `dumb` when set.
+
 ## File I/O
 
 ```cpp
@@ -174,8 +176,10 @@ String moved = platform_path_move(renamed, folder, memory::temp_allocator());
 bool copied = platform_path_copy_file(moved, "level_backup.scene");
 bool deleted = platform_path_delete_file("level_backup.scene");
 
-Array<String> pngs = platform_path_list_files_recursive(folder, "png", memory::temp_allocator());
+Array<String> pngs = platform_path_list_files_recursive(folder, "png", {}, memory::temp_allocator());
 ```
+
+`platform_path_list_files_recursive` accepts an optional third argument, `View<const String_View> excluded_directories`, followed by the result allocator. Each name excludes matching child directories and their descendants before traversal, at any depth. The starting directory is always visited. Names match whole directory components, ignoring ASCII case on Windows and matching case on other platforms, including document providers. The borrowed names need not be null-terminated and remain valid for the call. An empty view preserves ordinary recursive listing.
 
 `platform_path_create_file` and `platform_path_create_directory` create a child inside the supplied directory. `platform_path_rename` keeps the item in its current directory and changes only its name. `platform_path_move` moves the item into the supplied destination directory and keeps the current name. File copy replaces an existing destination; file deletion does not delete directories.
 

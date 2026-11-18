@@ -1083,7 +1083,7 @@ elseif(ANDROID)
         |        }
         |    }
         |
-        |    private void coreContentListFilesAppend(StringBuilder result, Uri directoryUri, String extension, boolean recursive) {
+        |    private void coreContentListFilesAppend(StringBuilder result, Uri directoryUri, String extension, boolean recursive, String[] excludedDirectories) {
         |        Cursor cursor = null;
         |        try {
         |            cursor = getContentResolver().query(coreChildrenUri(directoryUri), new String[] {
@@ -1105,7 +1105,13 @@ elseif(ANDROID)
         |                Uri childUri = DocumentsContract.buildDocumentUriUsingTree(directoryUri, cursor.getString(0));
         |                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mimeType)) {
         |                    if (recursive) {
-        |                        coreContentListFilesAppend(result, childUri, extension, true);
+        |                        boolean excluded = false;
+        |                        for (String name : excludedDirectories) {
+        |                            excluded |= displayName.equals(name);
+        |                        }
+        |                        if (!excluded) {
+        |                            coreContentListFilesAppend(result, childUri, extension, true, excludedDirectories);
+        |                        }
         |                    }
         |                    continue;
         |                }
@@ -1127,10 +1133,10 @@ elseif(ANDROID)
         |        }
         |    }
         |
-        |    private String coreContentListFilesImpl(String uriString, String extension, boolean recursive) {
+        |    private String coreContentListFilesImpl(String uriString, String extension, boolean recursive, String[] excludedDirectories) {
         |        try {
         |            StringBuilder result = new StringBuilder();
-        |            coreContentListFilesAppend(result, Uri.parse(uriString), extension, recursive);
+        |            coreContentListFilesAppend(result, Uri.parse(uriString), extension, recursive, excludedDirectories);
         |            return result.toString();
         |        } catch (Exception ignored) {
         |            return "";
@@ -1138,11 +1144,11 @@ elseif(ANDROID)
         |    }
         |
         |    public String coreContentListFiles(String uriString, String extension) {
-        |        return coreContentListFilesImpl(uriString, extension, false);
+        |        return coreContentListFilesImpl(uriString, extension, false, null);
         |    }
         |
-        |    public String coreContentListFilesRecursive(String uriString, String extension) {
-        |        return coreContentListFilesImpl(uriString, extension, true);
+        |    public String coreContentListFilesRecursive(String uriString, String extension, String[] excludedDirectories) {
+        |        return coreContentListFilesImpl(uriString, extension, true, excludedDirectories);
         |    }
         |
         |    public String coreContentCreateFile(String directoryUriString, String name) {

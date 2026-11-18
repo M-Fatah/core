@@ -2620,6 +2620,13 @@ platform_file_size(Platform_File_Handle handle)
 	return (U64)file_stat.st_size;
 }
 
+bool
+platform_stream_supports_color(void *stream)
+{
+	const char *term = ::getenv("TERM");
+	return ::isatty(::fileno((FILE *)stream)) != 0 && (term == nullptr || ::strcmp(term, "dumb") != 0);
+}
+
 struct Platform_IO_Cancellation
 {
 	I32 descriptors[2];
@@ -3174,7 +3181,7 @@ _platform_ios_document_list_file(Array<String> &files, NSURL *file_url, const St
 }
 
 inline static Array<String>
-_platform_ios_document_list_files(const String &directory, const String &extension_filter, bool recursive, memory::Allocator *allocator)
+_platform_ios_document_list_files(const String &directory, const String &extension_filter, bool recursive, View<const String_View> excluded_directories, memory::Allocator *allocator)
 {
 	Array<String> files = array_init<String>(allocator);
 	Platform_IOS_Document_Access access = {};
@@ -3191,7 +3198,7 @@ _platform_ios_document_list_files(const String &directory, const String &extensi
 		NSError *coordination_error = nil;
 		[coordinator coordinateReadingItemAtURL:access.url options:0 error:&coordination_error byAccessor:^(NSURL *coordinated_url) {
 			NSFileManager *file_manager = [NSFileManager defaultManager];
-			NSArray<NSURLResourceKey> *resource_keys = @[NSURLIsRegularFileKey];
+			NSArray<NSURLResourceKey> *resource_keys = @[NSURLIsRegularFileKey, NSURLIsDirectoryKey];
 			if (!recursive)
 			{
 				NSError *listing_error = nil;
@@ -3216,7 +3223,26 @@ _platform_ios_document_list_files(const String &directory, const String &extensi
 				return;
 
 			for (NSURL *child_url in enumerator)
+			{
+				NSNumber *is_directory = nil;
+				if ([child_url getResourceValue:&is_directory forKey:NSURLIsDirectoryKey error:nil] && [is_directory boolValue])
+				{
+					const char *name = [[child_url lastPathComponent] UTF8String];
+					if (name != nullptr)
+					{
+						for (String_View excluded : excluded_directories)
+						{
+							if (view_from(name) == excluded)
+							{
+								[enumerator skipDescendants];
+								break;
+							}
+						}
+					}
+					continue;
+				}
 				_platform_ios_document_list_file(*files_ref, child_url, *extension_filter_ref, allocator);
+			}
 			succeeded = enumeration_succeeded;
 		}];
 		[coordinator release];
@@ -3238,7 +3264,7 @@ Array<String>
 platform_path_list_files(const String &directory, const String &extension_filter, memory::Allocator *allocator)
 {
 	if (string_starts_with(directory, PLATFORM_IOS_DOCUMENT_TOKEN_PREFIX))
-		return _platform_ios_document_list_files(directory, extension_filter, false, allocator);
+		return _platform_ios_document_list_files(directory, extension_filter, false, {}, allocator);
 
 	Array<String> files = array_init<String>(allocator);
 	if (!platform_path_is_directory(directory))
@@ -3273,7 +3299,7 @@ platform_path_list_files(const String &directory, const String &extension_filter
 }
 
 inline static void
-_platform_ios_path_list_files_recursive(Array<String> &files, const String &directory, const String &extension_filter, memory::Allocator *allocator)
+_platform_ios_path_list_files_recursive(Array<String> &files, const String &directory, const String &extension_filter, View<const String_View> excluded_directories, memory::Allocator *allocator)
 {
 	DIR *dir = ::opendir(directory.data);
 	if (dir == nullptr)
@@ -3297,7 +3323,13 @@ _platform_ios_path_list_files_recursive(Array<String> &files, const String &dire
 		String child_path = _platform_ios_path_join(directory, file_name, memory::temp_allocator());
 		if (_platform_ios_directory_entry_is_directory(entry, child_path))
 		{
-			_platform_ios_path_list_files_recursive(files, child_path, extension_filter, allocator);
+			bool excluded = false;
+			for (String_View name : excluded_directories)
+				excluded |= view_from(file_name) == name;
+
+			if (!excluded)
+				_platform_ios_path_list_files_recursive(files, child_path, extension_filter, excluded_directories, allocator);
+
 			continue;
 		}
 		if (platform_path_is_file(child_path) && _platform_ios_extension_matches(file_name, extension_filter))
@@ -3306,14 +3338,14 @@ _platform_ios_path_list_files_recursive(Array<String> &files, const String &dire
 }
 
 Array<String>
-platform_path_list_files_recursive(const String &directory, const String &extension_filter, memory::Allocator *allocator)
+platform_path_list_files_recursive(const String &directory, const String &extension_filter, View<const String_View> excluded_directories, memory::Allocator *allocator)
 {
 	if (string_starts_with(directory, PLATFORM_IOS_DOCUMENT_TOKEN_PREFIX))
-		return _platform_ios_document_list_files(directory, extension_filter, true, allocator);
+		return _platform_ios_document_list_files(directory, extension_filter, true, excluded_directories, allocator);
 
 	Array<String> files = array_init<String>(allocator);
 	if (platform_path_is_directory(directory))
-		_platform_ios_path_list_files_recursive(files, directory, extension_filter, allocator);
+		_platform_ios_path_list_files_recursive(files, directory, extension_filter, excluded_directories, allocator);
 	return files;
 }
 

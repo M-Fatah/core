@@ -61,6 +61,10 @@ platform_file_tell(Platform_File_Handle handle);
 CORE_API U64
 platform_file_size(Platform_File_Handle handle);
 
+// Pass an open C output stream (FILE *), such as stdout or stderr.
+CORE_API bool
+platform_stream_supports_color(void *stream);
+
 struct Platform_IO_Cancellation;
 
 CORE_API Platform_IO_Cancellation *
@@ -321,24 +325,24 @@ platform_path_list_files(const char *directory, const char *extension_filter, me
 }
 
 CORE_API Array<String>
-platform_path_list_files_recursive(const String &directory, const String &extension_filter, memory::Allocator *allocator = memory::heap_allocator());
+platform_path_list_files_recursive(const String &directory, const String &extension_filter, View<const String_View> excluded_directories = {}, memory::Allocator *allocator = memory::heap_allocator());
 
 inline static Array<String>
-platform_path_list_files_recursive(const String &directory, const char *extension_filter, memory::Allocator *allocator = memory::heap_allocator())
+platform_path_list_files_recursive(const String &directory, const char *extension_filter, View<const String_View> excluded_directories = {}, memory::Allocator *allocator = memory::heap_allocator())
 {
-	return platform_path_list_files_recursive(directory, string_literal(extension_filter), allocator);
+	return platform_path_list_files_recursive(directory, string_literal(extension_filter), excluded_directories, allocator);
 }
 
 inline static Array<String>
-platform_path_list_files_recursive(const char *directory, const String &extension_filter, memory::Allocator *allocator = memory::heap_allocator())
+platform_path_list_files_recursive(const char *directory, const String &extension_filter, View<const String_View> excluded_directories = {}, memory::Allocator *allocator = memory::heap_allocator())
 {
-	return platform_path_list_files_recursive(string_literal(directory), extension_filter, allocator);
+	return platform_path_list_files_recursive(string_literal(directory), extension_filter, excluded_directories, allocator);
 }
 
 inline static Array<String>
-platform_path_list_files_recursive(const char *directory, const char *extension_filter, memory::Allocator *allocator = memory::heap_allocator())
+platform_path_list_files_recursive(const char *directory, const char *extension_filter, View<const String_View> excluded_directories = {}, memory::Allocator *allocator = memory::heap_allocator())
 {
-	return platform_path_list_files_recursive(string_literal(directory), string_literal(extension_filter), allocator);
+	return platform_path_list_files_recursive(string_literal(directory), string_literal(extension_filter), excluded_directories, allocator);
 }
 
 CORE_API String

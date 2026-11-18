@@ -11,6 +11,7 @@
 #include <bcrypt.h>
 #include <DbgHelp.h>
 #include <ShlObj.h>
+#include <io.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -572,6 +573,18 @@ platform_file_size(Platform_File_Handle handle)
 	return (U64)info.EndOfFile.QuadPart;
 }
 
+bool
+platform_stream_supports_color(void *stream)
+{
+	int descriptor = ::_fileno((FILE *)stream);
+	if (descriptor < 0)
+		return false;
+
+	HANDLE handle = (HANDLE)::_get_osfhandle(descriptor);
+	DWORD mode = 0;
+	return ::GetConsoleMode(handle, &mode) && (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0;
+}
+
 struct Platform_IO_Cancellation
 {
 	SRWLOCK mutex;
@@ -768,7 +781,7 @@ platform_path_list_files(const String &directory, const String &extension_filter
 }
 
 inline static void
-_platform_win32_path_list_files_recursive(Array<String> &files, const String &directory, const String &extension_filter, memory::Allocator *allocator)
+_platform_win32_path_list_files_recursive(Array<String> &files, const String &directory, const String &extension_filter, View<const String_View> excluded_directories, memory::Allocator *allocator)
 {
 	String search_path = string_copy(directory, memory::temp_allocator());
 	if (search_path.count > 0 && search_path.data[search_path.count - 1] != '/')
@@ -790,20 +803,36 @@ _platform_win32_path_list_files_recursive(Array<String> &files, const String &di
 		String child_path = _platform_win32_path_join(directory, file_name, memory::temp_allocator());
 		if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 		{
-			_platform_win32_path_list_files_recursive(files, child_path, extension_filter, allocator);
+			bool excluded = false;
+			for (String_View name : excluded_directories)
+			{
+				if (file_name.count != name.count)
+					continue;
+
+				bool equal = true;
+				for (U64 i = 0; i < name.count; ++i)
+					equal &= string_to_lowercase(file_name[i]) == string_to_lowercase(name[i]);
+
+				excluded |= equal;
+			}
+
+			if (!excluded)
+				_platform_win32_path_list_files_recursive(files, child_path, extension_filter, excluded_directories, allocator);
+
 			continue;
 		}
 
 		if (_platform_win32_extension_matches(file_name, extension_filter))
 			array_push(files, string_copy(child_path, allocator));
+
 	} while (::FindNextFile(find_handle, &find_data));
 }
 
 Array<String>
-platform_path_list_files_recursive(const String &directory, const String &extension_filter, memory::Allocator *allocator)
+platform_path_list_files_recursive(const String &directory, const String &extension_filter, View<const String_View> excluded_directories, memory::Allocator *allocator)
 {
 	Array<String> files = array_init<String>(allocator);
-	_platform_win32_path_list_files_recursive(files, directory, extension_filter, allocator);
+	_platform_win32_path_list_files_recursive(files, directory, extension_filter, excluded_directories, allocator);
 	return files;
 }
 

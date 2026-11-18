@@ -343,7 +343,7 @@ _platform_android_jni_bridge_init(Platform_Window_Context *context, ANativeActiv
 	jmethodID content_is_directory_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentIsDirectory", "(Ljava/lang/String;)Z");
 	jmethodID content_display_name_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentDisplayName", "(Ljava/lang/String;)Ljava/lang/String;");
 	jmethodID content_list_files_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentListFiles", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
-	jmethodID content_list_files_recursive_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentListFilesRecursive", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+	jmethodID content_list_files_recursive_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentListFilesRecursive", "(Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;)Ljava/lang/String;");
 	jmethodID content_create_file_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentCreateFile", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
 	jmethodID content_create_directory_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentCreateDirectory", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
 	jmethodID content_rename_method = _platform_android_jni_get_method(env, activity_class_global, "coreContentRename", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
@@ -1961,10 +1961,73 @@ _platform_android_content_list_files(const char *uri, const String &extension_fi
 }
 
 inline static Array<String>
-_platform_android_content_list_files_recursive(const char *uri, const String &extension_filter, memory::Allocator *allocator)
+_platform_android_content_list_files_recursive(const char *uri, const String &extension_filter, View<const String_View> excluded_directories, memory::Allocator *allocator)
 {
+	Array<String> files = array_init<String>(allocator);
 	Platform_Window_Context *context = _platform_android_context_get();
-	return _platform_android_content_list_files_with_method(uri, extension_filter, &context->content_list_files_recursive_method, allocator);
+	bool needs_detach = false;
+	JNIEnv *env = _platform_android_jni_env(context, &needs_detach);
+	if (env == nullptr)
+		return files;
+	DEFER(_platform_android_jni_detach(context, needs_detach));
+
+	jmethodID method = nullptr;
+	jobject activity = _platform_android_activity_ref_get(context, env, &context->content_list_files_recursive_method, &method);
+	if (activity == nullptr)
+		return files;
+	DEFER(env->DeleteLocalRef(activity));
+
+	jstring uri_string = env->NewStringUTF(uri);
+	if (_platform_android_jni_clear_exception(env) || uri_string == nullptr)
+		return files;
+	DEFER(env->DeleteLocalRef(uri_string));
+	jstring extension = env->NewStringUTF(extension_filter.data ? extension_filter.data : "");
+	if (_platform_android_jni_clear_exception(env) || extension == nullptr)
+		return files;
+	DEFER(env->DeleteLocalRef(extension));
+	jclass string_class = env->FindClass("java/lang/String");
+	if (_platform_android_jni_clear_exception(env) || string_class == nullptr)
+		return files;
+	DEFER(env->DeleteLocalRef(string_class));
+	jobjectArray directories = env->NewObjectArray((jsize)excluded_directories.count, string_class, nullptr);
+	if (_platform_android_jni_clear_exception(env) || directories == nullptr)
+		return files;
+	DEFER(env->DeleteLocalRef(directories));
+	for (U64 i = 0; i < excluded_directories.count; ++i)
+	{
+		if (excluded_directories[i].count == 0)
+			continue;
+		String name = string_from(excluded_directories[i].data, excluded_directories[i].data + excluded_directories[i].count, memory::temp_allocator());
+		jstring directory = env->NewStringUTF(name.data);
+		if (_platform_android_jni_clear_exception(env) || directory == nullptr)
+			return files;
+		DEFER(env->DeleteLocalRef(directory));
+		env->SetObjectArrayElement(directories, (jsize)i, directory);
+		if (_platform_android_jni_clear_exception(env))
+			return files;
+	}
+
+	jstring result = (jstring)env->CallObjectMethod(activity, method, uri_string, extension, directories);
+	if (_platform_android_jni_clear_exception(env) || result == nullptr)
+		return files;
+	DEFER(env->DeleteLocalRef(result));
+	const char *data = env->GetStringUTFChars(result, nullptr);
+	if (_platform_android_jni_clear_exception(env) || data == nullptr)
+		return files;
+	DEFER(env->ReleaseStringUTFChars(result, data));
+	const char *begin = data;
+	for (const char *at = data; ; ++at)
+	{
+		if (*at == '\n' || *at == '\0')
+		{
+			if (at != begin)
+				array_push(files, string_from(begin, at, allocator));
+			if (*at == '\0')
+				break;
+			begin = at + 1;
+		}
+	}
+	return files;
 }
 
 inline static String
@@ -2695,7 +2758,7 @@ platform_path_list_files(const String &directory, const String &extension_filter
 }
 
 inline static void
-_platform_android_path_list_files_recursive(Array<String> &files, const String &directory, const String &extension_filter, memory::Allocator *allocator)
+_platform_android_path_list_files_recursive(Array<String> &files, const String &directory, const String &extension_filter, View<const String_View> excluded_directories, memory::Allocator *allocator)
 {
 	DIR *dir = ::opendir(directory.data);
 	if (!dir)
@@ -2712,7 +2775,11 @@ _platform_android_path_list_files_recursive(Array<String> &files, const String &
 		String child_path = _platform_android_path_join(directory, file_name, memory::temp_allocator());
 		if (platform_path_is_directory(child_path))
 		{
-			_platform_android_path_list_files_recursive(files, child_path, extension_filter, allocator);
+			bool excluded = false;
+			for (String_View name : excluded_directories)
+				excluded |= view_from(file_name) == name;
+			if (!excluded)
+				_platform_android_path_list_files_recursive(files, child_path, extension_filter, excluded_directories, allocator);
 			continue;
 		}
 
@@ -2722,15 +2789,15 @@ _platform_android_path_list_files_recursive(Array<String> &files, const String &
 }
 
 Array<String>
-platform_path_list_files_recursive(const String &directory, const String &extension_filter, memory::Allocator *allocator)
+platform_path_list_files_recursive(const String &directory, const String &extension_filter, View<const String_View> excluded_directories, memory::Allocator *allocator)
 {
 	if (_platform_android_is_content_uri(directory.data))
-		return _platform_android_content_list_files_recursive(directory.data, extension_filter, allocator);
+		return _platform_android_content_list_files_recursive(directory.data, extension_filter, excluded_directories, allocator);
 
 	Array<String> files = array_init<String>(allocator);
 	String directory_temp = string_copy(directory, memory::temp_allocator());
 	string_replace(directory_temp, "\\", "/");
-	_platform_android_path_list_files_recursive(files, directory_temp, extension_filter, allocator);
+	_platform_android_path_list_files_recursive(files, directory_temp, extension_filter, excluded_directories, allocator);
 	return files;
 }
 
@@ -3655,6 +3722,13 @@ platform_file_size(Platform_File_Handle handle)
 		return U64_MAX;
 
 	return (U64)st.st_size;
+}
+
+bool
+platform_stream_supports_color(void *stream)
+{
+	const char *term = ::getenv("TERM");
+	return ::isatty(::fileno((FILE *)stream)) != 0 && (term == nullptr || ::strcmp(term, "dumb") != 0);
 }
 
 struct Platform_IO_Cancellation

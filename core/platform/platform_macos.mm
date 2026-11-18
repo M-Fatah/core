@@ -896,7 +896,7 @@ platform_path_list_files(const String &directory, const String &extension_filter
 }
 
 inline static void
-_platform_macos_path_list_files_recursive(Array<String> &files, const String &directory, const String &extension_filter, memory::Allocator *allocator)
+_platform_macos_path_list_files_recursive(Array<String> &files, const String &directory, const String &extension_filter, View<const String_View> excluded_directories, memory::Allocator *allocator)
 {
 	DIR *dir = ::opendir(directory.data);
 	if (!dir)
@@ -913,7 +913,13 @@ _platform_macos_path_list_files_recursive(Array<String> &files, const String &di
 		String child_path = _platform_macos_path_join(directory, file_name, memory::temp_allocator());
 		if (platform_path_is_directory(child_path))
 		{
-			_platform_macos_path_list_files_recursive(files, child_path, extension_filter, allocator);
+			bool excluded = false;
+			for (String_View name : excluded_directories)
+				excluded |= view_from(file_name) == name;
+
+			if (!excluded)
+				_platform_macos_path_list_files_recursive(files, child_path, extension_filter, excluded_directories, allocator);
+
 			continue;
 		}
 
@@ -923,10 +929,10 @@ _platform_macos_path_list_files_recursive(Array<String> &files, const String &di
 }
 
 Array<String>
-platform_path_list_files_recursive(const String &directory, const String &extension_filter, memory::Allocator *allocator)
+platform_path_list_files_recursive(const String &directory, const String &extension_filter, View<const String_View> excluded_directories, memory::Allocator *allocator)
 {
 	Array<String> files = array_init<String>(allocator);
-	_platform_macos_path_list_files_recursive(files, directory, extension_filter, allocator);
+	_platform_macos_path_list_files_recursive(files, directory, extension_filter, excluded_directories, allocator);
 	return files;
 }
 
@@ -1809,6 +1815,13 @@ platform_file_size(Platform_File_Handle handle)
 		return U64_MAX;
 
 	return (U64)st.st_size;
+}
+
+bool
+platform_stream_supports_color(void *stream)
+{
+	const char *term = ::getenv("TERM");
+	return ::isatty(::fileno((FILE *)stream)) != 0 && (term == nullptr || ::strcmp(term, "dumb") != 0);
 }
 
 struct Platform_IO_Cancellation
