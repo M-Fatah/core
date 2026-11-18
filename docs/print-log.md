@@ -20,6 +20,8 @@ print_to(stdout, PRINT_COLOR_FG_GREEN, "OK\n");
 
 ### Colors
 
+Colored writes use ANSI sequences when `platform_stream_supports_color(file)` returns true. Pipes and redirected files receive plain text. Custom callbacks receive the requested color separately from the message.
+
 | Constant | Appearance |
 |---|---|
 | `PRINT_COLOR_DEFAULT` | Terminal default |

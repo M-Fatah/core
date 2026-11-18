@@ -330,7 +330,7 @@ string_contains(const String &self, const String &other, bool case_insensitive =
 
 	if (case_insensitive)
 	{
-		for (U64 i = 0; i < self.count; ++i)
+		for (U64 i = 0; i <= self.count - other.count; ++i)
 		{
 			if (string_to_lowercase(self[i]) != string_to_lowercase(other[0]))
 				continue;
@@ -347,7 +347,7 @@ string_contains(const String &self, const String &other, bool case_insensitive =
 	}
 	else
 	{
-		for (U64 i = 0; i < self.count; ++i)
+		for (U64 i = 0; i <= self.count - other.count; ++i)
 		{
 			if (self[i] != other[0])
 				continue;

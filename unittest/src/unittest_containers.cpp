@@ -674,6 +674,8 @@ TESTER_TEST("[CONTAINERS]: String")
 		TESTER_CHECK(string_contains(s, string_literal("World!")));
 		TESTER_CHECK(string_contains(s, string_literal("hello"), true));
 		TESTER_CHECK(string_contains(s, string_literal("world!"), true));
+		TESTER_CHECK(!string_contains(s, string_literal("World!x")));
+		TESTER_CHECK(!string_contains(s, string_literal("world!x"), true));
 	}
 
 	// ("trim")

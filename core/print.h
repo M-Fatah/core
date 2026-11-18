@@ -2,6 +2,7 @@
 
 #include "core/formatter.h"
 #include "core/containers/string.h"
+#include "core/platform/platform.h"
 
 #include <stdio.h>
 #include <functional>
@@ -60,8 +61,12 @@ print_to(FILE *file, PRINT_COLOR color, const char *fmt, TArgs &&...args)
 			default:                          return "0";
 		}
 	};
+
 	String message = format(fmt, std::forward<TArgs>(args)..., memory::temp_allocator());
-	::fprintf(file, "\033[%sm%s\033[0m", print_color_to_ansi_code(color), message.data);
+	if (color == PRINT_COLOR_DEFAULT || !platform_stream_supports_color(file))
+		::fputs(message.data, file);
+	else
+		::fprintf(file, "\033[%sm%s\033[0m", print_color_to_ansi_code(color), message.data);
 }
 
 template <typename ...TArgs>
