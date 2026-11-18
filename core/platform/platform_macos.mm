@@ -906,7 +906,7 @@ _platform_macos_path_list_files_recursive(Array<String> &files, const String &di
 	struct dirent *entry = nullptr;
 	while ((entry = ::readdir(dir)) != nullptr)
 	{
-		String file_name = string_from(entry->d_name, memory::temp_allocator());
+		const String file_name = string_from(entry->d_name, memory::temp_allocator());
 		if (file_name == "." || file_name == "..")
 			continue;
 

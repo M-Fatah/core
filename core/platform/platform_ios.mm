@@ -3316,7 +3316,7 @@ _platform_ios_path_list_files_recursive(Array<String> &files, const String &dire
 			break;
 		}
 
-		String file_name = string_literal(entry->d_name);
+		const String file_name = string_literal(entry->d_name);
 		if (file_name == "." || file_name == "..")
 			continue;
 
