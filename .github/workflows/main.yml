@@ -144,6 +144,7 @@ jobs:
                 src/android_link_smoke.cpp
             )
             target_link_libraries(core_android_link_smoke PRIVATE core)
+            set_target_properties(core_android_link_smoke PROPERTIES CXX_SCAN_FOR_MODULES OFF)
             CMAKE
             cat > "$smoke_dir/src/android_link_smoke.cpp" <<'CPP'
             #include <core/platform/platform.h>
