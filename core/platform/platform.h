@@ -169,6 +169,22 @@ platform_path_is_relative(const char *path)
 	return platform_path_is_relative(view_from(path));
 }
 
+// Lexically normalizes filesystem paths without resolving them; preserves trailing separators.
+CORE_API String
+platform_path_normalize(String_View path, memory::Allocator *allocator = memory::heap_allocator());
+
+inline static String
+platform_path_normalize(const String &path, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_normalize(view_from(path), allocator);
+}
+
+inline static String
+platform_path_normalize(const char *path, memory::Allocator *allocator = memory::heap_allocator())
+{
+	return platform_path_normalize(view_from(path), allocator);
+}
+
 CORE_API String
 platform_path_get_absolute(const String &path, memory::Allocator *allocator = memory::heap_allocator());
 

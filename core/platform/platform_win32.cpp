@@ -272,6 +272,108 @@ platform_path_is_absolute(const String &path)
 }
 
 String
+platform_path_normalize(String_View path, memory::Allocator *allocator)
+{
+	constexpr auto is_separator = [](char c) -> bool {
+		return c == '/' || c == '\\';
+	};
+
+	constexpr U64 DRIVE_PREFIX_LENGTH = 2;
+	constexpr U64 UNC_PREFIX_LENGTH = 2;
+	constexpr U64 DEVICE_PREFIX_LENGTH = 4;
+	constexpr U32 UNC_ROOT_COMPONENT_COUNT = 2;
+
+	bool unc = path.count >= UNC_PREFIX_LENGTH && is_separator(path[0]) && is_separator(path[1]);
+	// Device namespace paths use literal separators and components.
+	if (unc && path.count >= DEVICE_PREFIX_LENGTH && (path[2] == '?' || path[2] == '.') && is_separator(path[3]))
+		return string_from(path.data, path.data + path.count, allocator);
+
+	String result = string_with_capacity(path.count + 2, allocator);
+	U64 i = 0;
+	if (unc)
+	{
+		string_append(result, "//");
+		i = UNC_PREFIX_LENGTH;
+
+		// Parent components cannot remove the server or share.
+		for (U32 part = 0; part < UNC_ROOT_COMPONENT_COUNT; ++part)
+		{
+			while (i < path.count && is_separator(path[i]))
+				++i;
+			U64 start = i;
+			while (i < path.count && !is_separator(path[i]))
+				++i;
+			if (start == i)
+				break;
+
+			if (part != 0)
+				string_append(result, '/');
+			string_append(result, view_from(path.data + start, i - start));
+		}
+	}
+	else if (path.count >= DRIVE_PREFIX_LENGTH && path[1] == ':')
+	{
+		char drive = string_to_lowercase(path[0]);
+		if (drive >= 'a' && drive <= 'z')
+		{
+			string_append(result, view_from(path.data, DRIVE_PREFIX_LENGTH));
+			i = DRIVE_PREFIX_LENGTH;
+		}
+	}
+
+	bool rooted = unc;
+	if (i < path.count && is_separator(path[i]))
+	{
+		string_append(result, '/');
+		rooted = true;
+	}
+	U64 root = result.count;
+
+	while (i < path.count)
+	{
+		while (i < path.count && is_separator(path[i]))
+			++i;
+		U64 start = i;
+		while (i < path.count && !is_separator(path[i]))
+			++i;
+		if (start == i)
+			break;
+
+		String_View component = view_from(path.data + start, i - start);
+		if (component == ".")
+			continue;
+		if (component == "..")
+		{
+			if (result.count > root)
+			{
+				U64 previous_start = result.count;
+				while (previous_start > root && result[previous_start - 1] != '/')
+					--previous_start;
+
+				String_View previous = view_from<const char>(result.data + previous_start, result.count - previous_start);
+				if (previous != "..")
+				{
+					string_resize(result, previous_start == root ? root : previous_start - 1);
+					continue;
+				}
+			}
+			if (rooted)
+				continue;
+		}
+
+		if (result.count > root)
+			string_append(result, '/');
+		string_append(result, component);
+	}
+
+	if (result.count == root && !rooted)
+		string_append(result, '.');
+	if (path.count != 0 && is_separator(path[path.count - 1]) && result[result.count - 1] != '/')
+		string_append(result, '/');
+	return result;
+}
+
+String
 platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 {
 	DWORD required_length = ::GetFullPathName(path.data, 0, nullptr, nullptr);
