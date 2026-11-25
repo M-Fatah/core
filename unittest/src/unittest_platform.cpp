@@ -284,6 +284,58 @@ TESTER_TEST("[PLATFORM] condition variable broadcast")
 	platform_mutex_deinit(mutex);
 }
 
+TESTER_TEST("[PLATFORM] path normalization")
+{
+	memory::Arena_Allocator_Mark mark = memory::temp_allocator_mark();
+	DEFER(memory::temp_allocator_reset_to_mark(mark));
+
+	TESTER_CHECK(platform_path_normalize("", memory::temp_allocator()) == ".");
+	TESTER_CHECK(platform_path_normalize(String{}, memory::temp_allocator()) == ".");
+	TESTER_CHECK(platform_path_normalize(".", memory::temp_allocator()) == ".");
+	TESTER_CHECK(platform_path_normalize("./", memory::temp_allocator()) == "./");
+	TESTER_CHECK(platform_path_normalize("./local", memory::temp_allocator()) == "local");
+	TESTER_CHECK(platform_path_normalize("./local//", memory::temp_allocator()) == "local/");
+	TESTER_CHECK(platform_path_normalize("./local/./", memory::temp_allocator()) == "local/");
+	TESTER_CHECK(platform_path_normalize("local/.", memory::temp_allocator()) == "local");
+	TESTER_CHECK(platform_path_normalize("local/../", memory::temp_allocator()) == "./");
+	TESTER_CHECK(platform_path_normalize("local/..", memory::temp_allocator()) == ".");
+	TESTER_CHECK(platform_path_normalize("../local/../../shared/", memory::temp_allocator()) == "../../shared/");
+	TESTER_CHECK(platform_path_normalize("a/b/../../c/../d", memory::temp_allocator()) == "d");
+	TESTER_CHECK(platform_path_normalize("a/.../..", memory::temp_allocator()) == "a");
+	TESTER_CHECK(platform_path_normalize("/", memory::temp_allocator()) == "/");
+	TESTER_CHECK(platform_path_normalize("/../../local//./", memory::temp_allocator()) == "/local/");
+	TESTER_CHECK(platform_path_normalize("/local/../../", memory::temp_allocator()) == "/");
+	TESTER_CHECK(platform_path_normalize("missing/../new/file.mpl", memory::temp_allocator()) == "new/file.mpl");
+
+	const char bytes[] = {'a', '/', '.', '/', 'b', '/', 'x'};
+	String normalized = platform_path_normalize(view_from(bytes, 6));
+	DEFER(string_deinit(normalized));
+	TESTER_CHECK(normalized == "a/b/");
+	TESTER_CHECK(normalized.data[normalized.count] == '\0');
+	TESTER_CHECK(normalized.allocator == memory::heap_allocator());
+	TESTER_CHECK(bytes[2] == '.' && bytes[6] == 'x');
+
+	#if PLATFORM_WINDOWS
+		TESTER_CHECK(platform_path_normalize("D:/project/./modules/../shared/", memory::temp_allocator()) == "D:/project/shared/");
+		TESTER_CHECK(platform_path_normalize("C:\\local\\..\\shared\\", memory::temp_allocator()) == "C:/shared/");
+		TESTER_CHECK(platform_path_normalize("C:/../../", memory::temp_allocator()) == "C:/");
+		TESTER_CHECK(platform_path_normalize("C:local/../../shared", memory::temp_allocator()) == "C:../shared");
+		TESTER_CHECK(platform_path_normalize("C:local/..", memory::temp_allocator()) == "C:.");
+		TESTER_CHECK(platform_path_normalize("\\local\\..\\shared", memory::temp_allocator()) == "/shared");
+		TESTER_CHECK(platform_path_normalize("\\\\server\\share\\local\\..\\..\\shared\\", memory::temp_allocator()) == "//server/share/shared/");
+		TESTER_CHECK(platform_path_normalize("//server/share", memory::temp_allocator()) == "//server/share");
+		TESTER_CHECK(platform_path_normalize("//server/share/", memory::temp_allocator()) == "//server/share/");
+		TESTER_CHECK(platform_path_normalize("//server/share/../", memory::temp_allocator()) == "//server/share/");
+		TESTER_CHECK(platform_path_normalize("\\\\?\\C:\\local\\..\\", memory::temp_allocator()) == "\\\\?\\C:\\local\\..\\");
+		TESTER_CHECK(platform_path_normalize("\\\\.\\pipe\\local", memory::temp_allocator()) == "\\\\.\\pipe\\local");
+	#else
+		TESTER_CHECK(platform_path_normalize("//local/../shared/", memory::temp_allocator()) == "//shared/");
+		TESTER_CHECK(platform_path_normalize("///local/", memory::temp_allocator()) == "/local/");
+		TESTER_CHECK(platform_path_normalize("C:local/../shared", memory::temp_allocator()) == "shared");
+		TESTER_CHECK(platform_path_normalize("local\\name/../shared\\", memory::temp_allocator()) == "shared\\");
+	#endif
+}
+
 TESTER_TEST("[PLATFORM] path utilities")
 {
 	TESTER_CHECK(!platform_path_is_relative(String{}));

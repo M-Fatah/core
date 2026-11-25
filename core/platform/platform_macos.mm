@@ -576,6 +576,63 @@ platform_path_is_absolute(const String &path)
 }
 
 String
+platform_path_normalize(String_View path, memory::Allocator *allocator)
+{
+	String result = string_with_capacity(u64_max(path.count, 1) + 1, allocator);
+	U64 i = 0;
+	while (i < path.count && path[i] == '/')
+		++i;
+
+	// Exactly two leading slashes can identify a distinct POSIX root.
+	if (i != 0)
+		string_append(result, i == 2 ? "//" : "/");
+	U64 root = result.count;
+
+	while (i < path.count)
+	{
+		while (i < path.count && path[i] == '/')
+			++i;
+		U64 start = i;
+		while (i < path.count && path[i] != '/')
+			++i;
+		if (start == i)
+			break;
+
+		String_View component = view_from(path.data + start, i - start);
+		if (component == ".")
+			continue;
+		if (component == "..")
+		{
+			if (result.count > root)
+			{
+				U64 previous_start = result.count;
+				while (previous_start > root && result[previous_start - 1] != '/')
+					--previous_start;
+
+				String_View previous = view_from<const char>(result.data + previous_start, result.count - previous_start);
+				if (previous != "..")
+				{
+					string_resize(result, previous_start == root ? root : previous_start - 1);
+					continue;
+				}
+			}
+			if (root != 0)
+				continue;
+		}
+
+		if (result.count > root)
+			string_append(result, '/');
+		string_append(result, component);
+	}
+
+	if (result.count == 0)
+		string_append(result, '.');
+	if (path.count != 0 && path[path.count - 1] == '/' && result[result.count - 1] != '/')
+		string_append(result, '/');
+	return result;
+}
+
+String
 platform_path_get_absolute(const String &path, memory::Allocator *allocator)
 {
 	char buffer[PATH_MAX] = {};
